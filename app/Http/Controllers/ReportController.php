@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffReportAccess;
+use App\Commands\Attendance\InvalidAttendanceMarkException;
 use App\Commands\WeeklyReports\InvalidPlatoonTrainingTopicException;
 use App\Commands\WeeklyReports\InvalidReportContentException;
+use App\Commands\WeeklyReports\MakeupChecksIncompleteException;
 use App\Commands\WeeklyReports\SaveReportDraft;
 use App\Commands\WeeklyReports\SaveReportDraftHandler;
 use App\Commands\WeeklyReports\SendWeeklyReport;
@@ -260,7 +262,13 @@ class ReportController extends Controller
     {
         $unit = $this->unitInScope($request, $unit);
         $weekStart = $this->writableWeekStart($week);
-        $data = $request->validate([...$this->contentRules(), 'reason' => ['required', 'string', 'max:1000']], [
+        $data = $request->validate([
+            ...$this->contentRules(),
+            'reason' => ['required', 'string', 'max:1000'],
+            'makeup_checks' => ['nullable', 'array', 'max:200'],
+            'makeup_checks.*.trooper_id' => ['required', 'integer'],
+            'makeup_checks.*.done' => ['required', 'boolean'],
+        ], [
             ...self::CONTENT_MESSAGES,
             'reason.required' => 'Give a reason for the record before you send the report.',
             'reason.max' => 'Keep the reason to :max characters.',
@@ -273,6 +281,7 @@ class ReportController extends Controller
             $data['notes'] ?? null,
             $data['training_subject'] ?? null,
             $data['unaccounted'] ?? [],
+            array_map(fn (array $check) => ['trooper_id' => (int) $check['trooper_id'], 'done' => (bool) $check['done']], $data['makeup_checks'] ?? []),
         )));
 
         // Already frozen (an earlier or concurrent send): the snapshot stands as it was, so the
@@ -349,6 +358,9 @@ class ReportController extends Controller
         } catch (InvalidReportContentException) {
             // Most often a trooper moved out of the section since the page loaded.
             throw ValidationException::withMessages(['unaccounted' => 'A trooper you gave a reason for is no longer in this section, or the reason is not one of the listed ones. Reload the page to update the roster.']);
+        } catch (MakeupChecksIncompleteException|InvalidAttendanceMarkException) {
+            // Someone asked for a make-up, or had one recorded, since the page loaded.
+            throw ValidationException::withMessages(['makeup_checks' => 'The list of troopers who still owe a make-up has changed. Reload the page and answer for each one again.']);
         } catch (TrainingSubjectEnforcedException) {
             // The platoon leader locked the topic after this page loaded.
             throw ValidationException::withMessages(['training_subject' => "Your platoon set this week's training topic and locked it, so it cannot be changed here. Reload the page to see it."]);
@@ -440,6 +452,8 @@ class ReportController extends Controller
             'notes' => $report?->notes,
             'trainingSubject' => $report?->training_subject,
             'unaccounted' => $report?->unaccounted ?? [],
+            // A sent section report's answers on owed make-ups (`[{trooper_id, done}]`), null when none was asked.
+            'makeupChecks' => $report?->makeup_checks,
             'savedAt' => $report?->updated_at?->toIso8601String(),
             'sentAt' => $report?->sent_at?->toIso8601String(),
             'sentBy' => $report?->sent_by === null ? null : $this->sentBy($report, $senders),
@@ -587,7 +601,9 @@ class ReportController extends Controller
         // A first week after a transfer or joining is excused automatically (2026-10-30): accounted, like leave.
         $excused = $this->autoExcused->forTroopers($roster->pluck('id')->all(), $weekStart);
 
-        return $roster->map(function (Trooper $trooper) use ($marks, $kpis, $excused) {
+        $week = $weekStart->toDateString();
+
+        return $roster->map(function (Trooper $trooper) use ($marks, $kpis, $excused, $week) {
             /** @var CountingMark|null $mark */
             $mark = $marks->get($trooper->id);
             /** @var TrooperAttendance|null $reading */
@@ -606,6 +622,8 @@ class ReportController extends Controller
                 'onLoa' => $reading->onLoa ?? false,
                 // `recruit` or `transfer` when the week is excused automatically, else null.
                 'excused' => $excused[$trooper->id] ?? null,
+                // Asked for a make-up on this week's roll call and none recorded: the send asks whether they made it up.
+                'owesMakeup' => in_array($week, $reading->makeupOwedWeeks ?? [], true),
             ];
         })->values()->all();
     }

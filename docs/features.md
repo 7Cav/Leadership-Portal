@@ -136,6 +136,11 @@ On the same page:
 - Owes a make-up: a trooper signed Make-up requested shows "Owes a make-up" on their card, in the review step's
   "Owes a make-up" list (with the window weeks still owed) and on Home's Needs attention, until a Make-up complete is
   recorded for that week, from a guest entry or by hand. Attended, Excused or LOA for the week settle it too.
+  Section staff and up (the section's leader and every command above it) can set Make-up complete. If a trooper still
+  owes the week's make-up when the section's report is sent, the send dialog lists them under "Make-ups still owed" and
+  will not send until the leader answers "Made it up" or "Did not" for each. "Made it up" records Make-up complete
+  (an audited mark, in the sender's name) before the numbers freeze; "Did not" leaves the mark. The answers are frozen
+  with the report and shown on it as "Make-ups checked at send".
 - Capture review: when game-server data was captured for the practice, marks it made show their source, and the leader
   can confirm the practice ("Confirmed by ..."). Editing a mark by hand afterwards clears the confirmation.
 - Unmatched players: players the capture saw that no trooper is linked to. Link one to a trooper (this also saves their

@@ -267,6 +267,49 @@ describe('Reports/Show', () => {
         );
     });
 
+    it('asks, before sending, whether each trooper who still owes a make-up made it up, and sends the answers', async () => {
+        const owing = props().troopers.map((t) => ({ ...t, owesMakeup: t.id === 2 }));
+        const wrapper = mountShow({ troopers: owing });
+
+        await wrapper.get('[data-testid="send-anyway"]').trigger('click');
+        await flushPromises();
+        const checks = document.querySelector('[data-testid="makeup-checks"]');
+        expect(checks.textContent).toContain('Make-ups still owed');
+        expect(checks.textContent).toContain('PFC Okafor.T');
+        expect(checks.textContent).not.toContain('SGT Vasquez.R');
+        // Send waits for an answer.
+        expect(document.querySelector('[data-testid="send-confirm"]').disabled).toBe(true);
+        expect(document.querySelector('[data-testid="makeup-unanswered"]').textContent).toContain('one more trooper');
+
+        document.querySelector('[data-makeup-trooper="2"] [data-done="false"]').click();
+        await flushPromises();
+        expect(document.querySelector('[data-makeup-trooper="2"] [data-done="false"]').getAttribute('aria-pressed')).toBe('true');
+        expect(document.querySelector('[data-testid="send-confirm"]').disabled).toBe(false);
+
+        document.querySelector('[data-testid="send-confirm"]').click();
+        expect(post.mock.calls[0][1].makeup_checks).toEqual([{ trooper_id: 2, done: false }]);
+    });
+
+    it('asks nothing about make-ups when nobody owes one', async () => {
+        const wrapper = mountShow();
+
+        await wrapper.get('[data-testid="send-anyway"]').trigger('click');
+        await flushPromises();
+        expect(document.querySelector('[data-testid="makeup-checks"]')).toBeNull();
+
+        document.querySelector('[data-testid="send-confirm"]').click();
+        expect(post.mock.calls[0][1].makeup_checks).toEqual([]);
+    });
+
+    it('shows a sent report's make-up answers', () => {
+        const wrapper = mountShow({
+            report: { status: 'sent', notes: '', trainingSubject: '', unaccounted: [], makeupChecks: [{ trooper_id: 2, done: true }], savedAt: null, sentAt: '2026-10-09T10:00:00+00:00', sentBy: 'SGT Vasquez.R' },
+            troopers: null,
+        });
+
+        expect(wrapper.get('[data-testid="makeup-checks-sent"]').text()).toContain('PFC Okafor.T, made it up');
+    });
+
     it('cancelling the overview changes nothing', async () => {
         const wrapper = mountShow();
 

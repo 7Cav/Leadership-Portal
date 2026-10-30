@@ -163,7 +163,7 @@ for any other company or section by URL answers 403. The editing controls show o
 
 | Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Mark signatures and SP attendance (incl. Mark all attended, Excused and Make-up requested) | All | All | No | Own | Own | Own | Own | Own | No | No | No |
+| Mark signatures and SP attendance (incl. Mark all attended, Excused, Make-up requested and Make-up complete) | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Confirm practice | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Mark roll call posted | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Capture "Try again" | All | All | No | Own | Own | Own | Own | Own | No | No | No |
@@ -207,7 +207,7 @@ they move with it and are not copied. Fireteam settings, labels, unit games and 
 | Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Save a report draft | All | All | No | Own | Own | Own | Own | Own | No | No | No |
-| Send (freeze) a report, incl. "Send anyway" | All | All | No | Own | Own | Own | Own | Own | No | No | No |
+| Send (freeze) a report, incl. "Send anyway" and answering "Make-ups still owed" (a "Made it up" marks Make-up complete) | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Set or clear the platoon training topic | All | All | No | Own | Own | Own | Own (if it covers the platoon) | No | No | No | No |
 | Read a platoon's monthly training plan | All | All | No | Own | Own | Own | Own | No | No | Read | Target |
 | Write a platoon's monthly training plan | All | All | No | Own | Own | Own | Own (if it covers the platoon) | No | No | No | No |

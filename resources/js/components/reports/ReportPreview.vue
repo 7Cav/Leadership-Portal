@@ -197,6 +197,16 @@ const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id ===
                 </ul>
             </div>
 
+            <div v-if="sent && unit.isLeaf && content.makeupChecks?.length" class="border-t border-border px-5 py-4" data-testid="makeup-checks-sent">
+                <h3 class="mb-1.5 text-[13px] font-semibold">Make-ups checked at send</h3>
+                <ul class="space-y-1 text-[13px]">
+                    <li v-for="row in content.makeupChecks" :key="row.trooper_id">
+                        <span class="font-medium">{{ names[row.trooper_id] ?? 'A trooper no longer in the section' }}</span>
+                        <span class="text-muted-foreground">, {{ row.done ? 'made it up' : 'did not make it up' }}</span>
+                    </li>
+                </ul>
+            </div>
+
             <div v-if="children" class="border-t border-border px-5 py-4">
                 <h3 class="mb-1 text-[13px] font-semibold">Units</h3>
                 <div class="overflow-x-auto">
