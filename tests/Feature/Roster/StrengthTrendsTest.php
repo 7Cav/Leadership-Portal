@@ -104,7 +104,8 @@ it('shows the children headcounts for comparison', function () {
 });
 
 it('refuses a unit outside the viewer scope', function () {
-    $this->actingAs(User::factory()->create())->get("/roster/{$this->platoon->id}/strength")->assertForbidden();
+    // A serving Section Leader of 2nd Section reads their own section, not the platoon above it.
+    $this->actingAs(User::factory()->commanding($this->section2)->create())->get("/roster/{$this->platoon->id}/strength")->assertForbidden();
     $this->actingAs($this->admin)->get('/roster/999999/strength')->assertForbidden();
 });
 
