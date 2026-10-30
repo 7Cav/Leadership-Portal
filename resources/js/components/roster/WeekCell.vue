@@ -79,7 +79,8 @@ defineProps({
     background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--muted-foreground) 55%, transparent) 0 1.5px, transparent 1.5px 4.5px);
     box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--muted-foreground) 35%, transparent);
 }
-.roster-h--out {
+.roster-h--out,
+.roster-h--none {
     background: linear-gradient(var(--border), var(--border)) center / 0.5rem 1px no-repeat;
 }
 .roster-cc--auto::after {
