@@ -67,7 +67,7 @@ const weekUrl = (date) => `/staff-reports?week=${date}`;
                 <Button v-else variant="ghost" size="icon-sm" disabled aria-label="Next week, not open yet"><PhCaretRight /></Button>
             </nav>
             <p class="w-full text-xs text-muted-foreground sm:ml-auto sm:w-auto sm:text-right" data-testid="due-line">
-                <template v-if="week.ended">Due {{ stamp(week.due) }}Z</template>
+                <template v-if="week.ended">Due {{ stamp(week.due) }}</template>
                 <template v-else>Sent once the week ends</template>
             </p>
         </section>

@@ -209,9 +209,9 @@ const segmentOff = 'text-muted-foreground hover:text-foreground';
                 <Button v-else variant="ghost" size="icon-sm" disabled aria-label="Next week, not open yet"><PhCaretRight /></Button>
             </nav>
             <div v-if="hq" class="w-full sm:ml-auto sm:w-auto sm:text-right">
-                <p v-if="report" class="text-[13px] font-medium" data-testid="sent-line">Sent {{ stamp(report.sentAt) }}Z</p>
+                <p v-if="report" class="text-[13px] font-medium" data-testid="sent-line">Sent {{ stamp(report.sentAt) }}</p>
                 <p v-else class="text-[13px]" data-testid="due-line">
-                    <span class="text-muted-foreground">Due</span> <span class="font-medium tabular-nums">{{ stamp(week.due) }}Z</span>
+                    <span class="text-muted-foreground">Due</span> <span class="font-medium tabular-nums">{{ stamp(week.due) }}</span>
                 </p>
                 <p class="text-xs text-muted-foreground">{{ forumDate(week.date) }} to {{ forumDate(weekEnd) }}</p>
             </div>
@@ -246,7 +246,7 @@ const segmentOff = 'text-muted-foreground hover:text-foreground';
                         <StaffReportDiscrepancy :discrepancy="discrepancy" />
                     </h2>
                     <p class="mt-0.5 text-xs text-muted-foreground">
-                        Sent {{ stamp(report.sentAt) }}Z. A sent staff report is final.
+                        Sent {{ stamp(report.sentAt) }}. A sent staff report is final.
                         <span v-if="sheetLine" data-testid="staff-report-sheet">{{ sheetLine }}.</span>
                     </p>
                 </div>
@@ -447,7 +447,7 @@ const segmentOff = 'text-muted-foreground hover:text-foreground';
         <Card v-else class="py-10" data-testid="staff-report-unsent">
             <EmptyState :icon="PhUserCheck" title="Not sent yet">
                 <template v-if="week.beforeFloor">This week is too far back to send.</template>
-                <template v-else-if="self && week.ended === false">You can send it from {{ stamp(week.opensAt) }}Z, once the week ends.</template>
+                <template v-else-if="self && week.ended === false">You can send it from {{ stamp(week.opensAt) }}, once the week ends.</template>
                 <template v-else-if="self">You can no longer send this staff report.</template>
                 <template v-else>Only {{ trooper.displayName }} can send their staff report.</template>
             </EmptyState>
