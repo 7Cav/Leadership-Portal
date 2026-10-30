@@ -150,7 +150,7 @@ it('sets the form\'s appeal answer on an LOR made from the form, and leaves the 
     $this->actingAs($this->self)->post(route('counseling.appeal', $this->lor->id), ['statement' => 'It was a misunderstanding.'])->assertRedirect();
 
     expect($this->lor->fresh())
-        ->form_data->toBe(['infraction' => 'Disrespect.', 'appeal' => 'do'])
+        ->form_data->toEqual(['infraction' => 'Disrespect.', 'appeal' => 'do'])
         ->appeal_statement->toBe('It was a misunderstanding.');
     expect(AuditLogEntry::query()->where('action', 'counseling.appealed')->sole()->target_id)->toBe((string) $this->lor->id);
 });
