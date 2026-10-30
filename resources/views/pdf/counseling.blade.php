@@ -13,6 +13,10 @@
     $box = fn (bool $on) => $on ? '&#9746;' : '&#9744;';
     $radio = fn (bool $on) => $on ? '&#9673;' : '&#9675;';
     $picked = fn (string $c) => in_array($c, $form['consequences'] ?? [], true);
+    // Long answers as several rows, so a page can break between them (dompdf cannot split one row).
+    $rows = fn (array $columns, int $width) => \App\Commands\Counseling\CounselingFormRows::rows($columns, $width);
+    $wide = \App\Commands\Counseling\CounselingFormRows::WIDE;
+    $narrow = \App\Commands\Counseling\CounselingFormRows::NARROW;
     $authorityLabel = $lor ? 'Disciplining Authority' : 'Counselling Authority';
 @endphp
 <!DOCTYPE html>
@@ -28,7 +32,7 @@
     /* Over more than one page: the header rows repeat, a long answer breaks between its lines, short rows stay whole. */
     thead { display: table-header-group; }
     tr { page-break-inside: avoid; }
-    tr.long { page-break-inside: auto; }
+    tr.cont td { border-top: 0; }
     td { orphans: 3; widows: 3; }
     .keep { page-break-after: avoid; }
     table.section { margin-top: -0.6pt; }
@@ -74,18 +78,24 @@
     </tr>
 
     <tr class="keep"><td class="b">Section 2</td><td colspan="3"></td></tr>
-    <tr class="long">
-        <td class="i tall">Evidenced infraction and associated details / Previous instances and counsellings</td>
-        <td colspan="3" data-field="infraction">{!! $text($form['infraction'] ?? '') !!}</td>
-    </tr>
-    <tr class="long">
-        <td class="i tall">Associated regulation / order / SOP</td>
-        <td colspan="3" data-field="regulation">{!! $text($form['regulation'] ?? '') !!}</td>
-    </tr>
-    <tr class="long">
-        <td class="i tall">Notes of discussion</td>
-        <td colspan="3" data-field="discussion">{!! $text($form['discussion'] ?? '') !!}</td>
-    </tr>
+    @foreach ($rows([$form['infraction'] ?? ''], $wide) as $i => $row)
+        <tr @class(['cont' => $i > 0])>
+            <td @class(['i', 'tall' => $loop->count === 1])>{{ $i === 0 ? 'Evidenced infraction and associated details / Previous instances and counsellings' : '' }}</td>
+            <td colspan="3" @if ($i === 0) data-field="infraction" @endif>{!! $text($row[0]) !!}</td>
+        </tr>
+    @endforeach
+    @foreach ($rows([$form['regulation'] ?? ''], $wide) as $i => $row)
+        <tr @class(['cont' => $i > 0])>
+            <td @class(['i', 'tall' => $loop->count === 1])>{{ $i === 0 ? 'Associated regulation / order / SOP' : '' }}</td>
+            <td colspan="3" @if ($i === 0) data-field="regulation" @endif>{!! $text($row[0]) !!}</td>
+        </tr>
+    @endforeach
+    @foreach ($rows([$form['discussion'] ?? ''], $wide) as $i => $row)
+        <tr @class(['cont' => $i > 0])>
+            <td @class(['i', 'tall' => $loop->count === 1])>{{ $i === 0 ? 'Notes of discussion' : '' }}</td>
+            <td colspan="3" @if ($i === 0) data-field="discussion" @endif>{!! $text($row[0]) !!}</td>
+        </tr>
+    @endforeach
     </tbody>
 </table>
 {{-- Its own table, so its column headings repeat on every page the plan and comments run over. --}}
@@ -95,18 +105,22 @@
         <tr><td class="i">Agreed plan of action</td><td>Counselling Authority</td><td>Trooper</td><td>Misc / Others</td></tr>
     </thead>
     <tbody>
-    <tr class="long">
-        <td class="plan"></td>
-        <td class="plan" data-field="plan-authority">{!! $text($form['plan_authority'] ?? '') !!}</td>
-        <td class="plan">{!! $text($form['plan_trooper'] ?? '') !!}</td>
-        <td class="plan">{!! $text($form['plan_other'] ?? '') !!}</td>
-    </tr>
-    <tr class="long">
-        <td class="i comments">Any comments</td>
-        <td>{!! $text($form['comments_authority'] ?? '') !!}</td>
-        <td>{!! $text($form['comments_trooper'] ?? '') !!}</td>
-        <td>{!! $text($form['comments_other'] ?? '') !!}</td>
-    </tr>
+    @foreach ($rows([$form['plan_authority'] ?? '', $form['plan_trooper'] ?? '', $form['plan_other'] ?? ''], $narrow) as $i => $row)
+        <tr @class(['cont' => $i > 0])>
+            <td @class(['plan' => $loop->count === 1])></td>
+            <td @class(['plan' => $loop->count === 1]) @if ($i === 0) data-field="plan-authority" @endif>{!! $text($row[0]) !!}</td>
+            <td @class(['plan' => $loop->count === 1])>{!! $text($row[1]) !!}</td>
+            <td @class(['plan' => $loop->count === 1])>{!! $text($row[2]) !!}</td>
+        </tr>
+    @endforeach
+    @foreach ($rows([$form['comments_authority'] ?? '', $form['comments_trooper'] ?? '', $form['comments_other'] ?? ''], $narrow) as $i => $row)
+        <tr @class(['cont' => $i > 0])>
+            <td @class(['i', 'comments' => $loop->count === 1])>{{ $i === 0 ? 'Any comments' : '' }}</td>
+            <td>{!! $text($row[0]) !!}</td>
+            <td>{!! $text($row[1]) !!}</td>
+            <td>{!! $text($row[2]) !!}</td>
+        </tr>
+    @endforeach
     </tbody>
 </table>
 <table class="section">
@@ -125,10 +139,12 @@
                 <span class="sym">{!! $box($picked('special_punishment')) !!}</span> Any special punishment directed by a General Staff Officer (<span class="i">to follow</span>)
             </td>
         </tr>
-        <tr class="long">
-            <td class="i comments">Special punishments ordered</td>
-            <td colspan="3" data-field="special-punishments">{!! $text($form['special_punishments'] ?? '') !!}</td>
-        </tr>
+        @foreach ($rows([$form['special_punishments'] ?? ''], $wide) as $i => $row)
+            <tr @class(['cont' => $i > 0])>
+                <td @class(['i', 'comments' => $loop->count === 1])>{{ $i === 0 ? 'Special punishments ordered' : '' }}</td>
+                <td colspan="3" @if ($i === 0) data-field="special-punishments" @endif>{!! $text($row[0]) !!}</td>
+            </tr>
+        @endforeach
         <tr>
             <td class="i">Right to Appeal</td>
             <td colspan="3" data-field="appeal">
