@@ -30,7 +30,9 @@ class TrooperFactory extends Factory
             'rank_short' => $rankShort,
             'billet' => fake()->randomElement(['Rifleman', 'Grenadier', 'Automatic Rifleman', 'Combat Medic']),
             'mos' => fake()->bothify('##?'),
-            'tis' => fake()->date(),
+            // Joined years before any week a test reads: a join date inside the KPI window excuses that week
+            // automatically (`Kpi\AutoExcused`), so a test that wants a recruit sets `tis` itself.
+            'tis' => fake()->dateTimeBetween('2000-01-01', '2019-12-31')->format('Y-m-d'),
             'tig' => fake()->date(),
             'status' => TrooperStatus::Combat,
         ];
