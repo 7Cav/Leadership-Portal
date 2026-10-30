@@ -12,6 +12,10 @@ use DateTimeImmutable;
  *     - One change, one line.
  *       Indented lines under a bullet are its additional information (Markdown).
  *     - Another change.
+ *     - [major] A change that also shows under "Major changes".
+ *
+ * A change whose text starts with `[major]` (any case) is flagged major and the marker is dropped; every other change
+ * is full-changelog only.
  *
  * Each `## YYYY-MM-DD` heading starts a date, and each `- ` (or `* `) bullet under it is one entry. Text after the date
  * on the heading (after a hyphen, an en dash, an em dash or a colon) is taken as that date's first entry, so the older
@@ -23,10 +27,12 @@ class ChangelogImportParser
 {
     private const HEADING = '/^##\s+(?<date>[^\s:\x{2013}\x{2014}]+)\s*(?:(?:-|\x{2013}|\x{2014}|:)\s*(?<text>.*?))?\s*$/u';
 
+    private const MAJOR = '/^\[major\]\s*(?<text>.*)$/iu';
+
     private const BULLET = '/^[-*]\s+(?<text>.*?)\s*$/u';
 
     /**
-     * @return array{entries: list<array{line: int, date: string, body: string, details: ?string}>, errors: list<array{line: int, message: string}>}
+     * @return array{entries: list<array{line: int, date: string, body: string, details: ?string, major: bool}>, errors: list<array{line: int, message: string}>}
      */
     public function parse(string $markdown): array
     {
@@ -44,12 +50,18 @@ class ChangelogImportParser
                 return;
             }
             $details = $this->dedent($entry['details']);
-            if (mb_strlen($entry['body']) > ChangelogEntry::MAX_BODY_LENGTH) {
+            $major = preg_match(self::MAJOR, $entry['body'], $marker) === 1;
+            if ($major) {
+                $entry['body'] = $marker['text'];
+            }
+            if ($entry['body'] === '') {
+                $errors[] = ['line' => $entry['line'], 'message' => "Line {$entry['line']}: the change has no text after [major]."];
+            } elseif (mb_strlen($entry['body']) > ChangelogEntry::MAX_BODY_LENGTH) {
                 $errors[] = ['line' => $entry['line'], 'message' => "Line {$entry['line']}: the change is longer than ".ChangelogEntry::MAX_BODY_LENGTH.' characters.'];
             } elseif ($details !== null && mb_strlen($details) > ChangelogEntry::MAX_DETAILS_LENGTH) {
                 $errors[] = ['line' => $entry['line'], 'message' => "Line {$entry['line']}: the additional information is longer than ".ChangelogEntry::MAX_DETAILS_LENGTH.' characters.'];
             } else {
-                $entries[] = ['line' => $entry['line'], 'date' => $entry['date'], 'body' => $entry['body'], 'details' => $details];
+                $entries[] = ['line' => $entry['line'], 'date' => $entry['date'], 'body' => $entry['body'], 'details' => $details, 'major' => $major];
             }
             $entry = null;
         };

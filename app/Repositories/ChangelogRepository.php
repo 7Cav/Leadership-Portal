@@ -23,9 +23,9 @@ interface ChangelogRepository
 
     public function find(int $id): ?ChangelogEntry;
 
-    public function create(string $date, string $body, ?string $details, int $userId): ChangelogEntry;
+    public function create(string $date, string $body, ?string $details, int $userId, bool $major = false): ChangelogEntry;
 
-    public function update(ChangelogEntry $entry, string $date, string $body, ?string $details, int $userId): ChangelogEntry;
+    public function update(ChangelogEntry $entry, string $date, string $body, ?string $details, int $userId, bool $major = false): ChangelogEntry;
 
     public function delete(ChangelogEntry $entry): ChangelogEntry;
 

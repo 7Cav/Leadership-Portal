@@ -17,7 +17,7 @@ use InvalidArgumentException;
  * Each is checked against {@see ChangelogAccess::mayEdit()} before anything is written, so a non-editor, someone acted
  * as, or a view-as preview is refused whatever the caller forgot to gate. Only a delete needs a reason.
  *
- * An entry is one change on a date: one line of text and optional Markdown details. Adding (a whole date's batch at
+ * An entry is one change on a date: one line of text, optional Markdown details and a `major` flag (default off). Adding (a whole date's batch at
  * once), importing and dismissing all record the current deploy id as acknowledged, which clears the bar for
  * every editor.
  */
@@ -33,7 +33,7 @@ class ChangelogEntries
     /**
      * Add one date's batch of entries, in the order given, in one audited action.
      *
-     * @param  list<array{body: string, details?: ?string}>  $items
+     * @param  list<array{body: string, details?: ?string, major?: bool}>  $items
      * @return list<ChangelogEntry>
      *
      * @throws InvalidArgumentException on a bad date, no entries, too many, or an entry that is empty or too long.
@@ -48,7 +48,7 @@ class ChangelogEntries
         if (count($items) > ChangelogEntry::MAX_BATCH) {
             throw new InvalidArgumentException('Add at most '.ChangelogEntry::MAX_BATCH.' entries at once.');
         }
-        $items = array_map(fn (array $item) => $this->cleanEntry($item['body'], $item['details'] ?? null), array_values($items));
+        $items = array_map(fn (array $item) => [...$this->cleanEntry($item['body'], $item['details'] ?? null), (bool) ($item['major'] ?? false)], array_values($items));
         $deployId = $this->access->deployId();
 
         $saved = [];
@@ -58,7 +58,7 @@ class ChangelogEntries
             reason: null,
             reasonRequired: false,
             mutation: function () use ($actor, $date, $items, $deployId, &$saved) {
-                $saved = array_map(fn (array $item) => $this->changelog->create($date, $item[0], $item[1], $actor->id), $items);
+                $saved = array_map(fn (array $item) => $this->changelog->create($date, $item[0], $item[1], $actor->id, $item[2]), $items);
 
                 return new AuditedBatch($this->changelog->acknowledge($deployId), ...$saved);
             },
@@ -67,7 +67,7 @@ class ChangelogEntries
         return $saved;
     }
 
-    public function update(User $actor, ChangelogEntry $entry, string $date, string $body, ?string $details): ChangelogEntry
+    public function update(User $actor, ChangelogEntry $entry, string $date, string $body, ?string $details, bool $major = false): ChangelogEntry
     {
         $this->authorize($actor);
         $date = $this->cleanDate($date);
@@ -78,7 +78,7 @@ class ChangelogEntries
             action: 'changelog.updated',
             reason: null,
             reasonRequired: false,
-            mutation: fn () => $this->changelog->update($entry, $date, $body, $details, $actor->id),
+            mutation: fn () => $this->changelog->update($entry, $date, $body, $details, $actor->id, $major),
         );
     }
 
@@ -127,7 +127,7 @@ class ChangelogEntries
             mutation: function () use ($actor, $entries, $deployId) {
                 // Oldest first, so ids follow the dates.
                 $saved = array_map(
-                    fn (array $entry) => $this->changelog->create($entry['date'], $entry['body'], $entry['details'], $actor->id),
+                    fn (array $entry) => $this->changelog->create($entry['date'], $entry['body'], $entry['details'], $actor->id, $entry['major']),
                     array_reverse($entries),
                 );
 
@@ -156,7 +156,7 @@ class ChangelogEntries
      * The parsed import, each entry marked `duplicate` when its date and change text already exist (or appear earlier in
      * the same paste). Writes nothing.
      *
-     * @return array{entries: list<array{line: int, date: string, body: string, details: ?string, duplicate: bool}>, errors: list<array{line: int, message: string}>}
+     * @return array{entries: list<array{line: int, date: string, body: string, details: ?string, major: bool, duplicate: bool}>, errors: list<array{line: int, message: string}>}
      */
     public function preview(string $markdown): array
     {

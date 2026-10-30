@@ -43,7 +43,7 @@ class ChangelogController extends Controller
         }
 
         return Inertia::render('Changelog', [
-            // `[{ date, entries: [{ id, body, detailsHtml, details }] }]`, newest date first, each date's entries in the
+            // `[{ date, entries: [{ id, body, major, detailsHtml, details }] }]`, newest date first, each date's entries in the
             // order they were written.
             'days' => $this->changelog->all()
                 ->groupBy(fn (ChangelogEntry $entry) => $entry->date->toDateString())
@@ -52,6 +52,7 @@ class ChangelogController extends Controller
                     'entries' => $entries->sortBy('id')->map(fn (ChangelogEntry $entry) => [
                         'id' => $entry->id,
                         'body' => $entry->body,
+                        'major' => (bool) $entry->major,
                         'detailsHtml' => $entry->details === null ? null : $markdown->toHtml($entry->details),
                         // The Markdown source only to an editor, for the edit form.
                         'details' => $editor ? $entry->details : null,
@@ -69,11 +70,12 @@ class ChangelogController extends Controller
             'entries' => ['required', 'array', 'min:1', 'max:'.ChangelogEntry::MAX_BATCH],
             'entries.*.body' => ['required', 'string', 'max:'.ChangelogEntry::MAX_BODY_LENGTH],
             'entries.*.details' => ['nullable', 'string', 'max:'.ChangelogEntry::MAX_DETAILS_LENGTH],
+            'entries.*.major' => ['sometimes', 'boolean'],
         ]);
 
         try {
             $command->add($request->user(), $data['date'], array_map(
-                fn (array $item) => ['body' => $item['body'], 'details' => $item['details'] ?? null],
+                fn (array $item) => ['body' => $item['body'], 'details' => $item['details'] ?? null, 'major' => (bool) ($item['major'] ?? false)],
                 $data['entries'],
             ));
         } catch (InvalidArgumentException $e) {
@@ -90,7 +92,7 @@ class ChangelogController extends Controller
         $data = $request->validate($this->rules());
 
         try {
-            $command->update($request->user(), $entry, $data['date'], $data['body'], $data['details'] ?? null);
+            $command->update($request->user(), $entry, $data['date'], $data['body'], $data['details'] ?? null, (bool) ($data['major'] ?? false));
         } catch (InvalidArgumentException $e) {
             throw ValidationException::withMessages(['body' => $e->getMessage()]);
         }
@@ -157,6 +159,7 @@ class ChangelogController extends Controller
             'date' => ['required', 'date_format:Y-m-d'],
             'body' => ['required', 'string', 'max:'.ChangelogEntry::MAX_BODY_LENGTH],
             'details' => ['nullable', 'string', 'max:'.ChangelogEntry::MAX_DETAILS_LENGTH],
+            'major' => ['sometimes', 'boolean'],
         ];
     }
 }

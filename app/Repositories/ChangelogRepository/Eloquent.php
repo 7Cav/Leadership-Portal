@@ -22,20 +22,21 @@ class Eloquent implements ChangelogRepository
         return ChangelogEntry::query()->find($id);
     }
 
-    public function create(string $date, string $body, ?string $details, int $userId): ChangelogEntry
+    public function create(string $date, string $body, ?string $details, int $userId, bool $major = false): ChangelogEntry
     {
         return ChangelogEntry::query()->create([
             'date' => $date,
             'body' => $body,
             'details' => $details,
+            'major' => $major,
             'created_by' => $userId,
             'updated_by' => $userId,
         ]);
     }
 
-    public function update(ChangelogEntry $entry, string $date, string $body, ?string $details, int $userId): ChangelogEntry
+    public function update(ChangelogEntry $entry, string $date, string $body, ?string $details, int $userId, bool $major = false): ChangelogEntry
     {
-        $entry->fill(['date' => $date, 'body' => $body, 'details' => $details, 'updated_by' => $userId])->save();
+        $entry->fill(['date' => $date, 'body' => $body, 'details' => $details, 'major' => $major, 'updated_by' => $userId])->save();
 
         return $entry;
     }
