@@ -74,6 +74,13 @@ Your scope's units and troopers, from the cached Cav roster.
 
 Related pages reached from the roster:
 
+- Strength trends (`/roster/<id>/strength`, from "Strength trends" on the roster and "Strength" on Home's unit rows):
+  the unit's headcount and in roll call per Cav week over 12, 26, 52 weeks or all, the change over the range, joins and
+  departures per week, a table of the same numbers, and the headcount of each unit under it as small multiples on one
+  scale. A sent week reads the report's frozen snapshot; another week from 2026-10-24 on is rebuilt from the placement
+  history; a week with neither is a gap. Scoped like the roster (view as previews it), read only, three reads whatever
+  the range.
+
 - Milpac page (`/troopers/<id>`): the trooper's ID block (rank, billet, MOS, time in service and grade, section),
   courses, a service record timeline, quick links to their section roster, roll call and platoon readiness matrix, and
   a makeup PM link when they missed a practice, and their transfers between units (newest first; also on the roster
