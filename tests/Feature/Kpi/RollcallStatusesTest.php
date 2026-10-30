@@ -5,6 +5,7 @@ use App\Kpi\KpiService;
 use App\Kpi\Ratio;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
+use App\Models\AuditLogEntry;
 use App\Models\RollcallSignature;
 use App\Models\Trooper;
 use App\Models\Unit;
@@ -263,5 +264,5 @@ it('accepts Excused and Make-up requested from the roll call screen, and writes 
     expect($row->status)->toBe(AttendanceStatus::Excused)
         ->and($row->rollcall)->toBe(RollcallSignature::MakeupRequested)
         ->and($row->source)->toBe(AttendanceSource::Manual)
-        ->and(App\Models\AuditLogEntry::query()->where('action', 'attendance.marked')->count())->toBe(1);
+        ->and(AuditLogEntry::query()->where('action', 'attendance.marked')->count())->toBe(1);
 });

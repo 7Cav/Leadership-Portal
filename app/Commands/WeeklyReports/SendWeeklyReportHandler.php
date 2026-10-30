@@ -195,7 +195,7 @@ class SendWeeklyReportHandler
      * @param  array<string, mixed>  $kpis
      * @param  list<array{trooper_id: int, reason: string}>  $unaccounted
      * @param  list<array{trooper_id: int, done: bool}>|null  $makeupChecks  left out of the digest when null, so a
-     *                                                                      report sent before it existed still verifies
+     *                                                                       report sent before it existed still verifies
      */
     public static function contentDigest(
         int $unitId,

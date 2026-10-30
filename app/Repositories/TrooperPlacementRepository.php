@@ -181,7 +181,7 @@ interface TrooperPlacementRepository
      * - `recruit`: joined the Cav, by their join date (`troopers.tis`).
      *
      * @param  list<int>  $trooperIds
-     * @return array<int, list<array{at: CarbonImmutable, kind: string}>>  trooper id => the events, oldest first
+     * @return array<int, list<array{at: CarbonImmutable, kind: string}>> trooper id => the events, oldest first
      */
     public function firstWeekEventsBetween(array $trooperIds, CarbonInterface $from, CarbonInterface $until): array;
 }
