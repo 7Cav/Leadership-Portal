@@ -82,10 +82,10 @@ const weeksText = (weeks) => weeks.map(weekLabel).join(', ');
                 <div
                     v-for="(stat, index) in signatureStats"
                     :key="stat.label"
-                    :class="cn('bg-card px-3 py-2.5', index === signatureStats.length - 1 && 'col-span-2 sm:col-span-1')"
+                    :class="cn('flex flex-col bg-card px-3 py-2.5', index === signatureStats.length - 1 && 'col-span-2 sm:col-span-1')"
                 >
                     <dt class="text-xs text-muted-foreground">{{ stat.label }}</dt>
-                    <dd :class="cn('text-lg font-semibold tabular-nums', stat.tone)">{{ stat.value }}</dd>
+                    <dd :class="cn('mt-auto pt-0.5 text-lg font-semibold tabular-nums', stat.tone)">{{ stat.value }}</dd>
                 </div>
             </dl>
         </section>
@@ -95,10 +95,10 @@ const weeksText = (weeks) => weeks.map(weekLabel).join(', ');
                 <div
                     v-for="(stat, index) in practiceStats"
                     :key="stat.label"
-                    :class="cn('bg-card px-3 py-2.5', index === practiceStats.length - 1 && 'col-span-2 sm:col-span-1')"
+                    :class="cn('flex flex-col bg-card px-3 py-2.5', index === practiceStats.length - 1 && 'col-span-2 sm:col-span-1')"
                 >
                     <dt class="text-xs text-muted-foreground">{{ stat.label }}</dt>
-                    <dd :class="cn('text-lg font-semibold tabular-nums', stat.tone)">{{ stat.value }}</dd>
+                    <dd :class="cn('mt-auto pt-0.5 text-lg font-semibold tabular-nums', stat.tone)">{{ stat.value }}</dd>
                 </div>
             </dl>
         </section>
