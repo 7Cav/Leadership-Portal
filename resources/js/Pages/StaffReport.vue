@@ -4,6 +4,7 @@ import { Head, Link, useForm } from '@inertiajs/vue3';
 import { toast } from 'vue-sonner';
 import {
     PhBroadcast,
+    PhCaretDown,
     PhCaretLeft,
     PhCaretRight,
     PhCheck,
@@ -29,7 +30,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { forumDate } from '@/lib/forumDate';
 import { onHttpException } from '@/lib/httpError';
 import { stamp } from '@/lib/report';
-import { attendedText, sheetText } from '@/lib/staffReport';
+import { attendedText, pickerCollapses, pickerGroups, sheetText } from '@/lib/staffReport';
 
 // A platoon, company or battalion HQ staff member's own weekly staff report: whether they attended a section
 // practice this week, an FTX or (battalion HQ staff only) an office hour, which, with the other events they attended
@@ -111,21 +112,22 @@ const matching = computed(() => {
 
     return needle ? props.sections.filter((section) => section.label.toLowerCase().includes(needle)) : props.sections;
 });
-// Grouped in the order the server sent them, nearest unit first.
-const groups = computed(() => {
-    const out = [];
-    for (const section of matching.value) {
-        const key = section.group ?? '';
-        let group = out.find((candidate) => candidate.key === key);
-        if (!group) {
-            group = { key, label: section.group ? `In ${section.group}` : 'Other sections', rows: [] };
-            out.push(group);
-        }
-        group.rows.push(section);
-    }
-
-    return out;
-});
+// Grouped in the order the server sent them, nearest unit first, then by platoon in order of battle.
+const groups = computed(() => pickerGroups(matching.value));
+// Across a battalion every platoon but the staff member's own starts collapsed; a search opens them all.
+const collapses = computed(() => !filter.value.trim() && pickerCollapses(pickerGroups(props.sections)));
+const toggled = ref(new Set());
+const platoonId = (group, platoon) => `${group.key}|${platoon.key}`;
+function platoonOpen(group, platoon) {
+    const flipped = toggled.value.has(platoonId(group, platoon));
+    return !collapses.value || platoon.own ? !flipped : flipped;
+}
+function togglePlatoon(group, platoon) {
+    const next = new Set(toggled.value);
+    const id = platoonId(group, platoon);
+    if (!next.delete(id)) next.add(id);
+    toggled.value = next;
+}
 const picked = computed(() => new Set(form.section_ids));
 // Entries already there that are no longer picked: sending takes them off.
 const dropped = computed(() => props.entries.filter((entry) => type.value !== 'sp' && type.value !== 'ftx' ? true : !picked.value.has(entry.sectionId)));
@@ -453,32 +455,51 @@ function entryNote(id) {
                                 <Input v-model="filter" class="pl-8" autocomplete="off" placeholder="Find a section" aria-label="Find a section" data-testid="section-filter" />
                             </div>
 
-                            <div class="mt-2 max-h-64 overflow-y-auto pr-1">
+                            <div class="mt-2 max-h-[min(32rem,60vh)] overflow-y-auto pr-1">
                                 <div v-for="group in groups" :key="group.key" class="mb-2" :data-testid="`sections-${group.key || 'others'}`">
                                     <p class="sticky top-0 z-10 bg-card py-1 text-xs font-medium text-muted-foreground">{{ group.label }}</p>
-                                    <ul class="grid gap-1.5 sm:grid-cols-2">
-                                        <li v-for="section in group.rows" :key="section.id">
-                                            <label
-                                                class="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2 transition-colors focus-within:ring-2 focus-within:ring-ring"
-                                                :class="picked.has(section.id) ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent/70'"
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    class="size-4 accent-primary"
-                                                    :checked="picked.has(section.id)"
-                                                    :data-testid="`section-${section.id}`"
-                                                    @change="toggle(section.id)"
-                                                />
-                                                <span class="min-w-0 flex-1">
-                                                    <span class="block font-mono">{{ section.label }}</span>
-                                                    <span v-if="entryNote(section.id)" class="block text-xs text-muted-foreground" :data-testid="`entered-${section.id}`">{{ entryNote(section.id) }}</span>
-                                                </span>
-                                                <Badge v-if="seenIds.has(section.id)" variant="outline" class="font-normal" :data-testid="`seen-${section.id}`">
-                                                    <PhBroadcast aria-hidden="true" />Seen on the game server
-                                                </Badge>
-                                            </label>
-                                        </li>
-                                    </ul>
+                                    <div v-for="platoon in group.platoons" :key="platoon.key" class="mb-1.5" :data-testid="`platoon-${platoon.key || 'none'}`">
+                                        <button
+                                            v-if="platoon.label && (group.platoons.length > 1 || platoon.key !== group.key)"
+                                            type="button"
+                                            class="flex min-h-8 w-full items-center gap-1.5 rounded-md px-1 text-left text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                                            :aria-expanded="platoonOpen(group, platoon)"
+                                            :aria-controls="`platoon-rows-${group.key || 'others'}-${platoon.key}`"
+                                            :data-testid="`platoon-toggle-${platoon.key}`"
+                                            @click="togglePlatoon(group, platoon)"
+                                        >
+                                            <PhCaretDown class="size-3.5 transition-transform" :class="platoonOpen(group, platoon) ? '' : '-rotate-90'" aria-hidden="true" />
+                                            <span class="font-mono">{{ platoon.label }}</span>
+                                            <span class="font-normal">({{ platoon.rows.length }})</span>
+                                        </button>
+                                        <ul
+                                            v-show="platoonOpen(group, platoon)"
+                                            :id="`platoon-rows-${group.key || 'others'}-${platoon.key}`"
+                                            class="grid gap-1.5 sm:grid-cols-2"
+                                        >
+                                            <li v-for="section in platoon.rows" :key="section.id">
+                                                <label
+                                                    class="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2 transition-colors focus-within:ring-2 focus-within:ring-ring"
+                                                    :class="picked.has(section.id) ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent/70'"
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        class="size-4 accent-primary"
+                                                        :checked="picked.has(section.id)"
+                                                        :data-testid="`section-${section.id}`"
+                                                        @change="toggle(section.id)"
+                                                    />
+                                                    <span class="min-w-0 flex-1">
+                                                        <span class="block font-mono">{{ section.label }}</span>
+                                                        <span v-if="entryNote(section.id)" class="block text-xs text-muted-foreground" :data-testid="`entered-${section.id}`">{{ entryNote(section.id) }}</span>
+                                                    </span>
+                                                    <Badge v-if="seenIds.has(section.id)" variant="outline" class="font-normal" :data-testid="`seen-${section.id}`">
+                                                        <PhBroadcast aria-hidden="true" />Seen on the game server
+                                                    </Badge>
+                                                </label>
+                                            </li>
+                                        </ul>
+                                    </div>
                                 </div>
                                 <p v-if="!matching.length" class="py-3 text-xs text-muted-foreground" data-testid="sections-empty">
                                     <template v-if="filter.trim()">No section matches "{{ filter.trim() }}".</template>

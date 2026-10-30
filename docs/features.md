@@ -390,7 +390,8 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
   "Did you attend a section practice this week?" as two large choices, Yes and No. Yes moves on to "What was it?":
   large choices for "Section practice", "FTX" or, for battalion HQ staff only, "Office hour". Then its details: for an
   SP or an FTX the sections, grouped nearest first (their own HQ, then its company, then its battalion, then the rest),
-  with a search. Only sections that play the HQ's game are offered (the unit's game, inherited down the tree): an HLL
+  each in order of battle under a platoon heading, with a search. When the list spans more than four platoons, every
+  platoon but the staff member's own starts collapsed and opens on a click; a search opens them all. Only sections that play the HQ's game are offered (the unit's game, inherited down the tree): an HLL
   HQ sees HLL sections. A section, or an HQ, with no game on its chain is never left out for it. An SP needs one or
   more sections. An FTX needs its name (up to 120 characters) and its date, a day in that Cav week; its sections are
   optional, as an FTX may span several. An office hour is an hour of office hours held in place of the hour at a

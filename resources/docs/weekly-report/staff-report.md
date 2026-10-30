@@ -28,7 +28,7 @@ The form asks one question at a time. The numbered steps at the top show where y
 
 1. Answer **Did you attend a section practice this week?** with **Yes** or **No**. No skips straight to the last step.
 2. For Yes, pick what it was: **Section practice**, **FTX** or, on a battalion HQ, **Office hour**.
-3. For a section practice, pick each one you attended. Only sections that play your HQ's game are listed, plus any section with no game set. They are grouped nearest first: your own HQ, its company, its battalion, then the rest. **Find a section** narrows the list.
+3. For a section practice, pick each one you attended. Only sections that play your HQ's game are listed, plus any section with no game set. They are grouped nearest first: your own HQ, its company, its battalion, then the rest, in order of battle under a heading for each platoon. When the list spans many platoons, only your own platoon starts open; click a platoon's heading to open it. **Find a section** narrows the list and opens every platoon.
 4. For an FTX, give its name and its date, a day in that Cav week. Picking the sections that took part is optional.
 5. For an office hour, give its date, a day in that Cav week, and a short note of what it was, up to 200 characters. It counts in place of the hour at a section practice. Only battalion HQ staff can report one.
 6. Practices already entered for you this week are picked, with who entered them, and the form opens on them. Take off one you did not attend: sending takes it off.

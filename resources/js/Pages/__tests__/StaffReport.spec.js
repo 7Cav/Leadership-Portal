@@ -142,6 +142,26 @@ describe('StaffReport page', () => {
         expect(groups[0].findAll('li').map((li) => li.text())).toEqual(['1/1/A/1-7', '2/1/A/1-7']);
     });
 
+    it('collapses every platoon but the HQ's own when the list spans a battalion, with a disclosure button', async () => {
+        const platoons = ['2/A/1-7', '3/A/1-7', '1/B/1-7', '2/B/1-7'];
+        const wrapper = await toPicker({
+            sections: [
+                { id: 4, label: '1/1/A/1-7', own: true, group: '1/A/1-7', platoon: '1/A/1-7' },
+                ...platoons.map((platoon, i) => ({ id: 20 + i, label: `1/${platoon}`, own: false, group: null, platoon })),
+            ],
+        });
+
+        const toggle = wrapper.find('[data-testid="platoon-toggle-1/B/1-7"]');
+        expect(wrapper.find('[data-testid="platoon-toggle-1/A/1-7"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="section-4"]').isVisible()).toBe(true);
+        expect(toggle.attributes('aria-expanded')).toBe('false');
+        expect(wrapper.find('[data-testid="section-22"]').isVisible()).toBe(false);
+
+        await toggle.trigger('click');
+        expect(toggle.attributes('aria-expanded')).toBe('true');
+        expect(wrapper.find('[data-testid="section-22"]').isVisible()).toBe(true);
+    });
+
     it('shows each pick as a chip in the summary card that removes it, and posts the picks', async () => {
         const wrapper = await toPicker();
         await wrapper.find('[data-testid="section-4"]').trigger('change');
