@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\CarbonImmutable;
 use Database\Factories\CounselingRecordFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -23,11 +24,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * Regimental Executive Officer can overturn it, which sets `overturned_at`, who did it (`overturned_by`, with
  * `overturned_by_admin` and `overturned_as_unit` as for the issuer) and `overturn_reason`. An overturned LOR stays on
  * file and no longer counts toward the counseling rules.
+ *
+ * A DCS **expires** {@see DCS_EXPIRY_DAYS} days after the date it was counseled ({@see isExpired()}): worked out from
+ * `counseled_on` on every read, so it needs no job. It is never deleted: the row, its PDF and its Drive copy stay, seen
+ * by Admins only. An LOR never expires.
  */
 class CounselingRecord extends Model
 {
     /** @use HasFactory<CounselingRecordFactory> */
     use HasFactory;
+
+    /** A DCS counseled this many days ago is still active; one day later it has expired. */
+    public const DCS_EXPIRY_DAYS = 90;
 
     protected $guarded = ['*'];
 
@@ -75,6 +83,24 @@ class CounselingRecord extends Model
     public function issuedAsUnit(): BelongsTo
     {
         return $this->belongsTo(Unit::class, 'issued_as_unit');
+    }
+
+    /** The day a DCS expires (the first day it is no longer active), or null for an LOR, which never expires. */
+    public function expiresOn(): ?CarbonImmutable
+    {
+        return $this->type === CounselingType::Dcs ? $this->counseled_on->addDays(self::DCS_EXPIRY_DAYS + 1) : null;
+    }
+
+    /**
+     * Whether this is a DCS counseled more than {@see DCS_EXPIRY_DAYS} days before `$today` (UTC by default): on day 90
+     * it is still active, from day 91 it has expired.
+     */
+    public function isExpired(?CarbonImmutable $today = null): bool
+    {
+        $expires = $this->expiresOn();
+        $today ??= CarbonImmutable::now('UTC');
+
+        return $expires !== null && $today->startOfDay()->greaterThanOrEqualTo($expires->startOfDay());
     }
 
     public function isOverturned(): bool

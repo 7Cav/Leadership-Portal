@@ -16,6 +16,10 @@ use Carbon\CarbonImmutable;
  * change it still can (a typo, the wrong trooper, an upheld appeal). From then on nobody corrects or deletes it, Admins
  * included, by flag or by billet: only the Regimental Executive Officer may overturn it ({@see overturns()}), which
  * keeps it on file. A DCS never freezes.
+ *
+ * An **expired DCS** ({@see CounselingRecord::isExpired()}, 90 days after it was counseled) is seen by Admins only
+ * ({@see $seesExpired}): to anyone else, the trooper themselves included, it is as if it did not exist. Leaders never
+ * correct or delete it; Admins keep their rights over it.
  */
 final readonly class CounselingPermissions
 {
@@ -30,6 +34,7 @@ final readonly class CounselingPermissions
      * @param  bool  $regimentalXo  the person really signed in holds the Regimental Executive Officer billet, signed in as
      *                              themselves (nobody acting as anyone, no view-as preview): the one who may overturn a
      *                              frozen LOR
+     * @param  bool  $seesExpired  an Admin reading as one: the only one who sees an expired DCS
      */
     public function __construct(
         public bool $seesDcs,
@@ -43,6 +48,7 @@ final readonly class CounselingPermissions
         public array $writeScope,
         public bool $flagAdmin,
         public bool $regimentalXo,
+        public bool $seesExpired = false,
     ) {}
 
     /**
@@ -66,6 +72,12 @@ final readonly class CounselingPermissions
         return $type === CounselingType::Dcs ? $this->seesDcs : $this->seesLor;
     }
 
+    /** Whether the viewer sees `$record`: its type, and an expired DCS only as an Admin. */
+    public function seesRecord(CounselingRecord $record): bool
+    {
+        return $this->sees($record->type) && ($this->seesExpired || ! $record->isExpired());
+    }
+
     public function files(CounselingType $type): bool
     {
         return $type === CounselingType::Dcs ? $this->filesDcs : $this->filesLor;
@@ -84,7 +96,7 @@ final readonly class CounselingPermissions
      * trooper's command, no longer changes what was filed before. Nobody changes the records of a departed trooper.
      * Nobody changes their own, except an Admin by the flag: an Admin by billet holds it because of Cav's billet list,
      * not because someone chose them, so their own records stay out of their reach like anyone's. Nobody changes a
-     * frozen or overturned LOR ({@see frozen()}), Admins included.
+     * frozen or overturned LOR ({@see frozen()}), Admins included. Only an Admin changes an expired DCS.
      */
     public function changes(CounselingRecord $record): bool
     {
@@ -92,12 +104,16 @@ final readonly class CounselingPermissions
             return false;
         }
 
-        if ($this->departed || ! $this->sees($record->type) || $this->self && ! $this->flagAdmin) {
+        if ($this->departed || ! $this->seesRecord($record) || $this->self && ! $this->flagAdmin) {
             return false;
         }
 
         if ($this->admin) {
             return true;
+        }
+
+        if ($record->isExpired()) {
+            return false;
         }
 
         return $this->issuingUnit(CounselingType::Dcs) !== null

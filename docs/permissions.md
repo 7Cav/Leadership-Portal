@@ -309,6 +309,10 @@ through act as (S6, 2026-10-29: "only the RXO for now"). An Admin acting as the 
 command team rule, and the RXO while acting as someone else are all refused. The overturned LOR stays on file, is marked so, and counts
 toward no flag.
 
+A DCS expires 90 days after the date it was counseled (from day 91). An expired DCS is seen by Admins only, marked
+expired, and its document downloads for them only: leaders and the trooper get the same 404 as for a record that does
+not exist. Leaders cannot correct or delete it; Admins keep their rights. It is never deleted. An LOR never expires.
+
 A trooper who has left the Cav (no longer serving) has read-only counseling: nobody may file a DCS or LOR on them, or
 correct or delete one, Admins included, and the panel says so. Whoever could see their records still sees and downloads
 them. If they serve again, the rules above apply again. The RXO may still overturn a frozen LOR of theirs: that corrects

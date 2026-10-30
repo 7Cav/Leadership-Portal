@@ -106,9 +106,11 @@ it('flags a DCS dated within 90 days of an earlier one, by their dates, and keep
 
     expect($flags())->toBe($expected);
 
-    // A year on, nothing expired: the records were still 78 days apart.
+    // A year on, both have expired: the Platoon Leader no longer sees them, but an Admin still does, and the flag
+    // stays, since the records were still 78 days apart.
     $this->travel(365)->days();
-    expect($flags())->toBe($expected);
+    expect($flags())->toBe([])
+        ->and(collect(counselingProps('admin', $this)['records'])->pluck('flags', 'reason')->all())->toBe($expected);
 });
 
 it('weighs a record filed late with an earlier date by its date, and shows what each record is for', function () {
@@ -159,7 +161,8 @@ it('says a record from before the portal asked what it is for was ruled as other
     ($this->record)('dcs', 10, ['kind' => 'missed_practice', 'reason' => 'A miss.']);
     ($this->record)('dcs', 300, ['kind' => null, 'reason' => 'Legacy, alone.']);
 
-    $records = collect(counselingProps('pl', $this)['records'])->keyBy('reason');
+    // An Admin, who still sees the 300-day-old DCS after it expired.
+    $records = collect(counselingProps('admin', $this)['records'])->keyBy('reason');
 
     expect($records['Legacy, near a miss.']['kindAssumed'])->toBeTrue()
         ->and($records['Legacy, alone.']['kindAssumed'])->toBeFalse()

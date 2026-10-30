@@ -168,7 +168,7 @@ class CounselingController extends Controller
     public function document(Request $request, int $counseling, CounselingAccess $access, CounselingDocuments $documents): StreamedResponse
     {
         $record = $this->records->find($counseling);
-        abort_unless($record !== null && $access->for($request->user(), $record->trooper)->sees($record->type), 404);
+        abort_unless($record !== null && $access->for($request->user(), $record->trooper)->seesRecord($record), 404);
         abort_unless($documents->exists($record->document_path), 404);
 
         return $documents->download($record->document_path, $record->fileName($record->trooper));
@@ -197,7 +197,7 @@ class CounselingController extends Controller
     private function refuseReadOnlyRecord(Request $request, int $counseling, CounselingAccess $access): void
     {
         $record = $this->records->find($counseling);
-        abort_unless($record !== null && $access->for($request->user(), $record->trooper)->sees($record->type), 404);
+        abort_unless($record !== null && $access->for($request->user(), $record->trooper)->seesRecord($record), 404);
 
         $this->refuseDeparted($record->trooper);
 
