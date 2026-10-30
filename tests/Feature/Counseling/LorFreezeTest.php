@@ -29,7 +29,8 @@ require_once __DIR__.'/fixture.php';
 // S6, 2026-10-29: an LOR is frozen 72 hours after it is filed, its appeal window (the wiki: 24 hours to say they appeal,
 // the appeal done within 72, no further appeal). Until then whoever may change it still can; after it nobody corrects or
 // deletes it, Admins included. Only the Regimental Executive Officer may then overturn it, with a reason: it stays on
-// file, marked overturned, and stops counting toward the counseling rules. A DCS is unchanged.
+// file, marked overturned, and stops counting toward the counseling rules. A DCS freezes the same way but has no
+// overturn (DcsFreezeAndAppealTest).
 
 /** A serving trooper on `$billet`, whose position commands `$commands`, placed there, with a portal account. */
 function freezeHolder(int $cavId, string $username, string $billet, Unit $commands): User
@@ -139,17 +140,6 @@ it('refuses an Admin by billet a frozen LOR too', function () {
 
     $this->actingAs($chief)->delete(route('counseling.destroy', $this->lor->id), ['audit_reason' => 'Upheld appeal.'])->assertForbidden();
     expect(CounselingRecord::query()->find($this->lor->id))->not->toBeNull();
-});
-
-it('leaves a DCS correctable and deletable however long ago it was filed', function () {
-    $dcs = CounselingRecord::factory()->filedHoursAgo(24 * 30)->create([
-        'trooper_id' => $this->rifleman->id, 'issuer_unit_id' => $this->tree['units']['section']->id,
-    ]);
-
-    expect(CounselingPermissions::frozen($dcs))->toBeFalse();
-    $this->actingAs($this->tree['users']['sl'])->patch(route('counseling.update', $dcs->id), $this->correction)->assertRedirect();
-    $this->actingAs($this->tree['users']['sl'])->delete(route('counseling.destroy', $dcs->id), ['audit_reason' => 'Wrong trooper.'])->assertRedirect();
-    expect(CounselingRecord::query()->find($dcs->id))->toBeNull();
 });
 
 it('lets the RXO overturn a frozen LOR: kept on file, marked, audited with the reason', function () {
