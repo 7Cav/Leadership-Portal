@@ -34,38 +34,80 @@ beforeEach(function () {
 
 function entryData(array $override = []): array
 {
-    return ['date' => '2026-10-29', 'title' => 'Changelog page', 'body' => 'You can **read** what changed.', ...$override];
+    return ['date' => '2026-10-29', 'body' => 'Changelog page', 'details' => 'You can **read** what changed.', ...$override];
+}
+
+/** A one-entry batch, as the Add dialog posts it. */
+function batchData(array $override = []): array
+{
+    $entry = entryData($override);
+
+    return ['date' => $entry['date'], 'entries' => [['body' => $entry['body'], 'details' => $entry['details']]]];
 }
 
 function addEntry(User $by, array $override = []): ChangelogEntry
 {
-    test()->actingAs($by)->post('/changelog', entryData($override))->assertRedirect('/changelog');
+    test()->actingAs($by)->post('/changelog', batchData($override))->assertRedirect('/changelog');
 
     return ChangelogEntry::query()->latest('id')->firstOrFail();
 }
 
-it('shows the changelog to everyone, newest first, with editor tools only for editors', function () {
-    addEntry($this->editor, ['date' => '2026-10-01', 'title' => 'Older']);
-    addEntry($this->editor, ['date' => '2026-10-20', 'title' => 'Newer']);
+it('shows the changelog to everyone grouped by date, newest date first, with editor tools only for editors', function () {
+    addEntry($this->editor, ['date' => '2026-10-01', 'body' => 'Older']);
+    addEntry($this->editor, ['date' => '2026-10-20', 'body' => 'Newer', 'details' => null]);
+    addEntry($this->editor, ['date' => '2026-10-20', 'body' => 'Newer, second']);
 
     $this->actingAs($this->member)->get('/changelog')->assertOk()->assertInertia(fn (Assert $page) => $page
         ->component('Changelog')
         ->where('isEditor', false)
-        ->where('entries.0.title', 'Newer')
-        ->where('entries.1.title', 'Older')
-        ->where('entries.0.body', null));
+        ->has('days', 2)
+        ->where('days.0.date', '2026-10-20')
+        ->where('days.0.entries.0.body', 'Newer')
+        ->where('days.0.entries.0.detailsHtml', null)
+        ->where('days.0.entries.1.body', 'Newer, second')
+        ->where('days.0.entries.1.detailsHtml', fn (string $html) => str_contains($html, '<strong>read</strong>'))
+        ->where('days.0.entries.1.details', null)
+        ->where('days.1.date', '2026-10-01'));
 
     $this->actingAs($this->editor)->get('/changelog')->assertInertia(fn (Assert $page) => $page
         ->where('isEditor', true)
-        ->where('entries.0.body', 'You can **read** what changed.'));
+        ->where('days.0.entries.1.details', 'You can **read** what changed.'));
 });
+
+it('adds a whole date batch in order in one audited action, leaving blank details empty', function () {
+    $this->actingAs($this->editor)->post('/changelog', ['date' => '2026-10-30', 'entries' => [
+        ['body' => 'First', 'details' => null],
+        ['body' => "  Second\n  on one line ", 'details' => '  '],
+        ['body' => 'Third', 'details' => 'More'],
+    ]])->assertRedirect('/changelog');
+
+    expect(ChangelogEntry::orderBy('id')->get(['body', 'details'])->toArray())->toBe([
+        ['body' => 'First', 'details' => null],
+        ['body' => 'Second on one line', 'details' => null],
+        ['body' => 'Third', 'details' => 'More'],
+    ])->and(AuditLogEntry::where('action', 'changelog.created')->count())->toBe(1);
+});
+
+it('refuses a batch with no entries, an empty or long change, long details, or too many rows', function (array $entries) {
+    $this->actingAs($this->editor)->post('/changelog', ['date' => '2026-10-30', 'entries' => $entries])->assertSessionHasErrors();
+
+    expect(ChangelogEntry::count())->toBe(0);
+})->with([
+    'none' => [[]],
+    'empty change' => [[['body' => '']]],
+    'long change' => [[['body' => str_repeat('a', 301)]]],
+    'long details' => [[['body' => 'A', 'details' => str_repeat('a', 2001)]]],
+    'too many' => [array_fill(0, 51, ['body' => 'A'])],
+]);
 
 it('lets each editor add, edit and delete, audited, with a reason only for the delete', function () {
     $entry = addEntry($this->editor);
     expect($entry->created_by)->toBe($this->editor->id);
 
-    $this->actingAs($this->otherEditor)->patch("/changelog/{$entry->id}", entryData(['title' => 'Renamed']))->assertRedirect('/changelog');
-    expect($entry->fresh()->title)->toBe('Renamed')->and($entry->fresh()->updated_by)->toBe($this->otherEditor->id);
+    $this->actingAs($this->otherEditor)->patch("/changelog/{$entry->id}", entryData(['body' => 'Renamed', 'details' => null]))->assertRedirect('/changelog');
+    expect($entry->fresh()->body)->toBe('Renamed')
+        ->and($entry->fresh()->details)->toBeNull()
+        ->and($entry->fresh()->updated_by)->toBe($this->otherEditor->id);
 
     $this->actingAs($this->editor)->delete("/changelog/{$entry->id}", ['reason' => ''])->assertSessionHasErrors('reason');
     $this->actingAs($this->editor)->delete("/changelog/{$entry->id}", ['reason' => 'Duplicate'])->assertRedirect('/changelog');
@@ -80,11 +122,11 @@ it('refuses every write to anyone who is not an editor, an Admin included', func
     $entry = addEntry($this->editor);
     $user = $this->{$who};
 
-    $this->actingAs($user)->post('/changelog', entryData())->assertForbidden();
+    $this->actingAs($user)->post('/changelog', batchData())->assertForbidden();
     $this->actingAs($user)->patch("/changelog/{$entry->id}", entryData())->assertForbidden();
     $this->actingAs($user)->delete("/changelog/{$entry->id}", ['reason' => 'x'])->assertForbidden();
-    $this->actingAs($user)->postJson('/changelog/import/preview', ['markdown' => "## 2026-10-01 - A\nB"])->assertForbidden();
-    $this->actingAs($user)->post('/changelog/import', ['markdown' => "## 2026-10-01 - A\nB", 'skip_duplicates' => true])->assertForbidden();
+    $this->actingAs($user)->postJson('/changelog/import/preview', ['markdown' => "## 2026-10-01\n- A"])->assertForbidden();
+    $this->actingAs($user)->post('/changelog/import', ['markdown' => "## 2026-10-01\n- A", 'skip_duplicates' => true])->assertForbidden();
     $this->actingAs($user)->post('/changelog/outdated/dismiss')->assertForbidden();
 
     expect(ChangelogEntry::count())->toBe(1)
@@ -94,7 +136,7 @@ it('refuses every write to anyone who is not an editor, an Admin included', func
 it('refuses writes while an Admin acts as an editor', function () {
     $this->actingAs($this->admin)->post('/act-as', ['kind' => 'user', 'id' => $this->editor->id])->assertRedirect('/home');
 
-    $this->actingAs($this->admin)->post('/changelog', entryData())->assertForbidden();
+    $this->actingAs($this->admin)->post('/changelog', batchData())->assertForbidden();
     $this->actingAs($this->admin)->post('/changelog/outdated/dismiss')->assertForbidden();
     $this->actingAs($this->admin)->get('/changelog')->assertInertia(fn (Assert $page) => $page
         ->where('isEditor', false)
@@ -110,7 +152,7 @@ it('refuses writes during a view-as preview', function () {
     $this->actingAs($editor)->post('/changelog/outdated/dismiss')->assertRedirect();
     $this->actingAs($editor)->post('/view-as', ['kind' => 'unit', 'id' => $this->section->id])->assertSessionHasNoErrors();
 
-    $this->actingAs($editor)->post('/changelog', entryData())->assertForbidden();
+    $this->actingAs($editor)->post('/changelog', batchData())->assertForbidden();
     expect(ChangelogEntry::count())->toBe(0);
 });
 
@@ -151,7 +193,7 @@ it('shows the new dot until the user opens the changelog, and not after a view-a
     $this->actingAs($this->member)->get('/home')->assertInertia(fn (Assert $page) => $page->where('changelogUnseen', false));
 
     Carbon::setTestNow('2026-10-29 11:00:00');
-    addEntry($this->editor, ['title' => 'Another']);
+    addEntry($this->editor, ['body' => 'Another']);
     $this->actingAs($this->member)->get('/home')->assertInertia(fn (Assert $page) => $page->where('changelogUnseen', true));
 
     // An Admin previewing a unit does not mark their own changelog seen.
@@ -160,32 +202,34 @@ it('shows the new dot until the user opens the changelog, and not after a view-a
     expect(app(ChangelogRepository::class)->seenAt($this->admin->id))->toBeNull();
 });
 
-it('never sends a script in a body to the page as HTML', function () {
-    addEntry($this->editor, ['body' => "Hello <script>alert(1)</script>\n\n<img src=x onerror=alert(1)>\n\n[link](javascript:alert(1))"]);
+it('never sends a script in the details to the page as HTML', function () {
+    addEntry($this->editor, ['details' => "Hello <script>alert(1)</script>\n\n<img src=x onerror=alert(1)>\n\n[link](javascript:alert(1))"]);
 
     $this->actingAs($this->member)->get('/changelog')->assertInertia(fn (Assert $page) => $page
-        ->where('entries.0.html', fn (string $html) => ! str_contains($html, '<script')
+        ->where('days.0.entries.0.detailsHtml', fn (string $html) => ! str_contains($html, '<script')
             && ! str_contains($html, '<img')
             && ! str_contains($html, 'javascript:')
             && str_contains($html, 'Hello')));
 });
 
 it('previews an import, marking the entries that would be skipped, and saves the rest in one audited batch', function () {
-    addEntry($this->editor, ['date' => '2026-10-01', 'title' => 'First']);
+    addEntry($this->editor, ['date' => '2026-10-01', 'body' => 'First', 'details' => null]);
     config(['portal.changelog_deploy_id' => 'build-2']);
 
-    $markdown = "## 2026-10-01 - first\nAgain.\n\n## 2026-10-02 \u{2013} Second\nTwo.\n\n## 2026-10-03: Third\nThree.";
+    $markdown = "## 2026-10-01\n- first\n- Second\n  Why it changed.\n\n## 2026-10-03\n- Third";
 
     $this->actingAs($this->editor)->postJson('/changelog/import/preview', ['markdown' => $markdown])->assertOk()
         ->assertJsonPath('errors', [])
         ->assertJsonPath('entries.0.duplicate', true)
         ->assertJsonPath('entries.1.duplicate', false)
-        ->assertJsonPath('entries.2.title', 'Third');
+        ->assertJsonPath('entries.1.details', 'Why it changed.')
+        ->assertJsonPath('entries.2.body', 'Third');
     expect(ChangelogEntry::count())->toBe(1);
 
     $this->actingAs($this->editor)->post('/changelog/import', ['markdown' => $markdown, 'skip_duplicates' => true])->assertRedirect('/changelog');
 
-    expect(ChangelogEntry::orderBy('date')->pluck('title')->all())->toBe(['First', 'Second', 'Third'])
+    expect(ChangelogEntry::orderBy('date')->orderBy('id')->pluck('body')->all())->toBe(['First', 'Second', 'Third'])
+        ->and(ChangelogEntry::where('body', 'Second')->sole()->details)->toBe('Why it changed.')
         ->and(AuditLogEntry::where('action', 'changelog.imported')->count())->toBe(1)
         ->and(app(ChangelogRepository::class)->acknowledgedDeployId())->toBe('build-2');
 
@@ -195,7 +239,7 @@ it('previews an import, marking the entries that would be skipped, and saves the
 });
 
 it('saves nothing from an import with a bad heading', function () {
-    $this->actingAs($this->editor)->post('/changelog/import', ['markdown' => "## 2026-13-01 - Bad\nText", 'skip_duplicates' => true])
+    $this->actingAs($this->editor)->post('/changelog/import', ['markdown' => "## 2026-13-01\n- Bad", 'skip_duplicates' => true])
         ->assertSessionHasErrors('markdown');
 
     expect(ChangelogEntry::count())->toBe(0)

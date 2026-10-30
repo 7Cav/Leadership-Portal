@@ -18,7 +18,7 @@ use Inertia\Response;
 use InvalidArgumentException;
 
 /**
- * The changelog at /changelog: open to everyone signed in, newest first. Only the changelog editors, signed in as
+ * The changelog at /changelog: open to everyone signed in, entries grouped by date, newest date first. Only the changelog editors, signed in as
  * themselves, write it ({@see ChangelogAccess}); everyone else gets a 403 on every write, checked here before anything
  * else and again in {@see ChangelogEntries}. Every write is audited (AD-16) and on the audited-writes throttle.
  *
@@ -43,14 +43,20 @@ class ChangelogController extends Controller
         }
 
         return Inertia::render('Changelog', [
-            'entries' => $this->changelog->all()->map(fn (ChangelogEntry $entry) => [
-                'id' => $entry->id,
-                'date' => $entry->date->toDateString(),
-                'title' => $entry->title,
-                'html' => $markdown->toHtml($entry->body),
-                // The Markdown source only to an editor, for the edit form.
-                'body' => $editor ? $entry->body : null,
-            ])->values()->all(),
+            // `[{ date, entries: [{ id, body, detailsHtml, details }] }]`, newest date first, each date's entries in the
+            // order they were written.
+            'days' => $this->changelog->all()
+                ->groupBy(fn (ChangelogEntry $entry) => $entry->date->toDateString())
+                ->map(fn ($entries, string $date) => [
+                    'date' => $date,
+                    'entries' => $entries->sortBy('id')->map(fn (ChangelogEntry $entry) => [
+                        'id' => $entry->id,
+                        'body' => $entry->body,
+                        'detailsHtml' => $entry->details === null ? null : $markdown->toHtml($entry->details),
+                        // The Markdown source only to an editor, for the edit form.
+                        'details' => $editor ? $entry->details : null,
+                    ])->values()->all(),
+                ])->values()->all(),
             'isEditor' => $editor,
         ]);
     }
@@ -58,12 +64,20 @@ class ChangelogController extends Controller
     public function store(Request $request, ChangelogEntries $command): RedirectResponse
     {
         $this->authorizeEditor($request);
-        $data = $request->validate($this->rules());
+        $data = $request->validate([
+            'date' => ['required', 'date_format:Y-m-d'],
+            'entries' => ['required', 'array', 'min:1', 'max:'.ChangelogEntry::MAX_BATCH],
+            'entries.*.body' => ['required', 'string', 'max:'.ChangelogEntry::MAX_BODY_LENGTH],
+            'entries.*.details' => ['nullable', 'string', 'max:'.ChangelogEntry::MAX_DETAILS_LENGTH],
+        ]);
 
         try {
-            $command->add($request->user(), $data['date'], $data['title'], $data['body']);
+            $command->add($request->user(), $data['date'], array_map(
+                fn (array $item) => ['body' => $item['body'], 'details' => $item['details'] ?? null],
+                $data['entries'],
+            ));
         } catch (InvalidArgumentException $e) {
-            throw ValidationException::withMessages(['body' => $e->getMessage()]);
+            throw ValidationException::withMessages(['entries' => $e->getMessage()]);
         }
 
         return redirect()->route('changelog.index');
@@ -76,7 +90,7 @@ class ChangelogController extends Controller
         $data = $request->validate($this->rules());
 
         try {
-            $command->update($request->user(), $entry, $data['date'], $data['title'], $data['body']);
+            $command->update($request->user(), $entry, $data['date'], $data['body'], $data['details'] ?? null);
         } catch (InvalidArgumentException $e) {
             throw ValidationException::withMessages(['body' => $e->getMessage()]);
         }
@@ -141,8 +155,8 @@ class ChangelogController extends Controller
     {
         return [
             'date' => ['required', 'date_format:Y-m-d'],
-            'title' => ['required', 'string', 'max:'.ChangelogEntry::MAX_TITLE_LENGTH],
             'body' => ['required', 'string', 'max:'.ChangelogEntry::MAX_BODY_LENGTH],
+            'details' => ['nullable', 'string', 'max:'.ChangelogEntry::MAX_DETAILS_LENGTH],
         ];
     }
 }

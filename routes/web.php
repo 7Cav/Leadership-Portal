@@ -2,8 +2,8 @@
 
 use App\Http\Controllers\ActAsController;
 use App\Http\Controllers\Auth\ForumAuthController;
-use App\Http\Controllers\CounselingController;
 use App\Http\Controllers\ChangelogController;
+use App\Http\Controllers\CounselingController;
 use App\Http\Controllers\DocsController;
 use App\Http\Controllers\GameIdentityController;
 use App\Http\Controllers\HomeController;
@@ -178,9 +178,6 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::put('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'update'])->middleware('throttle:audited-writes')->name('game-identities.update');
     Route::delete('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'destroy'])->middleware('throttle:audited-writes')->name('game-identities.destroy');
 
-    // The in-portal guides (#409). Docs home and one guide, filtered to what the viewer may read (the controller asks
-    // the ScopeResolver, so view-as applies); every docs route answers 404 while `portal.docs` is off. Guide ids are
-    // slugs, never numbers. `/documentation` is an alias, sent on permanently with the rest of its path.
     // The changelog: open to everyone signed in; only the changelog editors write it, each write audited and on the
     // shared audited-writes throttle. The import preview writes nothing but shares the throttle, as every POST does.
     Route::get('/changelog', [ChangelogController::class, 'index'])->name('changelog.index');
@@ -191,6 +188,9 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::patch('/changelog/{entry}', [ChangelogController::class, 'update'])->middleware('throttle:audited-writes')->name('changelog.update');
     Route::delete('/changelog/{entry}', [ChangelogController::class, 'destroy'])->middleware('throttle:audited-writes')->name('changelog.destroy');
 
+    // The in-portal guides (#409). Docs home and one guide, filtered to what the viewer may read (the controller asks
+    // the ScopeResolver, so view-as applies); every docs route answers 404 while `portal.docs` is off. Guide ids are
+    // slugs, never numbers. `/documentation` is an alias, sent on permanently with the rest of its path.
     Route::get('/docs', [DocsController::class, 'index'])->name('docs.index');
     Route::get('/docs/help', [DocsController::class, 'help'])->name('docs.help');
     Route::get('/docs/{section}/{slug}', [DocsController::class, 'show'])

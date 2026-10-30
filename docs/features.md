@@ -398,16 +398,21 @@ platoon's or company's report.
 
 ## Changelog
 
-- `/changelog`, under Help in the sidebar, for everyone signed in: what changed in the portal, newest first. Entries
-  are written by hand, never pulled from git: a date, a title and a Markdown body, shown with any raw HTML stripped.
+- `/changelog`, under Help in the sidebar, for everyone signed in: what changed in the portal, written by hand, never
+  pulled from git. Dates (Zulu days, shown as forum dates like 30Oct26) are listed newest first, each with its entries
+  as a compact list. An entry is one line of text (up to 300 characters). One with additional information (Markdown, up
+  to 2000 characters, shown with any raw HTML stripped) has a chevron that opens it; it starts closed.
 - The sidebar shows a dot on Changelog while an entry was written after the viewer last opened the page. Opening it
   clears the dot, but not during a view-as preview or while someone acts as the viewer.
 - Only the changelog editors (`changelog_editors` in `config/portal.php`, matched without case), signed in as
-  themselves, add, edit, delete (reason required) and bulk import entries. Bulk import takes pasted Markdown where each
-  `## YYYY-MM-DD - Title` heading starts an entry, previews it with any errors, can skip entries whose date and title
-  already exist, and saves them in one batch. Writes are audited as `changelog.created`, `changelog.updated`,
-  `changelog.deleted`, `changelog.imported` and `changelog.outdated_dismissed`.
-- After each redeploy (a new asset build version) the editors see a blue "Changelog outdated" bar with "Add entry" and
+  themselves, write it. **Add** takes one date (today in Zulu by default) and up to 50 rows at once, each with an
+  optional **Add additional information** tickbox; Enter in a row adds a row below it. Each entry can be edited or
+  deleted on its own (delete asks to confirm, with a reason). Bulk import takes pasted Markdown: a `## YYYY-MM-DD`
+  heading per date, a `- ` bullet per entry, and an indented block under a bullet as its additional information (text
+  after the date on the heading is taken as the first entry). It previews the result with any errors, can skip entries
+  whose date and text already exist, and saves them in one batch. Writes are audited as `changelog.created` (one per
+  added batch), `changelog.updated`, `changelog.deleted`, `changelog.imported` and `changelog.outdated_dismissed`.
+- After each redeploy (a new asset build version) the editors see a bright blue "Changelog outdated" bar with "Add entry" and
   "Dismiss". Adding an entry, an import, or a dismiss clears it for both editors until the next deploy.
 
 ## Settings menu (Admins)

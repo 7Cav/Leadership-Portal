@@ -17,7 +17,8 @@ use InvalidArgumentException;
  * Each is checked against {@see ChangelogAccess::mayEdit()} before anything is written, so a non-editor, someone acted
  * as, or a view-as preview is refused whatever the caller forgot to gate. Only a delete needs a reason.
  *
- * Adding an entry, importing and dismissing all record the current deploy id as acknowledged, which clears the bar for
+ * An entry is one change on a date: one line of text and optional Markdown details. Adding (a whole date's batch at
+ * once), importing and dismissing all record the current deploy id as acknowledged, which clears the bar for
  * every editor.
  */
 class ChangelogEntries
@@ -29,37 +30,55 @@ class ChangelogEntries
         private readonly ChangelogImportParser $parser,
     ) {}
 
-    public function add(User $actor, string $date, string $title, string $body): ChangelogEntry
+    /**
+     * Add one date's batch of entries, in the order given, in one audited action.
+     *
+     * @param  list<array{body: string, details?: ?string}>  $items
+     * @return list<ChangelogEntry>
+     *
+     * @throws InvalidArgumentException on a bad date, no entries, too many, or an entry that is empty or too long.
+     */
+    public function add(User $actor, string $date, array $items): array
     {
         $this->authorize($actor);
-        [$date, $title, $body] = $this->clean($date, $title, $body);
+        $date = $this->cleanDate($date);
+        if ($items === []) {
+            throw new InvalidArgumentException('Add at least one entry.');
+        }
+        if (count($items) > ChangelogEntry::MAX_BATCH) {
+            throw new InvalidArgumentException('Add at most '.ChangelogEntry::MAX_BATCH.' entries at once.');
+        }
+        $items = array_map(fn (array $item) => $this->cleanEntry($item['body'], $item['details'] ?? null), array_values($items));
         $deployId = $this->access->deployId();
 
-        return $this->audit->record(
+        $saved = [];
+        $this->audit->recordBatch(
             actorId: $actor->id,
             action: 'changelog.created',
             reason: null,
             reasonRequired: false,
-            mutation: function () use ($actor, $date, $title, $body, $deployId) {
-                $entry = $this->changelog->create($date, $title, $body, $actor->id);
-                $this->changelog->acknowledge($deployId);
+            mutation: function () use ($actor, $date, $items, $deployId, &$saved) {
+                $saved = array_map(fn (array $item) => $this->changelog->create($date, $item[0], $item[1], $actor->id), $items);
 
-                return $entry;
+                return new AuditedBatch($this->changelog->acknowledge($deployId), ...$saved);
             },
         );
+
+        return $saved;
     }
 
-    public function update(User $actor, ChangelogEntry $entry, string $date, string $title, string $body): ChangelogEntry
+    public function update(User $actor, ChangelogEntry $entry, string $date, string $body, ?string $details): ChangelogEntry
     {
         $this->authorize($actor);
-        [$date, $title, $body] = $this->clean($date, $title, $body);
+        $date = $this->cleanDate($date);
+        [$body, $details] = $this->cleanEntry($body, $details);
 
         return $this->audit->record(
             actorId: $actor->id,
             action: 'changelog.updated',
             reason: null,
             reasonRequired: false,
-            mutation: fn () => $this->changelog->update($entry, $date, $title, $body, $actor->id),
+            mutation: fn () => $this->changelog->update($entry, $date, $body, $details, $actor->id),
         );
     }
 
@@ -78,7 +97,7 @@ class ChangelogEntries
 
     /**
      * Save every entry the pasted Markdown holds, in one audited batch. With `$skipDuplicates`, an entry whose date and
-     * title (without case) already exist is left out.
+     * change text (without case) already exist is left out.
      *
      * @return int how many entries were saved
      *
@@ -108,7 +127,7 @@ class ChangelogEntries
             mutation: function () use ($actor, $entries, $deployId) {
                 // Oldest first, so ids follow the dates.
                 $saved = array_map(
-                    fn (array $entry) => $this->changelog->create($entry['date'], $entry['title'], $entry['body'], $actor->id),
+                    fn (array $entry) => $this->changelog->create($entry['date'], $entry['body'], $entry['details'], $actor->id),
                     array_reverse($entries),
                 );
 
@@ -134,10 +153,10 @@ class ChangelogEntries
     }
 
     /**
-     * The parsed import, each entry marked `duplicate` when its date and title already exist (or appear earlier in the
-     * same paste). Writes nothing.
+     * The parsed import, each entry marked `duplicate` when its date and change text already exist (or appear earlier in
+     * the same paste). Writes nothing.
      *
-     * @return array{entries: list<array{line: int, date: string, title: string, body: string, duplicate: bool}>, errors: list<array{line: int, message: string}>}
+     * @return array{entries: list<array{line: int, date: string, body: string, details: ?string, duplicate: bool}>, errors: list<array{line: int, message: string}>}
      */
     public function preview(string $markdown): array
     {
@@ -146,7 +165,7 @@ class ChangelogEntries
 
         $entries = [];
         foreach ($parsed['entries'] as $entry) {
-            $key = $this->changelog::key($entry['date'], $entry['title']);
+            $key = $this->changelog::key($entry['date'], $entry['body']);
             $entries[] = [...$entry, 'duplicate' => isset($known[$key])];
             $known[$key] = true;
         }
@@ -161,25 +180,34 @@ class ChangelogEntries
         }
     }
 
-    /**
-     * @return array{0: string, 1: string, 2: string}
-     */
-    private function clean(string $date, string $title, string $body): array
+    private function cleanDate(string $date): string
     {
-        $title = trim($title);
-        $body = trim($body);
         $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
-
         if ($parsed === false || $parsed->format('Y-m-d') !== $date) {
             throw new InvalidArgumentException('Give the date as YYYY-MM-DD.');
         }
-        if ($title === '' || mb_strlen($title) > ChangelogEntry::MAX_TITLE_LENGTH) {
-            throw new InvalidArgumentException('A title must be 1 to '.ChangelogEntry::MAX_TITLE_LENGTH.' characters.');
-        }
+
+        return $date;
+    }
+
+    /**
+     * The change text as one trimmed line and the details trimmed, or null when blank.
+     *
+     * @return array{0: string, 1: ?string}
+     */
+    private function cleanEntry(string $body, ?string $details): array
+    {
+        $body = trim(preg_replace('/\s+/u', ' ', $body) ?? '');
+        $details = $details === null ? null : trim($details);
+        $details = $details === '' ? null : $details;
+
         if ($body === '' || mb_strlen($body) > ChangelogEntry::MAX_BODY_LENGTH) {
-            throw new InvalidArgumentException('The text must be 1 to '.ChangelogEntry::MAX_BODY_LENGTH.' characters.');
+            throw new InvalidArgumentException('Each change must be 1 to '.ChangelogEntry::MAX_BODY_LENGTH.' characters.');
+        }
+        if ($details !== null && mb_strlen($details) > ChangelogEntry::MAX_DETAILS_LENGTH) {
+            throw new InvalidArgumentException('Additional information must be at most '.ChangelogEntry::MAX_DETAILS_LENGTH.' characters.');
         }
 
-        return [$date, $title, $body];
+        return [$body, $details];
     }
 }

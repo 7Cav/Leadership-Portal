@@ -10,8 +10,9 @@ return new class extends Migration
      * The changelog: entries the changelog editors write by hand, never pulled from git. Portal-owned (AD-22), written
      * only by the audited `app/Commands/Changelog` Commands through `ChangelogRepository`.
      *
-     * - `changelog_entries`: a date, a title and a Markdown body. The date is the one the editor gives, which may be
-     *   earlier than the day the entry was written; the "new" dot compares `created_at`.
+     * - `changelog_entries`: one change each. A date (a Zulu day), the change text as one line (`body`) and optional
+     *   additional information in Markdown (`details`). Entries are grouped by date on the page. The date is the one
+     *   the editor gives, which may be earlier than the day the entry was written; the "new" dot compares `created_at`.
      * - `changelog_seen`: when each user last opened the changelog, for the sidebar's dot. A read marker, not an audited
      *   write, like the activity log's page visits.
      * - `changelog_state`: one row. `acknowledged_deploy_id` is the deploy (the asset build version) an editor last added
@@ -22,8 +23,8 @@ return new class extends Migration
         Schema::create('changelog_entries', function (Blueprint $table) {
             $table->id();
             $table->date('date');
-            $table->string('title', 200);
-            $table->text('body');
+            $table->string('body', 300);
+            $table->text('details')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();

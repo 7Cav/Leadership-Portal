@@ -23,21 +23,21 @@ interface ChangelogRepository
 
     public function find(int $id): ?ChangelogEntry;
 
-    public function create(string $date, string $title, string $body, int $userId): ChangelogEntry;
+    public function create(string $date, string $body, ?string $details, int $userId): ChangelogEntry;
 
-    public function update(ChangelogEntry $entry, string $date, string $title, string $body, int $userId): ChangelogEntry;
+    public function update(ChangelogEntry $entry, string $date, string $body, ?string $details, int $userId): ChangelogEntry;
 
     public function delete(ChangelogEntry $entry): ChangelogEntry;
 
     /**
-     * The `date|lowercased title` keys of every entry, to tell an imported entry that already exists.
+     * The `date|lowercased text` keys of every entry, to tell an imported entry that already exists.
      *
      * @return array<string, true>
      */
     public function existingKeys(): array;
 
-    /** The key {@see existingKeys()} uses: the date and the title, trimmed and lowercased. */
-    public static function key(string $date, string $title): string;
+    /** The key {@see existingKeys()} uses: the date and the change text, trimmed and lowercased. */
+    public static function key(string $date, string $body): string;
 
     /** When the newest entry was written, or null with none. */
     public function latestCreatedAt(): ?DateTimeInterface;

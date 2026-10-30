@@ -11,26 +11,37 @@ page: /changelog
 
 ## Read the changelog
 
-1. Choose **Changelog** under Help in the sidebar. The newest entry is at the top.
+1. Choose **Changelog** under Help in the sidebar. The newest date is at the top. Dates are Zulu days.
+2. An entry with a small arrow in front of it has more to say. Choose the arrow to open it, and again to close it.
 
 > [!good-to-know] Only the changelog editors can change it, and only while signed in as themselves, never while someone acts as them or during View as.
 
-## Add an entry
+## Add entries
 
 1. Choose **Add**, or **Add entry** on the blue "Changelog outdated" bar that shows after a new version goes live.
-2. Give the **Date**, a **Title** and the **Text**. The text is Markdown; raw HTML is removed.
-3. Choose **Add entry**. The bar goes away for both editors.
+2. Check the **Date**. It starts at today in Zulu.
+3. Write one change per row. Press Enter, or choose the plus at the end of a row, to add a row below it. To add several empty rows at once, set the number next to **Add 3 rows** and choose it. Remove a row with its bin.
+4. To say more about a change, tick **Add additional information** under its row and write it in Markdown. Raw HTML is removed.
+5. Choose the add button under the rows; it counts the entries, such as **Add 2 entries**. Empty rows are left out. The bar goes away for both editors.
 
 ## Edit or delete an entry
 
-1. Choose **Edit** under the entry, change it, and choose **Save changes**.
-2. To remove it, choose **Delete** and give a reason.
+1. Point at the entry and choose the pencil, change it, and choose **Save changes**.
+2. To remove it, choose the bin, give a reason, and choose **Delete entry**.
 
 ## Import many entries at once
 
-1. Choose **Bulk import** and paste Markdown where each entry starts with a heading like `## 2026-10-29 - Title`. The text up to the next heading is the entry.
-2. Choose **Preview**. Fix any heading or date it lists as wrong.
-3. Leave **Skip entries whose date and title already exist** ticked to leave out entries you already have; the preview marks them.
+1. Choose **Bulk import** and paste Markdown like this:
+
+   ```
+   ## 2026-10-29
+   - One change per line
+     Indented lines under a change are its additional information.
+   - Another change
+   ```
+
+2. Choose **Preview**. Fix any line it lists as wrong.
+3. Leave **Skip changes that already exist on the same date** ticked to leave out entries you already have; the preview marks them.
 4. Choose **Import**.
 
 ## Dismiss the bar

@@ -6,17 +6,21 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * One changelog entry: a date, a title and a Markdown body, written by a changelog editor. Portal-owned (AD-22), written
- * only by the audited `app/Commands/Changelog` Commands through `ChangelogRepository`. The body is rendered with raw
- * HTML stripped before it reaches a page.
+ * One changelog entry: one change on a (Zulu) date. `body` is the change as one line of plain text; `details` is optional
+ * additional information in Markdown, rendered with raw HTML stripped before it reaches a page. Written by a changelog
+ * editor. Portal-owned (AD-22), written only by the audited `app/Commands/Changelog` Commands through
+ * `ChangelogRepository`.
  */
-#[Fillable(['date', 'title', 'body', 'created_by', 'updated_by'])]
+#[Fillable(['date', 'body', 'details', 'created_by', 'updated_by'])]
 class ChangelogEntry extends Model
 {
-    public const MAX_TITLE_LENGTH = 200;
+    /** Matches the `body` column. */
+    public const MAX_BODY_LENGTH = 300;
 
-    /** `body` is a TEXT column (64 KB on MySQL); kept well under it. */
-    public const MAX_BODY_LENGTH = 20000;
+    public const MAX_DETAILS_LENGTH = 2000;
+
+    /** The most entries one Add saves at once. */
+    public const MAX_BATCH = 50;
 
     protected function casts(): array
     {

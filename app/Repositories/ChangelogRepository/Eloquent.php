@@ -22,20 +22,20 @@ class Eloquent implements ChangelogRepository
         return ChangelogEntry::query()->find($id);
     }
 
-    public function create(string $date, string $title, string $body, int $userId): ChangelogEntry
+    public function create(string $date, string $body, ?string $details, int $userId): ChangelogEntry
     {
         return ChangelogEntry::query()->create([
             'date' => $date,
-            'title' => $title,
             'body' => $body,
+            'details' => $details,
             'created_by' => $userId,
             'updated_by' => $userId,
         ]);
     }
 
-    public function update(ChangelogEntry $entry, string $date, string $title, string $body, int $userId): ChangelogEntry
+    public function update(ChangelogEntry $entry, string $date, string $body, ?string $details, int $userId): ChangelogEntry
     {
-        $entry->fill(['date' => $date, 'title' => $title, 'body' => $body, 'updated_by' => $userId])->save();
+        $entry->fill(['date' => $date, 'body' => $body, 'details' => $details, 'updated_by' => $userId])->save();
 
         return $entry;
     }
@@ -49,14 +49,14 @@ class Eloquent implements ChangelogRepository
 
     public function existingKeys(): array
     {
-        return ChangelogEntry::query()->get(['date', 'title'])
-            ->mapWithKeys(fn (ChangelogEntry $entry) => [self::key($entry->date->toDateString(), $entry->title) => true])
+        return ChangelogEntry::query()->get(['date', 'body'])
+            ->mapWithKeys(fn (ChangelogEntry $entry) => [self::key($entry->date->toDateString(), $entry->body) => true])
             ->all();
     }
 
-    public static function key(string $date, string $title): string
+    public static function key(string $date, string $body): string
     {
-        return $date.'|'.mb_strtolower(trim($title));
+        return $date.'|'.mb_strtolower(trim($body));
     }
 
     public function latestCreatedAt(): ?DateTimeInterface
