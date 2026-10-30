@@ -1,11 +1,11 @@
 <?php
 
+use App\Kpi\StrengthTrends;
 use App\Models\PlacementSource;
 use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
-use App\Kpi\StrengthTrends;
 use App\Models\WeeklyReport;
 use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\UnitRepository;
