@@ -146,7 +146,7 @@ describe('StaffReport page', () => {
         expect(groups[0].findAll('li').map((li) => li.text())).toEqual(['1/1/A/1-7', '2/1/A/1-7']);
     });
 
-    it('collapses every platoon but the HQ's own when the list spans a battalion, with a disclosure button', async () => {
+    it('collapses every platoon but the HQ\'s own when the list spans a battalion, with a disclosure button', async () => {
         const platoons = ['2/A/1-7', '3/A/1-7', '1/B/1-7', '2/B/1-7'];
         const wrapper = await toPicker({
             sections: [

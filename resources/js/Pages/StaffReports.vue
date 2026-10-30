@@ -54,9 +54,9 @@ const hqUrl = (id) => `/staff-reports?week=${props.week.date}&hq=${id}`;
 
 // The whole row opens the report. Its name is the one real link (keyboard and screen reader reach it there); a click
 // anywhere else on the row follows it, and a click on a link or button inside the row is left to that control, so
-// nothing opens twice.
+// nothing opens twice. A focusable hint (the game server warning, `tabindex`) is left alone too.
 function openRow(event, row) {
-    if (event.target.closest('a, button, [role="button"]')) return;
+    if (event.target.closest('a, button, [role="button"], [tabindex]')) return;
     if (window.getSelection?.()?.toString()) return;
     router.visit(row.href);
 }
