@@ -186,7 +186,7 @@ class StaffReportController extends Controller
      * Every section with troopers in it (#442), the staff member's own unit's first: the ones under their HQ are the
      * preferred practices, and the host's rollcall lists them there as a staff guest. `group` names the closest unit
      * above the HQ (the HQ itself, its company, its battalion) that holds the section, null for any other section, so
-     * the picker groups them nearest first, then in order of battle (the unit tree's order, not by name). `platoon`
+     * the picker groups them nearest first, then in order of battle (battalion, company letter, platoon, section; {@see battleKey()}). `platoon`
      * names the section's parent unit, which the picker uses as a small heading.
      *
      * Only sections that play the HQ's game are offered ({@see UnitGame}, inherited down the tree): an HLL HQ sees HLL
@@ -227,12 +227,60 @@ class StaffReportController extends Controller
                     'platoon' => ($parent = $byId->get($unit->parent_id)) === null ? null : ($parent->callsign ?? $parent->name),
                     'rank' => $rank,
                     'order' => $order,
+                    'battle' => self::battleKey($unit->callsign),
                 ];
             })
-            ->sortBy([['rank', 'asc'], ['order', 'asc']])
-            ->map(fn (array $row) => array_diff_key($row, ['rank' => true, 'order' => true]))
+            ->sort(fn (array $a, array $b) => ($a['rank'] <=> $b['rank']) ?: self::battleCompare($a['battle'], $b['battle']) ?: ($a['order'] <=> $b['order']))
+            ->map(fn (array $row) => array_diff_key($row, ['rank' => true, 'order' => true, 'battle' => true]))
             ->values()
             ->all();
+    }
+
+    /**
+     * A sort key in order of battle from a callsign read top down: "2/1/D/1-7" is battalion 1, company D, platoon 1,
+     * section 2. Battalions of the regiment ("1-7", "2-7") come first by number, then companies by letter, then
+     * platoons and sections by number. Anything else (DEVCOM and similar, or no callsign) sorts after them, and ties
+     * keep the unit tree's order. The tree alone is not enough: siblings there sit in creation order, which follows
+     * the org sync and not the order of battle.
+     *
+     * @return list<int|string>
+     */
+    private static function battleKey(?string $callsign): array
+    {
+        $segments = $callsign === null || trim($callsign) === '' ? [] : array_reverse(explode('/', trim($callsign)));
+        if ($segments === [] || preg_match('/^(\d+)-\d+$/', $segments[0], $battalion) !== 1) {
+            return [1, $callsign ?? ''];
+        }
+
+        $key = [0, (int) $battalion[1]];
+        foreach (array_slice($segments, 1) as $segment) {
+            // Numbers before letters at one level, numbers by value, letters A to Z.
+            $key[] = ctype_digit($segment) ? sprintf('0%08d', (int) $segment) : '1'.strtoupper($segment);
+        }
+
+        return $key;
+    }
+
+    /**
+     * Two {@see battleKey()} keys compared level by level (PHP's array `<=>` would compare their lengths first), a
+     * shorter key that is a prefix of the other first.
+     *
+     * @param  list<int|string>  $a
+     * @param  list<int|string>  $b
+     */
+    private static function battleCompare(array $a, array $b): int
+    {
+        foreach ($a as $i => $value) {
+            if (! array_key_exists($i, $b)) {
+                return 1;
+            }
+            $order = is_int($value) && is_int($b[$i]) ? $value <=> $b[$i] : strcmp((string) $value, (string) $b[$i]);
+            if ($order !== 0) {
+                return $order;
+            }
+        }
+
+        return count($a) <=> count($b);
     }
 
     /**

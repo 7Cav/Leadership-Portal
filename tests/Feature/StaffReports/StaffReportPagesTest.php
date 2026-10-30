@@ -83,6 +83,34 @@ it('lists the sections beyond the HQ in order of battle, not by name', function 
         ->where('sections', fn ($sections) => collect($sections)->where('platoon', '2/A/1-7')->pluck('label')->values()->all() === ['9/2/A/1-7', '10/2/A/1-7']));
 });
 
+it('lists the other platoons by battalion, company letter and platoon, other units last, whatever order they were created in', function () {
+    $units = app(UnitRepository::class);
+    $battalion = $this->tree['units']['battalion'];
+    $regiment = $this->tree['units']['regiment'];
+    // Created the way an org sync might: companies and battalions out of order.
+    $companies = [];
+    foreach (['F', 'D', 'C', 'E', 'B'] as $letter) {
+        $companies[$letter] = $units->create(UnitType::Company, "{$letter} Company", "{$letter}/1-7", $battalion->id);
+    }
+    $devcom = $units->create(UnitType::Battalion, 'Development Command', 'DEVCOM', $regiment->id);
+    $second = $units->create(UnitType::Battalion, '2nd Battalion', '2-7', $regiment->id);
+    $platoons = [
+        ['1/F/1-7', $companies['F']], ['9/D/DEVCOM', $units->create(UnitType::Company, 'D Company', 'D/DEVCOM', $devcom->id)],
+        ['1/E/1-7', $companies['E']], ['2/D/1-7', $companies['D']], ['1/D/1-7', $companies['D']], ['2/C/1-7', $companies['C']],
+        ['1/A/2-7', $units->create(UnitType::Company, 'A Company', 'A/2-7', $second->id)], ['1/B/1-7', $companies['B']],
+        ['2/A/1-7', $this->tree['units']['company']],
+    ];
+    foreach ($platoons as [$callsign, $company]) {
+        $platoon = $units->create(UnitType::Platoon, 'Platoon', $callsign, $company->id);
+        Trooper::factory()->create(['primary_section_id' => $units->create(UnitType::Section, 'Section', "1/{$callsign}", $platoon->id)->id]);
+    }
+
+    $this->actingAs($this->tree['users']['psg'])->get($this->url)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+        ->where('sections', fn ($sections) => collect($sections)->pluck('platoon')->unique()->values()->all() === [
+            '1/A/1-7', '2/A/1-7', '1/B/1-7', '2/C/1-7', '1/D/1-7', '2/D/1-7', '1/E/1-7', '1/F/1-7', '1/A/2-7', '9/D/DEVCOM',
+        ]));
+});
+
 it('sends from the page and reads back as sent, picker gone', function () {
     $this->actingAs($this->tree['users']['psg'])
         ->post($this->url, ['attended' => true, 'section_ids' => [$this->host->id]])
