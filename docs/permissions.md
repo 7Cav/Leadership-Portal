@@ -163,7 +163,7 @@ for any other company or section by URL answers 403. The editing controls show o
 
 | Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Mark signatures and SP attendance (incl. Mark all present) | All | All | No | Own | Own | Own | Own | Own | No | No | No |
+| Mark signatures and SP attendance (incl. Mark all attended, Excused and Make-up requested) | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Confirm practice | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Mark roll call posted | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Capture "Try again" | All | All | No | Own | Own | Own | Own | Own | No | No | No |

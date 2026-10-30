@@ -169,7 +169,7 @@ const TONE = {
                             <AttendanceSourceIndicator v-else-if="kind === 'practice' && !autoExcused" :status="trooper.status" :source="trooper.source" />
                             <span v-else-if="kind === 'signature' && !autoExcused" class="inline-flex items-center gap-1" data-testid="signature-line">
                                 <PhSignature class="size-3.5" aria-hidden="true" />
-                                {{ trooper.rollcall === 'unsigned' ? 'Not signed yet' : `Signed: ${valueLabel}` }}
+                                {{ trooper.rollcall === 'unsigned' ? 'Not signed yet' : trooper.rollcall === 'excused' ? 'Excused this week' : `Signed: ${valueLabel}` }}
                             </span>
                             <span v-if="suggestion" class="inline-flex items-center gap-1" data-testid="prior-mark">
                                 <PhClockCounterClockwise class="size-3.5" aria-hidden="true" />Last week: {{ suggestion }}

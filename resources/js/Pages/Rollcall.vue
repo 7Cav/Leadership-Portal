@@ -396,7 +396,8 @@ async function restoreDismissed(player) {
 
 // Not marked yet, an automatic Excused aside: "Mark all present" and "Mark the rest missed" leave an excused first week alone.
 const unmarked = computed(() => rows.value.filter((t) => !isLocked(t) && practiceOf(t) === null));
-const prefillable = computed(() => unmarked.value.filter((t) => t.priorStatus && t.priorStatus !== 'loa'));
+// Leave and an Excused belong to their own week: last week's never carries over.
+const prefillable = computed(() => unmarked.value.filter((t) => t.priorStatus && t.priorStatus !== 'loa' && t.priorStatus !== 'excused'));
 
 function markAllPresent() {
     const entries = unmarked.value.map((trooper) => ({ trooper, value: 'present' }));
