@@ -473,5 +473,26 @@ describe('CounselingPanel', () => {
             expect(document.body.querySelector('[data-testid="counseling-preview-frame"]')).toBeNull();
             wrapper.unmount();
         });
+
+        it('clears a field's error as soon as it is edited', async () => {
+            previewed.mockResolvedValue({
+                ok: false,
+                status: 422,
+                data: { errors: { 'form.infraction': ['Give the infraction and its details.'], kind: ['Choose what the record is for.'] } },
+            });
+            const wrapper = await openForm();
+            await wrapper.get('[data-testid="counseling-source-form"]').setValue(true);
+            await wrapper.get('[data-testid="counseling-preview"]').trigger('click');
+            await flushPromises();
+            expect(wrapper.find('[data-testid="counseling-error-form-infraction"]').exists()).toBe(true);
+
+            await wrapper.get('[data-testid="counseling-form-infraction"]').setValue('Swore at the SL.');
+            expect(wrapper.find('[data-testid="counseling-error-form-infraction"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="counseling-error-kind"]').exists()).toBe(true);
+
+            await wrapper.get('[data-testid="counseling-kind"]').setValue('conduct');
+            expect(wrapper.find('[data-testid="counseling-error-kind"]').exists()).toBe(false);
+            wrapper.unmount();
+        });
     });
 });
