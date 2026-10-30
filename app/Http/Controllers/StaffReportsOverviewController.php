@@ -46,6 +46,13 @@ class StaffReportsOverviewController extends Controller
         $current = WeekOf::start($now);
         $own = $this->access->ownTrooper($user);
         $staff = $this->week->staffOfHqs($hqs->pluck('id')->map(fn ($id) => (int) $id)->all(), $weekStart);
+        // The game server's view of every listed report at once (two queries), never of the viewer's own.
+        $discrepancies = $this->week->discrepancies(
+            collect($staff)->flatten(1)->pluck('report')->filter()
+                ->reject(fn (StaffReport $report) => $own !== null && (int) $report->trooper_id === $own->id)
+                ->unique('id')->values(),
+            $weekStart,
+        );
 
         $groups = $hqs
             ->map(fn (Unit $hq) => [
@@ -53,7 +60,10 @@ class StaffReportsOverviewController extends Controller
                 'label' => $hq->callsign ?? $hq->name,
                 'rows' => collect($staff[$hq->id])
                     ->reject(fn (array $row) => $own !== null && $row['trooper']->id === $own->id)
-                    ->map(fn (array $row) => $this->row($row['trooper'], $row['report'], $hq, $weekStart, $ended))
+                    ->map(fn (array $row) => [
+                        ...$this->row($row['trooper'], $row['report'], $hq, $weekStart, $ended),
+                        'discrepancy' => $discrepancies[$row['trooper']->id] ?? null,
+                    ])
                     ->values()
                     ->all(),
             ])
@@ -95,7 +105,7 @@ class StaffReportsOverviewController extends Controller
     /**
      * One staff member's line: `status` is `sent`, `notSent` or `notDue` (the running week, sent once it ends).
      * `metRule` says whether they kept to at least one section practice (or an FTX) that week, null while not sent.
-     * `practiceType`, `ftx`, `otherEvents`, `notes` and `sheetPushedAt` are as sent ({@see StaffReportWeek::reportProps()}).
+     * `practiceType`, `ftx`, `officeHour`, `otherEvents`, `notes` and `sheetPushedAt` are as sent ({@see StaffReportWeek::reportProps()}).
      *
      * @return array<string, mixed>
      */
@@ -121,6 +131,7 @@ class StaffReportsOverviewController extends Controller
             'practices' => $practices,
             'practiceType' => $props['practiceType'] ?? null,
             'ftx' => $props['ftx'] ?? null,
+            'officeHour' => $props['officeHour'] ?? null,
             'otherEvents' => $props['otherEvents'] ?? null,
             'notes' => $props['notes'] ?? null,
             'sheetPushedAt' => $props['sheetPushedAt'] ?? null,

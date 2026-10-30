@@ -212,8 +212,15 @@ class ReportController extends Controller
             return null;
         }
 
-        return collect($this->staffReportWeek->hqStaff($unit, $weekStart))
-            ->filter(fn (array $row) => $this->staffReportAccess->mayRead($request->user(), $row['trooper'], $unit))
+        $rows = collect($this->staffReportWeek->hqStaff($unit, $weekStart))
+            ->filter(fn (array $row) => $this->staffReportAccess->mayRead($request->user(), $row['trooper'], $unit));
+        // Where the game server disagrees with a sent report, for a reader: never on the viewer's own row.
+        $discrepancies = $this->staffReportWeek->discrepancies(
+            $rows->reject(fn (array $row) => $this->scope->isOwnTrooper($request->user(), $row['trooper']))->pluck('report')->filter()->values(),
+            $weekStart,
+        );
+
+        return $rows
             ->map(fn (array $row) => [
                 'trooperId' => $row['trooper']->id,
                 'name' => $row['trooper']->display_name,
@@ -221,8 +228,9 @@ class ReportController extends Controller
                 'attended' => $row['report']?->attended,
                 'practices' => count($row['report']?->practices ?? []),
                 // What else was sent, as on the staff report page.
-                ...($row['report'] === null ? ['practiceType' => null, 'ftx' => null, 'otherEvents' => null, 'notes' => null, 'sheetPushedAt' => null]
-                    : array_intersect_key(StaffReportWeek::reportProps($row['report']), array_flip(['practiceType', 'ftx', 'otherEvents', 'notes', 'sheetPushedAt']))),
+                ...($row['report'] === null ? ['practiceType' => null, 'ftx' => null, 'officeHour' => null, 'otherEvents' => null, 'notes' => null, 'sheetPushedAt' => null]
+                    : array_intersect_key(StaffReportWeek::reportProps($row['report']), array_flip(['practiceType', 'ftx', 'officeHour', 'otherEvents', 'notes', 'sheetPushedAt']))),
+                'discrepancy' => $discrepancies[$row['trooper']->id] ?? null,
                 'href' => route('staff-report.show', ['trooper' => $row['trooper']->id, 'week' => $weekStart->toDateString()]),
             ])
             ->values()

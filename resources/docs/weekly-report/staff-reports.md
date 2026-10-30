@@ -19,9 +19,12 @@ minutes: 2
 
 ## Read the list
 
-1. Staff are grouped by their HQ, from the top of the tree down. Each line shows the name, billet, status, what they attended (an SP and its sections, or an FTX with its name and date), their other events and notes, and whether they met the one practice a week.
-2. A sent report says **Sent to the sheet** once it is copied to the regiment's reports sheet, or **Not sent to the sheet yet** while that is still to happen.
-3. **Sent** means they sent it, **Not sent yet** means the week has ended and it is still missing, and **Not due yet** means the week is still running.
-4. **Open report** opens their full staff report.
+1. Staff are grouped by their HQ, from the top of the tree down. Each line shows the name, billet, status, what they attended (an SP and its sections, an FTX with its name and date, or an office hour), their other events and notes, and **1 SP met** or **Missed**.
+2. Choose **Not sent** or **Missed** above the list to see only those staff. **All** shows everyone again.
+3. A sent report says **Sent to the sheet** once it is copied to the regiment's reports sheet, or **Not sent to the sheet yet** while that is still to happen.
+4. **Sent** means they sent it, **Not sent** means the week has ended and it is still missing, and **Not due yet** means the week is still running.
+5. Choose a name to open their full staff report.
+
+> [!good-to-know] A warning icon beside an answer means the game server's practice capture disagrees with it: a practice they reported was captured and did not see them, or a captured practice they did not report saw them. Point at the icon to read which. A practice with no capture never shows one, nor does an FTX or an office hour, which the game server does not capture. Staff never see it on their own report.
 
 > [!good-to-know] You see the staff of every HQ under a unit you command or read: a company commander sees their platoon HQs, battalion command sees company and platoon HQs, regiment command also sees the battalion HQs, and Admins see all. A PL or PSG sees only their own report. For a week that has ended, each HQ lists who was on it when the week ended.

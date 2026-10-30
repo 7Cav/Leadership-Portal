@@ -86,6 +86,8 @@ function sendFields(User $actor, Trooper $trooper, bool $attended, array $sectio
         $fields['ftx_date'] ?? null,
         $fields['other_events'] ?? null,
         $fields['notes'] ?? null,
+        $fields['office_hour_date'] ?? null,
+        $fields['office_hour_note'] ?? null,
     ));
 }
 
@@ -368,4 +370,87 @@ it('keeps the row builder to a battalion for ACD only by its designation', funct
     $bn = new Unit(['type' => UnitType::Battalion, 'name' => '1st Battalion', 'callsign' => '1-7']);
 
     expect(StaffReportSheetRow::isAcd($acd))->toBeTrue()->and(StaffReportSheetRow::isAcd($bn))->toBeFalse();
+});
+
+// Office hours, battalion HQ only.
+
+it('takes an office hour from battalion HQ staff, with its date in the week and a note, and no section', function () {
+    $report = sendFields($this->bnStaffUser, $this->bnStaff, true, [], ['practice_type' => 'office_hour', 'office_hour_date' => '2026-10-06', 'office_hour_note' => ' Questions from new NCOs ']);
+
+    expect($report->refresh()->practice_type)->toBe('office_hour')
+        ->and($report->office_hour_date->toDateString())->toBe('2026-10-06')
+        ->and($report->office_hour_note)->toBe('Questions from new NCOs')
+        ->and($report->practices)->toBe([])
+        ->and($report->ftx_name)->toBeNull();
+});
+
+it('refuses an office hour from platoon and company HQ staff, writing nothing', function (string $who) {
+    $user = $this->tree['users'][$who];
+    $trooper = Trooper::query()->where('cav_id', $user->cav_id)->sole();
+
+    expect(fieldsRefusal(fn () => sendFields($user, $trooper, true, [], ['practice_type' => 'office_hour', 'office_hour_date' => '2026-10-06', 'office_hour_note' => 'Office hour'])))
+        ->toBe(['office_hour', 'practice_type'])
+        ->and(StaffReport::query()->count())->toBe(0);
+})->with(['platoon HQ' => 'psg', 'company HQ' => 'co']);
+
+it('refuses an office hour without a note, with a date outside the week, over 200 characters, with sections, or its fields elsewhere', function (bool $attended, array $sections, array $fields, array $refusal) {
+    $sectionIds = $sections === [] ? [] : [$this->host->id];
+
+    expect(fieldsRefusal(fn () => sendFields($this->bnStaffUser, $this->bnStaff, $attended, $sectionIds, $fields)))->toBe($refusal)
+        ->and(StaffReport::query()->count())->toBe(0);
+})->with([
+    'no note' => [true, [], ['practice_type' => 'office_hour', 'office_hour_date' => '2026-10-06'], ['office_hour', 'office_hour_note']],
+    'no date' => [true, [], ['practice_type' => 'office_hour', 'office_hour_note' => 'Q and A'], ['office_hour', 'office_hour_date']],
+    'the Saturday after' => [true, [], ['practice_type' => 'office_hour', 'office_hour_date' => '2026-10-10', 'office_hour_note' => 'Q and A'], ['office_hour', 'office_hour_date']],
+    'note too long' => [true, [], ['practice_type' => 'office_hour', 'office_hour_date' => '2026-10-06', 'office_hour_note' => str_repeat('a', 201)], ['too_long', 'office_hour_note']],
+    'with a section' => [true, ['host'], ['practice_type' => 'office_hour', 'office_hour_date' => '2026-10-06', 'office_hour_note' => 'Q and A'], ['office_hour', 'section_ids']],
+    'note on an SP' => [true, ['host'], ['office_hour_note' => 'Q and A'], ['office_hour', 'office_hour_note']],
+    'with No' => [false, [], ['practice_type' => 'office_hour'], ['office_hour', 'office_hour_note']],
+]);
+
+it('takes an office hour note of exactly 200 characters, and bounds the request at the controller', function () {
+    expect(mb_strlen(sendFields($this->bnStaffUser, $this->bnStaff, true, [], ['practice_type' => 'office_hour', 'office_hour_date' => '2026-10-09', 'office_hour_note' => str_repeat('a', 200)])->office_hour_note))->toBe(200);
+
+    $this->actingAs($this->tree['users']['psg'])
+        ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), [
+            'attended' => true, 'section_ids' => [], 'practice_type' => 'office_hour', 'office_hour_date' => '2026-10-06', 'office_hour_note' => str_repeat('a', 201),
+        ])
+        ->assertSessionHasErrors(['office_hour_note' => 'Keep the office hour note to 200 characters.']);
+});
+
+it('refuses an office hour from a platoon HQ through the page, on the practice type', function () {
+    $this->actingAs($this->tree['users']['psg'])
+        ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), [
+            'attended' => true, 'section_ids' => [], 'practice_type' => 'office_hour', 'office_hour_date' => '2026-10-06', 'office_hour_note' => 'Q and A',
+        ])
+        ->assertSessionHasErrors(['practice_type' => 'An office hour counts for battalion HQ staff only. Pick Section practice (SP) or FTX.']);
+
+    expect(StaffReport::query()->count())->toBe(0);
+});
+
+it('counts an office hour as meeting the one-a-week rule, and reads it back on the page and the overview', function () {
+    sendFields($this->bnStaffUser, $this->bnStaff, true, [], ['practice_type' => 'office_hour', 'office_hour_date' => '2026-10-06', 'office_hour_note' => 'Q and A']);
+
+    $this->actingAs($this->regimentCo)->get(route('staff-report.show', ['trooper' => $this->bnStaff->id, 'week' => '2026-10-03']))
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('report.practiceType', 'office_hour')
+            ->where('report.officeHour', ['date' => '2026-10-06', 'note' => 'Q and A'])
+            ->where('report.ftx', null)
+            ->where('limits.officeHourNote', 200));
+
+    $this->actingAs($this->regimentCo)->get('/staff-reports')->assertInertia(fn (AssertableInertia $page) => $page
+        ->where('groups', fn ($groups) => ($row = collect(collect($groups)->firstWhere('label', '1-7')['rows'])->firstWhere('trooperId', $this->bnStaff->id)) !== null
+            && $row['metRule'] === true && $row['officeHour'] === ['date' => '2026-10-06', 'note' => 'Q and A'] && $row['discrepancy'] === null));
+});
+
+it('puts the office hour at the front of the other events cell on the battalion tab', function () {
+    $fake = fakeSheet();
+    $report = sendFields($this->bnStaffUser, $this->bnStaff, true, [], ['practice_type' => 'office_hour', 'office_hour_date' => '2026-10-06', 'office_hour_note' => 'Q and A', 'other_events' => 'Range day']);
+
+    pushToSheet($report);
+
+    expect($fake->rows)->toBe([['tab' => 'Weekly Battalion Report 2O26', 'row' => [
+        '10/10/2026 12:00:00', 'Stone.A', '1st Battalion', '09Oct26', 'Battalion XO', 'Yes', '', 'Office hour (10/6/2026): Q and A; Range day', '',
+        '', '', '', '', '', '', '',
+    ]]]);
 });

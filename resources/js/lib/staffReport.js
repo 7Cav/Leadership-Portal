@@ -1,9 +1,10 @@
 import { forumDate } from '@/lib/forumDate';
 
 // How a sent staff report's answer reads, shared by the report page, the overview and the HQ staff panel. `report`
-// carries `{ attended, practiceType, ftx: { name, date } | null, practices }`, where `practices` is a list of labels.
+// carries `{ attended, practiceType, ftx: { name, date } | null, officeHour: { date, note } | null, practices }`, where
+// `practices` is a list of labels.
 
-/** `Yes: 1/1/A/1-7, 2/1/A/1-7` for an SP, `Yes, FTX Operation Anvil (09Jan26)`, or `No`. Empty while not sent. */
+/** `Yes: 1/1/A/1-7, 2/1/A/1-7` for an SP, `Yes, FTX Operation Anvil (09Jan26)`, `Yes, office hour (09Jan26)`, or `No`. Empty while not sent. */
 export function attendedText(report) {
     if (report.attended === null || report.attended === undefined) return '';
     if (!report.attended) return 'No';
@@ -14,6 +15,11 @@ export function attendedText(report) {
 
         return `Yes, FTX ${report.ftx?.name ?? ''}${date}${practices}`;
     }
+    if (report.practiceType === 'office_hour') {
+        const date = report.officeHour?.date ? ` (${forumDate(report.officeHour.date)})` : '';
+
+        return `Yes, office hour${date}`;
+    }
 
     return `Yes${practices}`;
 }
@@ -23,4 +29,22 @@ export function sheetText(sheetPushedAt, configured) {
     if (sheetPushedAt) return 'Sent to the sheet';
 
     return configured ? 'Not sent to the sheet yet' : null;
+}
+
+/**
+ * What the game server saw against what was reported, `{ notSeen, seenElsewhere }` (lists of section labels), as the
+ * sentences a reader's tooltip shows. Empty when there is nothing to say.
+ */
+export function discrepancyLines(discrepancy) {
+    if (!discrepancy) return [];
+
+    const lines = [];
+    if (discrepancy.notSeen?.length) {
+        lines.push(`Reported at ${discrepancy.notSeen.join(', ')}, but the game server capture of that practice did not see them.`);
+    }
+    if (discrepancy.seenElsewhere?.length) {
+        lines.push(`The game server saw them at the practice of ${discrepancy.seenElsewhere.join(', ')}, which they did not report.`);
+    }
+
+    return lines;
 }

@@ -4,11 +4,13 @@ namespace App\Milpac;
 
 use App\Models\CrossSectionSighting;
 use App\Models\PracticeCapturePlayer;
+use App\Models\SectionPractice;
 use App\Models\StaffReport;
 use App\Models\Trooper;
 use App\Models\Unit;
 use App\Repositories\CrossSectionSightingRepository;
 use App\Repositories\PracticeCapturePlayerRepository;
+use App\Repositories\SectionPracticeRepository;
 use App\Repositories\StaffReportRepository;
 use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\TrooperRepository;
@@ -28,6 +30,7 @@ class StaffReportWeek
         private readonly PracticeCapturePlayerRepository $captures,
         private readonly TrooperPlacementRepository $placements,
         private readonly TrooperRepository $troopers,
+        private readonly SectionPracticeRepository $sectionPractices,
     ) {}
 
     /**
@@ -44,10 +47,10 @@ class StaffReportWeek
     }
 
     /**
-     * The report as sent. `practiceType` is `sp` or `ftx` (a report sent before the type was asked reads as an SP when
-     * they attended); `ftx` holds the FTX's name and date; `sheetPushedAt` is when the row went to the reports sheet.
+     * The report as sent. `practiceType` is `sp`, `ftx` or `office_hour` (a report sent before the type was asked reads as an SP when
+     * they attended); `ftx` holds the FTX's name and date, `officeHour` the office hour's date and note; `sheetPushedAt` is when the row went to the reports sheet.
      *
-     * @return array{sentAt: string, attended: bool, practiceType: ?string, ftx: ?array{name: ?string, date: ?string}, otherEvents: ?string, notes: ?string, sheetPushedAt: ?string, practices: list<array{sectionId: int, section: ?string}>}
+     * @return array{sentAt: string, attended: bool, practiceType: ?string, ftx: ?array{name: ?string, date: ?string}, officeHour: ?array{date: ?string, note: ?string}, otherEvents: ?string, notes: ?string, sheetPushedAt: ?string, practices: list<array{sectionId: int, section: ?string}>}
      */
     public static function reportProps(StaffReport $report): array
     {
@@ -58,6 +61,7 @@ class StaffReportWeek
             'attended' => $report->attended,
             'practiceType' => $type,
             'ftx' => $type === StaffReport::FTX ? ['name' => $report->ftx_name, 'date' => $report->ftx_date?->toDateString()] : null,
+            'officeHour' => $type === StaffReport::OFFICE_HOUR ? ['date' => $report->office_hour_date?->toDateString(), 'note' => $report->office_hour_note] : null,
             'otherEvents' => $report->other_events,
             'notes' => $report->notes,
             'sheetPushedAt' => $report->sheet_pushed_at?->toIso8601String(),
@@ -75,14 +79,61 @@ class StaffReportWeek
     }
 
     /**
-     * Whether a sent report keeps to the rule of one section practice a week: "Yes" with a practice picked, or "Yes"
-     * to an FTX, whose sections are optional.
+     * Whether a sent report keeps to the rule of one section practice a week: "Yes" with a practice picked, "Yes"
+     * to an FTX, whose sections are optional, or a battalion HQ staff member's office hour.
      *
      * @param  array{attended: bool, practiceType: ?string, practices: list<mixed>}  $props  from {@see reportProps()}
      */
     public static function metRule(array $props): bool
     {
-        return $props['attended'] && ($props['practices'] !== [] || $props['practiceType'] === StaffReport::FTX);
+        return $props['attended'] && ($props['practices'] !== []
+            || in_array($props['practiceType'], [StaffReport::FTX, StaffReport::OFFICE_HOUR], true));
+    }
+
+    /**
+     * Where the game server disagrees with what each sent report says, for readers only (the controllers never pass
+     * the viewer's own): trooper id => `{notSeen, seenElsewhere}`, each a list of section labels, or no key when the
+     * two agree. `notSeen`: a section whose practice they reported attending was captured that week and the capture
+     * did not see them. `seenElsewhere`: a captured practice that week saw them, through a linked game identity, at
+     * a section they did not report (all of them when they answered No). A practice with no capture says nothing, and
+     * an FTX or an office hour is never compared: neither is captured. Two queries whatever the number of reports.
+     *
+     * @param  iterable<StaffReport>  $reports  sent reports of one week
+     * @return array<int, array{notSeen: list<string>, seenElsewhere: list<string>}>
+     */
+    public function discrepancies(iterable $reports, CarbonImmutable $weekStart): array
+    {
+        $compared = collect($reports)->filter(fn (StaffReport $report) => ! in_array(
+            $report->practice_type ?? ($report->attended ? StaffReport::SP : null),
+            [StaffReport::FTX, StaffReport::OFFICE_HOUR],
+            true,
+        ))->keyBy('trooper_id');
+
+        if ($compared->isEmpty()) {
+            return [];
+        }
+
+        $reportedIds = $compared->flatMap(fn (StaffReport $report) => array_map(fn (array $row) => (int) $row['section_id'], $report->practices ?? []))
+            ->unique()->values()->all();
+        $captured = $this->sectionPractices->forSections($reportedIds, $weekStart)
+            ->filter(fn (SectionPractice $practice) => $practice->captured_at !== null);
+        $seen = $this->captures->seenInWeek($compared->keys()->map(fn ($id) => (int) $id)->all(), $weekStart);
+
+        $out = [];
+        foreach ($compared as $trooperId => $report) {
+            $reported = collect($report->practices ?? [])->mapWithKeys(fn (array $row) => [(int) $row['section_id'] => $row['section'] ?? null]);
+            $seenHere = $seen[(int) $trooperId] ?? [];
+
+            $notSeen = $reported->filter(fn (?string $label, int $sectionId) => $captured->has($sectionId) && ! isset($seenHere[$sectionId]))
+                ->map(fn (?string $label) => $label ?? 'a section no longer in the portal')->values()->all();
+            $seenElsewhere = array_values(array_diff_key($seenHere, $reported->all()));
+
+            if ($notSeen !== [] || $seenElsewhere !== []) {
+                $out[(int) $trooperId] = ['notSeen' => $notSeen, 'seenElsewhere' => $seenElsewhere];
+            }
+        }
+
+        return $out;
     }
 
     /**

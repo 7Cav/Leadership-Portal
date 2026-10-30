@@ -1,6 +1,6 @@
 ---
 title: Send your staff report
-summary: Platoon, company and battalion HQ staff say each week whether they attended a section practice or an FTX, and which.
+summary: Platoon, company and battalion HQ staff say each week whether they attended a section practice, an FTX or an office hour, and which.
 section: weekly-report
 order: 4
 audience: everyone
@@ -24,18 +24,19 @@ minutes: 2
 
 ## Answer and pick the practices
 
-1. Answer **Did you attend a section practice this week?** with Yes or No.
-2. For Yes, pick the type: **Section practice (SP)** or **FTX**. SP is picked to start with.
-3. For an SP, tick each practice you attended. Your own unit's sections are listed first, and **Find a section** narrows the list.
-4. For an FTX, give its name and its date, a day in that Cav week. Ticking the sections that took part is optional.
-5. Practices already entered for you this week are ticked, with who entered them. Untick one you did not attend: sending takes it off.
-6. Add any other events you attended, and notes, if you like. Both are optional.
+1. Answer **Did you attend a section practice this week?** with **Yes** or **No**.
+2. For Yes, pick what it was: **Section practice**, **FTX** or, on a battalion HQ, **Office hour**. Section practice is picked to start with.
+3. For a section practice, pick each one you attended. Sections are grouped nearest first: your own HQ, its company, its battalion, then the rest. **Find a section** narrows the list. Each pick shows as a chip above the list; its x takes it off.
+4. For an FTX, give its name and its date, a day in that Cav week. Picking the sections that took part is optional.
+5. For an office hour, give its date, a day in that Cav week, and a short note of what it was, up to 200 characters. It counts in place of the hour at a section practice. Only battalion HQ staff can report one.
+6. Practices already entered for you this week are picked, with who entered them. Take off one you did not attend: sending takes it off.
+7. Open **Other events attended** or **Notes** to add them, if you like. Both are optional.
 
 > [!good-to-know] **Seen on the game server** means a capture saw you on the server that Cav week. It is never ticked for you, because the capture reads the whole week, not one practice.
 
 ## Send it
 
-1. Choose **Send staff report**. Once sent, it cannot be changed.
+1. The bar at the bottom of the screen reads your answer back and says what is still missing. Choose **Send staff report**. Once sent, it cannot be changed.
 2. Each practice you picked lists you on that section's roll call: as a **Staff guest** in your own platoon, company or battalion, and as a **Guest** anywhere else. You never count in that section's numbers.
 3. Your report is also copied to the regiment's reports sheet. Your report page says **Sent to the sheet** once it is there.
 
