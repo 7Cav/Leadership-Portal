@@ -36,7 +36,7 @@ checklist:
 1. In step 1, **Signatures**, set each trooper to **Will attend**, **Will not attend**, **Make-up requested**, **Excused** or **Unsigned**, as they signed this week's forum thread.
 2. Every change saves as you click. If a save fails, the page says your last changes are not saved and keeps them on screen. Choose **Retry**.
 
-> [!good-to-know] Troopers whose leave covers the week are locked and listed under **On LOA**. They post as LOA; you do not mark them. A trooper whose leave starts next Cav week shows **Leave from** and the date; mark them as usual this week.
+> [!good-to-know] Troopers whose leave covers the week are locked and listed under **On LOA**, with the **LOA** button pressed on both tabs from the LOA data. They post as LOA; you do not mark them. A trooper whose leave starts next Cav week shows **Leave from** and the date; mark them as usual this week.
 
 > [!good-to-know] **Excused** counts for nothing, like LOA: the week leaves the trooper's RC or SP and is accounted on the report. A trooper's first week in your section after a transfer, and a new recruit's first week, are excused for you: the card shows **Excused, automatic**. Choose any other button to override it.
 

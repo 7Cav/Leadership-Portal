@@ -227,8 +227,25 @@ describe('Rollcall page', () => {
         const wrapper = factory({ troopers: [trooper(4, 'unsigned', 'loa')] });
 
         const card = wrapper.find('[data-trooper="4"]');
-        expect(card.text()).toContain('LOA, nothing to mark');
+        expect(card.text()).toContain('Nothing to mark');
         expect(card.findAll('button[data-value]')).toHaveLength(0);
+        // The LOA button, pressed automatically from the LOA data and not clickable.
+        const loa = card.find('[data-testid="loa-button"]');
+        expect(loa.text()).toBe('LOA');
+        expect(loa.attributes('aria-pressed')).toBe('true');
+        expect(loa.attributes('disabled')).toBeDefined();
+    });
+
+    it('presses the LOA button on the signature step too, from the LOA data', () => {
+        page.url = '/rollcall/12?step=1';
+        const wrapper = factory({ troopers: [trooper(4, 'unsigned', 'loa'), trooper(3, 'unsigned', null)] });
+
+        const loa = wrapper.find('[data-trooper="4"] [data-testid="loa-button"]');
+        expect(loa.exists()).toBe(true);
+        expect(loa.attributes('aria-pressed')).toBe('true');
+        expect(wrapper.find('[data-trooper="4"]').findAll('button[data-value]')).toHaveLength(0);
+        // Not on leave: no LOA button, the usual signature buttons.
+        expect(wrapper.find('[data-trooper="3"] [data-testid="loa-button"]').exists()).toBe(false);
     });
 
     it('shows each practice mark\'s source, and the shared legend (3.9)', () => {
@@ -432,7 +449,7 @@ describe('Rollcall page', () => {
             expect(button(wrapper, 2, 'present').attributes('aria-pressed')).toBe('true');
             expect(button(wrapper, 3, 'present').attributes('aria-pressed')).toBe('true');
             expect(button(wrapper, 1, 'missed').attributes('aria-pressed')).toBe('true');
-            expect(wrapper.find('[data-trooper="4"]').text()).toContain('LOA, nothing to mark');
+            expect(wrapper.find('[data-trooper="4"]').text()).toContain('Nothing to mark');
 
             const [title, options] = toastSuccess.mock.calls[0];
             expect(title).toBe('Marked 2 as attended');
@@ -506,7 +523,7 @@ describe('Rollcall page', () => {
             expect(button(wrapper, 2, 'missed').attributes('aria-pressed')).toBe('true');
             expect(button(wrapper, 3, 'missed').attributes('aria-pressed')).toBe('true');
             expect(button(wrapper, 1, 'present').attributes('aria-pressed')).toBe('true');
-            expect(wrapper.find('[data-trooper="4"]').text()).toContain('LOA, nothing to mark');
+            expect(wrapper.find('[data-trooper="4"]').text()).toContain('Nothing to mark');
 
             const [title, options] = toastSuccess.mock.calls[0];
             expect(title).toBe('Marked 2 as not attended');
@@ -618,7 +635,7 @@ describe('Rollcall page', () => {
             await vi.advanceTimersByTimeAsync(1000);
 
             const card = wrapper.find('[data-trooper="3"]');
-            expect(card.text()).toContain('LOA, nothing to mark');
+            expect(card.text()).toContain('Nothing to mark');
             expect(wrapper.find('[role="group"][aria-label="On LOA"]').text()).toContain('Trooper3.A');
             expect(wrapper.find('[data-testid="save-on-leave"]').text()).toContain('Trooper3.A is on LOA this week');
             expect(wrapper.find('[data-testid="save-rejected"]').exists()).toBe(false);

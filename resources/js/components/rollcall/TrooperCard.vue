@@ -178,17 +178,25 @@ const TONE = {
                     </div>
                 </div>
 
+                <!-- On LOA (from the LOA data, both tabs): the LOA button shows pressed on its own and nothing else can be set. -->
                 <div
                     v-if="locked"
-                    :class="
-                        cn(
-                            'flex h-11 items-center gap-2 rounded-md border border-dashed border-border px-3 text-[13px] text-muted-foreground sm:h-9',
-                            'sm:@4xl:w-[22rem]',
-                        )
-                    "
+                    role="group"
+                    :aria-label="`${kind === 'signature' ? 'Roll call signature' : 'Section practice'} for ${name}`"
+                    :class="cn('flex items-center gap-2 rounded-md bg-muted p-[3px]', 'sm:@4xl:w-[22rem]')"
                 >
-                    <PhLockSimple class="size-4" aria-hidden="true" />LOA, nothing to mark
-                    <Badge variant="outline" class="ml-auto">Locked</Badge>
+                    <button
+                        type="button"
+                        disabled
+                        aria-pressed="true"
+                        title="Set from the LOA data. Nothing to mark this week."
+                        data-testid="loa-button"
+                        :class="cn('inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-sm px-2 text-[13px] font-medium disabled:cursor-not-allowed sm:min-h-[2.125rem]', TONE.warn)"
+                    >
+                        <PhLockSimple class="size-4" aria-hidden="true" />LOA
+                    </button>
+                    <span class="pr-2 text-[12px] text-muted-foreground">Nothing to mark</span>
+                    <Badge variant="outline" class="mr-1 ml-auto">Locked</Badge>
                 </div>
                 <div
                     v-else

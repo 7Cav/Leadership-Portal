@@ -125,7 +125,7 @@ Every change saves in the background as you click, and is written to the audit l
 
 On the same page:
 
-- LOA: a trooper whose leave covers the week is locked, listed under "On LOA", and posts as `LOA`. A leave post the
+- LOA: a trooper whose leave covers the week is locked, shows the LOA button pressed on both tabs, is listed under "On LOA", and posts as `LOA`. A leave post the
   sync could not read shows a "needs review" badge but stays markable. A trooper whose cleanly read leave starts the
   next Cav week shows a "Leave from 17Oct26" chip, read-only, so the next practice can be planned around it.
 - Excused: like LOA, the week counts for nothing (out of RC or SP, accounted on the report), in the same yellow. A
