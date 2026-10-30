@@ -175,6 +175,16 @@ function submitFiling() {
 }
 
 // Correcting and deleting: one record at a time, inline, each with the reason the audit log keeps.
+// A seeded demo record's document has no file behind it: say so instead of starting a download that would fail.
+const demoDocumentOpen = ref(false);
+
+function openDocument(event, record) {
+    if (record.document?.demo) {
+        event.preventDefault();
+        demoDocumentOpen.value = true;
+    }
+}
+
 const editingId = ref(null);
 const deletingId = ref(null);
 const overturningId = ref(null);
@@ -519,6 +529,7 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
                         :href="`/counseling/${record.id}/document`"
                         class="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                         data-testid="counseling-download"
+                        @click="openDocument($event, record)"
                     >
                         <PhFilePdf class="size-3.5" aria-hidden="true" />{{ record.document.name }}
                         <span class="text-muted-foreground">({{ fileSize(record.document.size) }})</span>
@@ -594,6 +605,15 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
                 </form>
             </li>
         </ul>
+
+        <Dialog v-model:open="demoDocumentOpen">
+            <DialogContent class="sm:max-w-md" data-testid="counseling-demo-dialog">
+                <DialogTitle class="text-base font-semibold">Demo file</DialogTitle>
+                <DialogDescription class="text-[13px] text-muted-foreground">
+                    This file is a demo file and will not be downloaded. You can generate a real one with the form.
+                </DialogDescription>
+            </DialogContent>
+        </Dialog>
 
         <Dialog v-model:open="preview.open">
             <DialogContent class="sm:max-w-3xl" data-testid="counseling-preview-dialog">
