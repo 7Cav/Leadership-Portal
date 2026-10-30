@@ -72,7 +72,8 @@ it('opens on the last ended week, with sent, not sent and the 1-practice rule', 
         ->where('week.date', '2026-10-03')
         ->where('week.ended', true)
         ->where('week.next', '2026-10-10')
-        ->where('own', null)
+        // The CO is staff on the company HQ themselves: their own report sits on top, not in the rows.
+        ->where('own.status', 'notSent')
         ->where('groups.0.rows', fn ($rows) => collect($rows)->firstWhere('trooperId', $this->psg->id) === [
             'trooperId' => $this->psg->id,
             'name' => $this->psg->display_name,
