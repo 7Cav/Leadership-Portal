@@ -655,15 +655,21 @@ class SyncLoasHandler
             $rawStart = $isReturn ? null : $this->fit($isReport ? $eventNote : $parsed->rawStart, 'Start Date', $reasons);
             $rawEnd = $isReturn ? null : $this->fit($parsed->rawEnd, $isReport ? 'Expected return date' : 'End Date', $reasons);
 
-            // The forum identity first: a rename or a same-name collision cannot send leave to the wrong person.
-            // Only when it names exactly one trooper; otherwise the typed name decides, as before.
-            $matches = $parsed->forumUserId === null ? [] : ($troopers['byForumId'][$parsed->forumUserId] ?? []);
+            // A [USER=id] mention is text the poster can edit. Its id and displayed name must
+            // identify the same trooper; an unknown name also needs review rather than giving
+            // leave to whichever trooper the id names.
+            $idMatches = $parsed->forumUserId === null ? [] : ($troopers['byForumId'][$parsed->forumUserId] ?? []);
+            $nameMatches = $username === null ? [] : ($troopers['byName'][mb_strtolower($username)] ?? []);
+            $identityConflict = count($idMatches) === 1 && ! in_array($idMatches[0], $nameMatches, true);
 
-            if (count($matches) !== 1) {
-                $matches = $username === null ? [] : ($troopers['byName'][mb_strtolower($username)] ?? []);
+            if ($identityConflict) {
+                $reasons[] = 'The Username does not match the forum user id.';
+                $matches = [];
+            } else {
+                $matches = count($idMatches) === 1 ? $idMatches : $nameMatches;
             }
 
-            if ($username !== null && count($matches) !== 1) {
+            if ($username !== null && count($matches) !== 1 && ! $identityConflict) {
                 $shown = mb_substr($username, 0, 40);
                 $reasons[] = $matches === [] ? "No trooper is named {$shown}." : count($matches)." troopers are named {$shown}.";
             }

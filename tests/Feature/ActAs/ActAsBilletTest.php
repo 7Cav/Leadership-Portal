@@ -31,8 +31,8 @@ beforeEach(function () {
 
     // The Admin holds a billet and a grant of their own, neither of which may leak into the one they act as.
     UnitCommandMapping::factory()->create(['unit_id' => $company->id, 'cav_position_id' => 7700]);
-    Trooper::factory()->create(['cav_id' => 950, 'cav_position_id' => 7700, 'status' => TrooperStatus::Combat, 'username' => 'Hale.S', 'rank_short' => 'MSG']);
-    $this->admin = User::factory()->admin()->create(['username' => 'Hale.S', 'cav_id' => 950]);
+    $adminTrooper = Trooper::factory()->create(['cav_id' => 950, 'cav_position_id' => 7700, 'status' => TrooperStatus::Combat, 'username' => 'Hale.S', 'rank_short' => 'MSG']);
+    $this->admin = User::factory()->admin()->create(['username' => 'Hale.S', 'cav_id' => 950, 'forum_user_id' => $adminTrooper->forum_user_id]);
     PortalRoleGrant::factory()->create(['user_id' => $this->admin->id, 'unit_id' => $company->id]);
 });
 
@@ -156,8 +156,8 @@ it('never writes the stand-in back over the Admin\'s account', function () {
 it('refuses a unit that does not exist, and a non-Admin outright', function () {
     $this->actingAs($this->admin)->post('/act-as', ['kind' => 'unit', 'id' => 999999])->assertSessionHasErrors('act_as');
 
-    Trooper::factory()->create(['cav_id' => 960, 'status' => TrooperStatus::Combat]);
-    $leader = User::factory()->create(['cav_id' => 960]);
+    $trooper = Trooper::factory()->create(['cav_id' => 960, 'status' => TrooperStatus::Combat]);
+    $leader = User::factory()->create(['cav_id' => 960, 'forum_user_id' => $trooper->forum_user_id]);
     $this->actingAs($leader)->post('/act-as', ['kind' => 'unit', 'id' => $this->section->id])->assertForbidden();
 
     expect(AuditLogEntry::count())->toBe(0);

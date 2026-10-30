@@ -210,9 +210,9 @@ function logInThroughTheForum(): string
     ]);
 
     // ...and the roster cache holds milpac 77 as serving, as a sync would have left it — the sign-in
-    // gate admits only a user linked to a serving cached trooper (or an Admin).
+    // gate admits only a user linked to a serving cached trooper with the same forum identity (or an Admin).
     if (! Trooper::query()->where('cav_id', 77)->exists()) {
-        Trooper::factory()->create(['cav_id' => 77]);
+        Trooper::factory()->create(['cav_id' => 77, 'forum_user_id' => 4]);
     }
 
     test()->withSession(['forum_oauth_state' => 'valid-state'])

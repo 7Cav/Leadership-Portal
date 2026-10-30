@@ -29,10 +29,12 @@ audience: leader
 4. Set the **Date** the counseling was given. It cannot be in the future.
 5. Under **What it is for**, choose **Missed section practice or roll call** or **Other conduct**. It decides which of the regulations' rules the record is weighed on, and it cannot be changed later.
 6. Write the **Reason**.
-7. Attach the **Signed document**: a PDF of 10 MB or less.
+7. Attach the **Signed document**: a PDF of 10 MB or less, ending in `.pdf`.
 8. Choose **File record**.
 
 > [!good-to-know] Before you file, the form says what flags the new record would earn with the date and purpose you chose. Filing the same record twice within 10 minutes is refused as already filed, so a double click never counts twice.
+
+> [!good-to-know] The portal keeps only plain documents. It refuses a PDF that has a password, that looks damaged, or that carries scripts, attachments or actions that run on their own, as many fillable forms do. If yours is refused, print it to a new PDF (for example with Microsoft Print to PDF) and attach that copy. Web links in the document are fine.
 
 ## Read the flags
 

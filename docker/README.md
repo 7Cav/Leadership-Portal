@@ -18,6 +18,7 @@ Needs Docker Engine with the compose plugin, and a DNS record for the domain poi
 
 ```bash
 git clone https://github.com/7Cav/Leadership-Portal.git portal && cd portal
+umask 077
 cp .env.production.example .env
 ```
 
@@ -55,7 +56,11 @@ are recreated on the new image, so no `queue:restart` is needed. After editing o
 docker compose ps                                   # all five should be up, four of them (healthy)
 docker compose logs -f app queue                    # Laravel logs go to stderr
 docker compose exec app php artisan schedule:list
-docker compose exec mysql sh -c 'mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" --single-transaction "$MYSQL_DATABASE"' > backup.sql
+mkdir -p ../portal-backups && chmod 700 ../portal-backups
+umask 077
+docker compose exec mysql sh -c 'mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" --single-transaction "$MYSQL_DATABASE"' > "../portal-backups/portal-$(date -u +%Y%m%dT%H%M%SZ).sql"
 ```
+
+Keep backups outside the checkout, encrypt them before off-host storage, and limit access to the backup directory. An older `backup.sql` in the checkout should be moved out before rebuilding the app image.
 
 `docker compose down` keeps the data; `down -v` deletes the database and certificates.

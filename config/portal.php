@@ -16,6 +16,10 @@ return [
 
     'demo_tools' => (bool) env('DEMO_TOOLS', false),
 
+    // Random per Playwright run. Even if an e2e route table reaches a public server, the
+    // browser-test sign-in cannot be used without the local test browser's scoped cookie.
+    'e2e_login_token' => env('E2E_LOGIN_TOKEN', ''),
+
     /*
     |--------------------------------------------------------------------------
     | Docs

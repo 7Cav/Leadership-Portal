@@ -324,13 +324,26 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::delete('/settings/demo-data', [DemoDataController::class, 'destroy'])->middleware('throttle:audited-writes')->name('settings.demo-data.destroy');
 });
 
-// Browser-test sign-in (Story 5.8). The real login is a 7cav.us OAuth round-trip a test cannot
-// drive, so the Playwright server — and only it, running as APP_ENV=e2e against its own throwaway
-// SQLite database — signs a seeded user in by username. Never registered in any other environment,
-// and the closure checks again, so a route cache built under e2e and deployed elsewhere still refuses.
+// Browser-test sign-in (Story 5.8). Only the loopback Playwright server using its dedicated
+// throwaway SQLite file and a fresh test-browser cookie may sign in by username. Check
+// these at request time too: a cached route table or an accidental APP_ENV=e2e on a
+// public deployment must not bypass SSO.
 if (app()->environment('e2e')) {
     Route::get('/__e2e/login/{username}', function (string $username) {
-        abort_unless(app()->environment('e2e'), 404);
+        $database = (string) config('database.connections.sqlite.database');
+        $resolved = realpath($database);
+        $testToken = (string) config('portal.e2e_login_token');
+        abort_unless(
+            app()->environment('e2e')
+                && in_array(request()->server('REMOTE_ADDR'), ['127.0.0.1', '::1'], true)
+                && config('database.default') === 'sqlite'
+                && blank(config('database.connections.sqlite.url'))
+                && $resolved !== false
+                && $resolved === realpath(database_path('e2e.sqlite'))
+                && $testToken !== ''
+                && hash_equals($testToken, (string) request()->cookie('e2e_login_token')),
+            404,
+        );
 
         $user = app(UserRepository::class)->withUsername($username)->sole();
         auth()->login($user);

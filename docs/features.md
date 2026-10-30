@@ -125,6 +125,8 @@ On the same page:
   next Cav week shows a "Leave from 17Oct26" chip, read-only, so the next practice can be planned around it.
 - Capture review: when game-server data was captured for the practice, marks it made show their source, and the leader
   can confirm the practice ("Confirmed by ..."). Editing a mark by hand afterwards clears the confirmation.
+  On CRCON a player counts as present when one of their sessions overlaps the practice. The sessions come from each
+  player's profile; if a profile cannot be read or has no sessions, the player's first and last seen times are used instead.
 - Unmatched players: players the capture saw that no trooper is linked to. Link one to a trooper (this also saves their
   game identity and marks them present), dismiss them, or restore a dismissed one. An ID the server reports in two letter cases is one
   player (an Epic ID is taken in lower case). A player linked to a trooper who has left is listed
@@ -156,7 +158,8 @@ Cav after that week stays on it, can still be marked there and given a reason on
 moved to cannot mark them for that week. A trooper who moved partway through a week is on the roll call of the section
 they moved to, and their mark at either section counts (see "Makeups"). Such rows carry a small note: "Moved out",
 "Departed", or "Joined" for one who moved in during the week. A trooper placed before the placement history began
-(27Oct26) and never moved since is in their current section for every week. The roster sync records when a trooper
+(27Oct26) and never moved since is in their current section for every week since they joined the Cav: a recruit
+is on no roll call of a week that ended before their join date. The roster sync records when a trooper
 leaves the Cav; one who left before it began doing so has no date and is on no past week's roll call.
 
 ### Reports
@@ -301,7 +304,9 @@ acting identity's command shows.
 - File a record: the type, what it is for (a missed section practice or roll call, or other conduct), the date it was
   given, the reason and the signed document, a PDF of 10 MB or less. What it is for is required, and stays as filed
   like the type; a record filed before the portal asked has none and is ruled as other conduct. The file
-  is checked by its content, not its name, and kept on the portal's private disk. It downloads only from the record,
+  is checked by its content and must also end in `.pdf`; a PDF with a password, without its end marker, or with
+  scripts, automatic actions, attachments, embedded media or XML forms is refused, with a plain reason and the advice to
+  print it to a new PDF (web links are fine). It is kept on the portal's private disk under a name the portal makes up. It downloads only from the record,
   for someone who may see it, named after the record (`LOR 2026-10-20 Novak.E.pdf`). Filing the same record again
   (same type, date, reason and document) within 10 minutes is refused as already filed, so a double click never
   counts twice.
@@ -466,7 +471,7 @@ All run on the queue; a queue worker must be running. Times are UTC.
 | Job | When | What it does | Configured by |
 | --- | --- | --- | --- |
 | Roster sync | Hourly on the hour; Admin "Sync now"; leader unit sync | Reads the Cav roster, updates troopers (rank, billet, status), places each trooper by billet, marks leavers departed. A unit sync only writes that unit's troopers. | `CAV_API_KEY`, `CAV_API_BASE_URL` |
-| LOA sync | Hourly at :15 (new threads), daily at 03:30 (full re-read of recent leave) | Reads LOA and ELOA threads from the configured forum sections. ELOA start and end dates come from the linked PAF thread. Posts it cannot read are stored as "needs review", never guessed. First run reads a year back, newest first, a share each hourly run (40 pages a section, ten minutes in all), carrying on next run where it stopped; until it is done, the leave note on the pages says how far back it has got. A thread that fails to read is kept and read again by id next run, so the rest moves on. A manual sync asked for while one of the same kind is queued or running queues one follow-up run after it, and the page says so in a notice. When the daily full read finishes cleanly, a stored leave whose thread is gone (deleted, hidden or moved out of the leave sections) stops counting; the row is kept and counts again if the thread comes back. Before that, each such thread is asked for by id, so one the listing missed while it paged keeps counting, and an unclear answer withdraws nothing that run. | `SEVENCAV_FORUM_API_KEY`, `SEVENCAV_FORUM_LOA_NODES`, `SEVENCAV_FORUM_PAF_NODE`, `LOA_SYNC_REQUEST_DELAY_MS`. Skipped while the key or sections are unset. |
+| LOA sync | Hourly at :15 (new threads), daily at 03:30 (full re-read of recent leave) | Reads LOA and ELOA threads from the configured forum sections. ELOA start and end dates come from the linked PAF thread. Posts it cannot read are stored as "needs review", never guessed, and so is a post whose tagged forum account and typed username name different troopers. First run reads a year back, newest first, a share each hourly run (40 pages a section, ten minutes in all), carrying on next run where it stopped; until it is done, the leave note on the pages says how far back it has got. A thread that fails to read is kept and read again by id next run, so the rest moves on. A manual sync asked for while one of the same kind is queued or running queues one follow-up run after it, and the page says so in a notice. When the daily full read finishes cleanly, a stored leave whose thread is gone (deleted, hidden or moved out of the leave sections) stops counting; the row is kept and counts again if the thread comes back. Before that, each such thread is asked for by id, so one the listing missed while it paged keeps counting, and an unclear answer withdraws nothing that run. | `SEVENCAV_FORUM_API_KEY`, `SEVENCAV_FORUM_LOA_NODES`, `SEVENCAV_FORUM_PAF_NODE`, `LOA_SYNC_REQUEST_DELAY_MS`. Skipped while the key or sections are unset. |
 | Counseling document copy | When a DCS or LOR is filed with Google Drive set up | Copies the document to the 7Cav Google Drive folder. Tried up to 5 times, with pauses of 1, 5, 15 and 60 minutes; the record shows the outcome. | `GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_DRIVE_PRIVATE_KEY`, `GOOGLE_DRIVE_FOLDER_ID`. Skipped (record kept, "Portal only") while any is unset. |
 | Practice capture | When a leader clicks "Try again" on the roll call. That button only shows after a failed capture, and nothing in the code schedules a first capture. | Reads who was on the game server during the Cav week so far, pre-marks linked troopers in the section as Present (a leader's mark always wins), lists unmatched players. | Each game's telemetry interface, picked on the Games page. CRCON (`CRCON_BASE_URL`, `CRCON_API_KEY`) falls back to BattleMetrics; BattleMetrics (`BATTLEMETRICS_API_KEY`, `BATTLEMETRICS_SERVER_ID`); Nightwatch (`NIGHTWATCH_API_KEY`, `NIGHTWATCH_SERVER_IDS`). A game reads the training servers an Admin selected for it on the Servers page. With none selected, Hell Let Loose (WW2) on CRCON, Arma Reforger on BattleMetrics and WARDOGS on Nightwatch read the server set in env; any other game, or one of those switched to another interface, reads nothing until a server is selected, and its roll call says so. A game with no keys, or interface "none", shows "not configured". |
 

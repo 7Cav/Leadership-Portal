@@ -238,6 +238,7 @@ describe('never stored', function () {
         config()->set('services.cav', ['base_url' => 'https://api.7cav.us', 'api_key' => 'cav7_test-key']);
         Exceptions::fake();
         $this->chief->forceFill(['forum_user_id' => 4])->save();
+        $this->chiefTrooper->forceFill(['forum_user_id' => 4])->save();
 
         // Cav is down: the cached link and the serving trooper admit them, as for any member.
         MockClient::destroyGlobal();
@@ -432,8 +433,8 @@ describe('confirming billets', function () {
             ->assertForbidden();
 
         // A flag Admin who happens to hold it is refused too.
-        $this->finance->forceFill(['cav_id' => null])->save();
-        $this->admin->forceFill(['cav_id' => $this->financeTrooper->cav_id])->save();
+        $this->finance->forceFill(['cav_id' => null, 'forum_user_id' => $this->finance->forum_user_id + 1])->save();
+        $this->admin->forceFill(['cav_id' => $this->financeTrooper->cav_id, 'forum_user_id' => $this->financeTrooper->forum_user_id])->save();
         $this->actingAs($this->admin)->post("/settings/staff-grants/admin-billets/{$this->financeBillet->id}/approve", ['reason' => 'Mine'])
             ->assertSessionHasErrors(['adminBillet' => 'You hold this billet, so another Admin has to decide on it.']);
 

@@ -394,8 +394,11 @@ your next click. Nothing has to be revoked by hand.
 - A departed trooper's billet, acting leads, staff grants, oversight and Regimental HQ read stop counting on the next request. The
   rows stay, so an Admin sees a lapsed grant flagged on the Staff grants page and can revoke it on the record. If the trooper returns
   to a serving roster, they count again.
-- An Admin by flag is never signed out by roster data. An Admin by billet is a serving trooper like any other: departed,
+- An Admin by flag is never signed out by roster standing. An Admin by billet is a serving trooper like any other: departed,
   they are signed out and lose Admin with it.
+- Anyone linked to a milpac, an Admin by flag too, is signed out when the cached trooper for that milpac carries a different
+  forum account or none. Cav can give a milpac id to someone else, and the old link must not pass on the new holder's billet.
+  Someone the roster sync has not caught up with yet can sign in again after the next sync.
 
 ### Where everyone stops: locks
 

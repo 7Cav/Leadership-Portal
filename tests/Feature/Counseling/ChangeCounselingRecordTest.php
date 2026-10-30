@@ -143,6 +143,8 @@ it('serves the document as a PDF attachment named after the record, to someone w
         ->and($response->headers->get('Content-Disposition'))->toBe("attachment; filename=\"DCS {$date} Brandt.L.pdf\"")
         ->and($response->headers->get('X-Content-Type-Options'))->toBe('nosniff')
         ->and($response->headers->get('Cache-Control'))->toContain('no-store')
+        ->and($response->headers->get('Cache-Control'))->toContain('private')
+        ->and($response->headers->get('Content-Security-Policy'))->toBe("default-src 'none'; sandbox; frame-ancestors 'none'")
         ->and($response->streamedContent())->toBe(counselingPdfBytes('dcs-file'));
 });
 
@@ -228,4 +230,12 @@ it('makes the records writable again once the trooper serves again', function ()
     $this->actingAs($this->tree['users']['sl'])->patch(route('counseling.update', $this->dcs->id), ($this->correction)())->assertRedirect();
 
     expect($this->dcs->fresh()->reason)->toBe('Late to practice three times.');
+});
+
+it('gives a download name outside plain ASCII an ASCII fallback beside the RFC 5987 one', function () {
+    $response = app(CounselingDocuments::class)->download($this->dcs->document_path, 'DCS Brändt.pdf');
+
+    expect($response->headers->get('Content-Disposition'))
+        ->toStartWith('attachment; filename="DCS Brandt.pdf"')
+        ->toContain("filename*=utf-8''DCS%20Br%C3%A4ndt.pdf");
 });
