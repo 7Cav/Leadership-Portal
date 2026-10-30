@@ -437,9 +437,9 @@ describe('transfers and the attendance history', () => {
         expect(historyCell(week({ rollcall: 'unsigned', status: 'missed' }))).toEqual({ rc: 'bad', sp: 'bad' });
     });
 
-    it('shows leave over the marks, a week in no section as out, and a week with no practice row as nothing posted', () => {
+    it('shows leave over the marks, a week in no section as none (no section that week), and a week with no practice row as nothing posted', () => {
         expect(historyCell(week({ loa: true, status: null }))).toEqual({ rc: 'loa', sp: 'loa' });
-        expect(historyCell(week({ section: null, rollcall: null, status: null, held: false }))).toEqual({ rc: 'out', sp: 'out' });
+        expect(historyCell(week({ section: null, rollcall: null, status: null, held: false }))).toEqual({ rc: 'none', sp: 'none' });
         expect(historyCell(week({ rollcall: null, status: null, held: false }))).toEqual({ rc: 'nil', sp: 'nil' });
         expect(historyCell(week({ rollcall: null, status: null, held: false }), { current: true })).toEqual({ rc: 'open', sp: 'pending' });
     });

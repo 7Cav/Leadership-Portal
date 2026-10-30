@@ -67,6 +67,31 @@ describe('Settings/OrgStructure', () => {
         expect(wrapper.find('[data-testid="detail-panel"]').text()).toContain('2-7');
     });
 
+    it('keeps the details in view beside the tree, and brings them into view below it on a narrow screen', async () => {
+        const matchMedia = window.matchMedia;
+        window.matchMedia = vi.fn(() => ({ matches: false }));
+        const scrollIntoView = vi.fn();
+        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: false }, attachTo: document.body });
+        const card = wrapper.find('[data-testid="detail-card"]');
+        card.element.scrollIntoView = scrollIntoView;
+
+        expect(card.classes()).toEqual(expect.arrayContaining(['lg:sticky', 'lg:overflow-y-auto']));
+
+        await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+        await flushPromises();
+
+        expect(scrollIntoView).toHaveBeenCalledOnce();
+
+        // Beside the tree (wide screen) the sticky details are already in view: nothing scrolls the page.
+        window.matchMedia = vi.fn(() => ({ matches: true }));
+        await wrapper.find('[data-testid="unit-row-1"]').trigger('click');
+        await flushPromises();
+
+        expect(scrollIntoView).toHaveBeenCalledOnce();
+        wrapper.unmount();
+        window.matchMedia = matchMedia;
+    });
+
     // AC #3: the tree must be collapsible. This is `OrgTreeNode`'s entire reason to exist, so
     // its toggle behaviour is asserted from the page that actually wires `collapsed` through.
     it('collapses and re-expands a branch on caret click', async () => {

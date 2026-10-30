@@ -42,7 +42,7 @@ class DeleteCounselingRecordHandler
         $record = $this->records->find($command->recordId) ?? throw new CounselingRecordNotFoundException;
         $permissions = $this->access->for($actor, $record->trooper);
 
-        if (! $permissions->sees($record->type)) {
+        if (! $permissions->seesRecord($record)) {
             throw new CounselingRecordNotFoundException;
         }
 
