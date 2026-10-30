@@ -95,6 +95,7 @@ export const RC_STATES = {
     nil: 'No roll call posted',
     loa: 'On LOA',
     out: 'Not in the unit yet',
+    none: 'No section that week',
 };
 
 export const SP_STATES = {
@@ -107,6 +108,7 @@ export const SP_STATES = {
     nil: 'No SP held',
     loa: 'On LOA',
     out: 'Not in the unit yet',
+    none: 'No section that week',
 };
 
 const SP_BY_STATUS = { present: 'ok', makeup: 'mk', attached: 'at', missed: 'bad', loa: 'loa' };
@@ -174,12 +176,13 @@ export function transferLabel(move) {
 
 /**
  * How one milpac attendance week (`Kpi\AttendanceHistory`) renders, as the same RC and SP states as a roster week. A
- * week in no section (before they joined one, on HQ staff or in a group) is `out`; a week leave covers is `loa`
- * whatever the marks say.
+ * week in no section (on HQ staff, in a group, or before the placement history began) is `none`, "No section that
+ * week": not `out`, which says they were not in the unit yet, wrong for a company commander. A week leave covers is
+ * `loa` whatever the marks say.
  */
 export function historyCell(week, { current = false } = {}) {
     if (week.loa) return { rc: 'loa', sp: 'loa' };
-    if (!week.section) return { rc: 'out', sp: 'out' };
+    if (!week.section) return { rc: 'none', sp: 'none' };
 
     // No practice row at that section that week: nothing was posted or held.
     return weekCell(week.rollcall === null ? null : week, week.week, { current });
