@@ -513,7 +513,7 @@ describe('CounselingPanel', () => {
             wrapper.unmount();
         });
 
-        it('clears a field's error as soon as it is edited', async () => {
+        it('clears a field\'s error as soon as it is edited', async () => {
             previewed.mockResolvedValue({
                 ok: false,
                 status: 422,

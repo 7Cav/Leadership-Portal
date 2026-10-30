@@ -101,7 +101,8 @@ it('renders the trooper, the issuer and the infraction on the official DCS form'
         ->toContain('Not applicable for Counselling Statements.')
         ->toContain('RECORDS must be kept for 90 days only in the 7<sup>th</sup> Cavalry Google Drive and/or Leadership Portal. Send up Chain of Command when complete.')
         ->toContain('PROCEDURAL REFERENCE – For use only in conjunction with 7CAV-R-042.')
-        ->not->toContain('Disciplining Authority')
+        // The authority row is the DCS one; the shared footer may still name the Disciplining Authority.
+        ->not->toContain('<td class="i">Disciplining Authority</td>')
         // Nothing is loaded from anywhere.
         ->not->toMatch('/(src|href)=["\']?https?:/i');
 });
