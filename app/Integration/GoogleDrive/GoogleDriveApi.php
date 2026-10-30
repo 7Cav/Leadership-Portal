@@ -19,7 +19,9 @@ use Throwable;
  * injected by the composition root, never the DB): it signs a one-hour JWT with the key, trades it for an access token
  * at the fixed Google token endpoint ({@see GoogleOAuthConnector}), then opens a resumable upload and sends the bytes
  * ({@see GoogleDriveConnector}, upload-only). The scope asked for is `drive`, which a service account only ever uses on
- * what was shared with it: share the counseling folder, in a shared drive, and nothing else.
+ * what was shared with it: share the counseling folder, in a shared drive, and nothing else. The narrower `drive.file`
+ * does not fit: it only reaches files and folders the app itself created, and the upload goes into a folder an owner
+ * made and shared, so Drive would refuse the parent.
  *
  * Every failure leaves as {@see GoogleDriveUnavailable}, whose messages never carry the key, the token or the file.
  */
