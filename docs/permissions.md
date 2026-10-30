@@ -318,6 +318,10 @@ correct or delete one, Admins included, and the panel says so. Whoever could see
 them. If they serve again, the rules above apply again. The RXO may still overturn a frozen LOR of theirs: that corrects
 the record and adds nothing to it.
 
+Filing from the portal's form, and its preview, follow exactly the filing rules above: whoever may file the type may
+generate it, nobody else (a 403, or a 404 for a trooper they cannot see), never in a view-as preview. Section 1 of the
+form is read from the roster, never taken from the request.
+
 A record the viewer may not see is left out of the page entirely, and its download answers 404 like a record that does
 not exist, also on a departed trooper. The flags and the filing form's forecast are worked out from the records the
 viewer sees, so they never give a DCS away.

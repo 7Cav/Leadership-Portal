@@ -1,6 +1,6 @@
 ---
 title: File a DCS or LOR
-summary: Keep a trooper's Developmental Counseling Statements and Letters of Reprimand on their milpac page, with the signed document.
+summary: Keep a trooper's Developmental Counseling Statements and Letters of Reprimand on their milpac page, with the signed document or one made from the form in the portal.
 section: your-troopers
 order: 6
 audience: leader
@@ -26,13 +26,21 @@ audience: leader
 1. Open the trooper's milpac page (see [Find a trooper](/docs/basics/find-a-trooper)). The **Counseling** panel lists their records, newest first.
 2. Choose **File a record**.
 3. Pick the **Type**: Developmental Counseling Statement (DCS) or Letter of Reprimand (LOR). Only the types you may file are offered.
-4. Set the **Date** the counseling was given. It cannot be in the future.
-5. Under **What it is for**, choose **Missed section practice or roll call** or **Other conduct**. It decides which of the regulations' rules the record is weighed on, and it cannot be changed later.
-6. Write the **Reason**.
-7. Attach the **Signed document**: a PDF of 10 MB or less.
-8. Choose **File record**.
+4. Under **Document**, choose **Fill in the form here** or **Upload a PDF**.
+5. Set the **Date** the counseling was given (the **Date of letter** on the form). It cannot be in the future.
+6. Under **What it is for**, choose **Missed section practice or roll call** or **Other conduct**. It decides which of the regulations' rules the record is weighed on, and it cannot be changed later.
+7. Write the **Reason**, or with the form a short **Summary** for the list of records.
+8. With **Upload a PDF**, attach the **Signed document**: a PDF of 10 MB or less.
+9. With **Fill in the form here**, fill in the regiment's form (7CAV-R-042 for a DCS, 7CAV-R-043 for an LOR):
+   1. Section 1, the rank, name and billet of the trooper and of you as the authority, comes from the roster and cannot be changed.
+   2. Give the infraction and its details, the regulation, order or SOP, the notes of the discussion and the plan of action for the authority. The trooper's and other columns of the plan, and the comments, are optional.
+   3. For an LOR, tick at least one recommended consequence. For a removal, choose the Section Leader or Assistant Section Leader position. Add any special punishments ordered, and say whether the trooper wishes to appeal.
+   4. Choose **Preview** to see the document as it will be filed.
+10. Choose **File record**. A form becomes a PDF the portal makes, filed like an uploaded one.
 
 > [!good-to-know] Before you file, the form says what flags the new record would earn with the date and purpose you chose. Filing the same record twice within 10 minutes is refused as already filed, so a double click never counts twice.
+
+> [!good-to-know] The appeal outcome on an LOR form is left blank when you file. The appeal authority fills it in later, outside the portal.
 
 ## Read the flags
 

@@ -293,7 +293,17 @@ acting identity's command shows.
 
 - File a record: the type, what it is for (a missed section practice or roll call, or other conduct), the date it was
   given, the reason and the signed document, a PDF of 10 MB or less. What it is for is required, and stays as filed
-  like the type; a record filed before the portal asked has none and is ruled as other conduct. The file
+  like the type; a record filed before the portal asked has none and is ruled as other conduct. Instead of uploading,
+  the leader can fill in the regiment's form in the portal (7CAV-R-042 for a DCS, 7CAV-R-043 for an LOR): section 1
+  (date, and the rank, name and billet of the trooper and the issuer) comes from the roster, read only; section 2 asks
+  for the infraction, the regulation, the notes of discussion and the authority's plan of action (the trooper's and
+  other plan columns and the comments are optional); an LOR also asks for at least one recommended consequence (a
+  removal names its position), any special punishments and whether the trooper wishes to appeal. The appeal outcome
+  stays blank, for the appeal authority later. **Preview** shows the page the PDF is made from. The portal renders
+  the one-page A4 PDF on the server (dompdf, nothing loaded from anywhere, every field printed as text), then files
+  it exactly as an upload: the same checks, storage, Drive copy and `counseling.filed` audit entry, with the reason
+  "Generated in the portal." The form is kept on the record (`form_data`), and the list says the record was made
+  from it. A repeat is judged on the form, since two renders of one form differ byte for byte. The file
   is checked by its content, not its name, and kept on the portal's private disk. It downloads only from the record,
   for someone who may see it, named after the record (`LOR 2026-10-20 Novak.E.pdf`). Filing the same record again
   (same type, date, reason and document) within 10 minutes is refused as already filed, so a double click never
