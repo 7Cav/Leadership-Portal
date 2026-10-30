@@ -244,8 +244,22 @@ describe('Rollcall page', () => {
         expect(loa.exists()).toBe(true);
         expect(loa.attributes('aria-pressed')).toBe('true');
         expect(wrapper.find('[data-trooper="4"]').findAll('button[data-value]')).toHaveLength(0);
-        // Not on leave: no LOA button, the usual signature buttons.
-        expect(wrapper.find('[data-trooper="3"] [data-testid="loa-button"]').exists()).toBe(false);
+        // Not on leave: the LOA button is still there, unpressed and not clickable, after the usual signature buttons.
+        const idle = wrapper.find('[data-trooper="3"] [data-testid="loa-button"]');
+        expect(idle.exists()).toBe(true);
+        expect(idle.attributes('aria-pressed')).toBe('false');
+        expect(idle.attributes('disabled')).toBeDefined();
+        expect(idle.attributes('title')).toBe('Set automatically from the LOA thread');
+        expect(wrapper.find('[data-trooper="3"]').findAll('button[data-value]').length).toBeGreaterThan(0);
+    });
+
+    it('shows the LOA button unpressed on the practice step for a trooper not on leave', () => {
+        page.url = '/rollcall/12?step=2';
+        const wrapper = factory({ troopers: [trooper(3, 'will_attend', null)] });
+
+        const loa = wrapper.find('[data-trooper="3"] [data-testid="loa-button"]');
+        expect(loa.attributes('aria-pressed')).toBe('false');
+        expect(loa.attributes('disabled')).toBeDefined();
     });
 
     it('shows each practice mark\'s source, and the shared legend (3.9)', () => {

@@ -178,7 +178,8 @@ const TONE = {
                     </div>
                 </div>
 
-                <!-- On LOA (from the LOA data, both tabs): the LOA button shows pressed on its own and nothing else can be set. -->
+                <!-- The LOA button is on every card on both tabs and never pressed by hand. On LOA (from the LOA data) it shows
+                     pressed on its own and nothing else can be set; otherwise it sits unpressed after the other marks. -->
                 <div
                     v-if="locked"
                     role="group"
@@ -189,7 +190,7 @@ const TONE = {
                         type="button"
                         disabled
                         aria-pressed="true"
-                        title="Set from the LOA data. Nothing to mark this week."
+                        title="Set automatically from the LOA thread. Nothing to mark this week."
                         data-testid="loa-button"
                         :class="cn('inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-sm px-2 text-[13px] font-medium disabled:cursor-not-allowed sm:min-h-[2.125rem]', TONE.warn)"
                     >
@@ -228,6 +229,16 @@ const TONE = {
                     >
                         <component :is="option.icon" class="hidden size-4 sm:block" aria-hidden="true" />
                         {{ option.label }}<span class="sr-only">, key {{ index + 1 }}</span>
+                    </button>
+                    <button
+                        type="button"
+                        disabled
+                        aria-pressed="false"
+                        title="Set automatically from the LOA thread"
+                        data-testid="loa-button"
+                        class="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-sm px-1.5 text-center text-[13px] leading-tight font-medium text-muted-foreground disabled:cursor-not-allowed sm:min-h-[2.125rem] sm:px-2"
+                    >
+                        <PhLockSimple class="hidden size-4 sm:block" aria-hidden="true" />LOA
                     </button>
                 </div>
             </div>
