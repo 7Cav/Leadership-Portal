@@ -46,6 +46,8 @@
     --warning: hsl(32 92% 38%);
     --destructive: hsl(3 68% 46%);
     --info: hsl(206 64% 40%);
+    /* The "Changelog outdated" bar: a saturated blue under white text (8.5:1 contrast), apart from the calmer --info. */
+    --changelog: #1100ff;
 
     --sidebar: hsl(75 10% 95.5%);
     --sidebar-foreground: hsl(75 12% 16%);
@@ -95,6 +97,8 @@
     --warning: hsl(36 90% 58%);
     --destructive: hsl(3 78% 64%);
     --info: hsl(206 72% 64%);
+    /* Deeper and a touch softer on the dark shell, 9.4:1 under white text. */
+    --changelog: #2a1ed4;
 
     --sidebar: hsl(75 8% 5%);
     --sidebar-foreground: hsl(75 8% 86%);
@@ -142,6 +146,7 @@
     --color-success: var(--success);
     --color-warning: var(--warning);
     --color-info: var(--info);
+    --color-changelog: var(--changelog);
     --color-gold-ink: var(--gold-ink);
 
     /* The status palette by meaning (AC: good / warn / bad / info / neutral), for the
@@ -185,6 +190,9 @@
     html {
         -webkit-text-size-adjust: 100%;
         overflow-x: clip;
+        /* Keep room for the scrollbar on every page, so a page that grows past the window (opening the full
+           changelog) does not shift sideways when the scrollbar appears. */
+        scrollbar-gutter: stable;
     }
 
     body {

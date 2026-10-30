@@ -31,9 +31,9 @@ const ENRICHED = {
     fetched_at: '2026-08-03T09:14:00+00:00',
 };
 
-function mountLayout({ url = '/home', user = { id: 1, username: 'Hale.S', is_admin: false }, profile = null, viewAs = null, crumb = undefined, canActAs = false, features = {}, adminBilletsPending = 0, flash = { notice: null } } = {}) {
+function mountLayout({ url = '/home', user = { id: 1, username: 'Hale.S', is_admin: false }, profile = null, viewAs = null, crumb = undefined, canActAs = false, features = {}, adminBilletsPending = 0, flash = { notice: null }, changelogUnseen = false, changelogOutdated = false } = {}) {
     mockPage.url = url;
-    mockPage.props = { auth: { user, profile }, viewAs, crumb, canActAs, features, adminBilletsPending, flash };
+    mockPage.props = { auth: { user, profile }, viewAs, crumb, canActAs, features, adminBilletsPending, flash, changelogUnseen, changelogOutdated };
 
     return mount(AppLayout, {
         slots: { default: '<p data-testid="page-body">Page body</p>' },
@@ -97,6 +97,16 @@ describe('AppLayout', () => {
             expect(settings.find('a[href="/settings/activity-log"]').exists()).toBe(true);
         });
 
+        it('puts a dot on Changelog while there is an entry the viewer has not seen', () => {
+            wrapper = mountLayout({ changelogUnseen: true });
+            expect(wrapper.find('[data-testid="nav-dot-Changelog"]').text()).toBe('New entries');
+            wrapper.unmount();
+
+            wrapper = mountLayout({ changelogUnseen: false });
+            expect(wrapper.find('nav[aria-label="Primary"] a[href="/changelog"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="nav-dot-Changelog"]').exists()).toBe(false);
+        });
+
         it('shows an Admin how many billets wait for confirmation beside Staff grants, and nothing when none do', () => {
             wrapper = mountLayout({ user: { id: 1, username: 'Hale.S', is_admin: true }, adminBilletsPending: 2 });
 
@@ -151,7 +161,7 @@ describe('AppLayout', () => {
             const linkHrefs = wrapper.findAllComponents({ name: 'Link' }).map((link) => link.props('href'));
             const navHrefs = wrapper.findAll('nav[aria-label="Primary"] a').map((a) => a.attributes('href'));
 
-            expect(navHrefs).toEqual(['/home', '/roster', '/rollcall', '/reports', '/game-identities', '/settings/org-structure', '/settings/staff-grants', '/settings/templates', '/settings/games', '/settings/servers', '/settings/audit-log', '/settings/activity-log']);
+            expect(navHrefs).toEqual(['/home', '/roster', '/rollcall', '/reports', '/game-identities', '/changelog', '/settings/org-structure', '/settings/staff-grants', '/settings/templates', '/settings/games', '/settings/servers', '/settings/audit-log', '/settings/activity-log']);
             for (const href of navHrefs) expect(linkHrefs).toContain(href);
         });
 

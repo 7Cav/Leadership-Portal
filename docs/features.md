@@ -450,6 +450,31 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
   once it is there, or "Not sent to the sheet yet" while the sheet is set up and the row is pending. Without the env
   key nothing is pushed and no marker shows. See [operations.md](operations.md#weekly-staff-reports-and-google-sheets).
 
+## Changelog
+
+- `/changelog`, under Help in the sidebar, for everyone signed in: what changed in the portal, written by hand, never
+  pulled from git. Dates (Zulu days, shown as forum dates like 30Oct26) are listed newest first, each with its entries
+  as a compact list. An entry is one line of text (up to 300 characters). One with additional information (Markdown, up
+  to 2000 characters, shown with any raw HTML stripped) has a chevron that opens it; it starts closed.
+- The page has two columns, stacked on a phone with Major changes first. Major changes lists only the entries flagged
+  major. Full changelog lists every entry, major ones included with a Major badge, and starts collapsed unless the
+  viewer opened it before; that choice is remembered in the viewer's browser only (localStorage), and the page works
+  without it.
+- The sidebar shows a dot on Changelog while an entry was written after the viewer last opened the page. Opening it
+  clears the dot, but not during a view-as preview or while someone acts as the viewer.
+- Only the changelog editors (`changelog_editors` in `config/portal.php`, matched without case), signed in as
+  themselves, write it. **Add** takes one date (today in Zulu by default) and up to 50 rows at once, each with an
+  **Major change** tickbox (off, so the entry is full changelog only) and an optional **Add additional information**
+  tickbox; Enter in a row adds a row below it. Each entry can be edited or
+  deleted on its own (delete asks to confirm, with a reason). Bulk import takes pasted Markdown: a `## YYYY-MM-DD`
+  heading per date, a `- ` bullet per entry, and an indented block under a bullet as its additional information. A bullet that starts with `[major]` (any case) is
+  flagged major and the marker is dropped (text
+  after the date on the heading is taken as the first entry). It previews the result with any errors, can skip entries
+  whose date and text already exist, and saves them in one batch. Writes are audited as `changelog.created` (one per
+  added batch), `changelog.updated`, `changelog.deleted`, `changelog.imported` and `changelog.outdated_dismissed`.
+- After each redeploy (a new asset build version) the editors see a bright blue "Changelog outdated" bar with "Add entry" and
+  "Dismiss". Adding an entry, an import, or a dismiss clears it for both editors until the next deploy.
+
 ## Settings menu (Admins)
 
 | Page | What it does |

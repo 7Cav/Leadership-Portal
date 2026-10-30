@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Authorization\ActAs;
+use App\Authorization\ChangelogAccess;
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffReportAccess;
 use App\Kpi\Headcount;
@@ -27,6 +28,7 @@ class HandleInertiaRequests extends Middleware
         private readonly Headcount $headcount,
         private readonly AdminBilletRepository $adminBillets,
         private readonly StaffReportAccess $staffReports,
+        private readonly ChangelogAccess $changelog,
     ) {}
 
     /**
@@ -113,6 +115,11 @@ class HandleInertiaRequests extends Middleware
             'forum' => [
                 'baseUrl' => rtrim((string) config('services.sevencav.base_url'), '/'),
             ],
+            // The changelog: `changelogUnseen` puts the sidebar's dot on Changelog while an entry was written after this
+            // user last opened it; `changelogOutdated` shows a changelog editor, signed in as themselves, the blue
+            // "Changelog outdated" bar after a redeploy nobody has written an entry for or dismissed.
+            'changelogUnseen' => fn () => $request->user() !== null && $this->changelog->hasUnseen($request->user()),
+            'changelogOutdated' => fn () => $request->user() !== null && $this->changelog->showsOutdated($request->user()),
             // A one-line outcome a write flashed for the next render (`notice`), which the shell shows as a toast: what
             // happened to a request whose result is not on the page yet, like a leave sync queued behind a running one.
             'flash' => fn () => ['notice' => $request->hasSession() ? $request->session()->get('notice') : null],
