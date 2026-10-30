@@ -106,7 +106,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // detail as JSON; that route is declared first so `troopers` is never taken for a unit id.
     Route::get('/roster/troopers/{trooper}', [RosterController::class, 'trooper'])->name('roster.trooper');
     // A unit's strength week by week, scoped like the roster. Read only.
-    Route::get('/roster/{unit}/strength', [StrengthTrendsController::class, 'show'])->whereNumber('unit')->name('roster.strength');
+    Route::get('/roster/{unit}/strength', [StrengthTrendsController::class, 'show'])->name('roster.strength');
     Route::get('/roster/{unit?}', [RosterController::class, 'index'])->name('roster.index');
     // The shell's trooper search (JSON): troopers in the viewer's scope by username, for a jump to their milpac. It
     // offers only troopers the milpac below would open (ScopeResolver::canSee's rule), throttled per user.
