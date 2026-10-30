@@ -20,6 +20,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * `kind` says which ladder of the regulations the record belongs to ({@see CounselingKind}); null on a record filed
  * before the portal asked, ruled as other conduct.
  *
+ * `form_data` holds what the leader filled in when the portal generated the document from its own form (the
+ * regiment's 7CAV-R-042 or 7CAV-R-043 layout), so the PDF can be made again; null for an uploaded document.
+ *
  * An LOR is frozen 72 hours after it is filed (`CounselingPermissions::frozen()`); after that only the
  * Regimental Executive Officer can overturn it, which sets `overturned_at`, who did it (`overturned_by`, with
  * `overturned_by_admin` and `overturned_as_unit` as for the issuer) and `overturn_reason`. An overturned LOR stays on
@@ -49,6 +52,7 @@ class CounselingRecord extends Model
             'drive_status' => DriveUploadStatus::class,
             'drive_attempted_at' => 'immutable_datetime',
             'overturned_at' => 'immutable_datetime',
+            'form_data' => 'array',
         ];
     }
 

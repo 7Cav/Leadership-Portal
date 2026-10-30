@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick, toRaw } from 'vue';
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import CounselingPanel from '../CounselingPanel.vue';
 
 // #381: the counseling panel draws what the server sent and posts the forms; it decides nothing about who may look.
 
 const sent = vi.fn();
 vi.mock('vue-sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+
+const previewed = vi.fn();
+vi.mock('@/lib/postJson', () => ({ postJson: (...args) => previewed(...args) }));
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => {
     const { reactive } = await import('vue');
@@ -29,8 +32,14 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => {
                     Object.assign(this, data);
                 },
             });
+            let transform = (payload) => payload;
+            form.transform = (callback) => {
+                transform = callback;
+
+                return form;
+            };
             for (const method of ['post', 'patch', 'delete']) {
-                form[method] = (url, options) => sent(method, url, { ...form }, options);
+                form[method] = (url, options) => sent(method, url, transform({ ...form }), options);
             }
 
             return form;
@@ -68,7 +77,11 @@ const counseling = (overrides = {}) => ({
 const panel = (overrides = {}) => mount(CounselingPanel, { props: { trooperId: 7, counseling: counseling(overrides) } });
 
 describe('CounselingPanel', () => {
-    beforeEach(() => sent.mockReset());
+    beforeEach(() => {
+        sent.mockReset();
+        previewed.mockReset();
+        document.body.innerHTML = '';
+    });
 
     it('lists each record with its type, date, what it is for, reason, issuer, document and Drive status', () => {
         const wrapper = panel({ records: [record(), record({ id: 12, type: 'lor', typeLabel: 'Letter of Reprimand', kind: null, kindLabel: null, driveStatus: 'skipped' })] });
@@ -305,5 +318,160 @@ describe('CounselingPanel', () => {
         expect(row.find('[data-testid="counseling-overturn"]').exists()).toBe(false);
         expect(row.find('[data-testid="counseling-download"]').exists()).toBe(true);
         expect(panel({ records: [record()] }).find('[data-testid="counseling-overturned"]').exists()).toBe(false);
+    });
+
+    describe('filling in the form in the portal', () => {
+        const parties = {
+            trooper: { rank: 'PFC', name: 'Brandt.L', billet: 'Rifleman' },
+            authority: { rank: 'SGT', name: 'Okafor.B', billet: 'Section Leader' },
+        };
+
+        async function openForm(overrides = {}) {
+            const wrapper = mount(CounselingPanel, {
+                props: { trooperId: 7, counseling: counseling({ canFile: { dcs: true, lor: true }, formParties: parties, ...overrides }) },
+                attachTo: document.body,
+            });
+            await wrapper.get('[data-testid="counseling-file-open"]').trigger('click');
+
+            return wrapper;
+        }
+
+        async function fillSection2(wrapper) {
+            await wrapper.get('[data-testid="counseling-kind"]').setValue('conduct');
+            await wrapper.get('[data-testid="counseling-reason"]').setValue('Disrespect toward an NCO.');
+            await wrapper.get('[data-testid="counseling-form-infraction"]').setValue('Swore at the SL during practice.');
+            await wrapper.get('[data-testid="counseling-form-regulation"]').setValue('7CAV-R-042');
+            await wrapper.get('[data-testid="counseling-form-discussion"]').setValue('Talked it through after practice.');
+            await wrapper.get('[data-testid="counseling-form-plan_authority"]').setValue('Check in next week.');
+        }
+
+        it('switches between uploading a PDF and filling in the form', async () => {
+            const wrapper = await openForm();
+
+            expect(wrapper.find('[data-testid="counseling-document"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="counseling-generate"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="counseling-preview"]').exists()).toBe(false);
+
+            await wrapper.get('[data-testid="counseling-source-form"]').setValue(true);
+
+            expect(wrapper.find('[data-testid="counseling-document"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="counseling-generate"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="counseling-preview"]').exists()).toBe(true);
+            expect(wrapper.get('label[for="counseling-date"]').text()).toBe('Date of letter');
+
+            await wrapper.get('[data-testid="counseling-source-upload"]').setValue(true);
+            expect(wrapper.find('[data-testid="counseling-document"]').exists()).toBe(true);
+            wrapper.unmount();
+        });
+
+        it('shows section 1 from the roster, read only, with the authority named for the type', async () => {
+            const wrapper = await openForm();
+            await wrapper.get('[data-testid="counseling-source-form"]').setValue(true);
+
+            const trooper = wrapper.get('[data-testid="counseling-party-trooper"]');
+            const authority = wrapper.get('[data-testid="counseling-party-authority"]');
+            expect(trooper.text()).toContain('PFC');
+            expect(trooper.get('[data-testid="counseling-party-name"]').text()).toBe('Brandt.L');
+            expect(trooper.text()).toContain('Rifleman');
+            expect(authority.text()).toContain('Counselling authority');
+            expect(authority.get('[data-testid="counseling-party-name"]').text()).toBe('Okafor.B');
+            expect(wrapper.get('[data-testid="counseling-section-1"]').find('input').exists()).toBe(false);
+            expect(wrapper.get('[data-testid="counseling-date"]').element.value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+            await wrapper.get('[data-testid="counseling-type"]').setValue('lor');
+            expect(wrapper.get('[data-testid="counseling-party-authority"]').text()).toContain('Disciplining authority');
+            wrapper.unmount();
+        });
+
+        it('asks for the consequence and the appeal on an LOR only', async () => {
+            const wrapper = await openForm();
+            await wrapper.get('[data-testid="counseling-source-form"]').setValue(true);
+
+            expect(wrapper.find('[data-testid="counseling-form-consequences"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="counseling-form-appeal"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="counseling-dcs-fixed"]').exists()).toBe(true);
+
+            await wrapper.get('[data-testid="counseling-type"]').setValue('lor');
+            expect(wrapper.find('[data-testid="counseling-form-consequences"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="counseling-form-appeal"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="counseling-form-special_punishments"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="counseling-form-removal"]').exists()).toBe(false);
+
+            await wrapper.get('[data-testid="counseling-consequence-removal"]').setValue(true);
+            expect(wrapper.find('[data-testid="counseling-form-removal"]').exists()).toBe(true);
+            wrapper.unmount();
+        });
+
+        it('files an LOR from the form as plain data, with no file and the consequence and appeal chosen', async () => {
+            const wrapper = await openForm();
+            await wrapper.get('[data-testid="counseling-source-form"]').setValue(true);
+            await wrapper.get('[data-testid="counseling-type"]').setValue('lor');
+            await fillSection2(wrapper);
+            await wrapper.get('[data-testid="counseling-consequence-nfa"]').setValue(true);
+            await wrapper.get('[data-testid="counseling-consequence-removal"]').setValue(true);
+            await wrapper.get('[data-testid="counseling-removal-section_leader"]').setValue(true);
+            await wrapper.get('[data-testid="counseling-appeal-do_not"]').setValue(true);
+            await wrapper.get('[data-testid="counseling-form"]').trigger('submit');
+
+            expect(sent).toHaveBeenCalledOnce();
+            const [method, url, data, options] = sent.mock.calls[0];
+            expect(method).toBe('post');
+            expect(url).toBe('/troopers/7/counseling');
+            expect(data.source).toBe('form');
+            expect(data.document).toBeUndefined();
+            expect(data.form.infraction).toBe('Swore at the SL during practice.');
+            expect(data.form.consequences).toEqual(['nfa', 'removal']);
+            expect(data.form.removal).toBe('section_leader');
+            expect(data.form.appeal).toBe('do_not');
+            expect(options.forceFormData).toBe(false);
+            wrapper.unmount();
+        });
+
+        it('leaves the LOR fields out of a DCS', async () => {
+            const wrapper = await openForm();
+            await wrapper.get('[data-testid="counseling-source-form"]').setValue(true);
+            await fillSection2(wrapper);
+            await wrapper.get('[data-testid="counseling-form"]').trigger('submit');
+
+            const [, , data] = sent.mock.calls[0];
+            expect(data.type).toBe('dcs');
+            expect(data.form).not.toHaveProperty('appeal');
+            expect(data.form).not.toHaveProperty('consequences');
+            wrapper.unmount();
+        });
+
+        it('previews the document the server renders, in a frame that runs nothing', async () => {
+            previewed.mockResolvedValue({ ok: true, status: 200, data: { html: '<p>7CAV-R-042 &lt;script&gt;</p>' } });
+            const wrapper = await openForm();
+            await wrapper.get('[data-testid="counseling-source-form"]').setValue(true);
+            await fillSection2(wrapper);
+            await wrapper.get('[data-testid="counseling-preview"]').trigger('click');
+            await flushPromises();
+
+            expect(previewed).toHaveBeenCalledOnce();
+            const [url, body] = previewed.mock.calls[0];
+            expect(url).toBe('/troopers/7/counseling/preview');
+            expect(body.type).toBe('dcs');
+            expect(body.form.plan_authority).toBe('Check in next week.');
+            expect(sent).not.toHaveBeenCalled();
+
+            const frame = document.body.querySelector('[data-testid="counseling-preview-frame"]');
+            expect(frame).not.toBeNull();
+            expect(frame.getAttribute('sandbox')).toBe('');
+            expect(frame.getAttribute('srcdoc')).toContain('7CAV-R-042');
+            wrapper.unmount();
+        });
+
+        it('shows a preview refusal next to the fields it names', async () => {
+            previewed.mockResolvedValue({ ok: false, status: 422, data: { errors: { 'form.infraction': ['Give the infraction and its details.'] } } });
+            const wrapper = await openForm();
+            await wrapper.get('[data-testid="counseling-source-form"]').setValue(true);
+            await wrapper.get('[data-testid="counseling-preview"]').trigger('click');
+            await flushPromises();
+
+            expect(wrapper.get('[data-testid="counseling-error-form-infraction"]').text()).toBe('Give the infraction and its details.');
+            expect(document.body.querySelector('[data-testid="counseling-preview-frame"]')).toBeNull();
+            wrapper.unmount();
+        });
     });
 });

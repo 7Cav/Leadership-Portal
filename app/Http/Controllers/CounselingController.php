@@ -8,6 +8,9 @@ use App\Authorization\ScopeResolver;
 use App\Commands\Counseling\CorrectCounselingRecord;
 use App\Commands\Counseling\CorrectCounselingRecordHandler;
 use App\Commands\Counseling\CounselingForbiddenException;
+use App\Commands\Counseling\CounselingForm;
+use App\Commands\Counseling\CounselingFormParties;
+use App\Commands\Counseling\CounselingFormPdf;
 use App\Commands\Counseling\CounselingRecordNotFoundException;
 use App\Commands\Counseling\CounselingRules;
 use App\Commands\Counseling\DeleteCounselingRecord;
@@ -29,6 +32,7 @@ use App\Repositories\TrooperRepository;
 use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Contracts\Bus\Dispatcher;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -50,11 +54,20 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * correcting and deleting an LOR filed 72 hours ago or more, Admins included: only the Regimental Executive Officer may
  * then overturn it, which keeps it on file.
  *
+ * Instead of uploading, the leader may fill in the regiment's form in the portal (`source=form`): the portal renders
+ * the PDF ({@see CounselingFormPdf}) and files it through the same handler, so it takes the upload's path from there.
+ * `preview` shows that document before filing.
+ *
  * Once a record is saved with Google Drive configured, its upload is queued (AD-23). Queuing never undoes the filing:
  * a queue that cannot take the job is reported, and the record shows its upload as pending.
  */
 class CounselingController extends Controller
 {
+    /** How the document comes: an uploaded signed PDF, or made by the portal from its form. */
+    public const SOURCE_UPLOAD = 'upload';
+
+    public const SOURCE_FORM = 'form';
+
     public function __construct(
         private readonly ScopeResolver $scope,
         private readonly TrooperRepository $troopers,
@@ -67,13 +80,19 @@ class CounselingController extends Controller
         abort_unless($found !== null && $this->scope->canSee($request->user(), $found), 404);
         $this->refuseDeparted($found);
 
+        $generated = $request->input('source') === self::SOURCE_FORM;
+        $type = CounselingType::tryFrom((string) $request->input('type'));
+
         $data = $request->validate([
+            'source' => ['nullable', Rule::in([self::SOURCE_UPLOAD, self::SOURCE_FORM])],
             'type' => ['required', Rule::enum(CounselingType::class)],
             'kind' => ['required', Rule::enum(CounselingKind::class)],
             'counseled_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:today', 'after_or_equal:'.CounselingRules::EARLIEST],
             'reason' => ['required', 'string', 'max:'.CounselingRules::REASON_MAX],
             // `mimetypes` sniffs the file's content (finfo), not its name or the type the browser sent.
-            'document' => ['required', 'file', 'max:'.(CounselingRules::DOCUMENT_MAX_BYTES / 1024), 'mimetypes:application/pdf'],
+            ...($generated
+                ? CounselingForm::rules($type)
+                : ['document' => ['required', 'file', 'max:'.(CounselingRules::DOCUMENT_MAX_BYTES / 1024), 'mimetypes:application/pdf']]),
         ], [
             'kind.required' => 'Choose what the record is for.',
             'kind.enum' => 'Choose what the record is for.',
@@ -84,6 +103,7 @@ class CounselingController extends Controller
             'reason.required' => 'Give the reason for the record.',
             'reason.max' => 'Keep the reason to :max characters.',
             'counseled_on.after_or_equal' => 'The date is too far back.',
+            ...CounselingForm::messages(),
         ]);
 
         $record = $this->handle(fn () => $handler->handle($request->user(), new FileCounselingRecord(
@@ -92,8 +112,9 @@ class CounselingController extends Controller
             kind: CounselingKind::from($data['kind']),
             counseledOn: CarbonImmutable::createFromFormat('Y-m-d', $data['counseled_on'], 'UTC'),
             reason: $data['reason'],
-            documentPath: $request->file('document')->getRealPath(),
-            documentName: (string) $request->file('document')->getClientOriginalName(),
+            documentPath: $generated ? '' : $request->file('document')->getRealPath(),
+            documentName: $generated ? '' : (string) $request->file('document')->getClientOriginalName(),
+            form: $generated ? CounselingForm::fromInput($data['form'], CounselingType::from($data['type'])) : null,
         )));
 
         if ($record->drive_status === DriveUploadStatus::Pending) {
@@ -103,6 +124,42 @@ class CounselingController extends Controller
         }
 
         return redirect()->route('troopers.show', $found->id);
+    }
+
+    /**
+     * The document the portal would generate from the form, as the HTML page the PDF is rendered from, for the preview
+     * before filing. Asked of the same checks as filing: a trooper the viewer cannot see is a 404, a departed one or a
+     * type the viewer may not file is a 403, and a view-as preview is refused like every write. Nothing is stored.
+     */
+    public function preview(Request $request, int $trooper, CounselingAccess $access, CounselingFormParties $parties, CounselingFormPdf $pdf): JsonResponse
+    {
+        $found = $this->troopers->find($trooper);
+        abort_unless($found !== null && $this->scope->canSee($request->user(), $found), 404);
+        $this->refuseDeparted($found);
+        abort_if($this->scope->activeViewAs($request->user()) !== null, 403);
+
+        $type = CounselingType::tryFrom((string) $request->input('type'));
+        $data = $request->validate([
+            'type' => ['required', Rule::enum(CounselingType::class)],
+            'counseled_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:today', 'after_or_equal:'.CounselingRules::EARLIEST],
+            ...CounselingForm::rules($type),
+        ], [
+            'counseled_on.before_or_equal' => 'The date cannot be in the future.',
+            'counseled_on.after_or_equal' => 'The date is too far back.',
+            ...CounselingForm::messages(),
+        ]);
+
+        $type = CounselingType::from($data['type']);
+        if (! $access->for($request->user(), $found)->files($type)) {
+            throw CounselingForbiddenException::file($type);
+        }
+
+        $form = CounselingForm::fromInput($data['form'], $type);
+        $this->handle(fn () => $form->check($type));
+
+        return response()->json([
+            'html' => $pdf->html($type, CarbonImmutable::createFromFormat('Y-m-d', $data['counseled_on'], 'UTC'), $parties->for($found, $request->user()), $form),
+        ]);
     }
 
     public function update(Request $request, int $counseling, CorrectCounselingRecordHandler $handler, CounselingAccess $access): RedirectResponse

@@ -84,6 +84,8 @@ class CounselingHistory
                 'issuer' => self::issuer($record),
                 'document' => ['name' => $record->document_name, 'size' => $record->document_size],
                 'driveStatus' => $record->drive_status->value,
+                // The document was made in the portal from the regiment's form, not uploaded.
+                'generated' => $record->form_data !== null,
                 'flags' => $flags[$record->id] ?? [],
                 'canChange' => $changes($record),
                 'frozen' => $frozen !== null && $frozen($record),

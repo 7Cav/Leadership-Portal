@@ -116,6 +116,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // the viewer cannot see is a 404, the document download included. Filing stores a PDF of up to 10 MB, so it has its
     // own, tighter throttle (counseling-uploads); corrections, deletes and overturns share the audited-writes one.
     Route::post('/troopers/{trooper}/counseling', [CounselingController::class, 'store'])->middleware('throttle:counseling-uploads')->name('counseling.store');
+    Route::post('/troopers/{trooper}/counseling/preview', [CounselingController::class, 'preview'])->middleware('throttle:audited-writes')->name('counseling.preview');
     Route::patch('/counseling/{counseling}', [CounselingController::class, 'update'])->middleware('throttle:audited-writes')->name('counseling.update');
     Route::delete('/counseling/{counseling}', [CounselingController::class, 'destroy'])->middleware('throttle:audited-writes')->name('counseling.destroy');
     Route::post('/counseling/{counseling}/overturn', [CounselingController::class, 'overturn'])->middleware('throttle:audited-writes')->name('counseling.overturn');

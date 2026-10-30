@@ -26,6 +26,7 @@ class Eloquent implements CounselingRecordRepository
         ?int $issuerUnitId,
         StoredDocument $document,
         DriveUploadStatus $driveStatus,
+        ?array $formData = null,
     ): CounselingRecord {
         $record = new CounselingRecord;
         $record->forceFill([
@@ -43,24 +44,32 @@ class Eloquent implements CounselingRecordRepository
             'document_size' => $document->size,
             'document_sha256' => $document->sha256,
             'drive_status' => $driveStatus,
+            'form_data' => $formData,
         ])->save();
 
         return $record->refresh();
     }
 
-    public function filedSince(int $trooperId, CounselingType $type, CarbonImmutable $counseledOn, string $reason, string $sha256, CarbonImmutable $since): bool
+    public function filedSince(int $trooperId, CounselingType $type, CarbonImmutable $counseledOn, string $reason, string $sha256, CarbonImmutable $since, ?array $formData = null): bool
     {
         Trooper::query()->whereKey($trooperId)->lockForUpdate()->value('id');
 
-        return CounselingRecord::query()
+        $same = CounselingRecord::query()
             ->where('trooper_id', $trooperId)
             ->where('type', $type->value)
             ->whereDate('counseled_on', $counseledOn->toDateString())
             ->where('reason', $reason)
-            ->where('document_sha256', $sha256)
             ->where('created_at', '>=', $since)
-            ->lockForUpdate()
-            ->exists();
+            ->lockForUpdate();
+
+        if ($formData === null) {
+            return $same->where('document_sha256', $sha256)->exists();
+        }
+
+        // A generated PDF carries the time it was made, so its bytes differ on every render: a generated record repeats
+        // one with the same form. Compared here rather than in SQL, since JSON equality differs between databases; the
+        // window holds a handful of rows at most.
+        return $same->whereNotNull('form_data')->get()->contains(fn (CounselingRecord $record) => $record->form_data == $formData);
     }
 
     public function find(int $id): ?CounselingRecord
