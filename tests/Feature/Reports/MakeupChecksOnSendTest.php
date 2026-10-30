@@ -104,7 +104,7 @@ it('records Make-up complete through the audited attendance command on a yes, be
     $mark = app(AttendanceRepository::class)->countingMarksOf([$this->owing->id], $week, $week)->sole();
 
     expect($report->status)->toBe(WeeklyReportStatus::Sent)
-        ->and($report->makeup_checks)->toBe([['trooper_id' => $this->owing->id, 'done' => true]])
+        ->and($report->makeup_checks)->toEqual([['trooper_id' => $this->owing->id, 'done' => true]])
         ->and($mark->status)->toBe(AttendanceStatus::Makeup)
         ->and($mark->source)->toBe(AttendanceSource::Manual)
         // The frozen snapshot counts the make-up.
@@ -119,7 +119,7 @@ it('keeps the mark on a no, and freezes the answer with the report', function ()
     $report = mcReport($this->section);
 
     expect($report->status)->toBe(WeeklyReportStatus::Sent)
-        ->and($report->makeup_checks)->toBe([['trooper_id' => $this->owing->id, 'done' => false]])
+        ->and($report->makeup_checks)->toEqual([['trooper_id' => $this->owing->id, 'done' => false]])
         ->and(mcStatus($this->owing))->toBe(AttendanceStatus::Missed)
         ->and(AuditLogEntry::query()->where('action', 'attendance.marked')->count())->toBe(0);
 
