@@ -125,6 +125,8 @@ On the same page:
   next Cav week shows a "Leave from 17Oct26" chip, read-only, so the next practice can be planned around it.
 - Capture review: when game-server data was captured for the practice, marks it made show their source, and the leader
   can confirm the practice ("Confirmed by ..."). Editing a mark by hand afterwards clears the confirmation.
+  On CRCON a player counts as present when one of their sessions overlaps the practice. The sessions come from each
+  player's profile; if a profile cannot be read or has no sessions, the player's first and last seen times are used instead.
 - Unmatched players: players the capture saw that no trooper is linked to. Link one to a trooper (this also saves their
   game identity and marks them present), dismiss them, or restore a dismissed one. An ID the server reports in two letter cases is one
   player (an Epic ID is taken in lower case). A player linked to a trooper who has left is listed
