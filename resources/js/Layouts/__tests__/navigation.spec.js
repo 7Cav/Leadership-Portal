@@ -90,14 +90,19 @@ describe('navigation', () => {
         expect(settings(true, {}).items.map((item) => item.label)).toContain('Org structure');
     });
 
-    it('shows Staff report only to platoon and company HQ staff (the staffReport feature), and keeps it active on a week', () => {
+    it('shows Staff report to HQ staff who read only their own, Staff reports to readers, and keeps it active on a week', () => {
         const leadership = (features) =>
             visibleGroups(false, features)
                 .find((group) => group.id === 'leadership')
                 .items.map((item) => item.label);
 
         expect(leadership({})).not.toContain('Staff report');
-        expect(leadership({ staffReport: true })).toContain('Staff report');
+        expect(leadership({ staffReports: null })).not.toContain('Staff reports');
+        expect(leadership({ staffReports: 'own' })).toContain('Staff report');
+        expect(leadership({ staffReports: 'own' })).not.toContain('Staff reports');
+        expect(leadership({ staffReports: 'overview' })).toContain('Staff reports');
+        expect(leadership({ staffReports: 'overview' })).not.toContain('Staff report');
+        expect(isActive('/staff-reports?week=2026-10-03', '/staff-reports')).toBe(true);
         expect(isActive('/staff-report/12/2026-10-03', '/staff-report')).toBe(true);
     });
 

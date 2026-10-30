@@ -122,8 +122,10 @@ class HandleInertiaRequests extends Middleware
             'features' => [
                 'demoTools' => (bool) config('portal.demo_tools'),
                 'docs' => (bool) config('portal.docs'),
-                // "Staff report": for a platoon or company HQ staff member signed in as themselves.
-                'staffReport' => $request->user() !== null && $this->staffReports->isHqStaffNow($request->user()),
+                // The sidebar's staff report item: `overview` ("Staff reports") for whoever reads some HQ staff's
+                // reports, `own` ("Staff report") for a platoon, company or battalion HQ staff member who reads only
+                // their own.
+                'staffReports' => $request->user() === null ? null : $this->staffReports->navFor($request->user()),
             ],
         ];
     }

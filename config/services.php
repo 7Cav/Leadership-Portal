@@ -143,4 +143,12 @@ return [
         'folder_id' => env('GOOGLE_DRIVE_FOLDER_ID'),
     ],
 
+    // The reports Google Sheet a sent weekly staff report is copied to, through the same service account. With no
+    // spreadsheet id nothing is pushed.
+    'google_sheets' => [
+        'spreadsheet_id' => env('GOOGLE_SHEETS_REPORTS_SPREADSHEET_ID'),
+        'staff_tab' => env('GOOGLE_SHEETS_STAFF_TAB', 'Weekly Staff Report 2O26'),
+        'battalion_tab' => env('GOOGLE_SHEETS_BATTALION_TAB', 'Weekly Battalion Report 2O26'),
+    ],
+
 ];

@@ -105,19 +105,33 @@ class Eloquent implements TrooperPlacementRepository
 
     public function trooperIdsInUnitAtWeekEnd(int $unitId, CarbonInterface $weekStart): array
     {
+        return $this->trooperIdsInUnitsAtWeekEnd([$unitId], $weekStart)[$unitId];
+    }
+
+    public function trooperIdsInUnitsAtWeekEnd(array $unitIds, CarbonInterface $weekStart): array
+    {
+        $byUnit = array_fill_keys($unitIds, []);
+
+        if ($unitIds === []) {
+            WeekOf::requireStart($weekStart);
+
+            return $byUnit;
+        }
+
         // Everyone who was ever placed there or is placed there now; the history then says where each stood at the end.
         $candidates = Trooper::query()
-            ->where('primary_section_id', $unitId)
-            ->orWhereIn('id', TrooperPlacement::query()->select('trooper_id')->where('unit_id', $unitId))
+            ->whereIn('primary_section_id', $unitIds)
+            ->orWhereIn('id', TrooperPlacement::query()->select('trooper_id')->whereIn('unit_id', $unitIds))
             ->orderBy('id')
             ->get(['id', 'primary_section_id']);
 
-        return collect($this->unitsAtWeekEnd($candidates, $weekStart))
-            ->filter(fn (?int $unit) => $unit === $unitId)
-            ->keys()
-            ->map(fn ($id) => (int) $id)
-            ->values()
-            ->all();
+        foreach ($this->unitsAtWeekEnd($candidates, $weekStart) as $trooperId => $unit) {
+            if ($unit !== null && array_key_exists($unit, $byUnit)) {
+                $byUnit[$unit][] = (int) $trooperId;
+            }
+        }
+
+        return $byUnit;
     }
 
     /**
@@ -238,6 +252,38 @@ class Eloquent implements TrooperPlacementRepository
 
             return array_keys($units);
         }, $byWeek);
+    }
+
+    public function unitOfEachTrooperByWeek(CarbonInterface $firstWeek, CarbonInterface $lastWeek): array
+    {
+        $first = WeekOf::requireStart($firstWeek);
+        $last = WeekOf::requireStart($lastWeek);
+        $weeks = self::weeks($first, $last);
+        $byWeek = array_fill_keys(array_map(fn (CarbonImmutable $week) => $week->toDateString(), $weeks), []);
+
+        $served = Trooper::query()
+            ->select('troopers.id')
+            ->where(fn ($q) => $q->whereIn('troopers.status', TrooperStatus::servingValues())->orWhere('troopers.departed_at', '>', $first));
+
+        foreach ($this->rowsOf($served, $first, null, unplaced: true) as $trooperId => $history) {
+            $head = $history->first();
+            $gone = TrooperStatus::from($head->status)->isServing() ? null : CarbonImmutable::parse($head->departed_at, 'UTC');
+            $placed = self::placedWeeks($history, $head->current_unit === null ? null : (int) $head->current_unit, $weeks);
+
+            foreach (array_keys($byWeek) as $date) {
+                if ($gone !== null && ! $gone->greaterThan(CarbonImmutable::parse($date, 'UTC'))) {
+                    continue;
+                }
+
+                $units = $placed['sections'][$date] ?? $placed['others'][$date] ?? [];
+
+                if ($units !== []) {
+                    $byWeek[$date][(int) $trooperId] = $units[array_key_last($units)];
+                }
+            }
+        }
+
+        return $byWeek;
     }
 
     public function sectionsByWeek(iterable|Builder $troopers, CarbonInterface $firstWeek, CarbonInterface $lastWeek): PlacementWeeks

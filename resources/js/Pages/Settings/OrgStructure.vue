@@ -130,6 +130,20 @@ function toggleCollapsed(id) {
 
 const selectedId = ref(null);
 const selectedUnit = computed(() => props.units.find((unit) => unit.id === selectedId.value) ?? null);
+
+// The details sit beside the tree from the `lg` breakpoint and stay in view as the tree scrolls (sticky, scrolling on
+// their own when taller than the screen), so choosing a unit far down the tree never means scrolling back up. A newly
+// chosen unit starts its details from the top; below `lg` the details are under the whole tree, so bring them into view.
+const detailCard = ref(null);
+watch(selectedId, (id) => {
+    if (id === null) return;
+    nextTick(() => {
+        const el = detailCard.value?.$el ?? detailCard.value;
+        if (!el) return;
+        el.scrollTop = 0;
+        if (!(window.matchMedia?.('(min-width: 1024px)').matches ?? false)) el.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+    });
+});
 const selectedMembers = computed(() => (selectedUnit.value ? (props.groupMembers[selectedUnit.value.id] ?? null) : null));
 
 // Team label (Admin): its own small form, audited on the server.
@@ -828,7 +842,11 @@ function confirmDelete() {
                 </Card>
             </div>
 
-            <Card class="min-w-0 gap-0 p-4">
+            <Card
+                ref="detailCard"
+                data-testid="detail-card"
+                class="min-w-0 gap-0 p-4 lg:sticky lg:top-[calc(var(--shell-top,3rem)+1rem)] lg:max-h-[calc(100dvh-var(--shell-top,3rem)-2rem)] lg:overflow-y-auto"
+            >
                 <div v-if="selectedUnit" data-testid="detail-panel">
                     <h2 class="mb-3 flex items-center gap-2 text-[15px] font-semibold">
                         <span class="truncate">{{ selectedUnit.name }}</span>

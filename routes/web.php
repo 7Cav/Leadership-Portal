@@ -27,6 +27,8 @@ use App\Http\Controllers\Settings\TemplatesController;
 use App\Http\Controllers\Settings\TrooperPlacementController;
 use App\Http\Controllers\StaffPracticeController;
 use App\Http\Controllers\StaffReportController;
+use App\Http\Controllers\StaffReportsOverviewController;
+use App\Http\Controllers\StrengthTrendsController;
 use App\Http\Controllers\TrainingPlanController;
 use App\Http\Controllers\TrainingReadinessMatrixController;
 use App\Http\Controllers\TrooperDetailController;
@@ -104,6 +106,8 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // Scope-gated in the controller through the ScopeResolver (AD-8). The trooper Sheet reads its
     // detail as JSON; that route is declared first so `troopers` is never taken for a unit id.
     Route::get('/roster/troopers/{trooper}', [RosterController::class, 'trooper'])->name('roster.trooper');
+    // A unit's strength week by week, scoped like the roster. Read only.
+    Route::get('/roster/{unit}/strength', [StrengthTrendsController::class, 'show'])->name('roster.strength');
     Route::get('/roster/{unit?}', [RosterController::class, 'index'])->name('roster.index');
     // The shell's trooper search (JSON): troopers in the viewer's scope by username, for a jump to their milpac. It
     // offers only troopers the milpac below would open (ScopeResolver::canSee's rule), throttled per user.
@@ -131,6 +135,8 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // week, read by them, the chain above their HQ and Admins; sent once, by the staff member alone, as an audited Command
     // (Authorization\StaffReportAccess). `/staff-report` opens the viewer's own for the week whose report is due.
     Route::get('/staff-report', [StaffReportController::class, 'own'])->name('staff-report.own');
+    // The staff reports overview: every HQ staff member whose report the viewer reads, for one week (`?week=`).
+    Route::get('/staff-reports', [StaffReportsOverviewController::class, 'index'])->name('staff-reports.index');
     Route::get('/staff-report/{trooper}/{week}', [StaffReportController::class, 'show'])
         ->where('week', '\d{4}-\d{2}-\d{2}')->name('staff-report.show');
     Route::post('/staff-report/{trooper}/{week}', [StaffReportController::class, 'send'])

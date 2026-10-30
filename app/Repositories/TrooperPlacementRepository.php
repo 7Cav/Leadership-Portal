@@ -80,6 +80,17 @@ interface TrooperPlacementRepository
     public function trooperIdsInUnitAtWeekEnd(int $unitId, CarbonInterface $weekStart): array;
 
     /**
+     * {@see trooperIdsInUnitAtWeekEnd()} for many units at once, in a fixed number of queries: unit id => trooper ids,
+     * for every unit given (an empty list for one nobody stood in then).
+     *
+     * @param  list<int>  $unitIds
+     * @return array<int, list<int>>
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function trooperIdsInUnitsAtWeekEnd(array $unitIds, CarbonInterface $weekStart): array;
+
+    /**
      * The sections each trooper was placed in during each Cav week from `$firstWeek` to `$lastWeek`, with their
      * current placement ({@see PlacementWeeks}). A week they were in no section (not placed yet, or on HQ staff or in
      * a group) is absent. A trooper placed nowhere now is left out.
@@ -136,6 +147,18 @@ interface TrooperPlacementRepository
      * @throws InvalidArgumentException when either bound is not a Saturday 00:00 UTC.
      */
     public function unitIdsPlacedByWeek(CarbonInterface $firstWeek, CarbonInterface $lastWeek): array;
+
+    /**
+     * Where each trooper ended each Cav week from `$firstWeek` to `$lastWeek`, read as {@see unitIdsPlacedByWeek()}
+     * reads the history: the section they ended the week in, or else the last other unit (HQ staff, a group) they were
+     * in during it. The strength trends rebuild a past week's headcount from it. Same troopers and the same one query
+     * as {@see unitIdsPlacedByWeek()}, however many weeks.
+     *
+     * @return array<string, array<int, int>> by week start (Y-m-d), earliest first: trooper id => unit id
+     *
+     * @throws InvalidArgumentException when either bound is not a Saturday 00:00 UTC.
+     */
+    public function unitOfEachTrooperByWeek(CarbonInterface $firstWeek, CarbonInterface $lastWeek): array;
 
     /**
      * Which of `$trooperIds` moved out of `$unitId` from `$from` up to (not including) `$until`, and were not back in

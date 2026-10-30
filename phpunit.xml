@@ -63,6 +63,9 @@
         <env name="GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL" value=""/>
         <env name="GOOGLE_DRIVE_PRIVATE_KEY" value=""/>
         <env name="GOOGLE_DRIVE_FOLDER_ID" value=""/>
+        <env name="GOOGLE_SHEETS_REPORTS_SPREADSHEET_ID" value=""/>
+        <env name="GOOGLE_SHEETS_STAFF_TAB" value=""/>
+        <env name="GOOGLE_SHEETS_BATTALION_TAB" value=""/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="TRUSTED_PROXIES" value=""/>
         <env name="CSP_REPORT_ONLY" value="false"/>

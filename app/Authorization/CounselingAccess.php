@@ -3,6 +3,7 @@
 namespace App\Authorization;
 
 use App\Models\CommandRole;
+use App\Models\CounselingRecord;
 use App\Models\CounselingType;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
@@ -49,7 +50,7 @@ use Illuminate\Support\Collection;
  *  - **The trooper's appeal**: within those 72 hours the trooper may file one appeal on an LOR, or one comment or
  *    dispute on a DCS ({@see CounselingPermissions::appeals()}), on their own record, signed in as themselves: never
  *    through act as or a view-as preview.
- *  - **An expired DCS** (90 days after it was counseled, {@see \App\Models\CounselingRecord::isExpired()}): seen
+ *  - **An expired DCS** (90 days after it was counseled, {@see CounselingRecord::isExpired()}): seen
  *    by Admins only, read-only to everyone but them. Leaders and the trooper no longer see it.
  *  - **A trooper who has left the Cav** (not serving, {@see TrooperStatus::serving()}): nobody files, corrects or
  *    deletes, Admins included (2026-10-28). Who could see the records still sees and downloads them. Serving again
