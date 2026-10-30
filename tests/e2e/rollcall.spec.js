@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { freshSection } from './fresh-section.js';
 
 // Stories 3.7–3.10 happy path, against the shared E2E seed (Database\Seeders\ReportRollupSeeder):
 // Vasquez.R leads 2/1/A/1-7, whose troopers carry four weeks of rollcalls and practice marks.
@@ -19,9 +20,14 @@ test('a section leader lands on their section\'s rollcall', async ({ page }) => 
     await expect(page.getByTestId('prefill-banner')).toBeVisible();
 });
 
+// It writes marks, so it runs on a section of its own (GameIdentitySectionSeeder): the seeded section is shared with
+// the tests beside it, which mark it posted or read it in parallel, and a retry would start from the marks the first
+// attempt left there.
 test('a section leader signs and marks practice, and finds both saved after a reload', async ({ page }) => {
-    await page.goto('/__e2e/login/Vasquez.R?to=/rollcall');
+    const leader = freshSection();
+    await page.goto(`/__e2e/login/${leader}?to=/rollcall`);
     await expect(page).toHaveURL(/\/rollcall\/\d+$/);
+    await page.getByRole('button', { name: /^Step 1, Signatures/ }).click();
 
     const id = await page.locator('[data-trooper]').first().getAttribute('data-trooper');
     const card = () => page.locator(`[data-trooper="${id}"]`);
