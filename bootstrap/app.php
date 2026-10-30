@@ -35,6 +35,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // passes the client's value through; the trusted-hosts check below applies to it either way.
         $middleware->replace(BaseTrustProxies::class, TrustProxies::class);
 
+        // Playwright supplies a short-lived, localhost-only cookie before the app starts.
+        // Laravel cannot decrypt that externally generated value, so leave this one cookie
+        // untouched for the guarded e2e sign-in route to compare with its per-run token.
+        $middleware->encryptCookies(except: ['e2e_login_token']);
+
         // In production the app answers only for the APP_URL host. Otherwise redirects are built from whatever Host
         // the request carried, so `Host: evil.example` got `Location: http://evil.example/login`. An unknown host is
         // refused before routing. Other environments stay open (local tools, e2e on 127.0.0.1); the framework also
