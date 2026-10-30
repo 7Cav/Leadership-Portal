@@ -301,7 +301,7 @@ describe('Reports/Show', () => {
         expect(post.mock.calls[0][1].makeup_checks).toEqual([]);
     });
 
-    it('shows a sent report's make-up answers', () => {
+    it('shows a sent report\'s make-up answers', () => {
         const wrapper = mountShow({
             report: { status: 'sent', notes: '', trainingSubject: '', unaccounted: [], makeupChecks: [{ trooper_id: 2, done: true }], savedAt: null, sentAt: '2026-10-09T10:00:00+00:00', sentBy: 'SGT Vasquez.R' },
             troopers: null,

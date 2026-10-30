@@ -66,7 +66,7 @@ describe('AttendanceStrip', () => {
 
         expect(states(wrapper)).toEqual(['out', 'out', 'nil', 'ok']);
         expect(wrapper.get('[role="img"]').attributes('aria-label')).toBe(
-            'Last 4 weeks: not in the unit yet, not in the unit yet, no SP held, present',
+            'Last 4 weeks: not in the unit yet, not in the unit yet, no SP held, attended',
         );
     });
 });
@@ -89,7 +89,7 @@ describe('TrooperCard attendance strip', () => {
     it.each(['signature', 'practice'])('shows the strip on the %s step', (kind) => {
         const wrapper = mount(TrooperCard, { props: { trooper: trooper(), kind, editable: true } });
 
-        expect(wrapper.get('[data-testid="attendance-strip"]').attributes('aria-label')).toBe('Last 4 weeks: present, present, missed, LOA');
+        expect(wrapper.get('[data-testid="attendance-strip"]').attributes('aria-label')).toBe('Last 4 weeks: attended, attended, not attended, LOA');
     });
 
     it('shows it on a locked LOA card too, and leaves it out when there is no history', () => {
