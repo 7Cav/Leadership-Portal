@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useForm } from '@inertiajs/vue3';
 import { PhArrowCounterClockwise, PhDownloadSimple, PhEye, PhFilePdf, PhLock, PhPencilSimple, PhPlus, PhTrash, PhWarning } from '@phosphor-icons/vue';
 import InlineNotice from '@/components/InlineNotice.vue';
@@ -85,6 +85,22 @@ const COLUMNS = [
 const formError = (field) => fileForm.errors[`form.${field}`];
 const formLevelError = computed(() => (generating.value ? fileForm.errors.document : null));
 const hint = computed(() => forecastFlags(props.counseling.forecast, fileForm.type, fileForm.kind, fileForm.counseled_on));
+
+// An error goes as soon as its field is edited, so a fixed field stops showing red before the next Preview or File.
+for (const key of ['type', 'kind', 'counseled_on', 'reason', 'document']) {
+    watch(
+        () => fileForm[key],
+        () => fileForm.clearErrors(key),
+    );
+}
+watch(
+    () => ({ ...fileForm.form }),
+    (now, before) => {
+        for (const key of Object.keys(now)) {
+            if (now[key] !== before?.[key]) fileForm.clearErrors(`form.${key}`);
+        }
+    },
+);
 
 function openFiling() {
     fileForm.reset();
@@ -359,9 +375,10 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
                     <fieldset v-for="group in COLUMN_GROUPS" :key="group.key" class="grid gap-2">
                         <legend class="mb-1.5 text-sm font-medium">{{ group.label }}</legend>
                         <div class="grid gap-3 sm:grid-cols-3">
-                            <div v-for="column in COLUMNS" :key="column.key" class="grid gap-1.5">
-                                <Label :for="`counseling-form-${group.key}_${column.key}`" class="text-xs">{{ column.label }}</Label>
+                            <div v-for="column in COLUMNS" :key="column.key" class="flex min-w-0 flex-col gap-1.5">
+                                <Label :for="`counseling-form-${group.key}_${column.key}`" class="truncate text-xs">{{ column.label }}</Label>
                                 <Textarea
+                                    class="field-sizing-fixed resize-none overflow-y-auto"
                                     :id="`counseling-form-${group.key}_${column.key}`"
                                     v-model="fileForm.form[`${group.key}_${column.key}`]"
                                     :rows="group.rows"
