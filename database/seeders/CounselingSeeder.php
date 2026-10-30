@@ -63,7 +63,7 @@ class CounselingSeeder extends Seeder
 
     private function record(Trooper $trooper, CounselingType $type, CounselingKind $kind, User $issuer, Unit $through, string $reason): void
     {
-        $bytes = "%PDF-1.4\n% seeded {$type->short()} for {$trooper->username}\n%%EOF\n";
+        $bytes = self::minimalPdf("Seeded {$type->short()} for {$trooper->username}");
         $path = Str::uuid()->toString().'.pdf';
         Storage::disk(CounselingDocuments::DISK)->put($path, $bytes);
 
@@ -81,5 +81,37 @@ class CounselingSeeder extends Seeder
             'document_sha256' => hash('sha256', $bytes),
             'drive_status' => DriveUploadStatus::Skipped,
         ]);
+    }
+
+    /**
+     * A small but well-formed one-page PDF with one line of text, so a seeded document opens in a browser's viewer
+     * (a header and `%%EOF` alone do not: a viewer needs the objects and a cross-reference table with true offsets).
+     */
+    public static function minimalPdf(string $line): string
+    {
+        $text = str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $line);
+        $stream = "BT /F1 14 Tf 72 770 Td ({$text}) Tj ET";
+        $objects = [
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+            '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+            '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+            '<< /Length '.strlen($stream)." >>\nstream\n{$stream}\nendstream",
+        ];
+
+        $pdf = "%PDF-1.4\n";
+        $offsets = [];
+        foreach ($objects as $i => $body) {
+            $offsets[] = strlen($pdf);
+            $pdf .= ($i + 1)." 0 obj\n{$body}\nendobj\n";
+        }
+
+        $xref = strlen($pdf);
+        $pdf .= "xref\n0 ".(count($objects) + 1)."\n0000000000 65535 f \n";
+        foreach ($offsets as $offset) {
+            $pdf .= sprintf("%010d 00000 n \n", $offset);
+        }
+
+        return $pdf."trailer\n<< /Size ".(count($objects) + 1)." /Root 1 0 R >>\nstartxref\n{$xref}\n%%EOF\n";
     }
 }
