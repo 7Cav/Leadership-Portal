@@ -75,7 +75,6 @@ final class DemoAttendancePattern
         return match (true) {
             $signature < 82 => [RollcallSignature::WillAttend, match (true) {
                 $mark < 92 => AttendanceStatus::Present,
-                $mark < 96 => AttendanceStatus::Attached,
                 $mark < 98 => AttendanceStatus::Makeup,
                 default => AttendanceStatus::Missed,
             }],

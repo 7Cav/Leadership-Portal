@@ -90,7 +90,7 @@ it('never overwrites an attended, loa or manual mark on the guest\'s own rollcal
 })->with([
     'auto present' => [AttendanceStatus::Present, AttendanceSource::Auto],
     'manual present' => [AttendanceStatus::Present, AttendanceSource::Manual],
-    'attached' => [AttendanceStatus::Attached, AttendanceSource::Manual],
+    'manual excused' => [AttendanceStatus::Excused, AttendanceSource::Manual],
     'loa' => [AttendanceStatus::Loa, AttendanceSource::Manual],
     'manual missed' => [AttendanceStatus::Missed, AttendanceSource::Manual],
 ]);

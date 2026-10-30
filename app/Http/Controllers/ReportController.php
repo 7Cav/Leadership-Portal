@@ -13,6 +13,7 @@ use App\Commands\WeeklyReports\SendWeeklyReportHandler;
 use App\Commands\WeeklyReports\SetPlatoonTrainingTopic;
 use App\Commands\WeeklyReports\SetPlatoonTrainingTopicHandler;
 use App\Commands\WeeklyReports\TrainingSubjectEnforcedException;
+use App\Kpi\AutoExcused;
 use App\Kpi\ChildReport;
 use App\Kpi\ChildReportStatus;
 use App\Kpi\KpiDelta;
@@ -88,6 +89,7 @@ class ReportController extends Controller
         private readonly PlatoonTrainingTopicRepository $topics,
         private readonly StaffReportAccess $staffReportAccess,
         private readonly StaffReportWeek $staffReportWeek,
+        private readonly AutoExcused $autoExcused,
     ) {}
 
     public function show(Request $request, UnaccountedSuggestions $suggestions, int $unit, string $week): Response
@@ -582,8 +584,10 @@ class ReportController extends Controller
     {
         $marks = $this->attendance->countingMarksOf($roster->pluck('id')->all(), $weekStart, $weekStart, includeDeparted: true)->keyBy('trooperId');
         $kpis = $this->kpis->trooperAttendance($section, $weekStart);
+        // A first week after a transfer or joining is excused automatically (2026-10-30): accounted, like leave.
+        $excused = $this->autoExcused->forTroopers($roster->pluck('id')->all(), $weekStart);
 
-        return $roster->map(function (Trooper $trooper) use ($marks, $kpis) {
+        return $roster->map(function (Trooper $trooper) use ($marks, $kpis, $excused) {
             /** @var CountingMark|null $mark */
             $mark = $marks->get($trooper->id);
             /** @var TrooperAttendance|null $reading */
@@ -600,6 +604,8 @@ class ReportController extends Controller
                 'atRisk' => $reading?->atRisk() ?? false,
                 'missed' => $reading->missed ?? 0,
                 'onLoa' => $reading->onLoa ?? false,
+                // `recruit` or `transfer` when the week is excused automatically, else null.
+                'excused' => $excused[$trooper->id] ?? null,
             ];
         })->values()->all();
     }

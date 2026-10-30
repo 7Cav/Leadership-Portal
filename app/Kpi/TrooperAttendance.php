@@ -14,9 +14,9 @@ final readonly class TrooperAttendance
 
     public function __construct(
         public int $trooperId,
-        /** Signed rollcalls ÷ assigned, non-LOA weeks. */
+        /** Signed roll calls ÷ assigned weeks that are not on leave or excused. */
         public Ratio $rollcall,
-        /** Attended practices ÷ non-LOA practices that were held (a leader SP-marked someone) or that this trooper attended. */
+        /** Attended practices ÷ practices not on leave or excused that were held (a leader SP-marked someone) or that this trooper attended. */
         public Ratio $practice,
         /** Practices explicitly marked `missed` in the window. */
         public int $missed,
@@ -32,6 +32,11 @@ final readonly class TrooperAttendance
          * row not built by the service.
          */
         public ?int $sectionId = null,
+        /**
+         * The `week_start` dates (Y-m-d) in the window whose roll call says make-up requested and whose practice holds
+         * no make-up yet (`KpiService::owesMakeup()`), oldest first: the leader's "owes a make-up" list.
+         */
+        public array $makeupOwedWeeks = [],
     ) {}
 
     public function atRisk(): bool

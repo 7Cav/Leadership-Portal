@@ -299,8 +299,8 @@ class MarkAttendanceHandler
      * {@see SectionPracticeRepository::findOrCreate()} — the same writer and second *source* as
      * {@see preMark()}, through {@see AttendanceRepository::markMakeupAuto()}.
      *
-     * It never downgrades and never overrides a leader: a manual mark of any status, an `loa` mark and
-     * an attended mark (`present`, `attached`) stay as they are, so a trooper present at their own
+     * It never downgrades and never overrides a leader: a manual mark of any status (an `excused` included), an `loa`
+     * mark and `present` stay as they are, so a trooper present at their own
      * practice keeps `present`; an unmarked trooper and an automatic `missed` become the makeup. When
      * the trooper's own practice is captured later and sees them, {@see preMark()} replaces the auto
      * makeup with `present`. A makeup a leader marks by hand is a manual mark like any other and
@@ -374,7 +374,7 @@ class MarkAttendanceHandler
      * is not a section; none whose own week is sent or confirmed (a retry would only be refused), whose leave covers
      * the week, or who is no longer serving there; and none who already holds an automatic makeup on any practice that
      * week (it may be on a section they have since left) or whose own rollcall row is one a makeup never overwrites (a
-     * manual mark, `present`, `attached`, `loa`). One read per own section, plus one per trooper still in question.
+     * manual mark, `present`, `loa`). One read per own section, plus one per trooper still in question.
      *
      * @param  list<int>  $trooperIds
      * @return list<int>
@@ -418,7 +418,7 @@ class MarkAttendanceHandler
             foreach ($this->makeupCandidates($sectionId, $weekStart, $ids) as $trooperId) {
                 $row = $rows->get($trooperId);
                 $kept = $row !== null && ($row->source === AttendanceSource::Manual
-                    || in_array($row->status, [AttendanceStatus::Makeup, AttendanceStatus::Loa, AttendanceStatus::Present, AttendanceStatus::Attached], true));
+                    || in_array($row->status, [AttendanceStatus::Makeup, AttendanceStatus::Loa, AttendanceStatus::Present], true));
 
                 if (! $kept && $this->attendance->practicesWithAutoMakeup($trooperId, $weekStart)->isEmpty()) {
                     $missing[] = $trooperId;

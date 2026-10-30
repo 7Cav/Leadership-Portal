@@ -6,6 +6,7 @@ use App\Models\PlacementSource;
 use App\Models\Trooper;
 use App\Models\TrooperPlacement;
 use App\Models\Unit;
+use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -170,4 +171,17 @@ interface TrooperPlacementRepository
      * @return list<int>
      */
     public function leftUnitBetween(int $unitId, array $trooperIds, CarbonInterface $from, CarbonInterface $until): array;
+
+    /**
+     * What starts a trooper's first Cav week somewhere new, for each of `$trooperIds`, from `$from` up to (not
+     * including) `$until`, in one query (2026-10-30, read by `Kpi\AutoExcused`):
+     *
+     * - `transfer`: placed into a section, the start of a placement row in a unit of type section. A placement from
+     *   before the history began (`placed_from` null) is not one;
+     * - `recruit`: joined the Cav, by their join date (`troopers.tis`).
+     *
+     * @param  list<int>  $trooperIds
+     * @return array<int, list<array{at: CarbonImmutable, kind: string}>>  trooper id => the events, oldest first
+     */
+    public function firstWeekEventsBetween(array $trooperIds, CarbonInterface $from, CarbonInterface $until): array;
 }

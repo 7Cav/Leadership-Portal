@@ -144,7 +144,7 @@ it('leaves a leader\'s manual mark of any status untouched', function (Attendanc
     expect($row->status)->toBe($status)
         ->and($row->source)->toBe(AttendanceSource::Manual)
         ->and($row->updated_at->toDateTimeString())->toBe('2026-10-05 12:00:00');
-})->with([[AttendanceStatus::Missed], [AttendanceStatus::Makeup], [AttendanceStatus::Attached]]);
+})->with([[AttendanceStatus::Missed], [AttendanceStatus::Makeup], [AttendanceStatus::Excused]]);
 
 it('credits the host practice\'s own week only: a previous week leaves this week alone', function () {
     $current = SectionPractice::factory()->create(['section_id' => $this->home->id, 'week_start' => $this->week]);
