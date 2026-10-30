@@ -73,11 +73,12 @@ class CounselingController extends Controller
             'counseled_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:today', 'after_or_equal:'.CounselingRules::EARLIEST],
             'reason' => ['required', 'string', 'max:'.CounselingRules::REASON_MAX],
             // `mimetypes` sniffs the file's content (finfo), not its name or the type the browser sent.
-            'document' => ['required', 'file', 'max:'.(CounselingRules::DOCUMENT_MAX_BYTES / 1024), 'mimetypes:application/pdf'],
+            'document' => ['required', 'file', 'max:'.(CounselingRules::DOCUMENT_MAX_BYTES / 1024), 'extensions:pdf', 'mimetypes:application/pdf'],
         ], [
             'kind.required' => 'Choose what the record is for.',
             'kind.enum' => 'Choose what the record is for.',
             'document.required' => 'Attach the signed document as a PDF.',
+            'document.extensions' => 'Attach the signed document as a PDF.',
             'document.mimetypes' => 'Attach the signed document as a PDF.',
             'document.max' => 'The document must be 10 MB or smaller.',
             'counseled_on.before_or_equal' => 'The date cannot be in the future.',

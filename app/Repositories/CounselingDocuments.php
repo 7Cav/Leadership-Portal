@@ -53,14 +53,17 @@ class CounselingDocuments
 
     /**
      * The document as a download named `$downloadName`: always an attachment, always `application/pdf`, so a browser
-     * neither renders it in the portal's origin nor guesses another type.
+     * neither renders it in the portal's origin nor guesses another type. The sandbox policy covers a browser that
+     * shows it anyway: no script, no requests, no access to the portal's origin. A name outside plain ASCII also gets
+     * an ASCII fallback beside the RFC 5987 one.
      */
     public function download(string $path, string $downloadName): StreamedResponse
     {
         return $this->disk()->download($this->checked($path), $downloadName, [
             'Content-Type' => 'application/pdf',
             'X-Content-Type-Options' => 'nosniff',
-            'Cache-Control' => 'private, no-store',
+            'Cache-Control' => 'no-store, private',
+            'Content-Security-Policy' => "default-src 'none'; sandbox; frame-ancestors 'none'",
         ]);
     }
 

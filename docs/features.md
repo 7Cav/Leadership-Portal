@@ -304,7 +304,9 @@ acting identity's command shows.
 - File a record: the type, what it is for (a missed section practice or roll call, or other conduct), the date it was
   given, the reason and the signed document, a PDF of 10 MB or less. What it is for is required, and stays as filed
   like the type; a record filed before the portal asked has none and is ruled as other conduct. The file
-  is checked by its content, not its name, and kept on the portal's private disk. It downloads only from the record,
+  is checked by its content and must also end in `.pdf`; a PDF with a password, without its end marker, or with
+  scripts, automatic actions, attachments, embedded media or XML forms is refused, with a plain reason and the advice to
+  print it to a new PDF (web links are fine). It is kept on the portal's private disk under a name the portal makes up. It downloads only from the record,
   for someone who may see it, named after the record (`LOR 2026-10-20 Novak.E.pdf`). Filing the same record again
   (same type, date, reason and document) within 10 minutes is refused as already filed, so a double click never
   counts twice.
