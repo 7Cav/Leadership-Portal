@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Authorization\CounselingPermissions;
 use Carbon\CarbonImmutable;
 use Database\Factories\CounselingRecordFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -110,14 +111,14 @@ class CounselingRecord extends Model
     }
 
     /**
-     * When the record freezes: {@see \App\Authorization\CounselingPermissions::APPEAL_HOURS} hours after it was filed
+     * When the record freezes: {@see CounselingPermissions::APPEAL_HOURS} hours after it was filed
      * (`created_at`), never from the date it carries. Null for a record not yet saved.
      */
     public function freezesAt(): ?CarbonImmutable
     {
         return $this->created_at === null
             ? null
-            : CarbonImmutable::instance($this->created_at)->addHours(\App\Authorization\CounselingPermissions::APPEAL_HOURS);
+            : CarbonImmutable::instance($this->created_at)->addHours(CounselingPermissions::APPEAL_HOURS);
     }
 
     /** Whether the trooper filed their appeal (LOR) or comment or dispute (DCS) on this record. */
