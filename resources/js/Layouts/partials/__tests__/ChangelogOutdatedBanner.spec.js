@@ -19,7 +19,7 @@ describe('changelog outdated bar', () => {
         page.props = { changelogOutdated: true };
         const bar = mount(ChangelogOutdatedBanner);
 
-        expect(bar.get('[data-testid="changelog-outdated-banner"]').classes()).toContain('bg-info');
+        expect(bar.get('[data-testid="changelog-outdated-banner"]').classes()).toContain('bg-changelog');
         expect(bar.text()).toContain('Changelog outdated');
         expect(bar.get('[data-testid="changelog-outdated-add"]').attributes('href')).toBe('/changelog?add=1');
 

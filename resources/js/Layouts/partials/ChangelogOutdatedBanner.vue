@@ -5,7 +5,7 @@ import { PhInfo } from '@phosphor-icons/vue';
 import { toast } from 'vue-sonner';
 import { onHttpException } from '@/lib/httpError';
 
-// The changelog bar: blue, shaped like the act-as bar. Only a changelog editor sees it, after a redeploy nobody has
+// The changelog bar: the saturated --changelog blue, shaped like the act-as bar. Only a changelog editor sees it, after a redeploy nobody has
 // written an entry for or dismissed. Adding an entry (an import counts) or dismissing it clears it for every editor.
 const page = usePage();
 const outdated = computed(() => page.props.changelogOutdated === true);
@@ -30,7 +30,7 @@ function dismiss() {
         v-if="outdated"
         role="status"
         data-testid="changelog-outdated-banner"
-        class="flex h-9 items-center gap-2.5 bg-info px-3 text-[13px] text-white sm:px-4 dark:bg-[hsl(206_64%_36%)]"
+        class="flex h-9 items-center gap-2.5 bg-changelog px-3 text-[13px] text-white sm:px-4"
     >
         <PhInfo class="size-4 shrink-0" weight="bold" aria-hidden="true" />
         <p class="min-w-0 flex-1 truncate">
