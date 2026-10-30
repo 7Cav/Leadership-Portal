@@ -77,6 +77,13 @@ it('ends a flag Admin session when its Cav id now belongs to another forum ident
     $this->assertGuest();
 });
 
+it('keeps a session whose cached trooper has no forum account recorded yet', function () {
+    $user = User::factory()->serving()->create();
+    Trooper::query()->where('cav_id', $user->cav_id)->update(['forum_user_id' => null]);
+
+    $this->actingAs($user)->get(route('home'))->assertOk();
+});
+
 it('never ends an Admin session for want of a milpac link', function () {
     $this->actingAs(User::factory()->admin()->create())->get(route('home'))->assertOk();
 });

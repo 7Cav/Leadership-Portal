@@ -103,7 +103,7 @@ class ServingSession
         // Do not let that earlier holder inherit the new trooper's scope. A live admission
         // cannot override a mismatched cached identity: the cache would otherwise confer the
         // other person's billet during the interval before the next sync.
-        if ($trooper->forum_user_id === null || (int) $trooper->forum_user_id !== (int) $user->forum_user_id) {
+        if ($trooper->forum_user_id !== null && (int) $trooper->forum_user_id !== (int) $user->forum_user_id) {
             return true;
         }
 
