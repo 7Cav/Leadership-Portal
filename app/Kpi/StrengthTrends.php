@@ -19,7 +19,8 @@ use Illuminate\Support\Collection;
  * A week the unit sent its report for reads the frozen snapshot (AD-12), never a recompute. Any other week from
  * {@see HISTORY_FROM} on is rebuilt from the placement history, where each trooper ended the week. A week before the
  * history with no sent report is a gap (null), never a zero. The joins and departures ("in" and "out") are the troopers
- * who entered or left the unit's headcount between two rebuilt weeks, so they are null where either week is not rebuilt.
+ * who entered or left the unit's headcount between two rebuilt weeks. A sent snapshot that carries its own `joined` and
+ * `left` counts gives those instead; otherwise they are null where either week is not rebuilt.
  *
  * A battalion's children also carry their own line children (its companies' platoons), so the comparison reaches one
  * level further where a company alone says little.
@@ -101,8 +102,8 @@ final class StrengthTrends
                 'week' => $date,
                 'headcount' => isset($snapshot['headcount']) ? (int) $snapshot['headcount'] : ($members === null ? null : count($members['all'])),
                 'strength' => isset($snapshot['strength']) ? (int) $snapshot['strength'] : ($members === null ? null : count($members['sections'])),
-                'in' => $members === null || $prev === null ? null : count(array_diff_key($members['all'], $prev['all'])),
-                'out' => $members === null || $prev === null ? null : count(array_diff_key($prev['all'], $members['all'])),
+                'in' => isset($snapshot['joined']) ? (int) $snapshot['joined'] : ($members === null || $prev === null ? null : count(array_diff_key($members['all'], $prev['all']))),
+                'out' => isset($snapshot['left']) ? (int) $snapshot['left'] : ($members === null || $prev === null ? null : count(array_diff_key($prev['all'], $members['all']))),
                 'source' => $snapshot !== null ? 'report' : ($members === null ? null : ($date === $running->toDateString() ? 'live' : 'history')),
             ];
         }

@@ -97,6 +97,16 @@ it('reads a sent week from its frozen snapshot', function () {
         ->and(stWeek($props, '2026-10-10'))->toMatchArray(['headcount' => 8, 'strength' => 6, 'source' => 'report']);
 });
 
+it('reads joins and departures from a snapshot that carries them', function () {
+    WeeklyReport::factory()->sent()->create([
+        'unit_id' => $this->platoon->id,
+        'week_start' => CarbonImmutable::parse('2026-10-10 00:00:00', 'UTC'),
+        'kpis' => ['strength' => 6, 'headcount' => 8, 'joined' => 2, 'left' => 1],
+    ]);
+
+    expect(stWeek(stProps($this, $this->platoon), '2026-10-10'))->toMatchArray(['in' => 2, 'out' => 1]);
+});
+
 it('leaves a gap for a week nothing is known about, never a zero', function () {
     $props = stProps($this, $this->platoon);
 
