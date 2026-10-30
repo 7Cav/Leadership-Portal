@@ -4,10 +4,12 @@ import StaffReports from '../StaffReports.vue';
 
 // The staff reports overview draws what the server sent; it decides nothing about who is listed.
 
+const visit = vi.hoisted(() => vi.fn());
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
     Head: { template: '<head></head>' },
     Link: { props: ['href'], template: '<a :href="href"><slot /></a>' },
+    router: { visit },
 }));
 
 const WEEK = { date: '2026-10-03', start: '2026-10-03T00:00:00+00:00', due: '2026-10-10T23:59:00+00:00', previous: '2026-09-26', next: '2026-10-10', ended: true };
@@ -100,6 +102,64 @@ describe('StaffReports', () => {
         expect(page.find('[data-testid="staff-reports-row-7"] [data-testid="staff-report-discrepancy"]').attributes('aria-label'))
             .toContain('The game server saw them at the practice of 3/1/A/1-7, which they did not report.');
         expect(page.find('[data-testid="staff-reports-row-8"] [data-testid="staff-report-discrepancy"]').exists()).toBe(false);
+    });
+
+    it('opens the report from a click anywhere on the row, once, and leaves inner links and buttons alone', async () => {
+        visit.mockReset();
+        const groups = [{ id: 4, label: '1/A/1-7', rows: [row({ discrepancy: { notSeen: ['1/1/A/1-7'], seenElsewhere: [] } })] }];
+        const page = mount(StaffReports, { props: { week: WEEK, groups }, attachTo: document.body });
+        const tr = page.find('[data-testid="staff-reports-row-7"]');
+
+        expect(tr.classes()).toContain('cursor-pointer');
+        expect(tr.classes()).toContain('hover:bg-accent/50');
+        await tr.find('[data-testid="row-attended"]').trigger('click');
+        expect(visit).toHaveBeenCalledOnce();
+        expect(visit).toHaveBeenCalledWith('/staff-report/7/2026-10-03');
+
+        await tr.find('[data-testid="row-link"]').trigger('click');
+        await tr.find('[data-testid="staff-report-discrepancy"]').trigger('click');
+        expect(visit).toHaveBeenCalledOnce();
+        page.unmount();
+    });
+
+    it('reaches each row by keyboard through its name link, with a visible focus ring', () => {
+        const page = mount(StaffReports, { props: { week: WEEK, groups: [{ id: 4, label: '1/A/1-7', rows: [row()] }] } });
+        const link = page.find('[data-testid="staff-reports-row-7"] [data-testid="row-link"]');
+
+        expect(link.element.tagName).toBe('A');
+        expect(link.attributes('href')).toBe('/staff-report/7/2026-10-03');
+        expect(link.attributes('tabindex')).toBeUndefined();
+        expect(link.classes()).toContain('focus-visible:ring-2');
+        expect(page.find('[data-testid="staff-reports-row-7"]').classes()).toContain('focus-within:bg-accent/50');
+    });
+
+    it('shows the picked HQ unit health with its trend, and links to the other HQs', () => {
+        const health = {
+            unit: { id: 4, label: '1/A/1-7' },
+            week: '2026-10-03',
+            sp: 0.5,
+            rc: null,
+            headcount: 14,
+            inRollcall: 12,
+            atRisk: 2,
+            staff: { met: 1, total: 3 },
+            trend: [
+                { week: '2026-09-26', sp: 0.4, rc: null, headcount: 13, inRollcall: 11, atRisk: 1 },
+                { week: '2026-10-03', sp: 0.5, rc: null, headcount: 14, inRollcall: 12, atRisk: 2 },
+            ],
+            hqs: [{ id: 4, label: '1/A/1-7' }, { id: 5, label: '2/A/1-7' }],
+        };
+        const page = mount(StaffReports, { props: { week: WEEK, groups: [{ id: 4, label: '1/A/1-7', rows: [row()] }], health } });
+        const panel = page.find('[data-testid="staff-hq-health"]');
+
+        expect(panel.find('[data-testid="health-sp"]').text()).toContain('50%');
+        expect(panel.find('[data-testid="health-rc"]').text()).toContain('Not available');
+        expect(panel.find('[data-testid="health-strength"]').text()).toContain('12 of 14');
+        expect(panel.find('[data-testid="health-atRisk"]').text()).toContain('2');
+        expect(panel.find('[data-testid="health-staff"]').text()).toContain('1 of 3');
+        expect(panel.findAll('[data-testid="sparkline"]')).toHaveLength(4);
+        expect(panel.find('[data-testid="health-sp"] [data-testid="sparkline"]').attributes('aria-label')).toBe('SP attendance by week: 26Sep26 40%, 03Oct26 50%');
+        expect(panel.findAll('[data-testid="health-hqs"] a').map((a) => a.attributes('href'))).toEqual(['/staff-reports?week=2026-10-03&hq=4', '/staff-reports?week=2026-10-03&hq=5']);
     });
 
     it('says nothing about the sheet when none is set up', () => {

@@ -1,8 +1,9 @@
 <script setup>
 import { computed, ref } from 'vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { PhCaretLeft, PhCaretRight, PhUserCheck } from '@phosphor-icons/vue';
 import EmptyState from '@/components/EmptyState.vue';
+import StaffHqHealth from '@/components/reports/StaffHqHealth.vue';
 import StaffReportDiscrepancy from '@/components/reports/StaffReportDiscrepancy.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,8 @@ const props = defineProps({
     groups: { type: Array, default: () => [] },
     // Whether the reports Google Sheet is set up: only then is a sent report not yet copied there called out.
     sheetConfigured: { type: Boolean, default: false },
+    // One listed HQ's unit health for the week ({@see StaffHqHealth.vue}), with `hqs` to switch between them, or null.
+    health: { type: Object, default: null },
 });
 
 const STATUS = {
@@ -46,6 +49,16 @@ const shown = computed(() => {
 });
 
 const weekUrl = (date) => `/staff-reports?week=${date}`;
+const hqUrl = (id) => `/staff-reports?week=${props.week.date}&hq=${id}`;
+
+// The whole row opens the report. Its name is the one real link (keyboard and screen reader reach it there); a click
+// anywhere else on the row follows it, and a click on a link or button inside the row is left to that control, so
+// nothing opens twice.
+function openRow(event, row) {
+    if (event.target.closest('a, button, [role="button"]')) return;
+    if (window.getSelection?.()?.toString()) return;
+    router.visit(row.href);
+}
 </script>
 
 <template>
@@ -89,6 +102,8 @@ const weekUrl = (date) => `/staff-reports?week=${date}`;
             </Button>
         </Card>
 
+        <StaffHqHealth v-if="health" :health="health" :hq-href="hqUrl" />
+
         <div v-if="groups.length" class="flex gap-1 self-start rounded-lg bg-muted p-1" role="radiogroup" aria-label="Show" data-testid="staff-reports-filter">
             <button
                 v-for="option in FILTERS"
@@ -127,11 +142,16 @@ const weekUrl = (date) => `/staff-reports?week=${date}`;
                     <tr
                         v-for="row in group.rows"
                         :key="row.trooperId"
-                        class="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 border-t px-4 py-2.5 sm:table-row sm:p-0"
+                        class="grid cursor-pointer grid-cols-[1fr_auto] gap-x-3 gap-y-1 border-t px-4 py-2.5 transition-colors focus-within:bg-accent/50 hover:bg-accent/50 sm:table-row sm:p-0"
                         :data-testid="`staff-reports-row-${row.trooperId}`"
+                        @click="openRow($event, row)"
                     >
                         <td class="min-w-0 sm:px-4 sm:py-2">
-                            <Link :href="row.href" class="font-medium underline-offset-4 hover:underline">{{ row.name }}</Link>
+                            <Link
+                                :href="row.href"
+                                class="rounded-sm font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+                                data-testid="row-link"
+                            >{{ row.name }}</Link>
                             <p class="truncate text-xs text-muted-foreground">{{ row.billet }}</p>
                         </td>
                         <td class="justify-self-end sm:px-4 sm:py-2">

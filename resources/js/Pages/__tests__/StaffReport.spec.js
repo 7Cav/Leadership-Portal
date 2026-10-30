@@ -64,6 +64,18 @@ const SECTIONS = [
     { id: 11, label: '1/1/B/1-7', own: false, group: null },
 ];
 
+const HEALTH = {
+    unit: { id: 3, label: '1/A/1-7' },
+    week: '2026-10-03',
+    sp: 0.75,
+    rc: 0.9,
+    headcount: 14,
+    inRollcall: 12,
+    atRisk: 1,
+    staff: { met: 1, total: 2 },
+    trend: [{ week: '2026-10-03', sp: 0.75, rc: 0.9, headcount: 14, inRollcall: 12, atRisk: 1 }],
+};
+
 const page = (props = {}) =>
     mount(StaffReport, {
         props: { trooper: { id: 7, displayName: 'PVT Brandt.L' }, self: true, hq: HQ, week: WEEK, canSend: true, sections: SECTIONS, ...props },
@@ -71,49 +83,78 @@ const page = (props = {}) =>
 
 const NONE = { ftx_name: null, ftx_date: null, office_hour_date: null, office_hour_note: null, other_events: '', notes: '' };
 const sendButton = (wrapper) => wrapper.find('[data-testid="staff-report-send"]');
+async function toPicker(props = {}) {
+    const wrapper = page(props);
+    await wrapper.find('[data-testid="attended-yes"]').trigger('click');
+    await wrapper.find('[data-testid="type-sp"]').trigger('click');
+
+    return wrapper;
+}
 
 describe('StaffReport page', () => {
     beforeEach(() => posted.mockReset());
 
-    it('asks Yes or No first, with nothing else until Yes, and says what is missing beside Send', async () => {
+    it('asks Yes or No first, as big choices, with Send beside it saying what is missing', async () => {
         const wrapper = page();
 
+        expect(wrapper.find('[data-testid="step-attended"]').attributes('aria-current')).toBe('step');
         expect(wrapper.find('[data-testid="practice-type"]').exists()).toBe(false);
-        expect(wrapper.find('[data-testid="practice-picker"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="step-next"]').attributes('disabled')).toBeDefined();
+        expect(wrapper.find('[data-testid="step-details"]').attributes('disabled')).toBeDefined();
         expect(sendButton(wrapper).attributes('disabled')).toBeDefined();
         expect(wrapper.find('[data-testid="send-missing"]').text()).toBe('Answer Yes or No.');
+        expect(wrapper.find('[data-testid="send-summary"]').text()).toBe('Not answered yet');
+    });
 
+    it('walks Yes, then what it was, then the practices, one question at a time', async () => {
+        const wrapper = page();
         await wrapper.find('[data-testid="attended-yes"]').trigger('click');
 
-        expect(wrapper.find('[data-testid="attended-yes"]').attributes('aria-checked')).toBe('true');
+        expect(wrapper.find('[data-testid="step-kind"]').attributes('aria-current')).toBe('step');
         expect(wrapper.find('[data-testid="type-sp"]').attributes('aria-checked')).toBe('true');
+        expect(wrapper.find('[data-testid="step-panel-attended"]').exists()).toBe(false);
+
+        await wrapper.find('[data-testid="type-sp"]').trigger('click');
         expect(wrapper.find('[data-testid="practice-picker"]').exists()).toBe(true);
-        expect(wrapper.find('[data-testid="send-missing"]').text()).toBe('Pick the section practice you attended.');
-        expect(sendButton(wrapper).attributes('disabled')).toBeDefined();
+        expect(wrapper.find('[data-testid="step-missing"]').text()).toBe('Pick the section practice you attended.');
+        expect(wrapper.find('[data-testid="step-next"]').attributes('disabled')).toBeDefined();
+
+        await wrapper.find('[data-testid="step-back"]').trigger('click');
+        await wrapper.find('[data-testid="step-back"]').trigger('click');
+        expect(wrapper.find('[data-testid="attended-yes"]').attributes('aria-checked')).toBe('true');
+    });
+
+    it('goes from No straight to the optional extras', async () => {
+        const wrapper = page();
+        await wrapper.find('[data-testid="attended-no"]').trigger('click');
+
+        expect(wrapper.find('[data-testid="step-kind"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="step-panel-extras"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="step-next"]').exists()).toBe(false);
+        expect(sendButton(wrapper).attributes('disabled')).toBeUndefined();
     });
 
     it('groups the sections nearest first: the HQ, then the company, then the rest', async () => {
-        const wrapper = page();
-        await wrapper.find('[data-testid="attended-yes"]').trigger('click');
+        const wrapper = await toPicker();
 
         const groups = wrapper.findAll('[data-testid="practice-picker"] [data-testid^="sections-"]');
         expect(groups.map((group) => group.find('p').text())).toEqual(['In 1/A/1-7', 'In A/1-7', 'Other sections']);
         expect(groups[0].findAll('li').map((li) => li.text())).toEqual(['1/1/A/1-7', '2/1/A/1-7']);
     });
 
-    it('shows each pick as a chip that removes it, and posts the picks', async () => {
-        const wrapper = page();
-        await wrapper.find('[data-testid="attended-yes"]').trigger('click');
+    it('shows each pick as a chip in the summary card that removes it, and posts the picks', async () => {
+        const wrapper = await toPicker();
         await wrapper.find('[data-testid="section-4"]').trigger('change');
         await wrapper.find('[data-testid="section-9"]').trigger('change');
         await wrapper.find('[data-testid="section-11"]').trigger('change');
 
-        expect(wrapper.find('[data-testid="picked-chips"]').text()).toContain('1/2/A/1-7');
+        expect(wrapper.find('[data-testid="send-bar"] [data-testid="picked-chips"]').text()).toContain('1/2/A/1-7');
         expect(wrapper.find('[data-testid="send-summary"]').text()).toBe('Yes: 1/1/A/1-7, 1/2/A/1-7, 1/1/B/1-7');
 
         await wrapper.find('[data-testid="chip-remove-11"]').trigger('click');
         expect(wrapper.find('[data-testid="section-11"]').element.checked).toBe(false);
         expect(sendButton(wrapper).attributes('disabled')).toBeUndefined();
+        expect(wrapper.find('[data-testid="step-next"]').attributes('disabled')).toBeUndefined();
 
         await wrapper.find('form').trigger('submit');
         expect(posted).toHaveBeenCalledWith('/staff-report/7/2026-10-03', { attended: true, section_ids: [4, 9], practice_type: 'sp', ...NONE }, expect.any(Object));
@@ -123,16 +164,16 @@ describe('StaffReport page', () => {
         const wrapper = page();
         await wrapper.find('[data-testid="attended-no"]').trigger('click');
 
-        expect(wrapper.find('[data-testid="practice-type"]').exists()).toBe(false);
         expect(wrapper.find('[data-testid="send-summary"]').text()).toBe('No');
         await wrapper.find('form').trigger('submit');
 
         expect(posted).toHaveBeenCalledWith('/staff-report/7/2026-10-03', { attended: false, section_ids: [], practice_type: null, ...NONE }, expect.any(Object));
     });
 
-    it('picks the week entries, says who entered them, and warns when one is left out', async () => {
+    it('opens on the practices when entries are there, says who entered them, and warns when one is left out', async () => {
         const wrapper = page({ entries: [{ sectionId: 5, section: '2/1/A/1-7', enteredBy: 'Mercer.J', selfReported: false }] });
 
+        expect(wrapper.find('[data-testid="step-details"]').attributes('aria-current')).toBe('step');
         expect(wrapper.find('[data-testid="section-5"]').element.checked).toBe(true);
         expect(wrapper.find('[data-testid="entered-5"]').text()).toBe('Entered by Mercer.J');
         expect(wrapper.find('[data-testid="dropped-note"]').exists()).toBe(false);
@@ -143,16 +184,14 @@ describe('StaffReport page', () => {
     });
 
     it('shows the game server sighting as a hint, never picked', async () => {
-        const wrapper = page({ seen: [9] });
-        await wrapper.find('[data-testid="attended-yes"]').trigger('click');
+        const wrapper = await toPicker({ seen: [9] });
 
         expect(wrapper.find('[data-testid="seen-9"]').text()).toBe('Seen on the game server');
         expect(wrapper.find('[data-testid="section-9"]').element.checked).toBe(false);
     });
 
-    it('narrows the sections by name, and says when none match', async () => {
-        const wrapper = page();
-        await wrapper.find('[data-testid="attended-yes"]').trigger('click');
+    it('narrows the sections by name, and says when none match or none play the game', async () => {
+        const wrapper = await toPicker();
         await wrapper.find('[data-testid="section-filter"]').setValue('2/A');
 
         expect(wrapper.find('[data-testid="section-4"]').exists()).toBe(false);
@@ -160,19 +199,22 @@ describe('StaffReport page', () => {
 
         await wrapper.find('[data-testid="section-filter"]').setValue('zzz');
         expect(wrapper.find('[data-testid="sections-empty"]').text()).toBe('No section matches "zzz".');
+
+        const none = await toPicker({ sections: [] });
+        expect(none.find('[data-testid="sections-empty"]').text()).toBe("No section plays your HQ's game.");
     });
 
     it('shows the FTX name and date only for an FTX, its sections optional', async () => {
         const wrapper = page();
         await wrapper.find('[data-testid="attended-yes"]').trigger('click');
-        expect(wrapper.find('[data-testid="ftx-fields"]').exists()).toBe(false);
-
         await wrapper.find('[data-testid="type-ftx"]').trigger('click');
+
         expect(wrapper.find('[data-testid="ftx-fields"]').exists()).toBe(true);
         expect(wrapper.find('[data-testid="ftx-date"]').attributes('min')).toBe('2026-10-03');
         expect(wrapper.find('[data-testid="ftx-date"]').attributes('max')).toBe('2026-10-09');
         expect(wrapper.find('[data-testid="practice-picker"]').text()).toContain('Sections that took part (optional)');
 
+        await wrapper.find('[data-testid="step-back"]').trigger('click');
         await wrapper.find('[data-testid="type-sp"]').trigger('click');
         expect(wrapper.find('[data-testid="ftx-fields"]').exists()).toBe(false);
     });
@@ -190,8 +232,10 @@ describe('StaffReport page', () => {
         expect(wrapper.find('[data-testid="send-missing"]').text()).toContain('Pick the FTX date');
 
         await wrapper.find('[data-testid="ftx-date"]').setValue('2026-10-05');
+        await wrapper.find('[data-testid="step-next"]').trigger('click');
         await wrapper.find('[data-testid="other-events"]').setValue('Range day');
         await wrapper.find('[data-testid="notes"]').setValue('Ran OPFOR.');
+        expect(wrapper.find('[data-testid="send-extras"]').text()).toBe('Other events, Notes');
         expect(sendButton(wrapper).attributes('disabled')).toBeUndefined();
         await wrapper.find('form').trigger('submit');
 
@@ -214,6 +258,7 @@ describe('StaffReport page', () => {
 
     it('sends an office hour with its date and note, without sections', async () => {
         const wrapper = page({ hq: { id: 2, label: '1-7', type: 'battalion' }, entries: [{ sectionId: 4, section: '1/1/A/1-7', enteredBy: 'Stone.A', selfReported: true }] });
+        await wrapper.find('[data-testid="step-kind"]').trigger('click');
         await wrapper.find('[data-testid="type-office_hour"]').trigger('click');
 
         expect(wrapper.find('[data-testid="practice-picker"]').exists()).toBe(false);
@@ -234,11 +279,20 @@ describe('StaffReport page', () => {
         );
     });
 
-    it('keeps other events and notes folded away until opened or filled', () => {
-        const wrapper = page();
+    it('never shows the staff member the unit health panel on their own form', () => {
+        expect(page({ health: null }).find('[data-testid="staff-hq-health"]').exists()).toBe(false);
+    });
 
-        expect(wrapper.find('[data-testid="other-events-section"]').attributes('open')).toBeUndefined();
-        expect(wrapper.find('[data-testid="notes-section"]').attributes('open')).toBeUndefined();
+    it('shows a reader the HQ unit health beside the report', () => {
+        const wrapper = page({
+            self: false,
+            canSend: false,
+            report: { sentAt: '2026-10-08T20:00:00+00:00', attended: false, practices: [] },
+            health: HEALTH,
+        });
+
+        expect(wrapper.find('[data-testid="staff-hq-health"]').text()).toContain('1/A/1-7 health');
+        expect(wrapper.find('[data-testid="health-sp"]').text()).toContain('75%');
     });
 
     it('reads a sent report back as sent and final, staff guest in their own unit and guest elsewhere, with no form', () => {
