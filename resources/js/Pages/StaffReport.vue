@@ -163,7 +163,7 @@ const steps = computed(() => [
         { key: 'kind', label: 'What' },
         { key: 'details', label: type.value === 'office_hour' ? 'Office hour' : type.value === 'ftx' ? 'FTX' : 'Practices' },
     ]),
-    { key: 'extras', label: 'Anything else' },
+    { key: 'extras', label: 'Notes' },
 ]);
 const step = ref(props.entries.length ? 'details' : 'attended');
 const stepIndex = computed(() => Math.max(0, steps.value.findIndex((item) => item.key === step.value)));
@@ -513,9 +513,10 @@ function entryNote(id) {
                         </div>
                     </div>
 
-                    <!-- 4. Anything else, optional. -->
+                    <!-- 4. Notes and other events, optional. -->
                     <div v-else class="flex flex-col gap-4" data-testid="step-panel-extras">
-                        <p class="text-base font-semibold">Anything else? <span class="text-sm font-normal text-muted-foreground">(optional)</span></p>
+                        <p class="text-base font-semibold">Notes <span class="text-sm font-normal text-muted-foreground">(optional)</span></p>
+                        <p class="-mt-3 text-xs text-muted-foreground">Anything command should know about your week, and any other events you attended.</p>
                         <label class="flex flex-col gap-1" data-testid="other-events-section">
                             <span class="text-xs font-medium">Other events attended</span>
                             <Textarea v-model="form.other_events" :maxlength="limits.otherEvents" rows="2" data-testid="other-events" />

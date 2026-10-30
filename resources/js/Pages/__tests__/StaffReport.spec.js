@@ -130,6 +130,10 @@ describe('StaffReport page', () => {
 
         expect(wrapper.find('[data-testid="step-kind"]').exists()).toBe(false);
         expect(wrapper.find('[data-testid="step-panel-extras"]').exists()).toBe(true);
+        // The last step is the free-text notes, named as such in the stepper and on the panel.
+        expect(wrapper.find('[data-testid="step-extras"]').text()).toContain('Notes');
+        expect(wrapper.find('[data-testid="step-panel-extras"]').text()).toContain('Notes');
+        expect(wrapper.find('[data-testid="notes"]').exists()).toBe(true);
         expect(wrapper.find('[data-testid="step-next"]').exists()).toBe(false);
         expect(sendButton(wrapper).attributes('disabled')).toBeUndefined();
     });

@@ -32,7 +32,7 @@ The form asks one question at a time. The numbered steps at the top show where y
 4. For an FTX, give its name and its date, a day in that Cav week. Picking the sections that took part is optional.
 5. For an office hour, give its date, a day in that Cav week, and a short note of what it was, up to 200 characters. It counts in place of the hour at a section practice. Only battalion HQ staff can report one.
 6. Practices already entered for you this week are picked, with who entered them, and the form opens on them. Take off one you did not attend: sending takes it off.
-7. On the last step, add **Other events attended** or **Notes** if you like. Both are optional.
+7. The last step is **Notes**: write anything command should know about your week, and add **Other events attended** if you like. Both are optional.
 
 > [!good-to-know] **Seen on the game server** means a capture saw you on the server that Cav week. It is never ticked for you, because the capture reads the whole week, not one practice.
 

@@ -397,8 +397,8 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
   optional, as an FTX may span several. An office hour is an hour of office hours held in place of the hour at a
   section practice: it needs its date, a day in that Cav week, and a short note (up to 200 characters), takes no
   section, and is self-reported, never checked against the game server. A platoon or company HQ staff member who sends
-  one is refused. No goes straight to the last step, "Anything else?": other events attended (up to 500 characters)
-  and notes (up to 1000), optional for everyone. A summary card beside the steps (under them on a phone) reads the
+  one is refused. No goes straight to the last step, "Notes": free-text notes (up to 1000 characters) and other
+  events attended (up to 500), optional for everyone. A summary card beside the steps (under them on a phone) reads the
   answer back as it will be sent, shows each picked section as a chip that removes it, says what is still missing, and
   holds "Send staff report". Which HQ level the report is for (platoon, company or battalion) comes from the HQ and is
   never asked. The week's staff practice entries are ticked already, each saying who entered it, and the form then
