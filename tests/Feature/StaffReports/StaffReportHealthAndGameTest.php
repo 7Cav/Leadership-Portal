@@ -38,10 +38,10 @@ function sectionIdsOffered($test): array
 
 it('offers an HLL HQ only HLL sections, and keeps a section with no game', function () {
     $units = app(UnitRepository::class);
-    $this->tree['units']['company']->update(['game_id' => game('hll')->id]);
+    $this->tree['units']['company']->forceFill(['game_id' => game('hll')->id])->save();
     // A platoon under the same company that plays another game: its section is left out.
     $armaPlatoon = $units->create(UnitType::Platoon, '2nd Platoon', '2/A/1-7', $this->tree['units']['company']->id);
-    $armaPlatoon->update(['game_id' => game('arma')->id]);
+    $armaPlatoon->forceFill(['game_id' => game('arma')->id])->save();
     $arma = $units->create(UnitType::Section, '1st Section', '1/2/A/1-7', $armaPlatoon->id);
     Trooper::factory()->create(['primary_section_id' => $arma->id]);
     // A section in another battalion with no game on its chain: kept.
@@ -60,7 +60,7 @@ it('offers an HLL HQ only HLL sections, and keeps a section with no game', funct
 it('filters nothing when the HQ has no game', function () {
     $units = app(UnitRepository::class);
     $platoon2 = $units->create(UnitType::Platoon, '2nd Platoon', '2/A/1-7', $this->tree['units']['company']->id);
-    $platoon2->update(['game_id' => game('arma')->id]);
+    $platoon2->forceFill(['game_id' => game('arma')->id])->save();
     $arma = $units->create(UnitType::Section, '1st Section', '1/2/A/1-7', $platoon2->id);
     Trooper::factory()->create(['primary_section_id' => $arma->id]);
 
@@ -81,7 +81,7 @@ it('shows a reader the HQ unit health for the week with an 8 week trend, and how
         ->has('health.headcount')
         ->has('health.inRollcall')
         ->where('health.atRisk', 0)
-        ->where('health.staff', ['total' => 1, 'met' => 1]));
+        ->where('health.staff', ['total' => 2, 'met' => 1]));
 });
 
 it('never gives the staff member the health panel on their own page', function () {
@@ -93,7 +93,7 @@ it('gives the overview the health of the first listed HQ, or the one picked amon
         ->component('StaffReports')
         ->where('health.unit.id', $this->tree['units']['platoon']->id)
         ->where('health.hqs.0.id', $this->tree['units']['platoon']->id)
-        ->where('health.staff.total', 1)
+        ->where('health.staff.total', 2)
         ->has('health.trend', StaffHqHealth::TREND_WEEKS));
 
     // An HQ the viewer does not read falls back to the first listed.

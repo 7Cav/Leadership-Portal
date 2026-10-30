@@ -49,7 +49,7 @@ function sendPresenceReport(User $user, Trooper $trooper, bool $attended, array 
 }
 
 it('flags a report whose captured practice did not see them, names CRCON for an HLL unit, and still sends it', function () {
-    $this->tree['units']['company']->update(['game_id' => game('hll')->id]);
+    $this->tree['units']['company']->forceFill(['game_id' => game('hll')->id])->save();
     presencePractice($this->host->id);
 
     $report = sendPresenceReport($this->tree['users']['psg'], $this->psg, true, [$this->host->id]);

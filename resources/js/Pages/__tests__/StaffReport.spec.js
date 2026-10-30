@@ -155,15 +155,17 @@ describe('StaffReport page', () => {
             ],
         });
 
+        // Not attached to a document, so read v-show's inline style rather than isVisible().
+        const rows = (platoon) => wrapper.get(`[data-testid="platoon-${platoon}"] ul`);
         const toggle = wrapper.find('[data-testid="platoon-toggle-1/B/1-7"]');
         expect(wrapper.find('[data-testid="platoon-toggle-1/A/1-7"]').exists()).toBe(false);
-        expect(wrapper.find('[data-testid="section-4"]').isVisible()).toBe(true);
+        expect(rows('1/A/1-7').attributes('style') ?? '').not.toContain('display: none');
         expect(toggle.attributes('aria-expanded')).toBe('false');
-        expect(wrapper.find('[data-testid="section-22"]').isVisible()).toBe(false);
+        expect(rows('1/B/1-7').attributes('style')).toContain('display: none');
 
         await toggle.trigger('click');
         expect(toggle.attributes('aria-expanded')).toBe('true');
-        expect(wrapper.find('[data-testid="section-22"]').isVisible()).toBe(true);
+        expect(rows('1/B/1-7').attributes('style') ?? '').not.toContain('display: none');
     });
 
     it('shows each pick as a chip in the summary card that removes it, and posts the picks', async () => {
