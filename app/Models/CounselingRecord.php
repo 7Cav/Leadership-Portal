@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Authorization\CounselingPermissions;
 use Carbon\CarbonImmutable;
 use Database\Factories\CounselingRecordFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -41,6 +40,9 @@ class CounselingRecord extends Model
 
     /** A DCS counseled this many days ago is still active; one day later it has expired. */
     public const DCS_EXPIRY_DAYS = 90;
+
+    /** How long after it is filed a DCS or LOR may still be corrected, deleted or appealed: its appeal window. */
+    public const APPEAL_HOURS = 72;
 
     protected $guarded = ['*'];
 
@@ -111,14 +113,14 @@ class CounselingRecord extends Model
     }
 
     /**
-     * When the record freezes: {@see CounselingPermissions::APPEAL_HOURS} hours after it was filed
+     * When the record freezes: {@see APPEAL_HOURS} hours after it was filed
      * (`created_at`), never from the date it carries. Null for a record not yet saved.
      */
     public function freezesAt(): ?CarbonImmutable
     {
         return $this->created_at === null
             ? null
-            : CarbonImmutable::instance($this->created_at)->addHours(CounselingPermissions::APPEAL_HOURS);
+            : CarbonImmutable::instance($this->created_at)->addHours(self::APPEAL_HOURS);
     }
 
     /** Whether the trooper filed their appeal (LOR) or comment or dispute (DCS) on this record. */

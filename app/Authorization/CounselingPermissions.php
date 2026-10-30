@@ -24,7 +24,7 @@ use Carbon\CarbonImmutable;
 final readonly class CounselingPermissions
 {
     /** How long after it is filed a DCS or LOR may still be corrected, deleted or appealed: its appeal window. */
-    public const APPEAL_HOURS = 72;
+    public const APPEAL_HOURS = CounselingRecord::APPEAL_HOURS;
 
     /**
      * @param  array<string, ?int>  $issuingUnits  per type value, the unit the viewer would file through (null: none)
