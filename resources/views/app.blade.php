@@ -4,6 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title inertia>{{ config('app.name') }}</title>
+    {{-- The 7Cav crest (public/assets/cav-shield.png), cut to these sizes. --}}
+    <link rel="icon" href="/favicon.ico" sizes="48x48">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     {{--
       Apply the saved light/dark choice before first paint (Story 1.15), falling back to the OS
       setting. Must run before the stylesheet renders anything, hence inline and synchronous.

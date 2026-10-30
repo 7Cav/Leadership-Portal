@@ -107,9 +107,11 @@ it('flags a DCS dated within 90 days of an earlier one, by their dates, and keep
 
     expect($flags())->toBe($expected);
 
-    // A year on, nothing expired: the records were still 78 days apart.
+    // A year on, both have expired: the Platoon Leader no longer sees them, but an Admin still does, and the flag
+    // stays, since the records were still 78 days apart.
     $this->travel(365)->days();
-    expect($flags())->toBe($expected);
+    expect($flags())->toBe([])
+        ->and(collect(counselingProps('admin', $this)['records'])->pluck('flags', 'reason')->all())->toBe($expected);
 });
 
 it('weighs a record filed late with an earlier date by its date, and shows what each record is for', function () {

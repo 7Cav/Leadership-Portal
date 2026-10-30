@@ -42,19 +42,41 @@ class Eloquent implements StaffReportRepository
             ->toBase();
     }
 
-    public function send(int $trooperId, ?int $unitId, CarbonInterface $weekStart, bool $attended, array $practices, int $sentBy): ?StaffReport
+    public function send(int $trooperId, ?int $unitId, CarbonInterface $weekStart, bool $attended, array $practices, int $sentBy, array $fields = []): ?StaffReport
     {
+        $fields = array_intersect_key($fields, array_flip(['practice_type', 'ftx_name', 'ftx_date', 'office_hour_date', 'office_hour_note', 'other_events', 'notes']));
+
         $row = StaffReport::query()->createOrFirst(
             ['trooper_id' => $trooperId, 'week_start' => WeekOf::requireStart($weekStart)],
             [
                 'unit_id' => $unitId,
                 'attended' => $attended,
                 'practices' => $practices,
+                ...$fields,
                 'sent_at' => CarbonImmutable::now('UTC'),
                 'sent_by' => $sentBy,
             ],
         );
 
         return $row->wasRecentlyCreated ? $row : null;
+    }
+
+    public function findById(int $id): ?StaffReport
+    {
+        return StaffReport::query()->find($id);
+    }
+
+    public function markPushed(int $id): ?StaffReport
+    {
+        $row = StaffReport::query()->find($id);
+
+        if ($row === null) {
+            return null;
+        }
+
+        // Not mass-assignable: only this bookkeeping writes it.
+        $row->forceFill(['sheet_pushed_at' => CarbonImmutable::now('UTC')])->save();
+
+        return $row;
     }
 }

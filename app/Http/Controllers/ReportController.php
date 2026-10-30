@@ -199,12 +199,12 @@ class ReportController extends Controller
     }
 
     /**
-     * A platoon's or company's HQ staff for the week and whether each sent their staff report and attended a section
+     * A platoon's, company's or battalion's HQ staff for the week and whether each sent their staff report and attended a section
      * practice, read only and live, not frozen with this report. Only the staff whose report the
      * viewer may read are listed (the chain above the HQ, the staff member themselves, Admins), so a PL does not see
      * their PSG's here. Null for any other unit.
      *
-     * @return list<array{trooperId: int, name: string, sent: bool, attended: ?bool, practices: int, href: string}>|null
+     * @return list<array<string, mixed>>|null
      */
     private function staffReportRows(Request $request, Unit $unit, CarbonImmutable $weekStart): ?array
     {
@@ -212,14 +212,25 @@ class ReportController extends Controller
             return null;
         }
 
-        return collect($this->staffReportWeek->hqStaff($unit, $weekStart))
-            ->filter(fn (array $row) => $this->staffReportAccess->mayRead($request->user(), $row['trooper'], $unit))
+        $rows = collect($this->staffReportWeek->hqStaff($unit, $weekStart))
+            ->filter(fn (array $row) => $this->staffReportAccess->mayRead($request->user(), $row['trooper'], $unit));
+        // Where the game server disagrees with a sent report, for a reader: never on the viewer's own row.
+        $discrepancies = $this->staffReportWeek->discrepancies(
+            $rows->reject(fn (array $row) => $this->scope->isOwnTrooper($request->user(), $row['trooper']))->pluck('report')->filter()->values(),
+            $weekStart,
+        );
+
+        return $rows
             ->map(fn (array $row) => [
                 'trooperId' => $row['trooper']->id,
                 'name' => $row['trooper']->display_name,
                 'sent' => $row['report'] !== null,
                 'attended' => $row['report']?->attended,
                 'practices' => count($row['report']?->practices ?? []),
+                // What else was sent, as on the staff report page.
+                ...($row['report'] === null ? ['practiceType' => null, 'ftx' => null, 'officeHour' => null, 'otherEvents' => null, 'notes' => null, 'sheetPushedAt' => null]
+                    : array_intersect_key(StaffReportWeek::reportProps($row['report']), array_flip(['practiceType', 'ftx', 'officeHour', 'otherEvents', 'notes', 'sheetPushedAt']))),
+                'discrepancy' => $discrepancies[$row['trooper']->id] ?? null,
                 'href' => route('staff-report.show', ['trooper' => $row['trooper']->id, 'week' => $weekStart->toDateString()]),
             ])
             ->values()
