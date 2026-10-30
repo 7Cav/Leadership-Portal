@@ -13,16 +13,20 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 /**
- * A unit's strength week by week (the strength trends page): its headcount ({@see Headcount}) and how many are in roll
+ * A unit's strength week by week (the roster's Strength tab): its headcount ({@see Headcount}) and how many are in roll
  * call (troopers in its sections, the KPI strength) for each Cav week of a range ending with the running week.
  *
  * A week the unit sent its report for reads the frozen snapshot (AD-12), never a recompute. Any other week from
  * {@see HISTORY_FROM} on is rebuilt from the placement history, where each trooper ended the week. A week before the
  * history with no sent report is a gap (null), never a zero. The joins and departures ("in" and "out") are the troopers
- * who entered or left the unit's headcount between two rebuilt weeks, so they are null where either week is not rebuilt.
+ * who entered or left the unit's headcount between two rebuilt weeks. A sent snapshot that carries its own `joined` and
+ * `left` counts gives those instead; otherwise they are null where either week is not rebuilt.
  *
- * Three queries whatever the range or the size of the subtree: the tree, the sent reports of the unit and its children,
- * and the placement history.
+ * A battalion's children also carry their own line children (its companies' platoons), so the comparison reaches one
+ * level further where a company alone says little.
+ *
+ * Three queries whatever the range or the size of the subtree: the tree, the sent reports of every unit shown, and the
+ * placement history.
  */
 final class StrengthTrends
 {
@@ -41,17 +45,32 @@ final class StrengthTrends
         private readonly TrooperPlacementRepository $placements,
     ) {}
 
+    /** A `?range=` query value as weeks: 26, 52 or null for "all", 12 for anything else. */
+    public static function weeksFor(?string $range): ?int
+    {
+        return match ($range) {
+            '26' => 26,
+            '52' => 52,
+            'all' => null,
+            default => 12,
+        };
+    }
+
     /**
      * @param  int|null  $weeks  one of {@see RANGES}
-     * @return array{weeks: list<array{week: string, headcount: ?int, strength: ?int, in: ?int, out: ?int, source: ?string}>, change: array{headcount: ?int, strength: ?int}, children: list<array{id: int, designation: string, points: list<array{week: string, headcount: ?int}>}>}
+     * @return array{weeks: list<array{week: string, headcount: ?int, strength: ?int, in: ?int, out: ?int, source: ?string}>, change: array{headcount: ?int, strength: ?int}, children: list<array{id: int, designation: string, points: list<array{week: string, headcount: ?int}>, children: list<array{id: int, designation: string, points: list<array{week: string, headcount: ?int}>}>}>}
      */
     public function forUnit(Unit $unit, ?int $weeks, ?CarbonImmutable $now = null): array
     {
         $running = WeekOf::start($now ?? CarbonImmutable::now());
         $tree = $this->units->tree();
         $byId = $tree->keyBy('id');
-        $children = $tree->filter(fn (Unit $u) => $u->parent_id === $unit->id && $u->isLine())->values();
-        $shownIds = [$unit->id, ...$children->pluck('id')->all()];
+        $lineChildrenOf = fn (Unit $parent) => $tree->filter(fn (Unit $u) => $u->parent_id === $parent->id && $u->isLine())->values();
+        $children = $lineChildrenOf($unit);
+        $grandchildren = $unit->type === UnitType::Battalion
+            ? $children->mapWithKeys(fn (Unit $child) => [$child->id => $lineChildrenOf($child)])
+            : collect();
+        $shownIds = [$unit->id, ...$children->pluck('id')->all(), ...$grandchildren->flatten(1)->pluck('id')->all()];
 
         $earliest = $running->subWeeks(($weeks ?? self::ALL_WEEKS) - 1);
         /** @var Collection<int, WeeklyReport> $sent */
@@ -83,8 +102,8 @@ final class StrengthTrends
                 'week' => $date,
                 'headcount' => isset($snapshot['headcount']) ? (int) $snapshot['headcount'] : ($members === null ? null : count($members['all'])),
                 'strength' => isset($snapshot['strength']) ? (int) $snapshot['strength'] : ($members === null ? null : count($members['sections'])),
-                'in' => $members === null || $prev === null ? null : count(array_diff_key($members['all'], $prev['all'])),
-                'out' => $members === null || $prev === null ? null : count(array_diff_key($prev['all'], $members['all'])),
+                'in' => isset($snapshot['joined']) ? (int) $snapshot['joined'] : ($members === null || $prev === null ? null : count(array_diff_key($members['all'], $prev['all']))),
+                'out' => isset($snapshot['left']) ? (int) $snapshot['left'] : ($members === null || $prev === null ? null : count(array_diff_key($prev['all'], $members['all']))),
                 'source' => $snapshot !== null ? 'report' : ($members === null ? null : ($date === $running->toDateString() ? 'live' : 'history')),
             ];
         }
@@ -93,19 +112,38 @@ final class StrengthTrends
             'weeks' => $points,
             'change' => ['headcount' => self::change($points, 'headcount'), 'strength' => self::change($points, 'strength')],
             'children' => $children->map(fn (Unit $child) => [
-                'id' => $child->id,
-                'designation' => $child->callsign ?? $child->name,
-                'points' => array_map(function (string $date) use ($child, $snapshots, $placed, $byId) {
-                    $snapshot = $snapshots[$child->id][$date] ?? null;
-
-                    return [
-                        'week' => $date,
-                        'headcount' => isset($snapshot['headcount'])
-                            ? (int) $snapshot['headcount']
-                            : (isset($placed[$date]) ? count($this->members($child, $placed[$date], $byId)['all']) : null),
-                    ];
-                }, $dates),
+                ...$this->headcountSeries($child, $dates, $snapshots, $placed, $byId),
+                'children' => ($grandchildren->get($child->id) ?? collect())
+                    ->map(fn (Unit $grandchild) => $this->headcountSeries($grandchild, $dates, $snapshots, $placed, $byId))
+                    ->values()->all(),
             ])->values()->all(),
+        ];
+    }
+
+    /**
+     * One unit's headcount per week for the comparison: the sent snapshot, else the rebuilt count, else a gap.
+     *
+     * @param  list<string>  $dates
+     * @param  array<int, array<string, array<string, mixed>>>  $snapshots
+     * @param  array<string, array<int, int>>  $placed
+     * @param  Collection<int, Unit>  $byId
+     * @return array{id: int, designation: string, points: list<array{week: string, headcount: ?int}>}
+     */
+    private function headcountSeries(Unit $unit, array $dates, array $snapshots, array $placed, Collection $byId): array
+    {
+        return [
+            'id' => $unit->id,
+            'designation' => $unit->callsign ?? $unit->name,
+            'points' => array_map(function (string $date) use ($unit, $snapshots, $placed, $byId) {
+                $snapshot = $snapshots[$unit->id][$date] ?? null;
+
+                return [
+                    'week' => $date,
+                    'headcount' => isset($snapshot['headcount'])
+                        ? (int) $snapshot['headcount']
+                        : (isset($placed[$date]) ? count($this->members($unit, $placed[$date], $byId)['all']) : null),
+                ];
+            }, $dates),
         ];
     }
 

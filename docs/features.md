@@ -39,8 +39,17 @@ A line unit with no troopers is left out (see "Units with no troopers" below).
 
 Your scope's units and troopers, from the cached Cav roster.
 
-- Two views: ORBAT (the order of battle, by unit) and Matrix (each trooper's SP marks for the last 20 Cav weeks, with
-  LOA weeks shown).
+- Three views, kept in the URL (`?view=orbat|matrix|strength`): ORBAT (the order of battle, by unit), Matrix (each
+  trooper's SP marks for the last 20 Cav weeks, with LOA weeks shown) and Strength (see below).
+- Strength tab (`/roster/<id>?view=strength`, also from "Strength" on Home's unit rows): the unit's headcount and in
+  roll call per Cav week over 12, 26, 52 weeks or all (`&range=`), the change over the range, joins and departures per
+  week (from the placement history, or from a sent snapshot that carries them), each week's headcount change from the
+  week before (green up, red down, muted for none), a table of the same numbers, and the headcount of each unit under it as small multiples on one scale. For a
+  battalion, each company's card also lists its platoons as compact sparkline rows on one shared scale, with each
+  platoon's change. A sent week reads the report's frozen snapshot; another week from 2026-10-24 on is rebuilt from the
+  placement history; a week with neither is a gap. The numbers load only when the tab is open (a partial reload), in
+  three reads whatever the range or the size of the subtree, grandchildren included. Scoped like the roster (view as
+  previews it), read only. The old address `/roster/<id>/strength` redirects to the tab.
 - A unit picker for any unit in scope, and a breadcrumb trail up the chain. The ORBAT and the picker leave out line
   units with no troopers (see "Units with no troopers"); one opened by its link still shows.
 - Billet tags: a trooper who holds a command billet of their unit is tagged with its short name: CO, XO and 1SG on a
@@ -75,13 +84,6 @@ Your scope's units and troopers, from the cached Cav roster.
   structure; it sits beside the wiki's own art and replaces nothing. Each save is audited.
 
 Related pages reached from the roster:
-
-- Strength trends (`/roster/<id>/strength`, from "Strength trends" on the roster and "Strength" on Home's unit rows):
-  the unit's headcount and in roll call per Cav week over 12, 26, 52 weeks or all, the change over the range, joins and
-  departures per week, a table of the same numbers, and the headcount of each unit under it as small multiples on one
-  scale. A sent week reads the report's frozen snapshot; another week from 2026-10-24 on is rebuilt from the placement
-  history; a week with neither is a gap. Scoped like the roster (view as previews it), read only, three reads whatever
-  the range.
 
 - Milpac page (`/troopers/<id>`): the trooper's ID block (rank, billet, MOS, time in service and grade, section),
   courses, a service record timeline, quick links to their section roster, roll call and platoon readiness matrix, and

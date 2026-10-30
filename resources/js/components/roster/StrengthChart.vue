@@ -23,6 +23,20 @@ const ALL = [
     { key: 'headcount', label: 'Headcount', color: 'var(--chart-1)', shape: 'circle' },
     { key: 'strength', label: 'In roll call', color: 'var(--chart-2)', shape: 'square' },
 ];
+// Newest first, each with its headcount change from the week before (null where either week is unknown).
+const rows = computed(() =>
+    props.points
+        .map((p, i) => {
+            const before = props.points[i - 1]?.headcount;
+            const known = (v) => v !== null && v !== undefined;
+
+            return { ...p, change: i > 0 && known(p.headcount) && known(before) ? p.headcount - before : null };
+        })
+        .reverse(),
+);
+const changeText = (c) => (c === null ? '' : c > 0 ? `+${c}` : String(c));
+const changeClass = (c) => (c === null || c === 0 ? 'text-muted-foreground' : c > 0 ? 'text-success' : 'text-destructive');
+
 const SERIES = computed(() => ALL.filter((s) => props.series.includes(s.key)));
 
 const box = useTemplateRef('box');
@@ -160,20 +174,22 @@ const weekLabel = (p) => `Week of ${forumDate(p.week)}`;
                     <tr>
                         <th scope="col" class="py-1.5 pr-3 font-medium">Week</th>
                         <th scope="col" class="py-1.5 pr-3 text-right font-medium">Headcount</th>
+                        <th scope="col" class="py-1.5 pr-3 text-right font-medium">Change</th>
                         <th scope="col" class="py-1.5 pr-3 text-right font-medium">In roll call</th>
                         <th scope="col" class="py-1.5 pr-3 text-right font-medium">Joined</th>
                         <th scope="col" class="py-1.5 pr-3 text-right font-medium">Left</th>
-                        <th scope="col" class="py-1.5 font-medium">From</th>
+                        <th scope="col" class="py-1.5 pl-4 font-medium">From</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="p in [...points].reverse()" :key="p.week" class="border-t border-border" :data-week="p.week">
+                    <tr v-for="p in rows" :key="p.week" class="border-t border-border" :data-week="p.week">
                         <th scope="row" class="py-1.5 pr-3 text-left font-normal">{{ forumDate(p.week) }}</th>
                         <td class="py-1.5 pr-3 text-right">{{ fmt(p.headcount) }}</td>
+                        <td class="py-1.5 pr-3 text-right" :class="changeClass(p.change)" data-testid="strength-change">{{ changeText(p.change) }}</td>
                         <td class="py-1.5 pr-3 text-right">{{ fmt(p.strength) }}</td>
                         <td class="py-1.5 pr-3 text-right">{{ p.in ?? '' }}</td>
                         <td class="py-1.5 pr-3 text-right">{{ p.out ?? '' }}</td>
-                        <td class="py-1.5 text-muted-foreground">{{ source(p) }}</td>
+                        <td class="py-1.5 pl-4 text-muted-foreground">{{ source(p) }}</td>
                     </tr>
                 </tbody>
             </table>

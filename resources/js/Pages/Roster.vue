@@ -8,6 +8,7 @@ import {
     PhCaretUpDown,
     PhCheck,
     PhFlag,
+    PhChartLine,
     PhGridFour,
     PhListBullets,
     PhLockSimple,
@@ -41,6 +42,7 @@ import LoaSyncNote from "@/components/LoaSyncNote.vue";
 import LoaSyncProblems from "@/components/LoaSyncProblems.vue";
 import MatrixView from "@/components/roster/MatrixView.vue";
 import OrbatView from "@/components/roster/OrbatView.vue";
+import StrengthView from "@/components/roster/StrengthView.vue";
 import GuidonGenerator from "@/components/roster/GuidonGenerator.vue";
 import PracticeGuestsPanel from "@/components/roster/PracticeGuestsPanel.vue";
 import TrooperSheet from "@/components/roster/TrooperSheet.vue";
@@ -50,9 +52,10 @@ import { forumDate } from "@/lib/forumDate";
 import { percentLabel } from "@/lib/roster";
 import { localTime, timeAgo } from "@/lib/timeAgo";
 
-// The roster (Stories 2.8, 4.6, 4.7, 4.9). One page, two views of the same subtree, toggled and
-// kept in the URL (`?view=`): the order of battle (binding mockup roster-s2.html) and the
-// attendance matrix (roster-s3.html). Both open the same trooper Sheet. Every number on it comes
+// The roster (Stories 2.8, 4.6, 4.7, 4.9). One page, three views of the same subtree, toggled and
+// kept in the URL (`?view=`): the order of battle (binding mockup roster-s2.html), the
+// attendance matrix (roster-s3.html) and the unit's strength by week. The first two open the same
+// trooper Sheet. Every number on it comes
 // from RosterController, which reads the shared KPI service; nothing here re-derives a KPI.
 const props = defineProps({
     unit: { type: Object, default: null },
@@ -73,10 +76,12 @@ const props = defineProps({
     // "Guests at our practices" for a section, platoon or company (JSAM evidence, 2026-10-23): `{ criteria, rows }`,
     // or null for a battalion or the regiment.
     guests: { type: Object, default: null },
+    // The Strength tab (`StrengthTrends`): `{ range, weeks, change, children }`, sent only while that tab is open.
+    strengthTrends: { type: Object, default: null },
 });
 
 const page = usePage();
-const VIEWS = ["orbat", "matrix"];
+const VIEWS = ["orbat", "matrix", "strength"];
 
 function queryParam(name) {
     const url = page.url ?? "";
@@ -107,6 +112,26 @@ function syncUrl() {
     });
 }
 watch([view, openTrooperId], syncUrl);
+
+// The strength numbers are not part of the roster load: picking the tab, or a range on it, asks for
+// just that prop with a partial reload.
+const strengthLoading = ref(false);
+function loadStrength(range) {
+    strengthLoading.value = true;
+    router.reload({
+        only: ["strengthTrends"],
+        data: { view: "strength", ...(range ? { range } : {}) },
+        preserveScroll: true,
+        onFinish: () => (strengthLoading.value = false),
+    });
+}
+watch(
+    view,
+    (v) => {
+        if (v === "strength" && !props.strengthTrends) loadStrength();
+    },
+    { immediate: true },
+);
 
 const root = computed(() => props.units[0] ?? null);
 
@@ -347,13 +372,6 @@ function syncNow() {
                     </template>
                     <template v-else>{{ " " }}No troopers assigned yet.</template>
                 </p>
-                <Link
-                    v-if="unit"
-                    :href="`/roster/${unit.id}/strength`"
-                    class="mt-0.5 inline-block text-[13px] text-primary hover:underline"
-                    data-testid="strength-link"
-                    >Strength trends</Link
-                >
             </div>
 
             <div class="flex flex-wrap items-center gap-2 sm:ml-auto">
@@ -535,11 +553,21 @@ function syncNow() {
                     <TabsTrigger value="matrix" data-testid="view-matrix"
                         ><PhGridFour />Attendance matrix</TabsTrigger
                     >
+                    <TabsTrigger value="strength" data-testid="view-strength"
+                        ><PhChartLine />Strength</TabsTrigger
+                    >
                 </TabsList>
             </Tabs>
 
+            <StrengthView
+                v-if="view === 'strength'"
+                :unit="unit"
+                :trends="strengthTrends"
+                :loading="strengthLoading"
+                @range="loadStrength"
+            />
             <section
-                v-if="!strength && !troopers.length"
+                v-else-if="!strength && !troopers.length"
                 class="rounded-[10px] border border-border bg-card py-14"
             >
                 <EmptyState

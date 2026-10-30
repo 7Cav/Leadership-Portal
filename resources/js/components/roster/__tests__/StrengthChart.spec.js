@@ -37,6 +37,21 @@ describe('StrengthChart', () => {
         expect(row('2026-10-31')).not.toContain('0');
     });
 
+    it('shows the headcount change from the week before, colored by sign', () => {
+        const wrapper = mount(StrengthChart, {
+            props: { points: [week('2026-10-10', 10, 8, 'report'), week('2026-10-17', 12, 9, 'report'), week('2026-10-24', 11, 9, 'report'), week('2026-10-31', 11, 9, 'live')] },
+        });
+        const change = (date) => wrapper.find(`tr[data-week="${date}"] [data-testid="strength-change"]`);
+
+        expect(change('2026-10-17').text()).toBe('+2');
+        expect(change('2026-10-17').classes()).toContain('text-success');
+        expect(change('2026-10-24').text()).toBe('-1');
+        expect(change('2026-10-24').classes()).toContain('text-destructive');
+        expect(change('2026-10-31').text()).toBe('0');
+        expect(change('2026-10-31').classes()).toContain('text-muted-foreground');
+        expect(change('2026-10-10').text()).toBe('');
+    });
+
     it('says so when nothing is known', () => {
         const wrapper = mount(StrengthChart, { props: { points: [week('2026-10-10', null, null, null)] } });
 

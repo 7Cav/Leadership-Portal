@@ -11,6 +11,7 @@ use App\Kpi\KpiService;
 use App\Kpi\PracticeGuest;
 use App\Kpi\PracticeGuests;
 use App\Kpi\Ratio;
+use App\Kpi\StrengthTrends;
 use App\Kpi\TrooperAttendance;
 use App\Kpi\UnitKpis;
 use App\Loa\LoaProvenance;
@@ -80,6 +81,7 @@ class RosterController extends Controller
         private readonly StaffPracticeHistory $staffHistory,
         private readonly UpcomingLeave $upcomingLeave,
         private readonly LoaSyncProblems $loaSyncProblems,
+        private readonly StrengthTrends $strengthTrends,
         private readonly AutoExcused $autoExcused,
     ) {}
 
@@ -121,6 +123,9 @@ class RosterController extends Controller
             'currentWeek' => $week->toDateString(),
             ...($selected ? $this->roster($selected, $week, $shown) : ['units' => [], 'troopers' => []]),
             'guests' => $selected ? $this->guestProps($selected, $week, $tree) : null,
+            // The Strength tab: headcount and in roll call per Cav week. Read only when the tab is open (`?view=strength`);
+            // the page asks for it with a partial reload when the tab is picked, so the other views never pay for it.
+            'strengthTrends' => fn () => $this->strengthProps($request, $selected),
             // Source and freshness of the cached roster (AD-20): the one rule every roster page shares, plus the unit
             // leader's own last sync of this echelon, kept apart from the roster-wide stamp.
             'sync' => [
@@ -149,6 +154,25 @@ class RosterController extends Controller
                 'rollcall' => '/rollcall/',
             ],
         ]);
+    }
+
+    /**
+     * The Strength tab's numbers for the selected unit and range, or null while another tab is open.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function strengthProps(Request $request, ?Unit $selected): ?array
+    {
+        if ($selected === null || $request->query('view') !== 'strength') {
+            return null;
+        }
+
+        $weeks = StrengthTrends::weeksFor($request->query('range'));
+
+        return [
+            'range' => $weeks === null ? 'all' : (string) $weeks,
+            ...$this->strengthTrends->forUnit($selected, $weeks),
+        ];
     }
 
     /**
