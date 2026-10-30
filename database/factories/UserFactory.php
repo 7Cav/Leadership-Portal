@@ -24,10 +24,14 @@ class UserFactory extends Factory
     public function definition(): array
     {
         return [
-            // Wide and above a million, like TrooperFactory's ids: `unique()` does not span the separate seeder
-            // processes the browser tests run, and tests pick small forum ids by hand.
-            'forum_user_id' => fake()->unique()->numberBetween(1_000_000, 2_000_000_000),
             'cav_id' => null,
+            // A linked user shares its trooper's default forum identity (TrooperFactory::forumUserIdFor), or the
+            // serving-session check would sign it out. Otherwise wide and above a million, like TrooperFactory's
+            // ids: `unique()` does not span the separate seeder processes the browser tests run, and tests pick
+            // small forum ids by hand.
+            'forum_user_id' => fn (array $attributes) => $attributes['cav_id'] === null
+                ? fake()->unique()->numberBetween(1_000_000, 2_000_000_000)
+                : TrooperFactory::forumUserIdFor((int) $attributes['cav_id']),
             'username' => fake()->userName(),
             'email' => fake()->unique()->safeEmail(),
             'is_admin' => false,

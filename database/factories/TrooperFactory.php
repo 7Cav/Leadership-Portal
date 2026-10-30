@@ -25,7 +25,9 @@ class TrooperFactory extends Factory
         return [
             'cav_id' => fake()->unique()->numberBetween(1_000_000, 2_000_000_000),
             'username' => fake()->lastName().'.'.strtoupper(fake()->randomLetter()),
-            'forum_user_id' => fake()->unique()->numberBetween(1_000_000, 2_000_000_000),
+            // Derived from the cav_id, like UserFactory's for a linked user, so a user and a trooper made
+            // separately for one cav_id share a forum identity, as a real milpac link does.
+            'forum_user_id' => fn (array $attributes) => self::forumUserIdFor((int) $attributes['cav_id']),
             'rank' => $rank,
             'rank_short' => $rankShort,
             'billet' => fake()->randomElement(['Rifleman', 'Grenadier', 'Automatic Rifleman', 'Combat Medic']),
@@ -36,5 +38,14 @@ class TrooperFactory extends Factory
             'tig' => fake()->date(),
             'status' => TrooperStatus::Combat,
         ];
+    }
+
+    /**
+     * The forum user id a factory-made trooper and a user linked to it share by default. Offset past every
+     * random and hand-picked id, so it never collides with another account's.
+     */
+    public static function forumUserIdFor(int $cavId): int
+    {
+        return 3_000_000_000 + $cavId;
     }
 }

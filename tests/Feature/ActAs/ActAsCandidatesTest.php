@@ -30,12 +30,12 @@ use Illuminate\Support\Facades\DB;
 
 function aacPerson(int $cavId, string $username, ?int $position, ?Unit $placedIn = null, ?TrooperStatus $status = null, array $user = []): User
 {
-    Trooper::factory()->create([
+    $trooper = Trooper::factory()->create([
         'cav_id' => $cavId, 'cav_position_id' => $position, 'status' => $status ?? TrooperStatus::Combat,
         'username' => $username, 'primary_section_id' => $placedIn?->id,
     ]);
 
-    return User::factory()->create(['cav_id' => $cavId, 'username' => $username] + $user);
+    return User::factory()->create(['cav_id' => $cavId, 'forum_user_id' => $trooper->forum_user_id, 'username' => $username] + $user);
 }
 
 function aacMap(Unit $unit, int $position): void

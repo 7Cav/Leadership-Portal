@@ -83,7 +83,7 @@ it('keeps a leader\'s page as it was: in scope, so not flagged as only their own
 it('does not open the viewer\'s own page through a view-as preview that does not reach it', function () {
     $admin = $this->tree['users']['admin'];
     $mine = Trooper::factory()->create(['primary_section_id' => $this->tree['units']['section']->id]);
-    $admin->forceFill(['cav_id' => $mine->cav_id])->save();
+    $admin->forceFill(['cav_id' => $mine->cav_id, 'forum_user_id' => $mine->forum_user_id])->save();
 
     $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->tree['units']['other']->id])->assertSessionHasNoErrors();
 
