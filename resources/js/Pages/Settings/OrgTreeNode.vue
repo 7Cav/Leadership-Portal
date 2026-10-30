@@ -12,6 +12,8 @@ const props = defineProps({
     highlightId: { type: Number, default: null },
     collapsed: { type: Object, required: true }, // reactive Set of collapsed unit ids
     isAdmin: { type: Boolean, default: false },
+    // Width (in ch) the name takes so the callsigns of sister units start in one column; null leaves it natural.
+    nameCh: { type: Number, default: null },
 });
 
 const emit = defineEmits(['select', 'toggle', 'addChild', 'delete', 'reference']);
@@ -24,6 +26,14 @@ const isRoot = computed(() => props.node.parent_id === null);
 // A group (staff department, ELOA, Reservists, New Recruits) gets no add-child tool: groups are the import's.
 const childType = computed(() => (props.node.type === 'group' ? null : (ECHELON_ORDER[ECHELON_ORDER.indexOf(props.node.type) + 1] ?? null)));
 // Who oversees the unit (a battalion or the Reservists), or vacant for a battalion with nobody serving in it.
+// An HQ sits among its unit's children but is not a sister unit, so it neither sets nor takes the shared width.
+const isHq = (node) => /HQ|headquarters/i.test(node.name ?? '');
+const childNameCh = computed(() => {
+    const names = props.node.children.filter((child) => !child.ref && child.callsign && !isHq(child)).map((child) => child.name.length);
+    return names.length > 1 ? Math.max(...names) : null;
+});
+const nameStyle = computed(() => (props.nameCh && props.node.callsign && !isHq(props.node) ? { minWidth: `${props.nameCh}ch` } : undefined));
+
 const oversightText = computed(() => {
     if (props.node.oversight) return `Oversight: ${props.node.oversight.displayName}${props.node.oversight.serving ? '' : ' (not serving)'}`;
     return props.node.oversight_vacant ? 'Oversight: vacant' : null;
@@ -95,8 +105,8 @@ const oversightText = computed(() => {
 
             <!-- The unit's saved guidon (#446); nothing for a unit with none. -->
             <Guidon :design="node.guidon" :height="12" />
-            <span class="min-w-0 truncate">
-                {{ node.name }}
+            <span class="flex min-w-0 items-baseline truncate">
+                <span class="inline-block shrink-0" :style="nameStyle">{{ node.name }}</span>
                 <span v-if="node.callsign" class="ml-1.5 font-mono text-[11px] text-muted-foreground">{{ node.callsign }}</span>
             </span>
             <!-- The game the unit plays: its own in full, one it inherits muted with the unit it comes from. -->
@@ -184,6 +194,7 @@ const oversightText = computed(() => {
                 :highlight-id="highlightId"
                 :collapsed="collapsed"
                 :is-admin="isAdmin"
+                :name-ch="childNameCh"
                 @select="(id) => emit('select', id)"
                 @toggle="(id) => emit('toggle', id)"
                 @add-child="(payload) => emit('addChild', payload)"
