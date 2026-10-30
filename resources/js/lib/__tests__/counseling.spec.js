@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COUNSELING_KINDS, COUNSELING_TYPES, DRIVE_STATUS, MAX_DOCUMENT_BYTES, documentProblem, fileSize, forecastFlags, todayUtc } from '../counseling';
+import { COUNSELING_KINDS, COUNSELING_TYPES, DRIVE_STATUS, MAX_DOCUMENT_BYTES, documentProblem, fileSize, forecastFlags, todayUtc, utcStamp } from '../counseling';
 
 // #381: the words and small rules of the counseling panel.
 
@@ -56,5 +56,10 @@ describe('counseling', () => {
 
     it('takes today on the UTC clock', () => {
         expect(todayUtc(new Date('2026-10-28T23:30:00-05:00'))).toBe('2026-10-29');
+    });
+
+    it('shows when a record freezes as a UTC date and time with a Z', () => {
+        expect(utcStamp('2026-11-02T10:00:00Z')).toBe('2026-11-02 10:00Z');
+        expect(utcStamp(null)).toBe('');
     });
 });

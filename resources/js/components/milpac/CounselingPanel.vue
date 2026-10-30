@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { useForm } from '@inertiajs/vue3';
-import { PhArrowCounterClockwise, PhDownloadSimple, PhEye, PhFilePdf, PhLock, PhPencilSimple, PhPlus, PhTrash, PhWarning } from '@phosphor-icons/vue';
+import { PhArrowCounterClockwise, PhChatText, PhDownloadSimple, PhEye, PhFilePdf, PhLock, PhPencilSimple, PhPlus, PhTrash, PhWarning } from '@phosphor-icons/vue';
 import InlineNotice from '@/components/InlineNotice.vue';
 import MilpacPanel from '@/components/milpac/MilpacPanel.vue';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { forumDate } from '@/lib/forumDate';
 import { onHttpException } from '@/lib/httpError';
 import {
+    APPEAL_STATEMENT_MAX,
+    APPEAL_WORDS,
     COUNSELING_KINDS,
     COUNSELING_TYPES,
     DOCUMENT_SOURCES,
@@ -28,6 +30,7 @@ import {
     fileSize,
     forecastFlags,
     todayUtc,
+    utcStamp,
 } from '@/lib/counseling';
 import { postJson } from '@/lib/postJson';
 import { toast } from 'vue-sonner';
@@ -35,9 +38,10 @@ import { toast } from 'vue-sonner';
 // The trooper's Developmental Counseling Statements and Letters of Reprimand (#381). The server sends only the records
 // this viewer may see, where they stand under the regulations (each record's flags, the no favorable action banner, and
 // for the form what a new record would earn by its date), and what the viewer may do (file either type, change each
-// record; nothing at all on a trooper who has left the Cav). An LOR is frozen 72 hours after it is filed: from then on
-// only the Regimental Executive Officer may overturn it (`canOverturn`), and an overturned one stays listed, muted, with
-// who overturned it and why. This component draws that and posts the forms. Hiding a control is cosmetic: every route
+// record; nothing at all on a trooper who has left the Cav). A DCS or LOR is frozen 72 hours after it is filed
+// (`freezesAt`): until then the chain may correct it and the trooper may answer it once (`canAppeal`: an appeal on an
+// LOR, a comment or dispute on a DCS). From then on only the Regimental Executive Officer may overturn an LOR
+// (`canOverturn`); an overturned one stays listed, muted, with who overturned it and why. This component draws that and posts the forms. Hiding a control is cosmetic: every route
 // checks again.
 const props = defineProps({
     trooperId: { type: Number, required: true },
@@ -166,7 +170,7 @@ const editForm = useForm({ counseled_on: '', reason: '', audit_reason: '' });
 const deleteForm = useForm({ audit_reason: '' });
 const overturnForm = useForm({ reason: '' });
 
-// A frozen or overturned LOR is never corrected or deleted, whatever `canChange` says. An expired DCS (90 days after it
+// A frozen DCS or LOR, or an overturned LOR, is never corrected or deleted, whatever `canChange` says. An expired DCS (90 days after it
 // was counseled, listed for Admins only) is shown read-only.
 const changeable = (record) => record.canChange && !record.frozen && !record.overturned && !record.expired;
 const busyWith = (record) => [editingId.value, deletingId.value, overturningId.value].includes(record.id);
@@ -233,6 +237,40 @@ function submitOverturn(record) {
             overturningId.value = null;
         },
         onHttpException: onHttpException('Could not overturn the record', (message) => toast.error(message)),
+    });
+}
+
+// The trooper's appeal (LOR) or comment or dispute (DCS), in a dialog: one statement, once per record.
+const appealing = ref(null);
+const appealForm = useForm({ statement: '' });
+const appealOpen = computed({
+    get: () => appealing.value !== null,
+    set: (open) => {
+        if (!open) appealing.value = null;
+    },
+});
+const appealWords = (type) => APPEAL_WORDS[type] ?? APPEAL_WORDS.lor;
+
+function startAppeal(record) {
+    appealForm.clearErrors();
+    appealForm.statement = '';
+    appealing.value = record;
+}
+
+function submitAppeal() {
+    const record = appealing.value;
+    if (!record) return;
+    if (!appealForm.statement.trim()) {
+        appealForm.setError('statement', 'Write your statement.');
+        return;
+    }
+    appealForm.post(`/counseling/${record.id}/appeal`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            toast.success(appealWords(record.type).filed);
+            appealing.value = null;
+        },
+        onHttpException: onHttpException('Could not file your statement', (message) => toast.error(message)),
     });
 }
 
@@ -475,6 +513,10 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
                     </Badge>
                     <time :datetime="record.date" class="font-mono text-xs" data-testid="counseling-date-text">{{ forumDate(record.date) }}</time>
                     <span v-if="record.kindLabel" class="text-xs text-muted-foreground" data-testid="counseling-kind-text">{{ record.kindLabel }}</span>
+                    <Badge v-if="record.frozen && record.freezesAt" variant="secondary" data-testid="counseling-frozen">
+                        <PhLock aria-hidden="true" />Frozen <time :datetime="record.freezesAt">{{ utcStamp(record.freezesAt) }}</time>
+                    </Badge>
+                    <Badge v-if="record.appeal" variant="warning" data-testid="counseling-appeal-filed">{{ appealWords(record.type).filed }}</Badge>
                     <Badge v-if="record.expired" variant="secondary" data-testid="counseling-expired">
                         Expired <time :datetime="record.expired.date">{{ forumDate(record.expired.date) }}</time>
                     </Badge>
@@ -492,6 +534,16 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
 
                 <p class="whitespace-pre-line" :class="{ 'text-muted-foreground': record.overturned }" data-testid="counseling-reason-text">{{ record.reason }}</p>
                 <p class="text-xs text-muted-foreground" data-testid="counseling-issuer">Filed by {{ record.issuer }}<template v-if="record.generated">, made from the form in the portal</template></p>
+                <p v-if="record.appeal" class="flex items-start gap-1 text-xs" data-testid="counseling-appeal">
+                    <PhChatText class="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    <span class="whitespace-pre-line"><span class="text-muted-foreground">{{ appealWords(record.type).filed }} <time :datetime="record.appeal.at">{{ utcStamp(record.appeal.at) }}</time>:</span> {{ record.appeal.statement }}</span>
+                </p>
+                <p v-if="changeable(record) && record.freezesAt" class="text-xs text-muted-foreground" data-testid="counseling-correct-until">
+                    Can be corrected until <time :datetime="record.freezesAt">{{ utcStamp(record.freezesAt) }}</time>
+                </p>
+                <p v-if="record.canAppeal && record.freezesAt" class="text-xs text-muted-foreground" data-testid="counseling-appeal-until">
+                    {{ appealWords(record.type).until }} <time :datetime="record.freezesAt">{{ utcStamp(record.freezesAt) }}</time>
+                </p>
                 <p v-if="record.overturned" class="flex items-start gap-1 text-xs text-muted-foreground" data-testid="counseling-overturned">
                     <PhArrowCounterClockwise class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
                     <span class="whitespace-pre-line">Overturned on {{ forumDate(record.overturned.date) }} by {{ record.overturned.by }}: {{ record.overturned.reason }}</span>
@@ -515,6 +567,9 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
                             <PhTrash aria-hidden="true" />Delete
                         </Button>
                     </template>
+                    <Button v-if="record.canAppeal && !record.appeal" variant="ghost" size="sm" class="ml-auto" data-testid="counseling-appeal-open" @click="startAppeal(record)">
+                        <PhChatText aria-hidden="true" />{{ appealWords(record.type).action }}
+                    </Button>
                     <Button
                         v-if="record.canOverturn && !record.overturned && !busyWith(record)"
                         variant="ghost"
@@ -577,6 +632,35 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
                 </form>
             </li>
         </ul>
+
+        <Dialog v-model:open="appealOpen">
+            <DialogContent class="sm:max-w-lg" data-testid="counseling-appeal-dialog">
+                <DialogTitle class="text-base font-semibold">{{ appealing ? appealWords(appealing.type).title : '' }}</DialogTitle>
+                <DialogDescription class="text-[13px] text-muted-foreground">
+                    You can file one, until <time v-if="appealing" :datetime="appealing.freezesAt">{{ utcStamp(appealing.freezesAt) }}</time>. It is added to
+                    the record with the time, and your chain of command sees it there.
+                </DialogDescription>
+                <form class="space-y-2" data-testid="counseling-appeal-form" @submit.prevent="submitAppeal">
+                    <Label for="counseling-appeal-statement">Your statement</Label>
+                    <Textarea
+                        id="counseling-appeal-statement"
+                        v-model="appealForm.statement"
+                        rows="5"
+                        :maxlength="APPEAL_STATEMENT_MAX"
+                        data-testid="counseling-appeal-statement"
+                        :aria-invalid="!!appealForm.errors.statement"
+                    />
+                    <p class="text-xs text-muted-foreground">Up to {{ APPEAL_STATEMENT_MAX }} characters.</p>
+                    <p v-if="appealForm.errors.statement" class="text-xs text-destructive" data-testid="counseling-appeal-error">{{ appealForm.errors.statement }}</p>
+                    <div class="flex gap-2">
+                        <Button type="submit" size="sm" :disabled="appealForm.processing" data-testid="counseling-appeal-submit">
+                            {{ appealing ? appealWords(appealing.type).submit : '' }}
+                        </Button>
+                        <Button type="button" size="sm" variant="outline" @click="appealing = null">Cancel</Button>
+                    </div>
+                </form>
+            </DialogContent>
+        </Dialog>
 
         <Dialog v-model:open="preview.open">
             <DialogContent class="sm:max-w-3xl" data-testid="counseling-preview-dialog">

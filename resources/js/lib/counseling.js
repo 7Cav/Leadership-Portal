@@ -126,3 +126,26 @@ export function counselingFormPayload(form, type) {
 
     return { ...shared, consequences: [...consequences], removal: consequences.includes('removal') ? removal : '', special_punishments, appeal };
 }
+
+// A record freezes 72 hours after it is filed. `at` is the server's ISO 8601 UTC instant; shown as "2026-11-02 10:00Z".
+export function utcStamp(at) {
+    if (typeof at !== 'string' || at.length < 16) return '';
+
+    return `${at.slice(0, 10)} ${at.slice(11, 16)}Z`;
+}
+
+// The trooper's answer to a record, in the words of its type: an LOR is appealed. The regiment's DCS form says a DCS is
+// not subject to appeal, so on a DCS it is a comment or dispute.
+export const APPEAL_WORDS = {
+    lor: { action: 'Appeal', until: 'Appeal until', filed: 'Appeal filed', title: 'Appeal this LOR', submit: 'File appeal' },
+    dcs: {
+        action: 'Comment or dispute',
+        until: 'Comment or dispute until',
+        filed: 'Comment or dispute filed',
+        title: 'Comment on or dispute this DCS',
+        submit: 'File comment',
+    },
+};
+
+// The server's cap on the trooper's statement (AppealCounselingRecordHandler::STATEMENT_MAX).
+export const APPEAL_STATEMENT_MAX = 2000;

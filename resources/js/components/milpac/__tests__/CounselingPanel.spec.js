@@ -474,4 +474,84 @@ describe('CounselingPanel', () => {
             wrapper.unmount();
         });
     });
+
+    describe('the 72-hour freeze and the trooper\'s appeal', () => {
+        it('shows a Frozen badge with the time it froze, and no correct or appeal line then', () => {
+            const wrapper = panel({ records: [record({ frozen: true, freezesAt: '2026-11-02T10:00:00Z', canChange: true })] });
+
+            expect(wrapper.get('[data-testid="counseling-frozen"]').text()).toBe('Frozen 2026-11-02 10:00Z');
+            expect(wrapper.get('[data-testid="counseling-frozen"] time').attributes('datetime')).toBe('2026-11-02T10:00:00Z');
+            expect(wrapper.find('[data-testid="counseling-correct-until"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="counseling-appeal-until"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="counseling-edit"]').exists()).toBe(false);
+        });
+
+        it('tells the chain until when the record can be corrected', () => {
+            const wrapper = panel({ records: [record({ frozen: false, freezesAt: '2026-11-02T10:00:00Z', canChange: true })] });
+
+            expect(wrapper.get('[data-testid="counseling-correct-until"]').text()).toBe('Can be corrected until 2026-11-02 10:00Z');
+            expect(wrapper.find('[data-testid="counseling-frozen"]').exists()).toBe(false);
+        });
+
+        it('tells the trooper until when they can appeal an LOR, or comment on or dispute a DCS', () => {
+            const wrapper = panel({
+                records: [
+                    record({ id: 12, type: 'lor', frozen: false, freezesAt: '2026-11-02T10:00:00Z', canAppeal: true }),
+                    record({ frozen: false, freezesAt: '2026-11-01T08:30:00Z', canAppeal: true }),
+                ],
+            });
+            const [lor, dcs] = wrapper.findAll('[data-testid="counseling-record"]');
+
+            expect(lor.get('[data-testid="counseling-appeal-until"]').text()).toBe('Appeal until 2026-11-02 10:00Z');
+            expect(lor.get('[data-testid="counseling-appeal-open"]').text()).toBe('Appeal');
+            expect(dcs.get('[data-testid="counseling-appeal-until"]').text()).toBe('Comment or dispute until 2026-11-01 08:30Z');
+            expect(dcs.get('[data-testid="counseling-appeal-open"]').text()).toBe('Comment or dispute');
+            expect(wrapper.find('[data-testid="counseling-correct-until"]').exists()).toBe(false);
+        });
+
+        it('flags a filed appeal for the leader and shows the statement with its time', () => {
+            const wrapper = panel({
+                records: [record({ id: 12, type: 'lor', canChange: true, freezesAt: '2026-11-02T10:00:00Z', appeal: { at: '2026-10-30T12:00:00Z', statement: 'It was a misunderstanding.' } })],
+            });
+
+            expect(wrapper.get('[data-testid="counseling-appeal-filed"]').text()).toBe('Appeal filed');
+            expect(wrapper.get('[data-testid="counseling-appeal"]').text()).toBe('Appeal filed 2026-10-30 12:00Z: It was a misunderstanding.');
+            expect(wrapper.find('[data-testid="counseling-appeal-open"]').exists()).toBe(false);
+        });
+
+        it('calls a filed DCS answer a comment or dispute', () => {
+            const wrapper = panel({ records: [record({ appeal: { at: '2026-10-30T12:00:00Z', statement: 'I told my SL.' } })] });
+
+            expect(wrapper.get('[data-testid="counseling-appeal-filed"]').text()).toBe('Comment or dispute filed');
+        });
+
+        it('opens the appeal dialog, refuses an empty statement, and posts the statement', async () => {
+            const wrapper = mount(CounselingPanel, {
+                props: { trooperId: 7, counseling: counseling({ records: [record({ id: 12, type: 'lor', freezesAt: '2026-11-02T10:00:00Z', canAppeal: true })] }) },
+                attachTo: document.body,
+            });
+            await wrapper.get('[data-testid="counseling-appeal-open"]').trigger('click');
+            await flushPromises();
+
+            const dialog = document.body.querySelector('[data-testid="counseling-appeal-dialog"]');
+            expect(dialog).not.toBeNull();
+            expect(dialog.textContent).toContain('Appeal this LOR');
+            expect(dialog.textContent).toContain('2026-11-02 10:00Z');
+            const textarea = document.body.querySelector('[data-testid="counseling-appeal-statement"]');
+            expect(textarea.getAttribute('maxlength')).toBe('2000');
+
+            document.body.querySelector('[data-testid="counseling-appeal-form"]').dispatchEvent(new Event('submit'));
+            await flushPromises();
+            expect(sent).not.toHaveBeenCalled();
+            expect(document.body.querySelector('[data-testid="counseling-appeal-error"]').textContent).toBe('Write your statement.');
+
+            textarea.value = 'It was a misunderstanding.';
+            textarea.dispatchEvent(new Event('input'));
+            document.body.querySelector('[data-testid="counseling-appeal-form"]').dispatchEvent(new Event('submit'));
+            await flushPromises();
+
+            expect(sent).toHaveBeenCalledWith('post', '/counseling/12/appeal', expect.objectContaining({ statement: 'It was a misunderstanding.' }), expect.any(Object));
+            wrapper.unmount();
+        });
+    });
 });
