@@ -40,6 +40,9 @@ Thumbs.db
 .phpunit.result.cache
 /.phpunit.cache
 /auth.json
+# Database dumps must never be committed from the production checkout.
+/backup*.sql
+/backups/
 /node_modules
 /public/build
 /public/fonts-manifest.dev.json
