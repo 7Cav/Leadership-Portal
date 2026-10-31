@@ -60,7 +60,7 @@ A week the game server already read, or whose report was sent, keeps its time.
 
 ## Check what the game server saw
 
-1. With a practice slot set, the portal reads the game server by itself within ten minutes of the practice ending. If the game server recorded the practice, the marks are already filled in and say where they came from. Check them and fix any that are wrong.
+1. With a practice slot set, the portal reads the game server by itself within ten minutes of the practice ending. If the game server recorded the practice, the marks are already filled in and say where they came from. A trooper counts as attended after 40 minutes on the server during the hour, unless your battalion set another minimum. Check the marks and fix any that are wrong.
 2. Choose **Confirm practice**. Changing a mark by hand afterwards clears the confirmation; confirm again.
 3. If the banner says the server could not be read, mark by hand, or choose **Try again** to read it again.
 4. Players the server saw who are linked to no trooper are listed for you to link or dismiss. See [Link or dismiss an unmatched player](/docs/weekly-rollcall/unmatched-players).
@@ -68,9 +68,11 @@ A week the game server already read, or whose report was sent, keeps its time.
 ## Guests and make-ups
 
 1. A trooper from another section who came to your practice is a guest. It records **Make-up complete** on their own section's roll call. See [Add a guest to practice](/docs/weekly-rollcall/add-a-guest).
-2. Staff who say they attended show as **Staff guest**, marked **Staff, not counted here**.
-3. If a guest's make-up did not reach their own roll call, choose **Retry make-up**.
-4. Once the practice is confirmed, its guests can no longer change.
+2. With a practice slot set, the game server adds guests by itself: a trooper from another section who was on the server for at least 40 minutes of your practice hour (or the minimum your battalion set) gets **Make-up complete** on their own roll call. A trooper whose own section practises at the same time is at their own practice, not a make-up.
+3. On your own roll call, a make-up the portal recorded says which practice it came from, for example "Make-up at 1/2/B/2-7, seen on the game server". You can change it like any mark, and the portal does not put it back.
+4. Staff who say they attended show as **Staff guest**, marked **Staff, not counted here**.
+5. If a guest's make-up did not reach their own roll call, choose **Retry make-up**.
+6. Once the practice is confirmed, its guests can no longer change.
 
 ## Copy the post and put it on the forum
 

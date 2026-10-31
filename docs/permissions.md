@@ -253,6 +253,7 @@ editor who is not an Admin cannot change it. The editors always see technical en
 | Set or remove a trooper's game identity | All | All | Own | Own | Own | Own | Own | Own | No | No | No |
 | Sync my unit's troopers from Cav (roster page) | Any unit | Own | Own | Own | Own | Own | Own | Own | No | No | No |
 | Save a unit's guidon (companies, battalions and the regiment only) | Any | Own | No | Own | Own | No | If acting lead of the unit or above | No | No | No | No |
+| Set a battalion's practice presence minimum (roster page) (14) | Any battalion | HQ staff | HQ staff | HQ staff | No | No | No | No | HQ staff | No | No |
 | View as a unit | Any | Own | Own | Own | Own | Own | Own | Own | No | Granted units | Switch target |
 | View as a person | Yes | No | No | No | No | No | No | No | No | No | Switch target |
 
@@ -377,6 +378,12 @@ view-as preview. A page for another trooper, or a week they file none for, answe
 (13) Anyone whose read scope holds the unit above at least one platoon, company or battalion HQ (`StaffReportAccess::readableHqs()`),
 and Admins. The sidebar item then reads "Staff reports" (the shared `features.staffReports` is `overview`); for HQ
 staff who read only their own it stays "Staff report" (`own`). Everyone else gets a 404.
+
+(14) Only a serving trooper placed on that battalion's own node (its HQ staff, ACD included), whatever billet they hold,
+and Admins. Acting as one of them writes as they would; view as never writes. The minimum (1 to 60 minutes, default
+40 from `portal.presence_minimum_minutes`) is how long a trooper must be on a practice's server during its hour to
+count as attending it. Every change is audited (`presence_minimum.set`). Everyone who can open the battalion's roster
+reads it.
 
 ## How scope is worked out
 
