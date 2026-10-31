@@ -5,6 +5,7 @@ namespace App\Commands\Capture;
 use App\Authorization\ScopeResolver;
 use App\Commands\Attendance\InvalidAttendanceMarkException;
 use App\Commands\Attendance\RollcallWeekLockedException;
+use App\Commands\Practices\PracticeSchedule;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\SectionPracticeRepository;
@@ -30,8 +31,9 @@ use Illuminate\Support\Facades\RateLimiter;
  * state is checked here, so a direct request cannot re-run a captured practice or start one for a
  * week that was never attempted.
  *
- * The practice has no schedule of its own in the data, so its window is the Cav week up to now:
- * the widest span the capture run accepts, and the leader reviews what it marks.
+ * A section with a practice slot (#392) is read for that week's practice window, as the scheduled
+ * capture reads it (#393). One without a slot is read for the Cav week up to now: the widest span
+ * the capture run accepts, and the leader reviews what it marks.
  */
 class RequestPracticeCaptureHandler
 {
@@ -47,6 +49,7 @@ class RequestPracticeCaptureHandler
         private readonly CaptureSources $sources,
         private readonly AuditEnvelope $audit,
         private readonly ActingFor $acting,
+        private readonly PracticeSchedule $schedule,
     ) {}
 
     /**
@@ -103,12 +106,14 @@ class RequestPracticeCaptureHandler
 
         $now = CarbonImmutable::now('UTC');
         $weekEnd = $practice->week_start->addWeek();
+        // The section's practice window when it has a slot (#392, #393), else the week so far.
+        $window = $this->schedule->windowFor($command->sectionId, $practice->week_start, $practice);
 
         return new CaptureSectionPractice(
             $practice->id,
             $game->id,
-            $practice->week_start->toDateTimeImmutable(),
-            ($now->lessThan($weekEnd) ? $now : $weekEnd)->toDateTimeImmutable(),
+            ($window?->start ?? $practice->week_start)->toDateTimeImmutable(),
+            ($window?->end ?? ($now->lessThan($weekEnd) ? $now : $weekEnd))->toDateTimeImmutable(),
             $actor->id,
             // The run is queued: who is really acting goes with it, or its entries would name the person acted as.
             $this->acting->snapshot(),
