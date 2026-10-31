@@ -543,7 +543,11 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
   not doubled, and Edit splits an entry's tag back into the picker), a
   **Major change** tickbox (off, so the entry is full changelog only), a **Technical** tickbox (ticking one clears the
   other; a technical or Security row shows the hint "Say what was fixed, not how it could be abused.") and an optional **Add additional information**
-  tickbox; Enter in a row adds a row below it. Each entry can be edited or
+  tickbox; Enter in a row adds a row below it. A tickbox at the start of each row (shift-click ticks a range) and a
+  **Select all** tickbox above them pick rows to change together: a bar shows the count, a **Set type** picker, **Mark
+  major** / **Unmark major**, **Mark technical** / **Unmark technical**, **Remove** and **Clear selection**. The usual
+  rules hold per row: Mark major skips Security rows and says how many it skipped, and Unmark technical leaves them
+  ticked. The selection is only in the dialog; saving is unchanged. Each entry can be edited or
   deleted on its own (delete asks to confirm, with a reason). Bulk import takes pasted Markdown: a `## YYYY-MM-DD`
   heading per date, a `- ` bullet per entry, and an indented block under a bullet as its additional information. A bullet that starts with `[major]` (any case) is
   flagged major, and one that starts with `[technical]` (any case) is flagged technical, the marker dropped; both on

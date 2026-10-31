@@ -495,4 +495,109 @@ describe('Changelog page', () => {
             expect(wrapper.find('[data-testid="changelog-restore-bar"]').exists()).toBe(false);
         });
     });
+
+describe('Changelog add dialog bulk rows', () => {
+    const q = (id) => body(`[data-testid="${id}"]`);
+    const state = (id) => q(id).getAttribute('data-state');
+    async function openWithRows(count) {
+        mountPage({ isEditor: true });
+        await wrapper.get('[data-testid="changelog-add"]').trigger('click');
+        await flushPromises();
+        const input = q('changelog-add-count');
+        input.value = String(count - 1);
+        input.dispatchEvent(new Event('input'));
+        await flushPromises();
+        q('changelog-add-rows').click();
+        await flushPromises();
+        expect(document.body.querySelectorAll('[data-testid^="changelog-row-body-"]')).toHaveLength(count);
+    }
+    const setTag = async (index, tag) => {
+        const select = q(`changelog-row-tag-${index}`);
+        select.value = tag;
+        select.dispatchEvent(new Event('change'));
+        await flushPromises();
+    };
+
+    it('select all ticks every row, shows the bar, and goes indeterminate when one is unticked', async () => {
+        await openWithRows(3);
+        expect(q('changelog-bulk-bar')).toBeNull();
+        q('changelog-select-all').click();
+        await flushPromises();
+        expect(q('changelog-bulk-count').textContent).toContain('3 selected');
+        expect(state('changelog-row-select-1')).toBe('checked');
+        q('changelog-row-select-1').click();
+        await flushPromises();
+        expect(state('changelog-select-all')).toBe('indeterminate');
+        expect(q('changelog-bulk-count').textContent).toContain('2 selected');
+        q('changelog-bulk-clear').click();
+        await flushPromises();
+        expect(q('changelog-bulk-bar')).toBeNull();
+        expect(state('changelog-select-all')).toBe('unchecked');
+    });
+
+    it('bulk set Security ticks and locks Technical on every selected row', async () => {
+        await openWithRows(3);
+        q('changelog-row-major-0').click();
+        q('changelog-select-all').click();
+        await flushPromises();
+        const tag = q('changelog-bulk-tag');
+        tag.value = 'Security';
+        tag.dispatchEvent(new Event('change'));
+        await flushPromises();
+        for (const i of [0, 1, 2]) {
+            expect(q(`changelog-row-tag-${i}`).value).toBe('Security');
+            expect(state(`changelog-row-technical-${i}`)).toBe('checked');
+            expect(q(`changelog-row-technical-${i}`).hasAttribute('disabled')).toBe(true);
+            expect(state(`changelog-row-major-${i}`)).toBe('unchecked');
+        }
+        q('changelog-bulk-untechnical').click();
+        await flushPromises();
+        expect(state('changelog-row-technical-1')).toBe('checked');
+    });
+
+    it('bulk major skips Security rows and says how many', async () => {
+        await openWithRows(3);
+        await setTag(1, 'Security');
+        q('changelog-select-all').click();
+        await flushPromises();
+        q('changelog-bulk-major').click();
+        await flushPromises();
+        expect(state('changelog-row-major-0')).toBe('checked');
+        expect(state('changelog-row-major-1')).toBe('unchecked');
+        expect(state('changelog-row-technical-1')).toBe('checked');
+        expect(state('changelog-row-major-2')).toBe('checked');
+        expect(q('changelog-bulk-note').textContent).toContain('1 Security row was skipped.');
+        q('changelog-bulk-technical').click();
+        await flushPromises();
+        expect(state('changelog-row-major-0')).toBe('unchecked');
+        expect(state('changelog-row-technical-0')).toBe('checked');
+    });
+
+    it('removes the selected rows', async () => {
+        await openWithRows(3);
+        const second = q('changelog-row-body-1');
+        second.value = 'Keep me';
+        second.dispatchEvent(new Event('input'));
+        q('changelog-row-select-0').click();
+        q('changelog-row-select-2').click();
+        await flushPromises();
+        q('changelog-bulk-remove').click();
+        await flushPromises();
+        expect(document.body.querySelectorAll('[data-testid^="changelog-row-body-"]')).toHaveLength(1);
+        expect(q('changelog-row-body-0').value).toBe('Keep me');
+        expect(q('changelog-bulk-bar')).toBeNull();
+    });
+
+    it('shift-click selects a range of rows', async () => {
+        await openWithRows(5);
+        q('changelog-row-select-1').click();
+        await flushPromises();
+        const last = q('changelog-row-select-3');
+        last.dispatchEvent(new PointerEvent('pointerdown', { shiftKey: true, bubbles: true }));
+        last.click();
+        await flushPromises();
+        expect([0, 1, 2, 3, 4].map((i) => state(`changelog-row-select-${i}`))).toEqual(['unchecked', 'checked', 'checked', 'checked', 'unchecked']);
+        expect(q('changelog-bulk-count').textContent).toContain('3 selected');
+    });
+});
 });

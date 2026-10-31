@@ -233,6 +233,7 @@ function openAdd() {
     addForm.clearErrors();
     addForm.date = today();
     addForm.rows = [blankRow()];
+    clearSelection();
     addOpen.value = true;
 }
 
@@ -258,8 +259,74 @@ function appendRows() {
 }
 
 function removeRow(index) {
-    addForm.rows.splice(index, 1);
+    const [row] = addForm.rows.splice(index, 1);
+    if (row && selected.value.has(row.key)) {
+        const next = new Set(selected.value);
+        next.delete(row.key);
+        selected.value = next;
+    }
     if (addForm.rows.length === 0) addForm.rows.push(blankRow());
+}
+
+// Bulk changes in the Add dialog: tick rows, then change them together. The selection lives only in this dialog, keyed
+// by row key; shift-click ticks every row between the last one clicked and this one.
+const selected = ref(new Set());
+let lastPicked = null;
+const selectedRows = computed(() => addForm.rows.filter((row) => selected.value.has(row.key)));
+const allSelected = computed(() => addForm.rows.length > 0 && selectedRows.value.length === addForm.rows.length);
+const selectAllState = computed(() => (allSelected.value ? true : selectedRows.value.length > 0 ? 'indeterminate' : false));
+const bulkTag = ref('');
+const bulkNote = ref(null);
+
+function selectRow(index, value, shift = false) {
+    const next = new Set(selected.value);
+    const on = value === true;
+    const from = shift && lastPicked !== null ? addForm.rows.findIndex((row) => row.key === lastPicked) : -1;
+    const [start, end] = from === -1 ? [index, index] : [Math.min(from, index), Math.max(from, index)];
+    for (let i = start; i <= end; i++) {
+        if (on) next.add(addForm.rows[i].key);
+        else next.delete(addForm.rows[i].key);
+    }
+    lastPicked = addForm.rows[index].key;
+    selected.value = next;
+}
+let shiftHeld = false;
+const noteShift = (event) => (shiftHeld = event.shiftKey);
+function onRowSelect(index, value) {
+    selectRow(index, value, shiftHeld);
+    shiftHeld = false;
+}
+function selectAll(value) {
+    selected.value = value === true ? new Set(addForm.rows.map((row) => row.key)) : new Set();
+    lastPicked = null;
+}
+function clearSelection() {
+    selectAll(false);
+    bulkNote.value = null;
+}
+function bulkSetTag(tag) {
+    if (!KINDS.includes(tag)) return;
+    selectedRows.value.forEach((row) => pickTag(row, tag));
+    bulkTag.value = '';
+    bulkNote.value = null;
+}
+// Major is never set on a Security row; the note says how many were skipped. Technical cannot be cleared on one.
+function bulkSet(kind, value) {
+    let skipped = 0;
+    for (const row of selectedRows.value) {
+        if (row.tag === 'Security' && ((kind === 'major' && value) || (kind === 'technical' && !value))) {
+            skipped++;
+            continue;
+        }
+        if (value) setKind(row, kind, true);
+        else row[kind] = false;
+    }
+    bulkNote.value = skipped === 0 ? null : `${skipped === 1 ? '1 Security row was' : `${skipped} Security rows were`} skipped.`;
+}
+function bulkRemove() {
+    addForm.rows = addForm.rows.filter((row) => !selected.value.has(row.key));
+    if (addForm.rows.length === 0) addForm.rows.push(blankRow());
+    clearSelection();
 }
 
 // Rows with text are sent; blank rows are left out. `sent[i]` is the row index of the i-th sent entry, to place errors.
@@ -631,9 +698,45 @@ function runImport() {
                         <Input id="changelog-add-date" v-model="addForm.date" type="date" class="w-44" data-testid="changelog-add-date" :aria-invalid="!!addForm.errors.date" />
                     </div>
 
+                    <div class="space-y-2" data-testid="changelog-bulk">
+                        <div class="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
+                            <label class="flex items-center gap-2 text-muted-foreground">
+                                <Checkbox :model-value="selectAllState" aria-label="Select all rows" data-testid="changelog-select-all" @update:model-value="selectAll" />
+                                Select all
+                            </label>
+                            <template v-if="selectedRows.length > 0">
+                                <span class="font-medium tabular-nums" role="status" data-testid="changelog-bulk-count">{{ selectedRows.length }} selected</span>
+                                <Button type="button" size="sm" variant="ghost" class="h-7 px-2" data-testid="changelog-bulk-clear" @click="clearSelection">Clear selection</Button>
+                            </template>
+                        </div>
+                        <div v-if="selectedRows.length > 0" class="flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-muted/40 p-2" role="toolbar" aria-label="Change the selected rows" data-testid="changelog-bulk-bar">
+                            <div class="w-32 shrink-0">
+                                <NativeSelect :model-value="bulkTag" aria-label="Set type of the selected rows" data-testid="changelog-bulk-tag" @update:model-value="bulkSetTag">
+                                    <NativeSelectOption value="" disabled>Set type</NativeSelectOption>
+                                    <NativeSelectOption v-for="kind in KINDS" :key="kind" :value="kind">{{ kind }}</NativeSelectOption>
+                                </NativeSelect>
+                            </div>
+                            <Button type="button" size="sm" variant="outline" class="h-8" data-testid="changelog-bulk-major" @click="bulkSet('major', true)">Mark major</Button>
+                            <Button type="button" size="sm" variant="outline" class="h-8" data-testid="changelog-bulk-unmajor" @click="bulkSet('major', false)">Unmark major</Button>
+                            <Button type="button" size="sm" variant="outline" class="h-8" data-testid="changelog-bulk-technical" @click="bulkSet('technical', true)">Mark technical</Button>
+                            <Button type="button" size="sm" variant="outline" class="h-8" data-testid="changelog-bulk-untechnical" @click="bulkSet('technical', false)">Unmark technical</Button>
+                            <Button type="button" size="sm" variant="outline" class="h-8 text-destructive" data-testid="changelog-bulk-remove" @click="bulkRemove"><PhTrash aria-hidden="true" />Remove</Button>
+                        </div>
+                        <p v-if="bulkNote" role="status" class="text-xs text-muted-foreground" data-testid="changelog-bulk-note">{{ bulkNote }}</p>
+                    </div>
+
                     <ol class="space-y-2" data-testid="changelog-rows">
                         <li v-for="(row, index) in addForm.rows" :key="row.key" class="space-y-1.5" :data-testid="`changelog-row-${index}`">
                             <div class="flex items-center gap-1.5">
+                                <Checkbox
+                                    class="shrink-0"
+                                    :model-value="selected.has(row.key)"
+                                    :aria-label="`Select change ${index + 1}`"
+                                    :data-testid="`changelog-row-select-${index}`"
+                                    @pointerdown="noteShift"
+                                    @keydown.space="noteShift"
+                                    @update:model-value="(value) => onRowSelect(index, value)"
+                                />
                                 <div class="w-28 shrink-0">
                                     <NativeSelect :model-value="row.tag" @update:model-value="(value) => pickTag(row, value)" :aria-label="`Tag for change ${index + 1}`" :data-testid="`changelog-row-tag-${index}`">
                                         <NativeSelectOption v-for="kind in KINDS" :key="kind" :value="kind">{{ kind }}</NativeSelectOption>
