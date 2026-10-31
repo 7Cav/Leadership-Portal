@@ -106,10 +106,10 @@ describe('Rollcall page', () => {
         vi.setSystemTime(new Date('2026-10-08T16:50:00Z'));
         const wrapper = factory();
 
-        expect(wrapper.find('h1').text()).toBe('Roll call, week ending 09Oct26');
-        expect(wrapper.find('[data-testid="roster-provenance"]').text()).toBe('Roster from milpac, synced 08Oct26 09:14Z (7 h ago)');
+        expect(wrapper.find('h1').text()).toBe('Roll call, week ending 09OCT26 (03OCT26 to 09OCT26)');
+        expect(wrapper.find('[data-testid="roster-provenance"]').text()).toBe('Roster from milpac, synced 08OCT26 09\u200A14Z (7 h ago)');
         expect(wrapper.find('[data-testid="roster-provenance"] time').attributes('datetime')).toBe('2026-10-08T09:14:00.000Z');
-        expect(wrapper.text()).toContain('Signatures close Fri 09Oct26 23:59Z');
+        expect(wrapper.text()).toContain('Signatures close Fri 09OCT26 23\u200A59Z');
     });
 
     it('says the roster has never synced rather than inventing a time', () => {
@@ -317,9 +317,9 @@ describe('Rollcall page', () => {
 
             expect(previous.find('[data-testid="earlier-weeks-flag"]').exists()).toBe(true);
             expect(previous.attributes('aria-label')).toBe(
-                'Previous week. 2 earlier weeks need work: 25Sep26 (3 not marked, not posted), 18Sep26 (not posted)',
+                'Previous week. 2 earlier weeks need work: 19SEP26 to 25SEP26 (3 not marked, not posted), 12SEP26 to 18SEP26 (not posted)',
             );
-            expect(previous.attributes('title')).toBe('2 earlier weeks need work: 25Sep26 (3 not marked, not posted), 18Sep26 (not posted)');
+            expect(previous.attributes('title')).toBe('2 earlier weeks need work: 19SEP26 to 25SEP26 (3 not marked, not posted), 12SEP26 to 18SEP26 (not posted)');
         });
 
         it('flags the arrow on the side the unfinished weeks are, from a past week', () => {
@@ -337,7 +337,7 @@ describe('Rollcall page', () => {
                 week: { ...WEEK, isCurrent: false, date: '2026-09-12', start: '2026-09-12T00:00:00+00:00', previous: '2026-09-05', next: '2026-09-19' },
             });
             expect(older.find('[data-testid="earlier-weeks-flag"]').exists()).toBe(false);
-            expect(older.find('[data-testid="next-week"]').attributes('aria-label')).toBe('Next week. 1 later week needs work: 25Sep26 (3 not marked, not posted)');
+            expect(older.find('[data-testid="next-week"]').attributes('aria-label')).toBe('Next week. 1 later week needs work: 19SEP26 to 25SEP26 (3 not marked, not posted)');
         });
 
         it('shows no flag when every past week is marked and posted', () => {
@@ -383,12 +383,12 @@ describe('Rollcall page', () => {
 
             await vi.advanceTimersByTimeAsync(1000);
             expect(post).toHaveBeenCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 3, rollcall: 'cannot_attend' }] });
-            expect(wrapper.find('[data-testid="save-state"]').text()).toBe('Saved 16:20Z (30 min ago)');
+            expect(wrapper.find('[data-testid="save-state"]').text()).toBe('Saved 16\u200A20Z (30 min ago)');
             // The save state is a live region: the ticking part is not read out every minute.
             expect(wrapper.find('[data-testid="save-state"] [data-relative]').attributes('aria-hidden')).toBe('true');
 
             await vi.advanceTimersByTimeAsync(60_000);
-            expect(wrapper.find('[data-testid="save-state"]').text()).toBe('Saved 16:20Z (31 min ago)');
+            expect(wrapper.find('[data-testid="save-state"]').text()).toBe('Saved 16\u200A20Z (31 min ago)');
         });
 
         it('offers attended, not attended, excused and make-up complete on the practice step, and records a manual source', async () => {
@@ -428,8 +428,8 @@ describe('Rollcall page', () => {
             const owed = wrapper.get('[data-testid="makeup-owed"]');
 
             expect(owed.findAll('li')).toHaveLength(2);
-            expect(owed.text()).toContain('Make-up requested for the weeks ending 02Oct26, 09Oct26');
-            expect(owed.text()).toContain('Make-up requested for the week ending 25Sep26');
+            expect(owed.text()).toContain('Make-up requested for the weeks 26SEP26 to 02OCT26, 03OCT26 to 09OCT26');
+            expect(owed.text()).toContain('Make-up requested for the week 19SEP26 to 25SEP26');
 
             page.url = '/rollcall/12?step=2';
             await wrapper.vm.$nextTick();
@@ -606,7 +606,7 @@ describe('Rollcall page', () => {
 
             const onLoa = wrapper.find('[role="group"][aria-label="On LOA"]');
             expect(onLoa.text()).toContain('Trooper5.A');
-            expect(onLoa.find('[data-testid="loa-badge"]').text()).toBe('LOA ends 20Oct26');
+            expect(onLoa.find('[data-testid="loa-badge"]').text()).toBe('LOA ends 20OCT26');
             expect(onLoa.find('[data-testid="loa-details"]').text()).toContain('Source: Forum thread');
             expect(wrapper.find('[data-trooper="5"]').findAll('button[data-value]')).toHaveLength(0);
             expect(wrapper.find('[data-testid="use-last-week"]').text()).toBe("Use last week's marks (1)");
@@ -634,7 +634,7 @@ describe('Rollcall page', () => {
             const wrapper = factory({ troopers: [trooper(6, 'unsigned', null, { leaveFrom: '2026-10-12' }), trooper(7, 'unsigned', null)] });
 
             const card = wrapper.find('[data-trooper="6"]');
-            expect(card.find('[data-testid="leave-from"]').text()).toBe('Leave from 12Oct26');
+            expect(card.find('[data-testid="leave-from"]').text()).toBe('Leave from 12OCT26');
             expect(card.find('[data-testid="leave-from"]').attributes('title')).toBe('Leave starting next Cav week, from LOA records');
             expect(card.findAll('button[data-value]')).toHaveLength(4);
             expect(wrapper.find('[data-trooper="7"] [data-testid="leave-from"]').exists()).toBe(false);
@@ -1098,7 +1098,7 @@ describe('Rollcall page', () => {
             await vi.waitFor(() => expect(wrapper.find('[data-testid="posted-state"]').exists()).toBe(true));
 
             expect(post).toHaveBeenCalledWith('/rollcall/12/posted', { week: '2026-10-03' });
-            expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Roll call posted 08Oct26 16:20Z (30 min ago) by Vasquez.R');
+            expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Roll call posted 08OCT26 16\u200A20Z (30 min ago) by Vasquez.R');
             expect(wrapper.find('[data-step="3"]').attributes('aria-label')).toBe('Step 3, Review and post, Posted');
             expect(wrapper.find('[data-testid="mark-posted"]').text()).toBe('Mark posted again');
         });
@@ -1494,7 +1494,7 @@ describe('Rollcall page', () => {
             vi.setSystemTime(new Date('2026-10-08T16:50:00Z'));
             const wrapper = factory({ capture: CAPTURE });
 
-            expect(wrapper.find('[data-testid="capture-banner"]').text()).toContain('Marks filled from BattleMetrics, read 08Oct26 12:00Z (4 h ago).');
+            expect(wrapper.find('[data-testid="capture-banner"]').text()).toContain('Marks filled from BattleMetrics, read 08OCT26 12\u200A00Z (4 h ago).');
             expect(wrapper.find('[data-testid="capture-banner"]').text()).toContain('Auto');
             expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Not confirmed');
             expect(wrapper.find('[data-testid="confirm-practice"]').text()).toContain('Confirm practice');
@@ -1503,7 +1503,7 @@ describe('Rollcall page', () => {
         it('names the game server, not "null", when a capture has no source recorded', () => {
             const wrapper = factory({ capture: { ...CAPTURE, source: null } });
 
-            expect(wrapper.find('[data-testid="capture-banner"]').text()).toContain('Marks filled from the game server, read 08Oct26 12:00Z');
+            expect(wrapper.find('[data-testid="capture-banner"]').text()).toContain('Marks filled from the game server, read 08OCT26 12\u200A00Z');
             expect(wrapper.find('[data-testid="capture-banner"]').text()).not.toContain('null');
         });
 
@@ -1605,7 +1605,7 @@ describe('Rollcall page', () => {
             page.url = '/rollcall/12?step=3';
             await wrapper.vm.$nextTick();
             // The stamp carries how long ago it was, which this test does not pin.
-            expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Roll call posted 08Oct26 16:20Z');
+            expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Roll call posted 08OCT26 16\u200A20Z');
             expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('by Ortega.M');
             expect(wrapper.find('[data-testid="posted-state"]').text()).not.toContain('Repost');
 
@@ -1650,7 +1650,7 @@ describe('Rollcall page', () => {
             wrapper = factory({ telemetry: FAILED });
 
             expect(wrapper.find('[data-testid="telemetry-banner"]').text()).toContain(
-                'Hell Let Loose server (CRCON) could not be read, last tried 08Oct26 15:42Z (5 min ago). Nothing was pre-filled. Mark attendance by hand.',
+                'Hell Let Loose server (CRCON) could not be read, last tried 08OCT26 15\u200A42Z (5 min ago). Nothing was pre-filled. Mark attendance by hand.',
             );
             expect(wrapper.find('[data-testid="capture-banner"]').exists()).toBe(false);
             expect(wrapper.find('[data-testid="unmatched-drawer"]').exists()).toBe(false);
@@ -1681,7 +1681,7 @@ describe('Rollcall page', () => {
             wrapper = factory({ telemetry: { ...FAILED, feeds: [], detail: 'internal_error' } });
 
             const text = wrapper.find('[data-testid="telemetry-banner"]').text();
-            expect(text).toContain('The portal hit an error capturing this practice, last tried 08Oct26 15:42Z (5 min ago). Nothing was pre-filled.');
+            expect(text).toContain('The portal hit an error capturing this practice, last tried 08OCT26 15\u200A42Z (5 min ago). Nothing was pre-filled.');
             expect(text).not.toContain('could not be read');
             expect(wrapper.find('[data-testid="telemetry-retry"]').exists()).toBe(true);
         });

@@ -13,8 +13,8 @@ export function planStatus(status) {
     return STATUS[status] ?? STATUS.none;
 }
 
-// One line on who wrote the plan and who reviewed it last: "Written by SFC Hale.J Wed 11Nov26 12:00Z. Approved by
-// CPT Reyes.M Thu 12Nov26 09:30Z."
+// One line on who wrote the plan and who reviewed it last: "Written by SFC Hale.J Wed 11NOV26 1200Z. Approved by
+// CPT Reyes.M Thu 12NOV26 0930Z."
 export function planHistory(plan) {
     if (!plan) return null;
 

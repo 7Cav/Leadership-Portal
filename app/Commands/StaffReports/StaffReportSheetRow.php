@@ -119,7 +119,7 @@ final class StaffReportSheetRow
         return $report->sent_at->utc()->format('n/j/Y G:i:s');
     }
 
-    /** The Friday the Cav week ends on, as the forum writes a date: `09Jan26`. */
+    /** The Friday the Cav week ends on, as the forum writes a date: `09JAN26`. */
     private static function weekEnding(StaffReport $report): string
     {
         return WeekLabel::ending($report->week_start);

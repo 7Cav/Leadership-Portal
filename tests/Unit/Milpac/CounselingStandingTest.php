@@ -6,7 +6,7 @@ use App\Models\CounselingType;
 use Carbon\CarbonImmutable;
 
 // 2026-10-28: where counseling stands under the regulations, measured between records by their dates as the 7Cav wiki
-// does, on the ladder each record is for. Dates are days after 01Jan26 here.
+// does, on the ladder each record is for. Dates are days after 01JAN26 here.
 
 const STANDING_BASE = '2026-01-01';
 
@@ -201,7 +201,7 @@ it('holds no favorable action for 30 days after the latest LOR, the 30th day inc
 
     expect(CounselingStanding::noFavorableAction($entries, CarbonImmutable::parse(standingDate(40), 'UTC')))->toBe([
         'key' => 'no-favorable-action',
-        'message' => 'No favorable action until 10Feb26, 30 days after the LOR of 11Jan26.',
+        'message' => 'No favorable action until 10FEB26, 30 days after the LOR of 11JAN26.',
         'until' => standingDate(40),
     ])
         ->and(CounselingStanding::noFavorableAction($entries, CarbonImmutable::parse(standingDate(41), 'UTC')))->toBeNull()

@@ -83,7 +83,7 @@ const candidates = computed(() => rows.value.filter((row) => row.candidate).leng
                         </td>
                         <td class="px-2 py-2 font-mono text-xs text-muted-foreground">{{ row.section?.designation ?? 'No section' }}</td>
                         <td class="px-2 py-2 text-right tabular-nums" data-testid="practice-guest-visits">{{ row.visits }}</td>
-                        <td class="px-2 py-2 text-muted-foreground tabular-nums">Week Ending {{ weekLabel(row.lastSeen) }}</td>
+                        <td class="px-2 py-2 text-muted-foreground tabular-nums">{{ weekLabel(row.lastSeen) }}</td>
                         <td
                             class="px-2 py-2 text-right tabular-nums"
                             data-testid="practice-guest-sp"

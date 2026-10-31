@@ -131,7 +131,7 @@ describe('Reports/Rollup', () => {
         await rows()[2].trigger('click');
 
         expect(panel().text()).toContain('Frozen snapshot');
-        expect(panel().text()).toContain('Frozen Tue 06Oct26 22:14Z (2 days ago) by Haddad.Y');
+        expect(panel().text()).toContain('Frozen Tue 06OCT26 22\u200A14Z (2 days ago) by Haddad.Y');
         expect(panel().find('[data-testid="kpis"]').text()).toContain('+2 pts');
         expect(panel().find('[data-testid="kpis"]').text()).toContain('-1.5 pts');
         expect(panel().text()).toContain('Full house.');
@@ -157,7 +157,7 @@ describe('Reports/Rollup', () => {
         await panel().find('[data-testid="copy-reminder"]').trigger('click');
         await flushPromises();
 
-        expect(writeText.mock.calls[0][0]).toMatch(/^Reminder: the 2nd Section \(2\/1\/A\/1-7\) weekly report for the week ending 09Oct26 /);
+        expect(writeText.mock.calls[0][0]).toMatch(/^Reminder: the 2nd Section \(2\/1\/A\/1-7\) weekly report for the week ending 09OCT26 \(03OCT26 to 09OCT26\) /);
         expect(writeText.mock.calls[0][0]).toContain('/reports/21/2026-10-03');
         expect(toastSuccess).toHaveBeenCalledWith('Reminder copied', expect.anything());
     });
@@ -234,11 +234,11 @@ describe('Reports/Rollup', () => {
     it('changes week through the selector and the arrows, keeping the unit in the URL', async () => {
         mountRollup({ scopeUnitId: 2 });
         // Each week reads by its end date, but its value, and so the URL, stays its start (#568).
-        expect(wrapper.find('h1').text()).toBe('Week Ending 09Oct26');
+        expect(wrapper.find('h1').text()).toBe('Week Ending 09OCT26 (03OCT26 to 09OCT26)');
         expect(wrapper.findAll('[data-testid="week-select"] option').map((o) => [o.attributes('value'), o.text()])).toEqual([
-            ['2026-10-03', 'This week, ending 09Oct26'],
-            ['2026-09-26', 'Week Ending 02Oct26'],
-            ['2026-09-19', 'Week Ending 25Sep26'],
+            ['2026-10-03', 'This week, 03OCT26 to 09OCT26'],
+            ['2026-09-26', '26SEP26 to 02OCT26'],
+            ['2026-09-19', '19SEP26 to 25SEP26'],
         ]);
         await wrapper.find('[data-testid="week-select"]').setValue('2026-09-19');
         expect(getSpy).toHaveBeenLastCalledWith('/reports/2', { week: '2026-09-19' }, expect.anything());

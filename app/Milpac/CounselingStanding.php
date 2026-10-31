@@ -251,9 +251,9 @@ final class CounselingStanding
         return CarbonImmutable::createFromTimestampUTC($day * 86400)->toDateString();
     }
 
-    /** `03Oct26`, the forum date (docs/copywriting.md). */
+    /** `03OCT26`, the forum date (docs/copywriting.md). */
     private static function forumDate(int $day): string
     {
-        return CarbonImmutable::createFromTimestampUTC($day * 86400)->format('dMy');
+        return strtoupper(CarbonImmutable::createFromTimestampUTC($day * 86400)->format('dMy'));
     }
 }

@@ -37,7 +37,7 @@ describe('StaffReportsPanel', () => {
             },
         });
 
-        expect(wrapper.find('[data-testid="staff-report-row-1"] [data-testid="staff-report-state"]').text()).toBe('Yes, office hour (06Oct26)');
+        expect(wrapper.find('[data-testid="staff-report-row-1"] [data-testid="staff-report-state"]').text()).toBe('Yes, office hour (06OCT26)');
         expect(wrapper.find('[data-testid="staff-report-row-1"] [data-testid="staff-report-discrepancy"]').exists()).toBe(false);
         expect(wrapper.find('[data-testid="staff-report-row-2"] [data-testid="staff-report-discrepancy"]').exists()).toBe(true);
     });

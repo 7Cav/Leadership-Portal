@@ -39,7 +39,7 @@ function detail(over = {}) {
 const LOA_SYNC = { source: 'Forum thread', lastSyncedAt: '2026-10-08T09:14:00+00:00', stale: false, neverSynced: false, latestStatus: 'success', latestFinishedAt: '2026-10-08T09:14:00+00:00' };
 
 const factory = (trooperId = 12) =>
-    mount(TrooperSheet, { props: { trooperId, links: LINKS, syncLabel: 'milpac, synced 09:14Z', loaSync: LOA_SYNC }, attachTo: document.body });
+    mount(TrooperSheet, { props: { trooperId, links: LINKS, syncLabel: 'milpac, synced 09\u200A14Z', loaSync: LOA_SYNC }, attachTo: document.body });
 
 afterEach(() => {
     document.body.innerHTML = '';
@@ -51,7 +51,7 @@ describe('Trooper sheet', () => {
         factory();
         await flushPromises();
 
-        expect(document.body.querySelector('[data-testid="loa-sync"]').textContent).toContain('Leave from Forum thread, synced 08Oct26 09:14Z');
+        expect(document.body.querySelector('[data-testid="loa-sync"]').textContent).toContain('Leave from Forum thread, synced 08OCT26 09\u200A14Z');
     });
 
     it('loads the trooper from the scope-checked endpoint and shows identity, at-risk and marks with source', async () => {
@@ -66,7 +66,7 @@ describe('Trooper sheet', () => {
         expect(sheet.querySelector('[data-testid="sheet-at-risk"]').textContent).toContain('Missed 3');
         const recent = sheet.querySelectorAll('[data-testid="sheet-recent"] tbody tr');
         expect(recent).toHaveLength(8);
-        expect(recent[0].textContent).toContain('09Oct26');
+        expect(recent[0].textContent).toContain('09OCT26');
         expect(recent[0].textContent).toContain('Auto, game server capture');
         expect(recent[1].textContent).toContain('No roll call posted');
     });
@@ -84,7 +84,7 @@ describe('Trooper sheet', () => {
         await flushPromises();
 
         const sheet = document.body.querySelector('[data-testid="trooper-sheet"]');
-        expect(sheet.querySelector('[data-testid="transfers"]').textContent).toContain('Moved from 1/2/A/1-7 to 2/1/A/1-7, 30Sep26');
+        expect(sheet.querySelector('[data-testid="transfers"]').textContent).toContain('Moved from 1/2/A/1-7 to 2/1/A/1-7, 30SEP26');
         const recent = sheet.querySelectorAll('[data-testid="sheet-recent"] tbody tr');
         expect(recent[0].querySelector('[data-testid="sheet-week-section"]')).toBeNull();
         expect(recent[2].querySelector('[data-testid="sheet-week-section"]').textContent).toBe('At 1/2/A/1-7');
@@ -97,7 +97,7 @@ describe('Trooper sheet', () => {
         await flushPromises();
 
         const chip = document.body.querySelector('[data-testid="leave-from"]');
-        expect(chip.textContent.trim()).toBe('Leave from 12Oct26');
+        expect(chip.textContent.trim()).toBe('Leave from 12OCT26');
         expect(chip.getAttribute('title')).toBe('Leave starting next Cav week, from LOA records');
 
         document.body.innerHTML = '';
@@ -129,7 +129,7 @@ describe('Trooper sheet', () => {
 
         const rows = document.body.querySelectorAll('[data-testid="sheet-staff-practices"] [data-testid="staff-practice"]');
         expect(rows).toHaveLength(2);
-        expect(rows[0].textContent).toContain('Week Ending 09Oct26, 1/1/A/1-7');
+        expect(rows[0].textContent).toContain('03OCT26 to 09OCT26, 1/1/A/1-7');
         expect(rows[0].textContent).toContain('Self-reported by Reyes.M');
         expect(rows[1].textContent).toContain('Seen on the game server');
         expect(document.body.querySelector('[data-testid="staff-practice-remove"]')).toBeNull();
@@ -251,7 +251,7 @@ describe('Trooper sheet', () => {
             await flushPromises();
 
             const link = document.body.querySelector('[data-testid="sheet-makeup-pm"]');
-            expect(link.getAttribute('href')).toBe('https://7cav.us/conversations/add?to=Reyes.M&title=Section%20practice%20makeup%3A%20weeks%20ending%2002Oct26%2C%2009Oct26');
+            expect(link.getAttribute('href')).toBe('https://7cav.us/conversations/add?to=Reyes.M&title=Section%20practice%20makeup%3A%20weeks%2026SEP26%20to%2002OCT26%2C%2003OCT26%20to%2009OCT26');
             expect(link.getAttribute('target')).toBe('_blank');
             expect(link.getAttribute('rel')).toBe('noopener noreferrer');
             expect(link.textContent).toContain('Send makeup PM');

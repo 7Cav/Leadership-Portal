@@ -144,11 +144,11 @@ class AuditLogController extends Controller
         return match (true) {
             $target instanceof SectionPractice && $target->section !== null => [
                 'href' => route('rollcall.show', ['unit' => $target->section_id, 'week' => $target->week_start->toDateString()], false),
-                'label' => "{$unit($target->section)} roll call, week ending ".WeekLabel::ending($target->week_start),
+                'label' => "{$unit($target->section)} roll call, week ".WeekLabel::range($target->week_start),
             ],
             $target instanceof WeeklyReport && $target->unit !== null => [
                 'href' => route('reports.show', ['unit' => $target->unit_id, 'week' => $target->week_start->toDateString()], false),
-                'label' => "{$unit($target->unit)} report, week ending ".WeekLabel::ending($target->week_start),
+                'label' => "{$unit($target->unit)} report, week ".WeekLabel::range($target->week_start),
             ],
             $target instanceof Unit => [
                 'href' => route('roster.index', ['unit' => $target->id], false),
@@ -189,7 +189,7 @@ class AuditLogController extends Controller
             ],
             $target instanceof PlatoonTrainingTopic && $target->unit !== null => [
                 'href' => route('reports.show', ['unit' => $target->unit_id, 'week' => $target->week_start->toDateString()], false),
-                'label' => "{$unit($target->unit)} training topic, week ending ".WeekLabel::ending($target->week_start),
+                'label' => "{$unit($target->unit)} training topic, week ".WeekLabel::range($target->week_start),
             ],
             $target instanceof TrainingPlan && $target->unit !== null => [
                 'href' => route('training-plans.show', ['unit' => $target->unit_id, 'month' => $target->month], false),
@@ -249,7 +249,7 @@ class AuditLogController extends Controller
 
         return [
             'href' => route('rollcall.show', ['unit' => $practice->section_id, 'week' => $practice->week_start->toDateString()], false),
-            'label' => GameIdentityText::reveal($dismissal->player_name)." dismissed, {$section} roll call, week ending ".WeekLabel::ending($practice->week_start),
+            'label' => GameIdentityText::reveal($dismissal->player_name)." dismissed, {$section} roll call, week ".WeekLabel::range($practice->week_start),
         ];
     }
 

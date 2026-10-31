@@ -219,7 +219,7 @@ describe('read week by week', function () {
 // never counted for a week before anyone was placed in it, and the troopers with no history are read as sectionsByWeek()
 // reads them.
 
-/** @return array<string, list<int>> the units placed in each week from 03Oct26 to 17Oct26 */
+/** @return array<string, list<int>> the units placed in each week from 03OCT26 to 17OCT26 */
 function phPlacedByWeek(): array
 {
     return app(TrooperPlacementRepository::class)

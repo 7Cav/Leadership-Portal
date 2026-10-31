@@ -22,6 +22,7 @@ import {
     SP_STATES,
     weekCell,
     weekLabel,
+    weekTick,
 } from '@/lib/roster';
 import { vStickyHead } from '@/lib/stickyHead';
 import CellLegend from './CellLegend.vue';
@@ -135,7 +136,7 @@ function aggregate(members, index) {
 function cellLabel(trooper, index) {
     const c = cell(trooper, index);
 
-    return `Week Ending ${weekLabel(props.weeks[index])}. Roll call: ${RC_STATES[c.rc]}. SP: ${SP_STATES[c.sp]}.`;
+    return `${weekLabel(props.weeks[index])}. Roll call: ${RC_STATES[c.rc]}. SP: ${SP_STATES[c.sp]}.`;
 }
 
 function aggregateLabel(row, i) {
@@ -143,7 +144,7 @@ function aggregateLabel(row, i) {
     const rc = agg.due ? `${agg.signed} of ${agg.due} signed` : RC_STATES[agg.rc] ?? 'no data';
     const sp = agg.marked ? `${agg.attended} of ${agg.marked} attended` : SP_STATES[agg.sp] ?? 'no data';
 
-    return `${row.unit.callsign ?? row.unit.name}, week ending ${weekLabel(props.weeks[i])}. Roll call ${rc}. SP ${sp}.`;
+    return `${row.unit.callsign ?? row.unit.name}, week ${weekLabel(props.weeks[i])}. Roll call ${rc}. SP ${sp}.`;
 }
 
 const byId = computed(() => new Map(props.troopers.map((t) => [t.id, t])));
@@ -158,7 +159,7 @@ function resolveTip(key) {
         const c = cell(trooper, index);
 
         return {
-            title: `${trooper.displayName}, week ending ${weekLabel(week)}${current ? ' (this week)' : ''}`,
+            title: `${trooper.displayName}, week ${weekLabel(week)}${current ? ' (this week)' : ''}`,
             rows: [
                 ['Roll call', RC_STATES[c.rc], c.rc === 'open' ? 'Roll call still open' : null],
                 ['SP', SP_STATES[c.sp], sourceLabel(mark)],
@@ -169,7 +170,7 @@ function resolveTip(key) {
     const agg = aggregate(activeMembers(unit.id), index);
 
     return {
-        title: `${unit.callsign ?? unit.name}, week ending ${weekLabel(week)}${current ? ' (this week)' : ''}`,
+        title: `${unit.callsign ?? unit.name}, week ${weekLabel(week)}${current ? ' (this week)' : ''}`,
         rows: [
             ['Roll call', agg.due ? `${agg.signed} of ${agg.due} signed` : RC_STATES[agg.rc] ?? 'n/a'],
             ['SP', agg.marked ? `${agg.attended} of ${agg.marked} attended` : SP_STATES[agg.sp] ?? 'n/a'],
@@ -275,9 +276,9 @@ function clearAll() {
                             scope="col"
                             class="wk"
                             :class="weeks[i] === currentWeek && 'is-now'"
-                            :title="`Cav week ending ${weekLabel(weeks[i])}${weeks[i] === currentWeek ? ', this week' : ''}`"
+                            :title="`Cav week ${weekLabel(weeks[i])}${weeks[i] === currentWeek ? ', this week' : ''}`"
                         >
-                            {{ weekLabel(weeks[i]).slice(0, 5) }}
+                            {{ weekTick(weeks[i]) }}
                         </th>
                         <th class="sum sum-rc" scope="col" :aria-sort="sortKey === 'rc' ? 'ascending' : 'none'">
                             <button type="button" class="ml-auto inline-flex items-center gap-1 hover:text-foreground" title="Sort by RC 30d" @click="sortKey = 'rc'">

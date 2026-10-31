@@ -9,7 +9,8 @@ import StaffReportPresence from '@/components/reports/StaffReportPresence.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { weekLabel } from '@/lib/forumDate';
+import { weekLabel, weekPhrase } from '@/lib/forumDate';
+import WeekHeading from '@/components/week/WeekHeading.vue';
 import { stamp } from '@/lib/report';
 import { attendedText, sheetText } from '@/lib/staffReport';
 
@@ -63,20 +64,20 @@ function openRow(event, row) {
 </script>
 
 <template>
-    <Head :title="`Staff reports, week ending ${weekLabel(week.start)} · 7Cav Leadership Portal`" />
+    <Head :title="`Staff reports, ${weekPhrase(week.start)} · 7Cav Leadership Portal`" />
 
     <div class="flex max-w-5xl flex-col gap-4" data-testid="staff-reports-page">
         <section aria-labelledby="page-title" class="flex flex-wrap items-end gap-x-6 gap-y-3">
             <div class="min-w-0">
                 <p class="text-xs text-muted-foreground">Staff reports</p>
-                <h1 id="page-title" class="text-xl font-semibold tracking-tight sm:text-[22px]">Week Ending {{ weekLabel(week.start) }}</h1>
+                <h1 id="page-title" class="text-xl font-semibold tracking-tight sm:text-[22px]"><WeekHeading :week="week.start" /></h1>
             </div>
             <nav class="flex items-center gap-1" aria-label="Choose week">
                 <Button variant="ghost" size="icon-sm" as-child>
-                    <Link :href="weekUrl(week.previous)" :aria-label="`Previous week, ending ${weekLabel(week.previous)}`"><PhCaretLeft /></Link>
+                    <Link :href="weekUrl(week.previous)" :aria-label="`Previous week, ${weekLabel(week.previous)}`"><PhCaretLeft /></Link>
                 </Button>
                 <Button v-if="week.next" variant="ghost" size="icon-sm" as-child>
-                    <Link :href="weekUrl(week.next)" :aria-label="`Next week, ending ${weekLabel(week.next)}`"><PhCaretRight /></Link>
+                    <Link :href="weekUrl(week.next)" :aria-label="`Next week, ${weekLabel(week.next)}`"><PhCaretRight /></Link>
                 </Button>
                 <Button v-else variant="ghost" size="icon-sm" disabled aria-label="Next week, not open yet"><PhCaretRight /></Button>
             </nav>

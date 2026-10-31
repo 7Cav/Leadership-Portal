@@ -8,11 +8,11 @@ const query = (url) => Object.fromEntries(new URL(url).searchParams);
 
 describe('makeupPmTitle', () => {
     it('names one missed week by its end date in the forum date convention', () => {
-        expect(makeupPmTitle(['2026-10-03'])).toBe('Section practice makeup: week ending 09Oct26');
+        expect(makeupPmTitle(['2026-10-03'])).toBe('Section practice makeup: week 03OCT26 to 09OCT26');
     });
 
     it('lists several missed weeks oldest first, without repeats', () => {
-        expect(makeupPmTitle(['2026-10-03', '2026-09-26', '2026-10-03'])).toBe('Section practice makeup: weeks ending 02Oct26, 09Oct26');
+        expect(makeupPmTitle(['2026-10-03', '2026-09-26', '2026-10-03'])).toBe('Section practice makeup: weeks 26SEP26 to 02OCT26, 03OCT26 to 09OCT26');
     });
 
     it('falls back to a plain title when no week is known or a value is not a date', () => {
@@ -27,13 +27,13 @@ describe('makeupPmUrl', () => {
         const url = makeupPmUrl('https://7cav.us', 'Vasquez.R', ['2026-09-26', '2026-10-03']);
 
         expect(url.startsWith('https://7cav.us/conversations/add?')).toBe(true);
-        expect(query(url)).toEqual({ to: 'Vasquez.R', title: 'Section practice makeup: weeks ending 02Oct26, 09Oct26' });
+        expect(query(url)).toEqual({ to: 'Vasquez.R', title: 'Section practice makeup: weeks 26SEP26 to 02OCT26, 03OCT26 to 09OCT26' });
     });
 
     it('encodes every value, so a name with spaces or URL characters cannot break or extend the query', () => {
         const url = makeupPmUrl('https://7cav.us', 'Doe J&title=x#y', ['2026-10-03']);
 
-        expect(url).toBe('https://7cav.us/conversations/add?to=Doe%20J%26title%3Dx%23y&title=Section%20practice%20makeup%3A%20week%20ending%2009Oct26');
+        expect(url).toBe('https://7cav.us/conversations/add?to=Doe%20J%26title%3Dx%23y&title=Section%20practice%20makeup%3A%20week%2003OCT26%20to%2009OCT26');
         expect(query(url).to).toBe('Doe J&title=x#y');
         expect(Object.keys(query(url))).toEqual(['to', 'title']);
     });

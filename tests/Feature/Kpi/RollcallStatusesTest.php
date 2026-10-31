@@ -22,7 +22,7 @@ use Illuminate\Support\Carbon;
 // time, and a trooper's first Cav week after a transfer into a section, or after joining, is excused automatically
 // until a leader records otherwise. Make-up requested counts as signed, and the trooper owes a make-up for that week
 // until one is recorded.
-// The running week is 03Oct26 (Thursday 08Oct26 now); "weeks back" 3..0 are 12Sep26, 19Sep26, 26Sep26 and 03Oct26.
+// The running week is 03OCT26 (Thursday 08OCT26 now); "weeks back" 3..0 are 12SEP26, 19SEP26, 26SEP26 and 03OCT26.
 
 function rsWeek(int $back = 0): CarbonImmutable
 {

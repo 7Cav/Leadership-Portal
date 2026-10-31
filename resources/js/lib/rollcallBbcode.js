@@ -4,6 +4,14 @@ import { forumDate } from './forumDate';
 import { insigniaWidth } from './rankInsignia';
 import { displayName, fullName, practiceOf, rankIconOf, rankOf, signatureOf } from './rollcall';
 
+// The forum post keeps its own date form, `03Oct26` with the month in title case, so a posted roll call reads the same
+// as before the portal moved to capital months on screen (#568). Only the post: everything on screen uses `forumDate()`.
+function postDate(value) {
+    const date = forumDate(value);
+
+    return date.slice(0, 3) + date.slice(3, 5).toLowerCase() + date.slice(5);
+}
+
 // The rollcall forum post (Stories 3.10, 3.11). The post is whatever the section's company has as its active template
 // (3.5, resolved by the server on every render, 3.6, AD-17) filled with the week's marks. There is no built-in copy to
 // fall back to: a company with no template shows what is missing instead of a post nobody wrote. The portal never
@@ -64,9 +72,9 @@ export function rollcallContext({ section, week, troopers, fireteams = {} }) {
     return {
         unit: section.designation,
         unit_name: section.name,
-        week: `${forumDate(week.start)} – ${forumDate(week.closes)}`,
-        week_start: forumDate(week.start),
-        week_end: forumDate(week.closes),
+        week: `${postDate(week.start)} – ${postDate(week.closes)}`,
+        week_start: postDate(week.start),
+        week_end: postDate(week.closes),
         count: String(rows.length),
         signed: String(rows.filter((row) => row.rc_yes).length),
         attended: String(rows.filter((row) => row.sp_present || row.sp_makeup).length),

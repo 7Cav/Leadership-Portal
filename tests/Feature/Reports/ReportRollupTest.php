@@ -17,7 +17,7 @@ use Inertia\Testing\AssertableInertia;
 
 // Story 5.8: the report roll-up workspace. Scope from the ScopeResolver (AD-8), 403 outside it,
 // a leaf leader straight to their own report, and one batched read for the whole chain.
-// "Now" is Thu 08Oct26, so the current week is the one opening Sat 03Oct26, due Sat 10Oct26 23:59Z.
+// "Now" is Thu 08OCT26, so the current week is the one opening Sat 03OCT26, due Sat 10OCT26 23:59Z.
 // Fixture tree:
 //   1-7 ─ A/1-7 ─┬─ 1/A ─┬─ 1/1/A   (sent, by Haddad.Y)
 //                │       └─ 2/1/A   (draft)

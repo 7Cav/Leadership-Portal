@@ -1,4 +1,4 @@
-import { forumDate, weekLabel } from './forumDate';
+import { forumDate, weekPhrase, zuluTime } from './forumDate';
 
 // Pure helpers behind the report roll-up workspace (Story 5.8). The server sends the chain as a
 // tree of nodes (ReportRollupController::present); everything here only reads it — no KPI is
@@ -50,13 +50,12 @@ export function unitLabel(node) {
     return node.callsign || node.name;
 }
 
-// `Tue 06Oct26 22:14Z`, read in UTC like every portal timestamp (AD-11).
-export function dayTime(value) {
+// `Tue 06OCT26 22 14Z` (hair space), or `Tue 06OCT26 2214Z` with `{ plain: true }`, read in UTC like every portal
+// timestamp (AD-11).
+export function dayTime(value, options = {}) {
     const date = new Date(value);
-    const hh = String(date.getUTCHours()).padStart(2, '0');
-    const mm = String(date.getUTCMinutes()).padStart(2, '0');
 
-    return `${WEEKDAYS[date.getUTCDay()]} ${forumDate(date)} ${hh}:${mm}Z`;
+    return `${WEEKDAYS[date.getUTCDay()]} ${forumDate(date)} ${zuluTime(date, options)}`;
 }
 
 // Every node by id, with its parent id and tree level (roots are level 1).
@@ -144,10 +143,10 @@ export function progress(roots) {
 // A forum-ready reminder for a leader whose report is not in: the unit, the week and the
 // deadline, and where to send it. There is no messaging integration, so it is copied, not sent.
 export function reminderText(node, { weekStart, reportDue, origin, now = Date.now() }) {
-    const due = dayTime(reportDue);
+    const due = dayTime(reportDue, { plain: true });
     const deadline = new Date(reportDue).getTime() > now ? `is due ${due}` : `was due ${due} and is overdue`;
     const unit = node.callsign ? `${node.name} (${node.callsign})` : node.name;
 
-    return `Reminder: the ${unit} weekly report for the week ending ${weekLabel(weekStart)} ${deadline}. `
+    return `Reminder: the ${unit} weekly report for the ${weekPhrase(weekStart)} ${deadline}. `
         + `Send it from the Leadership Portal: ${origin}${node.reportUrl}`;
 }

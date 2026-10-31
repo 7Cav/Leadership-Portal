@@ -11,7 +11,7 @@ use Carbon\CarbonImmutable;
 
 // AD-20, AD-4: Home, the roster, the milpac, rollcall and the weekly report read the roster's source and freshness
 // from one reader (Milpac\RosterProvenance), so no page calls the cache current while another calls it stale.
-// "Now" is Thu 08Oct26 16:20Z, inside the Cav week that opened Sat 03Oct26.
+// "Now" is Thu 08OCT26 16:20Z, inside the Cav week that opened Sat 03OCT26.
 
 beforeEach(function () {
     $this->travelTo(CarbonImmutable::parse('2026-10-08 16:20:00', 'UTC'));

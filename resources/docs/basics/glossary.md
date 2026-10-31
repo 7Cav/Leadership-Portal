@@ -8,7 +8,7 @@ audience: everyone
 
 ## Weeks and attendance
 
-- Cav week: Saturday 00:00 UTC to Friday 23:59 UTC. Every roll call, report and number in the portal is counted per Cav week. The portal names a week by its last day, the Friday, as the Google Form does: the week from Saturday 24Oct26 to Friday 30Oct26 is the week ending 30Oct26.
+- Cav week: Saturday 00:00 UTC to Friday 23:59 UTC. Every roll call, report and number in the portal is counted per Cav week. The portal names a week by its last day, as the Google Form does, followed by both its dates: Week Ending 30OCT26 (24OCT26 to 30OCT26). In tables and lists it shows the dates alone: 24OCT26 to 30OCT26.
 - Roll call: the forum thread troopers sign each week to say whether they will attend, and the portal's screen where a leader records it.
 - Section practice (SP): the weekly practice a section holds. Each trooper is marked Attended, Not attended, Excused or Make-up complete.
 - Excused: a week that counts for nothing, like LOA. A leader sets it, or it is set automatically for a trooper's first week after a transfer into a section or after joining.

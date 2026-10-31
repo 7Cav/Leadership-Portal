@@ -11,7 +11,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 
 /**
- * The staff practice tests' shared tree (#448), with the clock on Thursday 08Oct26, in the Cav week of 03Oct26:
+ * The staff practice tests' shared tree (#448), with the clock on Thursday 08OCT26, in the Cav week of 03OCT26:
  *
  *   7CAV ─┬─ 1-7 ─ A/1-7 (CO `co`) ─ 1/A/1-7 (PL `pl`, PSG Brandt.L) ─┬─ 1/1/A/1-7 (SL `sl`, rifleman Okafor.B)
  *         │                                                         └─ 2/1/A/1-7

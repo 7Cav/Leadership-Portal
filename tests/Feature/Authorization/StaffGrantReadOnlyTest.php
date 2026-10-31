@@ -19,7 +19,7 @@ use Inertia\Testing\AssertableInertia as Assert;
 // route answers 403 with nothing written. Only command authority (a billet, or Admin) writes.
 
 beforeEach(function () {
-    // Thursday of the Cav week that opened Saturday 03Oct26.
+    // Thursday of the Cav week that opened Saturday 03OCT26.
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-08 20:00:00', 'UTC'));
     $repo = app(UnitRepository::class);
     $this->company = $repo->create(UnitType::Company, 'Alpha Company', 'A/1-7', null);

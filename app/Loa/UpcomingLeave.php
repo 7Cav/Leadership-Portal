@@ -8,7 +8,7 @@ use InvalidArgumentException;
 
 /**
  * Who is about to go on leave: the troopers whose cleanly read leave starts in the Cav week after `$weekStart`, for
- * the "Leave from 17Oct26" chip a leader plans practice by. Read from the one LOA definition ({@see LoaCoverage},
+ * the "Leave from 17OCT26" chip a leader plans practice by. Read from the one LOA definition ({@see LoaCoverage},
  * AD-21), never from `loas` directly. A leave that needs review asserts no start, so it never shows here (AD-4); a
  * leave already running in `$weekStart` is not "upcoming" either, since it started earlier.
  */

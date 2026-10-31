@@ -162,8 +162,8 @@ describe('Settings/Templates', () => {
     it('lists every version with its date in forum convention and its author, marking the active one', () => {
         const wrapper = page();
 
-        expect(wrapper.get('[data-testid="version-row-22"]').text()).toContain('08Oct26 by Pike.S');
-        expect(wrapper.get('[data-testid="version-row-21"]').text()).toContain('01Oct26');
+        expect(wrapper.get('[data-testid="version-row-22"]').text()).toContain('08OCT26 by Pike.S');
+        expect(wrapper.get('[data-testid="version-row-21"]').text()).toContain('01OCT26');
         expect(wrapper.get('[data-testid="version-row-22"]').find('[data-testid="active-badge"]').exists()).toBe(true);
         expect(wrapper.get('[data-testid="version-row-21"]').find('[data-testid="active-badge"]').exists()).toBe(false);
     });

@@ -56,7 +56,7 @@ function rhqScope(User $user): array
 }
 
 beforeEach(function () {
-    // Thursday of the Cav week that opened Saturday 03Oct26.
+    // Thursday of the Cav week that opened Saturday 03OCT26.
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-08 20:00:00', 'UTC'));
     $units = app(UnitRepository::class);
     $this->regiment = $units->create(UnitType::Regiment, '7th Cavalry Regiment', '7CAV', null);

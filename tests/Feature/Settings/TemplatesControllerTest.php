@@ -248,7 +248,7 @@ describe('making an older version active', function () {
 
 describe('previewing with a real section', function () {
     beforeEach(function () {
-        // Thursday 08Oct26, inside the Cav week that opened Saturday 03Oct26.
+        // Thursday 08OCT26, inside the Cav week that opened Saturday 03OCT26.
         Carbon::setTestNow(CarbonImmutable::parse('2026-10-08 16:20:00', 'UTC'));
 
         $this->alpha = Unit::factory()->create(['type' => UnitType::Company, 'name' => 'Alpha Company', 'callsign' => 'A/1-7', 'path' => '800/']);

@@ -51,7 +51,7 @@ describe('LoaBadge', () => {
         it('shows the type and the end date in forum convention', () => {
             const wrapper = badge({ cover: covered(), sync: synced() });
 
-            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('LOA ends 30Oct26');
+            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('LOA ends 30OCT26');
         });
 
         it('counts down when a leave is about to end, as the section overview mockup draws it', () => {
@@ -66,19 +66,19 @@ describe('LoaBadge', () => {
         it('names the date once a leave is more than a week from ending', () => {
             const wrapper = badge({ cover: covered({ endsInDays: 8 }), sync: synced() });
 
-            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('LOA ends 30Oct26');
+            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('LOA ends 30OCT26');
         });
 
         it('says ended, not ends, for a leave the server marks as already over', () => {
             const wrapper = badge({ cover: covered({ endsAt: '2026-10-03', endsInDays: null, ended: true }), sync: synced() });
 
-            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('LOA ended 03Oct26');
+            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('LOA ended 03OCT26');
         });
 
         it('says ended for an ELOA a return has closed', () => {
             const wrapper = badge({ cover: covered({ type: 'eloa', typeLabel: 'ELOA', endsAt: '2026-10-06', expectedReturnAt: '2026-10-20', ended: true }), sync: synced() });
 
-            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('ELOA ended 06Oct26');
+            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('ELOA ended 06OCT26');
         });
 
         it('shows the type and ongoing when an open-ended leave has no expected return either', () => {
@@ -99,15 +99,15 @@ describe('LoaBadge', () => {
         it('shows the expected return of an ELOA as its end date, and says it can be extended', () => {
             const wrapper = badge({ cover: covered({ type: 'eloa', typeLabel: 'ELOA', endsAt: null, expectedReturnAt: '2026-11-13', ongoing: true }), sync: synced() });
 
-            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('ELOA ends 13Nov26');
-            expect(wrapper.get('[data-testid="loa-details"]').text()).toContain('ELOA from 05Oct26, expected return 13Nov26');
+            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('ELOA ends 13NOV26');
+            expect(wrapper.get('[data-testid="loa-details"]').text()).toContain('ELOA from 05OCT26, expected return 13NOV26');
             expect(wrapper.get('[data-testid="loa-details"]').text()).toContain('can be extended');
         });
 
         it('says overdue, with the date, once an open ELOA is past its expected return', () => {
             const wrapper = badge({ cover: covered({ type: 'eloa', typeLabel: 'ELOA', endsAt: null, expectedReturnAt: '2026-10-07', ongoing: true, overdue: true }), sync: synced() });
 
-            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('ELOA overdue 07Oct26');
+            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('ELOA overdue 07OCT26');
             expect(wrapper.get('[data-testid="loa-details"]').text()).toContain('no return has been posted');
         });
 
@@ -124,31 +124,31 @@ describe('LoaBadge', () => {
         it('follows the server on whether it is overdue, never the local clock', () => {
             const wrapper = badge({ cover: covered({ type: 'eloa', typeLabel: 'ELOA', endsAt: null, expectedReturnAt: '2000-01-01', ongoing: true, overdue: false }), sync: synced() });
 
-            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('ELOA ends 01Jan00');
+            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('ELOA ends 01JAN00');
         });
 
         it('is not overdue once a return has ended it', () => {
             const wrapper = badge({ cover: covered({ type: 'eloa', typeLabel: 'ELOA', endsAt: '2026-10-09', expectedReturnAt: '2026-10-01' }), sync: synced() });
 
-            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('ELOA ends 09Oct26');
+            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('ELOA ends 09OCT26');
         });
 
         it('shows the day a return ended an ELOA, not the expected one', () => {
             const wrapper = badge({ cover: covered({ type: 'eloa', typeLabel: 'ELOA', endsAt: '2026-11-02', expectedReturnAt: '2026-11-13' }), sync: synced() });
 
-            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('ELOA ends 02Nov26');
+            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('ELOA ends 02NOV26');
         });
 
         it('gives the dates in the details', () => {
             const wrapper = badge({ cover: covered(), sync: synced() });
 
-            expect(wrapper.get('[data-testid="loa-details"]').text()).toContain('LOA from 05Oct26 to 30Oct26');
+            expect(wrapper.get('[data-testid="loa-details"]').text()).toContain('LOA from 05OCT26 to 30OCT26');
         });
 
         it('says there is no end date yet for an open-ended leave', () => {
             const wrapper = badge({ cover: covered({ type: 'eloa', typeLabel: 'ELOA', endsAt: null, ongoing: true }), sync: synced() });
 
-            expect(wrapper.get('[data-testid="loa-details"]').text()).toContain('ELOA from 05Oct26, no end date yet');
+            expect(wrapper.get('[data-testid="loa-details"]').text()).toContain('ELOA from 05OCT26, no end date yet');
         });
     });
 
@@ -206,7 +206,7 @@ describe('LoaBadge', () => {
             const wrapper = badge({ cover: covered(), sync: synced() });
 
             expect(wrapper.get('[data-testid="loa-details"]').text()).toContain('Source: Forum thread');
-            expect(wrapper.get('[data-testid="loa-details"]').text()).toContain('Last synced 08Oct26 14:05Z');
+            expect(wrapper.get('[data-testid="loa-details"]').text()).toContain('Last synced 08OCT26 14\u200A05Z');
             expect(wrapper.get('[data-testid="loa-details"]').text()).not.toContain('did not succeed');
         });
 
@@ -214,7 +214,7 @@ describe('LoaBadge', () => {
             const wrapper = badge({ cover: covered(), sync: synced({ stale: true, latestStatus: 'failure', lastSyncedAt: '2026-10-01T09:30:00+00:00' }) });
             const details = wrapper.get('[data-testid="loa-details"]').text();
 
-            expect(details).toContain('Last synced 01Oct26 09:30Z');
+            expect(details).toContain('Last synced 01OCT26 09\u200A30Z');
             expect(details).toContain('The latest sync did not succeed, so this is the last good data.');
         });
 
@@ -227,7 +227,7 @@ describe('LoaBadge', () => {
         it('shows the leave without a source line when it is not given the sync state', () => {
             const wrapper = badge({ cover: covered() });
 
-            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('LOA ends 30Oct26');
+            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('LOA ends 30OCT26');
             expect(wrapper.get('[data-testid="loa-details"]').text()).not.toContain('Source');
         });
     });
@@ -267,13 +267,13 @@ describe('LoaBadge', () => {
         };
 
         it.each([
-            ['a leave with an end date', covered({ endsAt: '2026-10-20', endsInDays: 2 }), 'LOA until 20Oct26'],
-            ['a leave already over', covered({ endsAt: '2026-10-14', ended: true }), 'LOA ended 14Oct26'],
-            ['an open ELOA', covered({ type: 'eloa', typeLabel: 'ELOA', endsAt: null, expectedReturnAt: '2026-10-20', ongoing: true }), 'ELOA, expected back 20Oct26'],
+            ['a leave with an end date', covered({ endsAt: '2026-10-20', endsInDays: 2 }), 'LOA until 20OCT26'],
+            ['a leave already over', covered({ endsAt: '2026-10-14', ended: true }), 'LOA ended 14OCT26'],
+            ['an open ELOA', covered({ type: 'eloa', typeLabel: 'ELOA', endsAt: null, expectedReturnAt: '2026-10-20', ongoing: true }), 'ELOA, expected back 20OCT26'],
             [
                 'an overdue ELOA',
                 covered({ type: 'eloa', typeLabel: 'ELOA', endsAt: null, expectedReturnAt: '2026-10-10', ongoing: true, overdue: true }),
-                'ELOA overdue, expected back 10Oct26, no return posted yet',
+                'ELOA overdue, expected back 10OCT26, no return posted yet',
             ],
             ['an ELOA with no return date', covered({ type: 'eloa', typeLabel: 'ELOA', endsAt: null, ongoing: true }), 'ELOA, no return date yet'],
             ['a leave that needs review', needsReview(), 'ELOA needs review: the leave post could not be read, so no dates are shown'],
@@ -283,7 +283,7 @@ describe('LoaBadge', () => {
         });
 
         it('never shows a date for a leave that needs review, even one the post half gave', async () => {
-            expect(await tooltipFor(needsReview({ endsAt: '2026-10-20' }))).not.toContain('20Oct26');
+            expect(await tooltipFor(needsReview({ endsAt: '2026-10-20' }))).not.toContain('20OCT26');
         });
 
         it('keeps the badge described by the full details for screen readers', () => {

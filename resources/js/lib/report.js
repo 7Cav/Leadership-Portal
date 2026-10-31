@@ -1,4 +1,4 @@
-import { forumDate, weekLabel } from '@/lib/forumDate';
+import { forumDate, weekPhrase, zuluTime } from '@/lib/forumDate';
 import { owesMakeup, practiceOf, signatureOf } from '@/lib/rollcall';
 
 // Presentation rules for the weekly report screen (Stories 5.3–5.5, mockups/v2/report-p3.html).
@@ -58,21 +58,15 @@ export function kpiChange(delta, kpi) {
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-function clock(value) {
-    const at = new Date(value);
-
-    return `${String(at.getUTCHours()).padStart(2, '0')}:${String(at.getUTCMinutes()).padStart(2, '0')}Z`;
-}
-
-// `Sat 10Oct26 23:59Z`
-export function stamp(value) {
+// `Sat 10OCT26 23 59Z` (hair space), or `Sat 10OCT26 2359Z` with `{ plain: true }` for copied text.
+export function stamp(value, options = {}) {
     if (!value) return null;
 
-    return `${WEEKDAYS[new Date(value).getUTCDay()]} ${forumDate(value)} ${clock(value)}`;
+    return `${WEEKDAYS[new Date(value).getUTCDay()]} ${forumDate(value)} ${zuluTime(value, options)}`;
 }
 
 export function timeOf(value) {
-    return value ? clock(value) : null;
+    return value ? zuluTime(value) : null;
 }
 
 export function unitLabel(unit) {
@@ -81,9 +75,9 @@ export function unitLabel(unit) {
 
 // What the deltas are measured against (5.4), as one sentence under the KPI grid.
 export function baselineText(baseline) {
-    if (baseline?.kind === 'prior') return `Change compared with your sent report for the week ending ${weekLabel(baseline.week)}.`;
+    if (baseline?.kind === 'prior') return `Change compared with your sent report for the ${weekPhrase(baseline.week)}.`;
     if (baseline?.kind === 'no_prior') {
-        return `No prior baseline: last week was not sent. The last sent report is for the week ending ${weekLabel(baseline.week)}.`;
+        return `No prior baseline: last week was not sent. The last sent report is for the ${weekPhrase(baseline.week)}.`;
     }
 
     return 'First report: no earlier sent report to compare with.';

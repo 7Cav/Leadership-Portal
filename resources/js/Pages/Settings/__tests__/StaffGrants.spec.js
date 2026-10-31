@@ -270,7 +270,7 @@ describe('Settings/StaffGrants', () => {
             expect(chief.text()).toContain('Regimental Chief of Staff');
             expect(wrapper.find('[data-testid="admin-via-billet-group-31"]').text()).toBe('Regimental HQ');
             expect(chief.text()).toContain('COL Mercer.T');
-            expect(wrapper.find('[data-testid="admin-via-billet-approved-31"]').text()).toBe('28Oct26 by Hale.S');
+            expect(wrapper.find('[data-testid="admin-via-billet-approved-31"]').text()).toBe('28OCT26 by Hale.S');
 
             expect(wrapper.find('[data-testid="admin-via-billet-32"]').text()).toContain('MAJ Abbot.F, CPT Doyle.K');
             expect(wrapper.find('[data-testid="admin-via-billet-33"]').text()).toContain('Vacant');

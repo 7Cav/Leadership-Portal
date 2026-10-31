@@ -23,7 +23,7 @@ describe('LoaSyncProblems', () => {
     it('sums up the run, and lists each problem with a link to its thread on the forum', () => {
         const wrapper = mount(LoaSyncProblems, { props: { run: run() } });
 
-        expect(wrapper.get('summary').text()).toBe('Latest leave sync, 08Oct26 12:15Z: 2 problems reading the forum, 3 posts need review');
+        expect(wrapper.get('summary').text()).toBe('Latest leave sync, 08OCT26 12\u200A15Z: 2 problems reading the forum, 3 posts need review');
         const items = wrapper.findAll('[data-testid="loa-sync-unread"] li');
         expect(items[0].get('a').attributes('href')).toBe('https://7cav.us/threads/812/');
         expect(items[0].get('a').attributes('target')).toBe('_blank');
@@ -36,7 +36,7 @@ describe('LoaSyncProblems', () => {
     it('says why a failed run stopped', () => {
         const wrapper = mount(LoaSyncProblems, { props: { run: run({ status: 'failure', unread: 0, needsReview: 0, failure: 'The forum answered 401.', problems: [] }) } });
 
-        expect(wrapper.get('summary').text()).toBe('Latest leave sync, 08Oct26 12:15Z: failed');
+        expect(wrapper.get('summary').text()).toBe('Latest leave sync, 08OCT26 12\u200A15Z: failed');
         expect(wrapper.get('[data-testid="loa-sync-failure"]').text()).toBe('The sync stopped: The forum answered 401.');
     });
 

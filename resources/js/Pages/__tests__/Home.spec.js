@@ -18,8 +18,8 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     }),
 }));
 
-// The week HomeController sends for Thu 08Oct26: it opened Sat 03Oct26 00:00Z and its report is
-// due Sat 10Oct26 23:59Z (HomeWeekTest pins the server side).
+// The week HomeController sends for Thu 08OCT26: it opened Sat 03OCT26 00:00Z and its report is
+// due Sat 10OCT26 23:59Z (HomeWeekTest pins the server side).
 const WEEK = { start: '2026-10-03T00:00:00+00:00', reportDue: '2026-10-10T23:59:00+00:00' };
 
 describe('Home page', () => {
@@ -39,7 +39,7 @@ describe('Home page', () => {
 
     describe('week bar (real dates, no mock data)', () => {
         it('titles the week by its Friday, its end date, in forum date convention', () => {
-            expect(factory().find('h1').text()).toBe('Week Ending 09Oct26');
+            expect(factory().find('h1').text()).toBe('Week Ending 09OCT26 (03OCT26 to 09OCT26)');
         });
 
         it('lays out Saturday to Friday plus the Saturday the report is due', () => {
@@ -61,7 +61,7 @@ describe('Home page', () => {
         it('counts down to the report deadline in UTC', () => {
             const wrapper = factory();
 
-            expect(wrapper.text()).toContain('Report due Sat 10Oct26 23:59Z');
+            expect(wrapper.text()).toContain('Report due Sat 10OCT26 23\u200A59Z');
             expect(wrapper.find('[data-testid="countdown"]').text()).toBe('2d 07h 38m left');
         });
 
@@ -145,7 +145,7 @@ describe('Home page', () => {
             const staffReport = { week: '2026-10-03', due: '2026-10-10T23:59:00+00:00', href: '/staff-report/7/2026-10-03' };
             const notice = mount(Home, { props: { week: WEEK, staffReport } }).find('[data-testid="home-staff-report"]');
 
-            expect(notice.text()).toContain('Your staff report for the week ending 09Oct26 is not sent yet. It is due 10Oct26 23:59Z.');
+            expect(notice.text()).toContain('Your staff report for the week ending 09OCT26 (03OCT26 to 09OCT26) is not sent yet. It is due 10OCT26 23\u200A59Z.');
             expect(notice.find('[data-testid="home-staff-report-link"]').attributes('href')).toBe('/staff-report/7/2026-10-03');
         });
 

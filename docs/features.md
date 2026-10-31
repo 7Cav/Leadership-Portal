@@ -7,6 +7,13 @@ Practice, copy the forum post the portal builds, mark it posted, then send the s
 companies, battalions and the regiment then review and send their own reports, which roll up the ones below them.
 Home shows where every unit in your scope is in that cycle.
 
+Weeks and dates: every Cav week is named "Week Ending 30OCT26 (24OCT26 to 30OCT26)" in page titles, headers, home
+cards and browser tab titles, "the week ending 30OCT26 (24OCT26 to 30OCT26)" in sentences such as refusals, and
+"24OCT26 to 30OCT26" in tables, pickers, badges, tooltips and lists of weeks (chart axes: "24 to 30OCT"). Dates use the
+portal format with the month in capitals (23OCT26) and times read "23 59Z" on screen, "2359Z" in copied text. The roll
+call forum post keeps its own dates ("Rollcall, week of 03Oct26"). The staff report Google Sheet keeps the Form's Week Ending
+column, filled with the Friday alone.
+
 Who may open or change each page is in [permissions.md](permissions.md). This file says what the pages do.
 
 ## Leadership menu
@@ -14,7 +21,7 @@ Who may open or change each page is in [permissions.md](permissions.md). This fi
 ### Home
 
 The dashboard for your scope, for the Cav week whose report cycle is running (the closing week stays current until its
-report deadline, 23:59 UTC on the Saturday after it ends, has passed).
+report deadline, 2359Z on the Saturday after it ends, has passed).
 
 - Week bar: the days of the week and the report due date, with five progress lanes added up over every section in
   scope: Roll call posted, Roll call signed, SP held, Attendance marked, Report sent. Each section's step links to the
@@ -65,7 +72,7 @@ Your scope's units and troopers, from the cached Cav roster.
 - Trooper sheet: click a trooper for their unit, their billet tag and who leads the unit ("leads this platoon as PL"
   for the lead themselves), KPIs and 20 weeks of marks with where each mark came from. It links to the trooper's
   milpac page and their section's roll call.
-- Leave from: the trooper sheet shows a "Leave from 17Oct26" chip when the trooper's leave starts the next Cav week.
+- Leave from: the trooper sheet shows a "Leave from 17OCT26" chip when the trooper's leave starts the next Cav week.
 - Acting leads and portfolio leads are marked; HQ staff appear on their HQ node (platoon, company, battalion or
   regiment).
 - Guests at our practices: troopers from outside the unit recorded at its sections' practices, with visits, last week
@@ -108,7 +115,7 @@ One section's week, in three steps. It opens on the last section you opened, els
 else a section you are acting lead of, else the first section of the first platoon in your scope. It only lands on a
 section with troopers, unless every section in your scope is empty. The section picker still lists empty sections,
 marked "No troopers", so a leader can open one that is being stood up. A week selector moves back through past weeks (down to the week floor) and flags unfinished ones.
-Opened without a week, a section shows the closing week while its report is still due (until 23:59 UTC on the
+Opened without a week, a section shows the closing week while its report is still due (until 2359Z on the
 Saturday after the week) and that section has not sent it; "This week" opens the new week. A week chosen in the
 selector or a link always wins.
 
@@ -130,7 +137,7 @@ On the same page:
 
 - LOA: a trooper whose leave covers the week is locked, shows the LOA button pressed on both tabs (every other card shows it unpressed and disabled: it is set only from the LOA thread), is listed under "On LOA", and posts as `LOA`. A leave post the
   sync could not read shows a "needs review" badge but stays markable. A trooper whose cleanly read leave starts the
-  next Cav week shows a "Leave from 17Oct26" chip, read-only, so the next practice can be planned around it.
+  next Cav week shows a "Leave from 17OCT26" chip, read-only, so the next practice can be planned around it.
 - Excused: like LOA, the week counts for nothing (out of RC or SP, accounted on the report), in the same yellow. A
   section's leader can set it on the signature, the practice mark or both. A trooper's first Cav week after being
   placed into a section (from the placement history) and a new recruit's first week (from the join date) are excused
@@ -179,7 +186,7 @@ Cav after that week stays on it, can still be marked there and given a reason on
 moved to cannot mark them for that week. A trooper who moved partway through a week is on the roll call of the section
 they moved to, and their mark at either section counts (see "Makeups"). Such rows carry a small note: "Moved out",
 "Departed", or "Joined" for one who moved in during the week. A trooper placed before the placement history began
-(27Oct26) and never moved since is in their current section for every week since they joined the Cav: a recruit
+(27OCT26) and never moved since is in their current section for every week since they joined the Cav: a recruit
 is on no roll call of a week that ended before their join date. The roster sync records when a trooper
 leaves the Cav; one who left before it began doing so has no date and is on no past week's roll call.
 
@@ -276,7 +283,7 @@ report. So a section a trooper left partway through a week, with nobody else in 
 the running Cav week. So a section stood up or filled after a week is not one that week waits on, and a section that
 sends and is then emptied by a move still rolls up into its platoon for that week, keeps its platoon and company in that
 week's chain, and drops out from the first week it is empty. A trooper placed before the placement history began
-(27Oct26) and never moved since counts in their current section for every week.
+(27OCT26) and never moved since counts in their current section for every week.
 
 A trooper who leaves the Cav still counts in the chain for every week that opened before they left, as they stay on
 those weeks' roll calls (see above), so a section whose last trooper leaves drops out from the first week after they
@@ -452,7 +459,7 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
   for them: the capture reads the whole Cav week, so it only says they were on the server.
 - Sending: only once the Cav week has ended (from Saturday 00:00 UTC), so the HQ it counts for is the one they ended
   the week on. Only the staff member, signed in as themselves, sends it. Nobody sends it for them, Admins included, and
-  never through act as or view as. It is due when the unit reports are, 23:59 UTC on the Saturday after the week. A
+  never through act as or view as. It is due when the unit reports are, 2359Z on the Saturday after the week. A
   sent report is final, as a unit's report is: there is no edit and no second send. The type, the FTX's name and date,
   the office hour's date and note, other events and notes are frozen with it. The sent report reads back with a check,
   when it was sent, and that it is final. There is no draft: the picks stay

@@ -6,7 +6,7 @@ import { localTime } from '@/lib/timeAgo';
 
 const AT = '2026-10-16T22:16:00Z';
 
-const stamp = (props = { at: AT }, slot = '16Oct26 22:16Z') => mount(TimeAgo, { props, slots: slot ? { default: slot } : {}, attachTo: document.body });
+const stamp = (props = { at: AT }, slot = '16OCT26 22\u200A16Z') => mount(TimeAgo, { props, slots: slot ? { default: slot } : {}, attachTo: document.body });
 
 enableAutoUnmount(afterEach);
 
@@ -24,7 +24,7 @@ describe('TimeAgo', () => {
         const el = stamp().find('[data-time-ago]');
 
         expect(el.element.tagName).toBe('TIME');
-        expect(el.text()).toBe('16Oct26 22:16Z (35 min ago)');
+        expect(el.text()).toBe('16OCT26 22\u200A16Z (35 min ago)');
         expect(el.attributes('datetime')).toBe('2026-10-16T22:16:00.000Z');
     });
 
@@ -37,11 +37,11 @@ describe('TimeAgo', () => {
 
         vi.advanceTimersByTime(60_000);
         await nextTick();
-        expect(wrapper.text()).toBe('16Oct26 22:16Z (36 min ago)');
+        expect(wrapper.text()).toBe('16OCT26 22\u200A16Z (36 min ago)');
 
         vi.advanceTimersByTime(25 * 60_000);
         await nextTick();
-        expect(wrapper.text()).toBe('16Oct26 22:16Z (1 h ago)');
+        expect(wrapper.text()).toBe('16OCT26 22\u200A16Z (1 h ago)');
     });
 
     it('shares one clock across every stamp and stops it when the last one goes', () => {
@@ -62,7 +62,7 @@ describe('TimeAgo', () => {
         vi.setSystemTime(new Date('2026-10-16T23:51:00Z'));
 
         const wrapper = stamp();
-        expect(wrapper.text()).toBe('16Oct26 22:16Z (1 h ago)');
+        expect(wrapper.text()).toBe('16OCT26 22\u200A16Z (1 h ago)');
         expect(vi.getTimerCount()).toBe(1);
     });
 
@@ -80,7 +80,7 @@ describe('TimeAgo', () => {
     it('leaves the tooltip to its host when told to', () => {
         const wrapper = stamp({ at: AT, tooltip: false });
 
-        expect(wrapper.find('[data-time-ago]').text()).toBe('16Oct26 22:16Z (35 min ago)');
+        expect(wrapper.find('[data-time-ago]').text()).toBe('16OCT26 22\u200A16Z (35 min ago)');
         expect(wrapper.find('[data-time-ago]').attributes('tabindex')).toBeUndefined();
     });
 

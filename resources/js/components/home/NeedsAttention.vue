@@ -33,7 +33,7 @@ const makeupOwed = computed(() => props.attention.items.filter((item) => item.ki
 const ICONS = { holding: PhFileText, at_risk: PhUserMinus, loa_review: PhCalendarX, makeup_owed: PhClockCounterClockwise };
 const TONES = { holding: 'text-warning', at_risk: 'text-destructive', loa_review: 'text-warning', makeup_owed: 'text-info' };
 
-const weeksText = (weeks) => `${weeks.length === 1 ? 'the week' : 'the weeks'} ending ${weeks.map(weekLabel).join(', ')}`;
+const weeksText = (weeks) => `${weeks.length === 1 ? 'the week' : 'the weeks'} ${weeks.map(weekLabel).join(', ')}`;
 
 function rowTitle(item) {
     if (item.kind === 'holding') return `Open the ${item.unit.designation} report for this week`;

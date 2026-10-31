@@ -40,8 +40,8 @@ describe('KPI formatting', () => {
 
 describe('baselineText', () => {
     it('distinguishes the prior week, a skipped week, and a first report', () => {
-        expect(baselineText({ kind: 'prior', week: '2026-09-26T00:00:00+00:00' })).toContain('the week ending 02Oct26');
-        expect(baselineText({ kind: 'no_prior', week: '2026-09-19T00:00:00+00:00' })).toMatch(/No prior baseline.*the week ending 25Sep26/);
+        expect(baselineText({ kind: 'prior', week: '2026-09-26T00:00:00+00:00' })).toContain('the week ending 02OCT26 (26SEP26 to 02OCT26)');
+        expect(baselineText({ kind: 'no_prior', week: '2026-09-19T00:00:00+00:00' })).toMatch(/No prior baseline.*the week ending 25SEP26 \(19SEP26 to 25SEP26\)/);
         expect(baselineText({ kind: 'first', week: null })).toMatch(/^First report/);
     });
 });

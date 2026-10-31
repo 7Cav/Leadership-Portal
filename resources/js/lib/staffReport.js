@@ -4,7 +4,7 @@ import { forumDate } from '@/lib/forumDate';
 // carries `{ attended, practiceType, ftx: { name, date } | null, officeHour: { date, note } | null, practices }`, where
 // `practices` is a list of labels.
 
-/** `Yes: 1/1/A/1-7, 2/1/A/1-7` for an SP, `Yes, FTX Operation Anvil (09Jan26)`, `Yes, office hour (09Jan26)`, or `No`. Empty while not sent. */
+/** `Yes: 1/1/A/1-7, 2/1/A/1-7` for an SP, `Yes, FTX Operation Anvil (09JAN26)`, `Yes, office hour (09JAN26)`, or `No`. Empty while not sent. */
 export function attendedText(report) {
     if (report.attended === null || report.attended === undefined) return '';
     if (!report.attended) return 'No';

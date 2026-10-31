@@ -41,7 +41,7 @@ beforeEach(function () {
     $this->leaderA = User::factory()->commanding($this->a)->create();
     $this->leaderB = User::factory()->commanding($this->b)->create();
 
-    // Placed by the sync before the week of 03Oct26, so the placement history has them in A all of that week.
+    // Placed by the sync before the week of 03OCT26, so the placement history has them in A all of that week.
     pastWeekAt('2026-09-30 12:00:00');
     $this->stayer = Trooper::factory()->create();
     $this->mover = Trooper::factory()->create();
@@ -59,7 +59,7 @@ beforeEach(function () {
 afterEach(fn () => Carbon::setTestNow());
 
 it('keeps a trooper moved after the week on the rollcall, report and KPIs of the section he ended it in', function () {
-    // Saturday 10Oct26 08:00, before A's report for 03Oct26 is due: the sync moves the mover to B.
+    // Saturday 10OCT26 08:00, before A's report for 03OCT26 is due: the sync moves the mover to B.
     pastWeekAt('2026-10-10 08:00:00');
     $this->troopers->updatePrimarySections([$this->mover->cav_id => $this->b->id]);
     pastWeekAt('2026-10-10 12:00:00');
@@ -72,7 +72,7 @@ it('keeps a trooper moved after the week on the rollcall, report and KPIs of the
     $this->actingAs($this->leaderA)->postJson("/rollcall/{$this->a->id}", ['week' => '2026-10-03', 'marks' => [['trooper_id' => $this->mover->id, 'status' => 'present']]])
         ->assertOk();
 
-    // B never had him that week: not on its 03Oct26 rollcall, and it cannot mark him for it.
+    // B never had him that week: not on its 03OCT26 rollcall, and it cannot mark him for it.
     expect(pastWeekIds($this->actingAs($this->leaderB)->get("/rollcall/{$this->b->id}?week=2026-10-03")))->not->toContain($this->mover->id);
     $this->actingAs($this->leaderB)->postJson("/rollcall/{$this->b->id}", ['week' => '2026-10-03', 'marks' => [['trooper_id' => $this->mover->id, 'status' => 'present']]])
         ->assertStatus(422)
@@ -107,7 +107,7 @@ it('keeps a trooper moved after the week on the rollcall, report and KPIs of the
 });
 
 it('keeps a trooper who left the Cav during the week on that week, and off the weeks after it', function () {
-    // Thursday 08Oct26: he drops off every Cav roster.
+    // Thursday 08OCT26: he drops off every Cav roster.
     pastWeekAt('2026-10-08 09:00:00');
     $this->troopers->markDepartedExcept([$this->stayer->cav_id], [$this->a->id]);
     expect($this->mover->refresh()->status)->toBe(TrooperStatus::Inactive)
@@ -156,7 +156,7 @@ it('keeps a trooper with no placement history in his current section for a past 
 });
 
 it('leaves the running week on who is placed now', function () {
-    // Saturday 03Oct26 is still running: the move lands mid-week and the rollcall follows it at once.
+    // Saturday 03OCT26 is still running: the move lands mid-week and the rollcall follows it at once.
     pastWeekAt('2026-10-08 12:00:00');
     $this->troopers->updatePrimarySections([$this->mover->cav_id => $this->b->id]);
 

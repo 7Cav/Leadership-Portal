@@ -6,6 +6,7 @@ import EmptyState from '@/components/EmptyState.vue';
 import NoValue from '@/components/NoValue.vue';
 import TimeAgo from '@/components/TimeAgo.vue';
 import { weekLabel } from '@/lib/forumDate';
+import WeekHeading from '@/components/week/WeekHeading.vue';
 import { KPIS, formatKpi, kpiValue, percent, sentenceDiff, stamp } from '@/lib/report';
 import DeltaBadge from './DeltaBadge.vue';
 import KpiGrid from './KpiGrid.vue';
@@ -74,7 +75,7 @@ const DIFF = { added: 'text-foreground', removed: 'text-muted-foreground line-th
                     @click="selected = index"
                     @keydown="onKey($event, index)"
                 >
-                    <span class="text-[13px] font-medium">Week Ending {{ weekLabel(entry.week) }}</span>
+                    <span class="text-[13px] font-medium">{{ weekLabel(entry.week) }}</span>
                     <span class="justify-self-end text-xs text-muted-foreground tabular-nums">
                         RC <template v-if="percent(entry.kpis?.rc) !== null">{{ percent(entry.kpis?.rc) }}</template><NoValue v-else />
                         SP <template v-if="percent(entry.kpis?.sp) !== null">{{ percent(entry.kpis?.sp) }}</template><NoValue v-else />
@@ -88,7 +89,7 @@ const DIFF = { added: 'text-foreground', removed: 'text-muted-foreground line-th
             <div class="flex flex-wrap items-start gap-3 px-5 pt-4 pb-3.5">
                 <div class="min-w-0 flex-1">
                     <p class="flex items-center gap-1.5 text-xs text-muted-foreground"><PhLockSimple aria-hidden="true" />Frozen snapshot, read-only</p>
-                    <h2 id="history-title" class="mt-1 text-base font-semibold">Week Ending {{ weekLabel(current.week) }}</h2>
+                    <h2 id="history-title" class="mt-1 text-base font-semibold"><WeekHeading :week="current.week" /></h2>
                     <p class="mt-0.5 text-[13px] text-muted-foreground">
                         Sent <TimeAgo :at="current.sentAt">{{ stamp(current.sentAt) }}</TimeAgo><template v-if="current.sentBy"> by {{ current.sentBy }}</template>.
                         <template v-if="current.trainingSubject"> Trained: {{ current.trainingSubject }}.</template>
@@ -96,7 +97,7 @@ const DIFF = { added: 'text-foreground', removed: 'text-muted-foreground line-th
                 </div>
                 <div class="inline-flex gap-0.5 rounded-md bg-muted p-0.5" role="group" aria-label="History view">
                     <button
-                        v-for="[value, label, icon] in [['diff', previous ? `Changes compared with the week ending ${weekLabel(previous.week)}` : 'Changes', PhGitDiff], ['full', 'Full snapshot', PhFileText]]"
+                        v-for="[value, label, icon] in [['diff', previous ? `Changes compared with the week ${weekLabel(previous.week)}` : 'Changes', PhGitDiff], ['full', 'Full snapshot', PhFileText]]"
                         :key="value"
                         type="button"
                         :aria-pressed="mode === value"

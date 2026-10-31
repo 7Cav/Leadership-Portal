@@ -89,7 +89,7 @@ describe('CounselingPanel', () => {
 
         expect(wrapper.get('[data-testid="counseling-count"]').text()).toBe('2');
         expect(dcs.get('[data-testid="counseling-type-badge"]').text()).toBe('DCS: Developmental Counseling Statement');
-        expect(dcs.get('[data-testid="counseling-date-text"]').text()).toBe('20Oct26');
+        expect(dcs.get('[data-testid="counseling-date-text"]').text()).toBe('20OCT26');
         expect(dcs.get('[data-testid="counseling-kind-text"]').text()).toBe('Missed section practice or roll call');
         expect(dcs.find('[data-testid="counseling-flags"]').exists()).toBe(false);
         expect(dcs.get('[data-testid="counseling-reason-text"]').text()).toContain('No notice given.');
@@ -112,7 +112,7 @@ describe('CounselingPanel', () => {
 
     it('shows the banner and the flags on each record that the server worked out', () => {
         const wrapper = panel({
-            warnings: [{ key: 'no-favorable-action', message: 'No favorable action until 27Nov26, 30 days after the LOR of 28Oct26.', until: '2026-11-27' }],
+            warnings: [{ key: 'no-favorable-action', message: 'No favorable action until 27NOV26, 30 days after the LOR of 28OCT26.', until: '2026-11-27' }],
             records: [
                 record({ type: 'lor', flags: [{ key: 'lor-article-15', message: '3 LORs within 90 days: Article 15.' }] }),
                 record({ id: 12, kind: null, kindLabel: null, kindAssumed: true, flags: [] }),
@@ -120,7 +120,7 @@ describe('CounselingPanel', () => {
         });
         const [flagged, legacy] = wrapper.findAll('[data-testid="counseling-record"]');
 
-        expect(wrapper.get('[data-testid="counseling-warning-no-favorable-action"]').text()).toBe('No favorable action until 27Nov26, 30 days after the LOR of 28Oct26.');
+        expect(wrapper.get('[data-testid="counseling-warning-no-favorable-action"]').text()).toBe('No favorable action until 27NOV26, 30 days after the LOR of 28OCT26.');
         expect(flagged.get('[data-testid="counseling-flag-lor-article-15"]').text()).toBe('3 LORs within 90 days: Article 15.');
         expect(legacy.find('[data-testid="counseling-flags"]').exists()).toBe(false);
         expect(legacy.get('[data-testid="counseling-kind-assumed"]').text()).toContain('the other conduct rules apply to it');
@@ -187,7 +187,7 @@ describe('CounselingPanel', () => {
             forecast: {
                 dcs: {
                     missed_practice: [{ from: '1970-01-01', flags: [] }],
-                    // An LOR on 20Sep26: its 30 days run to 20Oct26.
+                    // An LOR on 20SEP26: its 30 days run to 20OCT26.
                     conduct: [{ from: '1970-01-01', flags: [] }, { from: '2026-09-20', flags: [afterLor] }, { from: '2026-10-21', flags: [] }],
                 },
             },
@@ -313,7 +313,7 @@ describe('CounselingPanel', () => {
         const row = wrapper.get('[data-testid="counseling-record"]');
 
         expect(row.attributes('data-overturned')).toBe('true');
-        expect(row.get('[data-testid="counseling-overturned"]').text()).toBe('Overturned on 29Oct26 by Hale.S for Vance.R: Appeal upheld.');
+        expect(row.get('[data-testid="counseling-overturned"]').text()).toBe('Overturned on 29OCT26 by Hale.S for Vance.R: Appeal upheld.');
         expect(row.get('[data-testid="counseling-reason-text"]').classes()).toContain('text-muted-foreground');
         expect(row.find('[data-testid="counseling-overturn"]').exists()).toBe(false);
         expect(row.find('[data-testid="counseling-download"]').exists()).toBe(true);
@@ -539,7 +539,7 @@ describe('CounselingPanel', () => {
         it('shows a Frozen badge with the time it froze, and no correct or appeal line then', () => {
             const wrapper = panel({ records: [record({ frozen: true, freezesAt: '2026-11-02T10:00:00Z', canChange: true })] });
 
-            expect(wrapper.get('[data-testid="counseling-frozen"]').text()).toBe('Frozen 2026-11-02 10:00Z');
+            expect(wrapper.get('[data-testid="counseling-frozen"]').text()).toBe('Frozen 2026-11-02 10\u200A00Z');
             expect(wrapper.get('[data-testid="counseling-frozen"] time').attributes('datetime')).toBe('2026-11-02T10:00:00Z');
             expect(wrapper.find('[data-testid="counseling-correct-until"]').exists()).toBe(false);
             expect(wrapper.find('[data-testid="counseling-appeal-until"]').exists()).toBe(false);
@@ -549,7 +549,7 @@ describe('CounselingPanel', () => {
         it('tells the chain until when the record can be corrected', () => {
             const wrapper = panel({ records: [record({ frozen: false, freezesAt: '2026-11-02T10:00:00Z', canChange: true })] });
 
-            expect(wrapper.get('[data-testid="counseling-correct-until"]').text()).toBe('Can be corrected until 2026-11-02 10:00Z');
+            expect(wrapper.get('[data-testid="counseling-correct-until"]').text()).toBe('Can be corrected until 2026-11-02 10\u200A00Z');
             expect(wrapper.find('[data-testid="counseling-frozen"]').exists()).toBe(false);
         });
 
@@ -562,9 +562,9 @@ describe('CounselingPanel', () => {
             });
             const [lor, dcs] = wrapper.findAll('[data-testid="counseling-record"]');
 
-            expect(lor.get('[data-testid="counseling-appeal-until"]').text()).toBe('Appeal until 2026-11-02 10:00Z');
+            expect(lor.get('[data-testid="counseling-appeal-until"]').text()).toBe('Appeal until 2026-11-02 10\u200A00Z');
             expect(lor.get('[data-testid="counseling-appeal-open"]').text()).toBe('Appeal');
-            expect(dcs.get('[data-testid="counseling-appeal-until"]').text()).toBe('Comment or dispute until 2026-11-01 08:30Z');
+            expect(dcs.get('[data-testid="counseling-appeal-until"]').text()).toBe('Comment or dispute until 2026-11-01 08\u200A30Z');
             expect(dcs.get('[data-testid="counseling-appeal-open"]').text()).toBe('Comment or dispute');
             expect(wrapper.find('[data-testid="counseling-correct-until"]').exists()).toBe(false);
         });
@@ -575,7 +575,7 @@ describe('CounselingPanel', () => {
             });
 
             expect(wrapper.get('[data-testid="counseling-appeal-filed"]').text()).toBe('Appeal filed');
-            expect(wrapper.get('[data-testid="counseling-appeal"]').text()).toBe('Appeal filed 2026-10-30 12:00Z: It was a misunderstanding.');
+            expect(wrapper.get('[data-testid="counseling-appeal"]').text()).toBe('Appeal filed 2026-10-30 12\u200A00Z: It was a misunderstanding.');
             expect(wrapper.find('[data-testid="counseling-appeal-open"]').exists()).toBe(false);
         });
 
@@ -596,7 +596,7 @@ describe('CounselingPanel', () => {
             const dialog = document.body.querySelector('[data-testid="counseling-appeal-dialog"]');
             expect(dialog).not.toBeNull();
             expect(dialog.textContent).toContain('Appeal this LOR');
-            expect(dialog.textContent).toContain('2026-11-02 10:00Z');
+            expect(dialog.textContent).toContain('2026-11-02 10\u200A00Z');
             const textarea = document.body.querySelector('[data-testid="counseling-appeal-statement"]');
             expect(textarea.getAttribute('maxlength')).toBe('2000');
 

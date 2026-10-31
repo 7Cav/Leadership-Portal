@@ -13,7 +13,7 @@ use Carbon\CarbonImmutable;
 
 // The reason the weekly report pre-selects for an unaccounted trooper when the portal's own data says why
 // (2026-10-29): departed, moved out of the section during the week, or a leave post that needs review. The week under
-// test runs Saturday 03Oct26 to Friday 09Oct26.
+// test runs Saturday 03OCT26 to Friday 09OCT26.
 
 beforeEach(function () {
     CarbonImmutable::setTestNow('2026-10-08 12:00:00');

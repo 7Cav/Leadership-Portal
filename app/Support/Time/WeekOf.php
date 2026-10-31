@@ -14,7 +14,7 @@ use InvalidArgumentException;
  * here and nowhere else, so a leaf and its parent can never disagree on which week a moment
  * belongs to.
  *
- * Display formatting (the forum's `30May26`) is a presentation concern, not this helper's; the one server-side week\n * label is {@see WeekLabel::ending()}.
+ * Display formatting (the portal's `30MAY26`) is a presentation concern, not this helper's; the one server-side week\n * label is {@see WeekLabel::range()}.
  */
 final class WeekOf
 {
@@ -52,7 +52,7 @@ final class WeekOf
     }
 
     /**
-     * The week whose report cycle is running at `$now`. A week's report falls due at 23:59Z on the
+     * The week whose report cycle is running at `$now`. A week's report falls due at 2359Z on the
      * Saturday after it ends — day one of the next week — so until that deadline passes the
      * closing week is still the current one, not the fresh week that would hide a report due in a
      * few hours.
@@ -85,7 +85,7 @@ final class WeekOf
     }
 
     /**
-     * When the report for the week opening at `$weekStart` falls due: 23:59Z on the Saturday after
+     * When the report for the week opening at `$weekStart` falls due: 2359Z on the Saturday after
      * the week ends.
      *
      * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.

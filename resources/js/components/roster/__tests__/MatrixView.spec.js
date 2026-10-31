@@ -28,7 +28,7 @@ describe('Attendance matrix (roster-s3)', () => {
 
         expect(head).toHaveLength(1 + 20 + 3);
         expect(head[20].classes()).toContain('is-now');
-        expect(head[20].text()).toBe('09Oct');
+        expect(head[20].text()).toBe('03 to 09OCT');
         expect(head.slice(-3).map((th) => th.text())).toEqual(['RC 30d', 'SP 30d', 'At-risk']);
     });
 
@@ -102,7 +102,7 @@ describe('Attendance matrix (roster-s3)', () => {
         await nextTick();
 
         const tip = document.body.querySelector('[data-testid="roster-tip"]');
-        expect(tip.textContent).toContain('Reyes.M, week ending 09Oct26 (this week)');
+        expect(tip.textContent).toContain('Reyes.M, week 03OCT26 to 09OCT26 (this week)');
         expect(tip.textContent).toContain('Not attended');
         expect(tip.textContent).toContain('Manual, section leader');
         wrapper.unmount();

@@ -97,9 +97,9 @@ describe('StaffReport page', () => {
     it('names the week and the week before by their end date, keeping its own dates as a range (#568)', () => {
         const wrapper = page();
 
-        expect(wrapper.find('h1').text()).toContain('Week Ending 09Oct26');
-        expect(wrapper.text()).toContain('03Oct26 to 09Oct26');
-        expect(wrapper.get('a[aria-label^="Previous week"]').attributes('aria-label')).toBe('Previous week, ending 02Oct26');
+        expect(wrapper.find('h1').text()).toContain('Week Ending 09OCT26 (03OCT26 to 09OCT26)');
+        expect(wrapper.text()).toContain('03OCT26 to 09OCT26');
+        expect(wrapper.get('a[aria-label^="Previous week"]').attributes('aria-label')).toBe('Previous week, 26SEP26 to 02OCT26');
     });
 
     it('asks Yes or No first, as big choices, with Send beside it saying what is missing', async () => {
@@ -348,7 +348,7 @@ describe('StaffReport page', () => {
         await wrapper.find('[data-testid="office-hour-date"]').setValue('2026-10-06');
         expect(wrapper.find('[data-testid="send-missing"]').text()).toBe('Say in a few words what the office hour was.');
         await wrapper.find('[data-testid="office-hour-note"]').setValue('Questions from new NCOs');
-        expect(wrapper.find('[data-testid="send-summary"]').text()).toBe('Yes, office hour (06Oct26)');
+        expect(wrapper.find('[data-testid="send-summary"]').text()).toBe('Yes, office hour (06OCT26)');
         await wrapper.find('[data-testid="step-extras"]').trigger('click');
         await wrapper.find('form').trigger('submit');
 
@@ -401,7 +401,7 @@ describe('StaffReport page', () => {
             .toBe('Did not attend a section practice.');
 
         const office = page({ canSend: false, report: { sentAt: '2026-10-08T20:00:00+00:00', attended: true, practiceType: 'office_hour', officeHour: { date: '2026-10-06', note: 'NCO questions' }, practices: [] } });
-        expect(office.find('[data-testid="staff-report-answer"]').text()).toBe('Held an office hour on 06Oct26.');
+        expect(office.find('[data-testid="staff-report-answer"]').text()).toBe('Held an office hour on 06OCT26.');
         expect(office.find('[data-testid="staff-report-office-hour"]').text()).toBe('NCO questions');
     });
 
@@ -429,7 +429,7 @@ describe('StaffReport page', () => {
         };
         const wrapper = page({ canSend: false, report, sheetConfigured: true });
 
-        expect(wrapper.find('[data-testid="staff-report-answer"]').text()).toBe('Attended an FTX, Operation Anvil on 05Oct26.');
+        expect(wrapper.find('[data-testid="staff-report-answer"]').text()).toBe('Attended an FTX, Operation Anvil on 05OCT26.');
         expect(wrapper.find('[data-testid="staff-report-other-events"]').text()).toBe('Range day');
         expect(wrapper.find('[data-testid="staff-report-notes"]').text()).toBe('Ran OPFOR.');
         expect(wrapper.find('[data-testid="staff-report-sheet"]').text()).toBe('Not sent to the sheet yet.');

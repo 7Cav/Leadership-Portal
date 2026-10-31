@@ -41,6 +41,7 @@ import {
     sourceLabel,
     SP_STATES,
     weekCell,
+    weekTick,
     weekLabel,
     writeOrbatSort,
 } from '@/lib/roster';
@@ -219,7 +220,7 @@ function resolveTip(key) {
     const index = Number(indexText);
     const week = props.weeks[index];
     const current = week === props.currentWeek;
-    const title = `Week Ending ${weekLabel(week)}${current ? ' (this week)' : ''}`;
+    const title = `${weekLabel(week)}${current ? ' (this week)' : ''}`;
     if (kind === 'm') {
         const trooper = byId.value.get(Number(id));
         const mark = trooper.weeks[index];
@@ -338,7 +339,7 @@ function clearAll() {
                         <th>
                             <span class="block">Last 8 weeks</span>
                             <span class="mt-0.5 flex w-[104px] justify-between text-[10px] font-normal tabular-nums">
-                                <span>{{ weekLabel(stripWeeks[0]).slice(0, 5) }}</span><span>{{ weekLabel(stripWeeks[STRIP - 1]).slice(0, 5) }}</span>
+                                <span>{{ weekTick(stripWeeks[0]) }}</span><span>{{ weekTick(stripWeeks[STRIP - 1]) }}</span>
                             </span>
                         </th>
                         <th v-for="key in ['rc', 'sp']" :key="key" class="text-right" :aria-sort="ariaSort(key)" :data-testid="`th-${key}`">

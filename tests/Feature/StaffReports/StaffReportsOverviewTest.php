@@ -18,7 +18,7 @@ require_once __DIR__.'/../StaffPractices/fixture.php';
 beforeEach(function () {
     $this->tree = staffPracticeTree();
     $this->psg = $this->tree['troopers']['psg'];
-    // Saturday after the fixture's week: 03Oct26 has ended and is the last ended week.
+    // Saturday after the fixture's week: 03OCT26 has ended and is the last ended week.
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-10 12:00:00', 'UTC'));
     $units = app(UnitRepository::class);
     // A second company in the battalion, with a platoon HQ staff member of its own.
