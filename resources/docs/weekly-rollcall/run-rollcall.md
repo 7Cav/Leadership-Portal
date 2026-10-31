@@ -62,7 +62,7 @@ If your section plays a game and has no slot, a warning sits at the top of the r
 
 ## Check what the game server saw
 
-1. If the game server recorded the practice, the marks are already filled in and say where they came from. Check them and fix any that are wrong.
+1. With a practice slot set, the portal reads the game server by itself within ten minutes of the practice ending. If the game server recorded the practice, the marks are already filled in and say where they came from. Check them and fix any that are wrong.
 2. Choose **Confirm practice**. Changing a mark by hand afterwards clears the confirmation; confirm again.
 3. If the banner says the server could not be read, mark by hand, or choose **Try again** to read it again.
 4. Players the server saw who are linked to no trooper are listed for you to link or dismiss. See [Link or dismiss an unmatched player](/docs/weekly-rollcall/unmatched-players).

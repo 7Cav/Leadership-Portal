@@ -18,6 +18,8 @@ use App\Repositories\TrooperRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\Audit\ActingFor;
 use App\Support\Audit\AuditEnvelope;
+use App\Support\Time\PracticeWindow;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -115,9 +117,13 @@ class CaptureSectionPracticeHandler
             ?? throw new InvalidArgumentException("Game {$command->gameId} does not exist.");
 
         // The window must fall inside the practice's own Cav week: a capture is bounded to the
-        // practice, never an arbitrary span stamped onto it.
-        if ($command->windowStart < $practice->week_start || $command->windowEnd > $practice->week_start->addWeek()
-            || $command->windowEnd < $command->windowStart) {
+        // practice, never an arbitrary span stamped onto it. A scheduled practice belongs to the week of its start, so
+        // its hour may run past the week's end (a Friday 2330Z slot, #393), but no further.
+        $weekEnd = $practice->week_start->addWeek();
+        $latestEnd = $weekEnd->max(CarbonImmutable::instance($command->windowStart)->addMinutes(PracticeWindow::MINUTES));
+
+        if ($command->windowStart < $practice->week_start || $command->windowStart > $weekEnd
+            || $command->windowEnd > $latestEnd || $command->windowEnd < $command->windowStart) {
             throw new InvalidArgumentException("The capture window is not within the week of section practice {$practice->id}.");
         }
 

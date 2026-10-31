@@ -1,11 +1,13 @@
 <?php
 
 use App\Authorization\ScopeResolver;
+use App\Commands\Capture\CapturePracticesDue;
 use App\Commands\Demo\GenerateDemoHistory;
 use App\Commands\Demo\GenerateDemoHistoryHandler;
 use App\Commands\Demo\PurgeDemoHistory;
 use App\Commands\Demo\PurgeDemoHistoryHandler;
 use App\Commands\Users\SetAdminFlag;
+use App\Jobs\CaptureSectionPracticeJob;
 use App\Jobs\SyncLoasJob;
 use App\Jobs\SyncRosterJob;
 use App\Models\ChangelogEntry;
@@ -17,6 +19,7 @@ use App\Repositories\PageVisitRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
@@ -47,6 +50,36 @@ Artisan::command('portal:sync-loas {--full : Re-read recent and open leave, not 
 
     return 0;
 })->purpose('Sync leave (LOA/ELOA) threads from the forum (queued unless --now)');
+
+// Capture each section practice after it ends (#393): sections with a practice slot, a game and a training server it
+// can read, whose one-hour window ended this Cav week and was not captured or tried yet. Each capture is queued as
+// triggered by `system` and recorded in sync_runs; `--dry-run` lists what would be queued and why the others are not.
+Artisan::command('portal:capture-practices {--dry-run : List what would be queued and why sections are skipped, and queue nothing}', function (CapturePracticesDue $due) {
+    $dryRun = (bool) $this->option('dry-run');
+    $answer = $due->at(CarbonImmutable::now(), $dryRun);
+
+    foreach ($answer['due'] as $row) {
+        $capture = $row['capture'];
+        $span = $capture->windowStart->format('D d M Hi').'Z to '.$capture->windowEnd->format('Hi').'Z';
+
+        if (! $dryRun) {
+            CaptureSectionPracticeJob::dispatch($capture);
+            $due->markQueued($capture->sectionPracticeId);
+        }
+
+        $this->line(($dryRun ? 'Would queue ' : 'Queued ')."{$row['section']}: {$span}");
+    }
+
+    foreach ($answer['skipped'] as $row) {
+        $this->line("Skipped {$row['section']}: {$row['reason']}");
+    }
+
+    $this->info(sprintf('%d %s, %d skipped.', count($answer['due']), $dryRun ? 'would be queued' : 'queued', count($answer['skipped'])));
+
+    return 0;
+})->purpose('Queue a capture of each section practice that has ended and was not captured yet');
+
+Schedule::command('portal:capture-practices')->everyTenMinutes()->withoutOverlapping();
 
 // Hourly roster sync, and the leave sync offset to a quarter past so the two do not start together. The leave
 // sync only runs once the forum key and the leave sections are configured, so an install without them does not

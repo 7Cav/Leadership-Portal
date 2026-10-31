@@ -201,7 +201,14 @@ On the same page:
   another kind; change that on the Game identities page if they really changed platform.
 - Telemetry banner: says when the section's game (the game it plays, else the one most of it has linked) has no capture source set up (or no training server selected), or
   when the last capture failed, naming the feeds tried. A capture that broke on an error inside the portal says so
-  instead of blaming a feed. "Try again" queues a new capture for the week so far.
+  instead of blaming a feed. "Try again" queues a new capture of the practice's hour when the section has a practice
+  slot, and of the week so far when it has none.
+- Automatic capture: every ten minutes the portal looks for section practices that ended this Cav week and queues a
+  capture of each, reading only that practice's hour from the game's training servers. It needs a practice slot, a game
+  set on the section or a unit above it, and a training server the portal can read; a section missing any of these, a
+  cancelled week and a week whose report was sent are skipped. A practice is captured once: a capture that failed is
+  not tried again by itself, and "Try again" is there for it. Operators can run `php artisan portal:capture-practices
+  --dry-run` to see what would be captured and why other sections are skipped.
 - Guests: add a serving trooper from another section who attended this practice, or remove one you added. See "JSAM
   guests" and "Makeups". Staff who said they attended (a staff practice entry, from their staff report or their milpac)
   are listed there too: "Staff guest" when the section is under the platoon or company HQ they were on when the week
