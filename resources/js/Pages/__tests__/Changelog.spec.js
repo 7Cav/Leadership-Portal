@@ -193,7 +193,7 @@ describe('Changelog page', () => {
         expect(formPost).toHaveBeenCalledWith('/changelog/3', { date: '2026-10-30', body: 'Added: Newest change', details: 'More **here**', major: false, technical: false }, expect.any(Object));
     });
 
-    it('picks a tag per add row: Added by default, Security shows the hint, a typed tag is not doubled', async () => {
+    it('picks a tag per add row: Added by default, Security shows the hint and ticks Technical, a typed tag is not doubled', async () => {
         mountPage({ isEditor: true });
         await wrapper.get('[data-testid="changelog-add"]').trigger('click');
         await flushPromises();
@@ -205,6 +205,9 @@ describe('Changelog page', () => {
         tag.dispatchEvent(new Event('change'));
         await flushPromises();
         expect(body('[data-testid="changelog-row-technical-hint-0"]').textContent).toContain('Say what was fixed, not how it could be abused.');
+        // A Security entry is always technical: the tick is set and locked.
+        expect(body('[data-testid="changelog-row-technical-0"]').getAttribute('data-state')).toBe('checked');
+        expect(body('[data-testid="changelog-row-technical-0"]').hasAttribute('disabled')).toBe(true);
 
         const first = body('[data-testid="changelog-row-body-0"]');
         first.value = 'Sign-in checks tightened';
@@ -223,7 +226,7 @@ describe('Changelog page', () => {
             {
                 date: expect.any(String),
                 entries: [
-                    { body: 'Security: Sign-in checks tightened', details: null, major: false, technical: false },
+                    { body: 'Security: Sign-in checks tightened', details: null, major: false, technical: true },
                     { body: 'Fixed: roster sort', details: null, major: false, technical: false },
                 ],
             },

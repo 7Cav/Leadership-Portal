@@ -198,6 +198,13 @@ function setKind(target, kind, value) {
     if (target[kind]) target[kind === 'major' ? 'technical' : 'major'] = false;
 }
 
+// A Security entry is always a technical one: picking the tag ticks Technical (and so clears Major), and the
+// Technical tickbox stays ticked while the tag is Security.
+function pickTag(target, tag) {
+    target.tag = tag;
+    if (tag === 'Security') setKind(target, 'technical', true);
+}
+
 // The two columns, rendered with the same list. `prefix` keeps ids and test ids apart, since a major entry is in both.
 const columns = computed(() => [
     { key: 'major', prefix: 'major-', days: majorDays.value },
@@ -628,7 +635,7 @@ function runImport() {
                         <li v-for="(row, index) in addForm.rows" :key="row.key" class="space-y-1.5" :data-testid="`changelog-row-${index}`">
                             <div class="flex items-center gap-1.5">
                                 <div class="w-28 shrink-0">
-                                    <NativeSelect v-model="row.tag" :aria-label="`Tag for change ${index + 1}`" :data-testid="`changelog-row-tag-${index}`">
+                                    <NativeSelect :model-value="row.tag" @update:model-value="(value) => pickTag(row, value)" :aria-label="`Tag for change ${index + 1}`" :data-testid="`changelog-row-tag-${index}`">
                                         <NativeSelectOption v-for="kind in KINDS" :key="kind" :value="kind">{{ kind }}</NativeSelectOption>
                                     </NativeSelect>
                                 </div>
@@ -673,7 +680,7 @@ function runImport() {
                                     Major change
                                 </label>
                                 <label class="flex items-center gap-2">
-                                    <Checkbox :model-value="row.technical" :data-testid="`changelog-row-technical-${index}`" @update:model-value="(value) => setKind(row, 'technical', value)" />
+                                    <Checkbox :model-value="row.technical" :disabled="row.tag === 'Security'" :data-testid="`changelog-row-technical-${index}`" @update:model-value="(value) => setKind(row, 'technical', value)" />
                                     Technical
                                 </label>
                                 <label class="flex items-center gap-2">
@@ -731,7 +738,7 @@ function runImport() {
                         <Label for="changelog-edit-body">Change</Label>
                         <div class="flex items-center gap-1.5">
                             <div class="w-28 shrink-0">
-                                <NativeSelect v-model="editForm.tag" aria-label="Tag" data-testid="changelog-edit-tag">
+                                <NativeSelect :model-value="editForm.tag" @update:model-value="(value) => pickTag(editForm, value)" aria-label="Tag" data-testid="changelog-edit-tag">
                                     <NativeSelectOption v-for="kind in KINDS" :key="kind" :value="kind">{{ kind }}</NativeSelectOption>
                                 </NativeSelect>
                             </div>
@@ -744,7 +751,7 @@ function runImport() {
                         Major change
                     </label>
                     <label class="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Checkbox :model-value="editForm.technical" data-testid="changelog-edit-technical" @update:model-value="(value) => setKind(editForm, 'technical', value)" />
+                        <Checkbox :model-value="editForm.technical" :disabled="editForm.tag === 'Security'" data-testid="changelog-edit-technical" @update:model-value="(value) => setKind(editForm, 'technical', value)" />
                         Technical
                     </label>
                     <p v-if="editForm.technical || editForm.tag === 'Security'" class="text-xs text-muted-foreground" data-testid="changelog-edit-technical-hint">Say what was fixed, not how it could be abused.</p>
