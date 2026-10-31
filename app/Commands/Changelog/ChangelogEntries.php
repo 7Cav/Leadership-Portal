@@ -17,7 +17,8 @@ use InvalidArgumentException;
  * Each is checked against {@see ChangelogAccess::mayEdit()} before anything is written, so a non-editor, someone acted
  * as, or a view-as preview is refused whatever the caller forgot to gate. Only a delete needs a reason.
  *
- * An entry is one change on a date: one line of text, optional Markdown details and a `major` flag (default off). Adding (a whole date's batch at
+ * An entry is one change on a date: one line of text, optional Markdown details, a `major` flag and a `technical` flag
+ * (both default off, never both on). Adding (a whole date's batch at
  * once), importing and dismissing all record the current deploy id as acknowledged, which clears the bar for
  * every editor.
  */
@@ -33,10 +34,10 @@ class ChangelogEntries
     /**
      * Add one date's batch of entries, in the order given, in one audited action.
      *
-     * @param  list<array{body: string, details?: ?string, major?: bool}>  $items
+     * @param  list<array{body: string, details?: ?string, major?: bool, technical?: bool}>  $items
      * @return list<ChangelogEntry>
      *
-     * @throws InvalidArgumentException on a bad date, no entries, too many, or an entry that is empty or too long.
+     * @throws InvalidArgumentException on a bad date, no entries, too many, or an entry that is empty, too long, or both major and technical.
      */
     public function add(User $actor, string $date, array $items): array
     {
@@ -48,7 +49,10 @@ class ChangelogEntries
         if (count($items) > ChangelogEntry::MAX_BATCH) {
             throw new InvalidArgumentException('Add at most '.ChangelogEntry::MAX_BATCH.' entries at once.');
         }
-        $items = array_map(fn (array $item) => [...$this->cleanEntry($item['body'], $item['details'] ?? null), (bool) ($item['major'] ?? false)], array_values($items));
+        $items = array_map(fn (array $item) => [
+            ...$this->cleanEntry($item['body'], $item['details'] ?? null),
+            ...$this->kind((bool) ($item['major'] ?? false), (bool) ($item['technical'] ?? false)),
+        ], array_values($items));
         $deployId = $this->access->deployId();
 
         $saved = [];
@@ -58,7 +62,7 @@ class ChangelogEntries
             reason: null,
             reasonRequired: false,
             mutation: function () use ($actor, $date, $items, $deployId, &$saved) {
-                $saved = array_map(fn (array $item) => $this->changelog->create($date, $item[0], $item[1], $actor->id, $item[2]), $items);
+                $saved = array_map(fn (array $item) => $this->changelog->create($date, $item[0], $item[1], $actor->id, $item[2], $item[3]), $items);
 
                 return new AuditedBatch($this->changelog->acknowledge($deployId), ...$saved);
             },
@@ -67,18 +71,19 @@ class ChangelogEntries
         return $saved;
     }
 
-    public function update(User $actor, ChangelogEntry $entry, string $date, string $body, ?string $details, bool $major = false): ChangelogEntry
+    public function update(User $actor, ChangelogEntry $entry, string $date, string $body, ?string $details, bool $major = false, bool $technical = false): ChangelogEntry
     {
         $this->authorize($actor);
         $date = $this->cleanDate($date);
         [$body, $details] = $this->cleanEntry($body, $details);
+        $this->kind($major, $technical);
 
         return $this->audit->record(
             actorId: $actor->id,
             action: 'changelog.updated',
             reason: null,
             reasonRequired: false,
-            mutation: fn () => $this->changelog->update($entry, $date, $body, $details, $actor->id, $major),
+            mutation: fn () => $this->changelog->update($entry, $date, $body, $details, $actor->id, $major, $technical),
         );
     }
 
@@ -127,7 +132,7 @@ class ChangelogEntries
             mutation: function () use ($actor, $entries, $deployId) {
                 // Oldest first, so ids follow the dates.
                 $saved = array_map(
-                    fn (array $entry) => $this->changelog->create($entry['date'], $entry['body'], $entry['details'], $actor->id, $entry['major']),
+                    fn (array $entry) => $this->changelog->create($entry['date'], $entry['body'], $entry['details'], $actor->id, $entry['major'], $entry['technical']),
                     array_reverse($entries),
                 );
 
@@ -156,7 +161,7 @@ class ChangelogEntries
      * The parsed import, each entry marked `duplicate` when its date and change text already exist (or appear earlier in
      * the same paste). Writes nothing.
      *
-     * @return array{entries: list<array{line: int, date: string, body: string, details: ?string, major: bool, duplicate: bool}>, errors: list<array{line: int, message: string}>}
+     * @return array{entries: list<array{line: int, date: string, body: string, details: ?string, major: bool, technical: bool, duplicate: bool}>, errors: list<array{line: int, message: string}>}
      */
     public function preview(string $markdown): array
     {
@@ -188,6 +193,20 @@ class ChangelogEntries
         }
 
         return $date;
+    }
+
+    /**
+     * The two flags, refused when both are on: a technical entry is never a major one.
+     *
+     * @return array{0: bool, 1: bool}
+     */
+    private function kind(bool $major, bool $technical): array
+    {
+        if ($major && $technical) {
+            throw new InvalidArgumentException('An entry cannot be both major and technical.');
+        }
+
+        return [$major, $technical];
     }
 
     /**

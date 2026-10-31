@@ -14,8 +14,11 @@ use DateTimeImmutable;
  *     - Another change.
  *     - [major] A change that also shows under "Major changes".
  *
- * A change whose text starts with `[major]` (any case) is flagged major and the marker is dropped; every other change
- * is full-changelog only.
+ * A change whose text starts with `[major]` (any case) is flagged major, and one that starts with `[technical]` (any
+ * case) is flagged technical; the marker is dropped. Both markers on one change is an error. Every other change is
+ * full-changelog only.
+ *
+ *     - [technical] Dependency updates.
  *
  * Each `## YYYY-MM-DD` heading starts a date, and each `- ` (or `* `) bullet under it is one entry. Text after the date
  * on the heading (after a hyphen, an en dash, an em dash or a colon) is taken as that date's first entry, so the older
@@ -27,12 +30,12 @@ class ChangelogImportParser
 {
     private const HEADING = '/^##\s+(?<date>[^\s:\x{2013}\x{2014}]+)\s*(?:(?:-|\x{2013}|\x{2014}|:)\s*(?<text>.*?))?\s*$/u';
 
-    private const MAJOR = '/^\[major\]\s*(?<text>.*)$/iu';
+    private const MARKER = '/^\[(?<kind>major|technical)\]\s*(?<text>.*)$/iu';
 
     private const BULLET = '/^[-*]\s+(?<text>.*?)\s*$/u';
 
     /**
-     * @return array{entries: list<array{line: int, date: string, body: string, details: ?string, major: bool}>, errors: list<array{line: int, message: string}>}
+     * @return array{entries: list<array{line: int, date: string, body: string, details: ?string, major: bool, technical: bool}>, errors: list<array{line: int, message: string}>}
      */
     public function parse(string $markdown): array
     {
@@ -50,18 +53,24 @@ class ChangelogImportParser
                 return;
             }
             $details = $this->dedent($entry['details']);
-            $major = preg_match(self::MAJOR, $entry['body'], $marker) === 1;
-            if ($major) {
+            $kinds = [];
+            while (preg_match(self::MARKER, $entry['body'], $marker) === 1) {
+                $kinds[mb_strtolower($marker['kind'])] = true;
                 $entry['body'] = $marker['text'];
             }
-            if ($entry['body'] === '') {
-                $errors[] = ['line' => $entry['line'], 'message' => "Line {$entry['line']}: the change has no text after [major]."];
+            $major = isset($kinds['major']);
+            $technical = isset($kinds['technical']);
+            if ($major && $technical) {
+                $errors[] = ['line' => $entry['line'], 'message' => "Line {$entry['line']}: a change cannot be both [major] and [technical]."];
+            } elseif ($entry['body'] === '') {
+                $marked = $technical ? '[technical]' : '[major]';
+                $errors[] = ['line' => $entry['line'], 'message' => "Line {$entry['line']}: the change has no text after {$marked}."];
             } elseif (mb_strlen($entry['body']) > ChangelogEntry::MAX_BODY_LENGTH) {
                 $errors[] = ['line' => $entry['line'], 'message' => "Line {$entry['line']}: the change is longer than ".ChangelogEntry::MAX_BODY_LENGTH.' characters.'];
             } elseif ($details !== null && mb_strlen($details) > ChangelogEntry::MAX_DETAILS_LENGTH) {
                 $errors[] = ['line' => $entry['line'], 'message' => "Line {$entry['line']}: the additional information is longer than ".ChangelogEntry::MAX_DETAILS_LENGTH.' characters.'];
             } else {
-                $entries[] = ['line' => $entry['line'], 'date' => $entry['date'], 'body' => $entry['body'], 'details' => $details, 'major' => $major];
+                $entries[] = ['line' => $entry['line'], 'date' => $entry['date'], 'body' => $entry['body'], 'details' => $details, 'major' => $major, 'technical' => $technical];
             }
             $entry = null;
         };

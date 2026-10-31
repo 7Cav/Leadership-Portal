@@ -15,17 +15,18 @@ use Illuminate\Support\Collection;
 interface ChangelogRepository
 {
     /**
-     * Every entry, newest date first, the latest written first within a date.
+     * Every entry, newest date first, the latest written first within a date. Without `$includeTechnical`, technical
+     * entries are left out.
      *
      * @return Collection<int, ChangelogEntry>
      */
-    public function all(): Collection;
+    public function all(bool $includeTechnical = true): Collection;
 
     public function find(int $id): ?ChangelogEntry;
 
-    public function create(string $date, string $body, ?string $details, int $userId, bool $major = false): ChangelogEntry;
+    public function create(string $date, string $body, ?string $details, int $userId, bool $major = false, bool $technical = false): ChangelogEntry;
 
-    public function update(ChangelogEntry $entry, string $date, string $body, ?string $details, int $userId, bool $major = false): ChangelogEntry;
+    public function update(ChangelogEntry $entry, string $date, string $body, ?string $details, int $userId, bool $major = false, bool $technical = false): ChangelogEntry;
 
     public function delete(ChangelogEntry $entry): ChangelogEntry;
 
@@ -39,8 +40,8 @@ interface ChangelogRepository
     /** The key {@see existingKeys()} uses: the date and the change text, trimmed and lowercased. */
     public static function key(string $date, string $body): string;
 
-    /** When the newest entry was written, or null with none. */
-    public function latestCreatedAt(): ?DateTimeInterface;
+    /** When the newest entry was written, or null with none. Without `$includeTechnical`, technical entries are left out. */
+    public function latestCreatedAt(bool $includeTechnical = true): ?DateTimeInterface;
 
     public function seenAt(int $userId): ?DateTimeInterface;
 
@@ -50,4 +51,10 @@ interface ChangelogRepository
 
     /** Record the deploy the changelog is up to date for. Returns the state row, created on first use. */
     public function acknowledge(?string $deployId): ChangelogState;
+
+    /** The Admin setting: whether technical entries are available to everyone. Off with no state row yet. */
+    public function technicalEnabled(): bool;
+
+    /** Change the Admin setting. Returns the state row, created on first use. */
+    public function setTechnicalEnabled(bool $enabled): ChangelogState;
 }

@@ -274,3 +274,79 @@ it('saves entries as full changelog only unless flagged major, on add, edit and 
     expect(ChangelogEntry::where('body', 'Imported big')->sole()->major)->toBeTrue()
         ->and(ChangelogEntry::where('body', 'Imported small')->sole()->major)->toBeFalse();
 });
+
+it('sends technical entries to editors always, and to everyone else only while an Admin made them available', function () {
+    $this->actingAs($this->editor)->post('/changelog', ['date' => '2026-10-30', 'entries' => [
+        ['body' => 'Visible', 'details' => null],
+        ['body' => 'Dependency updates', 'details' => null, 'technical' => true],
+    ]])->assertRedirect('/changelog');
+    expect(ChangelogEntry::where('body', 'Dependency updates')->sole()->technical)->toBeTrue();
+
+    // Off by default: a member and an Admin get no technical entry and no toggle.
+    foreach (['member', 'admin'] as $who) {
+        $this->actingAs($this->{$who})->get('/changelog')->assertInertia(fn (Assert $page) => $page
+            ->has('days.0.entries', 1)
+            ->where('days.0.entries.0.body', 'Visible')
+            ->where('technicalToggle', false));
+    }
+    $this->actingAs($this->editor)->get('/changelog')->assertInertia(fn (Assert $page) => $page
+        ->has('days.0.entries', 2)
+        ->where('days.0.entries.1.technical', true)
+        ->where('technicalToggle', false)
+        ->where('technicalSetting', null));
+
+    $this->actingAs($this->admin)->post('/changelog/settings', ['technical_enabled' => true])->assertRedirect('/changelog');
+
+    $this->actingAs($this->member)->get('/changelog')->assertInertia(fn (Assert $page) => $page
+        ->has('days.0.entries', 2)
+        ->where('days.0.entries.1.technical', true)
+        ->where('technicalToggle', true)
+        ->where('technicalSetting', null));
+    $this->actingAs($this->admin)->get('/changelog')->assertInertia(fn (Assert $page) => $page
+        ->where('technicalSetting.enabled', true));
+});
+
+it('lets only an Admin signed in as themselves change the technical setting, audited', function () {
+    $this->actingAs($this->member)->post('/changelog/settings', ['technical_enabled' => true])->assertForbidden();
+    $this->actingAs($this->editor)->post('/changelog/settings', ['technical_enabled' => true])->assertForbidden();
+    $this->actingAs($this->admin)->post('/changelog/settings', [])->assertSessionHasErrors('technical_enabled');
+    expect(app(ChangelogRepository::class)->technicalEnabled())->toBeFalse();
+
+    $this->actingAs($this->admin)->post('/changelog/settings', ['technical_enabled' => true])->assertRedirect('/changelog');
+    expect(app(ChangelogRepository::class)->technicalEnabled())->toBeTrue()
+        ->and(AuditLogEntry::where('action', 'changelog.technical_setting_changed')->sole()->actor_id)->toBe($this->admin->id);
+
+    $this->actingAs($this->admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->section->id])->assertSessionHasNoErrors();
+    $this->actingAs($this->admin)->post('/changelog/settings', ['technical_enabled' => false])->assertForbidden();
+    expect(app(ChangelogRepository::class)->technicalEnabled())->toBeTrue();
+});
+
+it('refuses an entry that is both major and technical, on add and edit', function () {
+    $this->actingAs($this->editor)->post('/changelog', ['date' => '2026-10-30', 'entries' => [
+        ['body' => 'Both', 'details' => null, 'major' => true, 'technical' => true],
+    ]])->assertSessionHasErrors('entries');
+    expect(ChangelogEntry::count())->toBe(0);
+
+    $entry = addEntry($this->editor);
+    $this->actingAs($this->editor)->patch("/changelog/{$entry->id}", entryData(['major' => true, 'technical' => true]))->assertSessionHasErrors('body');
+    expect($entry->fresh()->major)->toBeFalse()->and($entry->fresh()->technical)->toBeFalse();
+
+    $this->actingAs($this->editor)->patch("/changelog/{$entry->id}", entryData(['technical' => true]))->assertRedirect('/changelog');
+    expect($entry->fresh()->technical)->toBeTrue();
+});
+
+it('imports a [technical] marker and leaves technical entries out of the new dot for non-editors', function () {
+    Carbon::setTestNow('2026-10-29 10:00:00');
+    $this->actingAs($this->member)->get('/changelog')->assertOk();
+    Carbon::setTestNow('2026-10-29 10:05:00');
+
+    $markdown = "## 2026-10-31\n- [Technical] Faster page loads behind the scenes";
+    $this->actingAs($this->editor)->postJson('/changelog/import/preview', ['markdown' => $markdown])
+        ->assertJsonPath('entries.0.body', 'Faster page loads behind the scenes')
+        ->assertJsonPath('entries.0.technical', true)
+        ->assertJsonPath('entries.0.major', false);
+    $this->actingAs($this->editor)->post('/changelog/import', ['markdown' => $markdown, 'skip_duplicates' => true])->assertRedirect('/changelog');
+
+    expect(ChangelogEntry::sole()->technical)->toBeTrue();
+    $this->actingAs($this->member)->get('/home')->assertInertia(fn (Assert $page) => $page->where('changelogUnseen', false));
+});
