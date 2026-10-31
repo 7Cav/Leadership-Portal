@@ -93,7 +93,7 @@ Your scope's units and troopers, from the cached Cav roster.
   large character (one or two letters or digits, like the 7 on the wiki's Reserve guidon) runs about three quarters of
   the flag's height at the hoist in the opposite color of each half, and the texts start just right of it, left aligned
   at the same x, and take the opposite color too (on the quartered format it fills the left quarters and the texts
-  move to the right ones). Without one, text also takes the other color when it reads on its half (2 to 1), black or white otherwise and on a solid guidon. Switching format keeps the colors and
+  move to the right ones). Without one, text also takes the other color unless the two colors are too alike to tell apart, black or white otherwise and on a solid guidon. Switching format keeps the colors and
   text. The text starts as the battalion and the 7 on the top left ("2/7") and the company letter on the bottom right
   ("A"). The generator warns when the two colors are too close in a two color format. Every guidon saved before
   formats is diagonal and keeps its colors, split and text spots. All guidon text is set in Oswald Medium, a tall,

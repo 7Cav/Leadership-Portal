@@ -152,8 +152,9 @@ export function textColorOn(hex) {
 }
 
 // Below this contrast ratio the other color does not read as text on a color. Guidon text is very large and bold, so
-// this sits below WCAG's 3:1 for large text: orange on white (2.7:1) reads, yellow on white (1.6:1) does not.
-export const MIN_OPPOSITE_CONTRAST = 2;
+// it is the same line as two halves being too alike to tell apart: orange (2.7:1) and yellow (1.6:1) on white read,
+// blue on purple (1.0:1) does not.
+export const MIN_OPPOSITE_CONTRAST = MIN_PAIR_CONTRAST;
 
 // The color for every text and large character on `background`: the flag's other color when it reads there,
 // otherwise black or white, whichever reads better.

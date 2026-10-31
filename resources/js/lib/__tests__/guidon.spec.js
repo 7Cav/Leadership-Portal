@@ -630,8 +630,10 @@ describe('text fit', () => {
 
         // Blue over purple: too close, so white.
         expect(fills({ ...design, format: 'horizontal', primary: '#004cff', secondary: '#8000ff' })).toEqual(['#ffffff', '#ffffff']);
-        // Yellow and white are under 2 to 1: black on both.
-        for (const format of ['diagonal', 'horizontal', 'quartered']) expect(fills({ ...yellow, format })).toEqual(['#000000', '#000000']);
+        // Yellow and white still read as each other's text (1.6 to 1): yellow on white, white on yellow.
+        // In quartered both texts sit on yellow quarters (top left and bottom right), so both are white.
+        for (const format of ['diagonal', 'horizontal']) expect(fills({ ...yellow, format })).toEqual(['#ffffff', '#ffc72c']);
+        expect(fills({ ...yellow, format: 'quartered' })).toEqual(['#ffffff', '#ffffff']);
         expect(fills({ ...design, format: 'solid', primary: '#1f2a44' })).toEqual(['#ffffff', '#ffffff']);
     });
 
