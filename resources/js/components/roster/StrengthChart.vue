@@ -172,7 +172,7 @@ const hoverLabel = (p) => `Week Ending ${weekLabel(p.week)}`;
                 <caption class="sr-only">{{ label }}</caption>
                 <thead class="text-left text-xs text-muted-foreground">
                     <tr>
-                        <th scope="col" class="py-1.5 pr-3 font-medium">Week</th>
+                        <th scope="col" class="py-1.5 pr-3 font-medium">Week ending</th>
                         <th scope="col" class="py-1.5 pr-3 text-right font-medium">Headcount</th>
                         <th scope="col" class="py-1.5 pr-3 text-right font-medium">Change</th>
                         <th scope="col" class="py-1.5 pr-3 text-right font-medium">In roll call</th>

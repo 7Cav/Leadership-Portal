@@ -182,7 +182,7 @@ const hoverLabel = (v) => `Week Ending ${weekLabel(v.week)}${v.current ? (props.
         <table>
             <caption>Roll call and SP percentage by week</caption>
             <thead>
-                <tr><th scope="col">Week</th><th scope="col">Roll call %</th><th scope="col">SP %</th></tr>
+                <tr><th scope="col">Week ending</th><th scope="col">Roll call %</th><th scope="col">SP %</th></tr>
             </thead>
             <tbody>
                 <tr v-for="v in values" :key="v.week">

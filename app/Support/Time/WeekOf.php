@@ -14,7 +14,7 @@ use InvalidArgumentException;
  * here and nowhere else, so a leaf and its parent can never disagree on which week a moment
  * belongs to.
  *
- * Display formatting (the forum's `30May26`) is a presentation concern, not this helper's.
+ * Display formatting (the forum's `30May26`) is a presentation concern, not this helper's; the one server-side week\n * label is {@see WeekLabel::ending()}.
  */
 final class WeekOf
 {
