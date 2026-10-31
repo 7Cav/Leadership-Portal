@@ -169,6 +169,14 @@ On the same page:
   will not send until the leader answers "Made it up" or "Did not" for each. "Made it up" records Make-up complete
   (an audited mark, in the sender's name) before the numbers freeze; "Did not" leaves the mark. The answers are frozen
   with the report and shown on it as "Make-ups checked at send".
+- Practice slot: the header shows the section's weekly practice slot ("Practice Thu 02 00Z") with the viewer's own
+  time beside it as a hint. A section practice is always one hour, so the slot is a weekday and a start time in Zulu,
+  placed in the Cav week of its start (a Wednesday 2359Z practice ends on Thursday, a Friday 2330Z one still belongs
+  to the week it starts in). Sections can share a slot. The section's leaders, the command above them and Admins set,
+  change or remove it, and can move or cancel one week's practice without changing the slot; a week already captured,
+  or whose report was sent, cannot be moved. Every change is in the audit log. A captured practice keeps the window
+  it was read for, so changing the slot later does not rewrite it. A section without a slot works as before. The slot
+  is also shown under the section on the roster matrix and on Home's unit table.
 - Capture review: when game-server data was captured for the practice, marks it made show their source, and the leader
   can confirm the practice ("Confirmed by ..."). Editing a mark by hand afterwards clears the confirmation.
   On a CRCON server selected on the Servers page, a player counts as present when they were connected to that server

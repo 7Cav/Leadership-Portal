@@ -166,6 +166,7 @@ for any other company or section by URL answers 403. The editing controls show o
 | Mark signatures and SP attendance (incl. Mark all attended, Excused, Make-up requested and Make-up complete) | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Confirm practice | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Mark roll call posted | All | All | No | Own | Own | Own | Own | Own | No | No | No |
+| Set, change or remove the section's practice slot; move or cancel one week's practice | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Capture "Try again" | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Unmatched player: link, dismiss, restore | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Guests (JSAM): search, add, remove | All | All | No | Own | Own | Own | Own | Own | No | No | No |

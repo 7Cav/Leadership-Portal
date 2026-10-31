@@ -184,7 +184,7 @@ class CaptureSectionPracticeHandler
                 return $this->weekLocked($run, $practice);
             }
 
-            $stamp = fn () => $this->practices->stampCapture($practice, $serverRef, $presence->fetchedAt, $sourceName);
+            $stamp = fn () => $this->practices->stampCapture($practice, $serverRef, $presence->fetchedAt, $sourceName, $command->windowStart, $command->windowEnd);
             is_int($command->triggeredBy)
                 ? $this->audit->record($command->triggeredBy, 'practice.captured', null, false, $stamp)
                 : $stamp();
