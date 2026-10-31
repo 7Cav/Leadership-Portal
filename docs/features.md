@@ -523,12 +523,18 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
 - Technical entries are behind-the-scenes and security work (CI, tests, dependency updates, refactors, infrastructure,
   security hardening). An entry is never both major and technical. They never show under Major changes. Whether anyone
   but the editors gets them is an Admin setting on the changelog page, **Make technical and security items available to
-  everyone**, off by default and stored on the changelog's state row; changing it is audited as
+  everyone**, in a popover behind the gear button (**Changelog settings**) in the page header, shown to Admins only, off by default and stored on the changelog's state row; changing it is audited as
   `changelog.technical_setting_changed`. While it is off, the server does not send technical entries to anyone but the
-  editors. While it is on, the full changelog has a **Show technical and security items** tickbox, off by default and
+  editors. While it is on, the filter bar has a **Show technical and security items** tickbox, off by default and
   remembered in the viewer's browser (localStorage); ticked, technical entries show inline with a muted Technical badge.
   The editors always see them, marked, with no tickbox. Technical entries do not light the sidebar dot for anyone but
   the editors.
+- A filter bar above both columns has single-select chips: All, Major, Added, Changed, Fixed, Removed, Security, and
+  Technical while technical entries show. Added to Security match the patch-notes tag the entry's text starts with
+  ("Fixed: ..."). The filter applies to both columns and is remembered in the viewer's browser (localStorage); without
+  storage it starts on All. An entry whose text starts with "Security:" gets a Security badge, styled like Major, with
+  its text unchanged. The header shows "N changes recorded since 24OCT26": the entries this viewer can see, whatever
+  the filter, and the first date.
 - The sidebar shows a dot on Changelog while an entry was written after the viewer last opened the page. Opening it
   clears the dot, but not during a view-as preview or while someone acts as the viewer.
 - Only the changelog editors (`changelog_editors` in `config/portal.php`, matched without case), signed in as

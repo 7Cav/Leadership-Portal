@@ -14,9 +14,12 @@ page: /changelog
 1. Choose **Changelog** under Help in the sidebar. The newest date is at the top. Dates are Zulu days.
 2. **Major changes** lists the bigger changes. **Full changelog** lists every change, the major ones too. Choose **Full changelog** to open or close it; the page remembers your choice in this browser.
 3. An entry with a small arrow in front of it has more to say. Choose the arrow to open it, and again to close it.
-4. If you see **Show technical and security items** under **Full changelog**, tick it to also list behind-the-scenes work such as security fixes and updates. They are marked Technical. The page remembers your choice in this browser.
+4. Use the chips above the columns to show only one kind of change: **Major**, **Added**, **Changed**, **Fixed**, **Removed** or **Security**. **All** shows everything. The filter applies to both columns, and the page remembers it in this browser. Changes that start with "Security:" carry a Security badge.
+5. If you see **Show technical and security items** next to the chips, tick it to also list behind-the-scenes work such as security fixes and updates. They are marked Technical, and a **Technical** chip appears. The page remembers your choice in this browser.
 
-> [!good-to-know] Admins choose whether technical and security items are available to everyone with **Make technical and security items available to everyone** at the top of the page. When it is off, only the changelog editors see them.
+Under the page title you see how many changes are recorded and since which date.
+
+> [!good-to-know] Admins choose whether technical and security items are available to everyone with **Make technical and security items available to everyone**, behind the gear button (**Changelog settings**) at the top of the page. When it is off, only the changelog editors see them.
 
 > [!good-to-know] Only the changelog editors can change it, and only while signed in as themselves, never while someone acts as them or during View as.
 
