@@ -43,6 +43,13 @@ describe('StaffReports', () => {
         expect(page.find('a[aria-label^="Previous week"]').attributes('href')).toBe('/staff-reports?week=2026-09-26');
     });
 
+    it('names the week and its neighbours by their end date, as the Google Form does (#568)', () => {
+        const page = mount(StaffReports, { props: { week: WEEK, groups: [] } });
+
+        expect(page.find('h1').text()).toBe('Week Ending 09Oct26');
+        expect(page.find('a[aria-label^="Previous week"]').attributes('aria-label')).toBe('Previous week, ending 02Oct26');
+    });
+
     it('reads the running week as not due', () => {
         const groups = [{ id: 4, label: '1/A/1-7', rows: [row({ status: 'notDue', attended: null, practices: [], metRule: null })] }];
         const page = mount(StaffReports, { props: { week: { ...WEEK, ended: false, next: null }, groups } });
@@ -158,7 +165,7 @@ describe('StaffReports', () => {
         expect(panel.find('[data-testid="health-atRisk"]').text()).toContain('2');
         expect(panel.find('[data-testid="health-staff"]').text()).toContain('1 of 3');
         expect(panel.findAll('[data-testid="sparkline"]')).toHaveLength(4);
-        expect(panel.find('[data-testid="health-sp"] [data-testid="sparkline"]').attributes('aria-label')).toBe('SP attendance by week: 26Sep26 40%, 03Oct26 50%');
+        expect(panel.find('[data-testid="health-sp"] [data-testid="sparkline"]').attributes('aria-label')).toBe('SP attendance by week: 02Oct26 40%, 09Oct26 50%');
         expect(panel.findAll('[data-testid="health-hqs"] a').map((a) => a.attributes('href'))).toEqual(['/staff-reports?week=2026-10-03&hq=4', '/staff-reports?week=2026-10-03&hq=5']);
     });
 

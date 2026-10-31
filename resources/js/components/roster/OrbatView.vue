@@ -219,7 +219,7 @@ function resolveTip(key) {
     const index = Number(indexText);
     const week = props.weeks[index];
     const current = week === props.currentWeek;
-    const title = `Week of ${weekLabel(week)}${current ? ' (this week)' : ''}`;
+    const title = `Week Ending ${weekLabel(week)}${current ? ' (this week)' : ''}`;
     if (kind === 'm') {
         const trooper = byId.value.get(Number(id));
         const mark = trooper.weeks[index];

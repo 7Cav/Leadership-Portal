@@ -234,7 +234,7 @@ it('is final once sent: no second send, and the week\'s staff entries no longer 
             $this->fail('Expected the entry to be refused.');
         } catch (StaffPracticeRefusedException $e) {
             expect($e->reason)->toBe('locked')
-                ->and($e->getMessage())->toBe("{$this->psg->display_name} sent their staff report for the week of 03Oct26, so that week can no longer change.");
+                ->and($e->getMessage())->toBe("{$this->psg->display_name} sent their staff report for the week ending 09Oct26, so that week can no longer change.");
         }
     }
 

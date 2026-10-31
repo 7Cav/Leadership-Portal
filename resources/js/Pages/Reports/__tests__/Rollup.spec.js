@@ -157,7 +157,7 @@ describe('Reports/Rollup', () => {
         await panel().find('[data-testid="copy-reminder"]').trigger('click');
         await flushPromises();
 
-        expect(writeText.mock.calls[0][0]).toMatch(/^Reminder: the 2nd Section \(2\/1\/A\/1-7\) weekly report for the week of 03Oct26 /);
+        expect(writeText.mock.calls[0][0]).toMatch(/^Reminder: the 2nd Section \(2\/1\/A\/1-7\) weekly report for the week ending 09Oct26 /);
         expect(writeText.mock.calls[0][0]).toContain('/reports/21/2026-10-03');
         expect(toastSuccess).toHaveBeenCalledWith('Reminder copied', expect.anything());
     });

@@ -5,7 +5,7 @@ import { PhChartLine, PhTray, PhUserCheck, PhWarning } from '@phosphor-icons/vue
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { forumDate, forumDateTime } from '@/lib/forumDate';
+import { forumDate, forumDateTime, weekLabel } from '@/lib/forumDate';
 import EmptyState from '@/components/EmptyState.vue';
 import KpiTiles from '@/components/home/KpiTiles.vue';
 import StepLanes from '@/components/home/StepLanes.vue';
@@ -133,7 +133,7 @@ const countdown = computed(() => {
             <div class="flex flex-wrap items-end gap-x-6 gap-y-3 px-4 pt-4 pb-3 sm:px-5">
                 <div class="min-w-0">
                     <p class="text-xs text-muted-foreground">Weekly cycle</p>
-                    <h1 id="week-title" class="text-xl font-semibold tracking-tight sm:text-[22px]">Week of {{ days[0].date }}</h1>
+                    <h1 id="week-title" class="text-xl font-semibold tracking-tight sm:text-[22px]">Week Ending {{ weekLabel(week.start) }}</h1>
                 </div>
                 <div class="w-full sm:ml-auto sm:w-auto sm:text-right">
                     <p class="text-xs text-muted-foreground">Report due {{ dueLabel }}</p>
@@ -190,7 +190,7 @@ const countdown = computed(() => {
         >
             <PhUserCheck class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             <p class="min-w-0 flex-1">
-                Your staff report for the week of {{ forumDate(staffReport.week + 'T00:00:00Z') }} is not sent yet. It is due
+                Your staff report for the week ending {{ weekLabel(staffReport.week + 'T00:00:00Z') }} is not sent yet. It is due
                 {{ forumDateTime(staffReport.due) }}Z.
             </p>
             <Button size="sm" variant="outline" as-child>

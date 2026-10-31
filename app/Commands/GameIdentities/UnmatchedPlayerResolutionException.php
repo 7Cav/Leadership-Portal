@@ -3,6 +3,7 @@
 namespace App\Commands\GameIdentities;
 
 use App\Models\GameIdentityText;
+use App\Support\Time\WeekLabel;
 use Carbon\CarbonInterface;
 use RuntimeException;
 
@@ -76,6 +77,6 @@ class UnmatchedPlayerResolutionException extends RuntimeException
     /** The practice's week is older than `WeekOf::floor()`: linking would pre-mark it. */
     public static function weekBeforeFloor(CarbonInterface $weekStart): self
     {
-        return new self("The week of {$weekStart->format('dMy')} is too far back to change.");
+        return new self('The week ending '.WeekLabel::ending($weekStart).' is too far back to change.');
     }
 }

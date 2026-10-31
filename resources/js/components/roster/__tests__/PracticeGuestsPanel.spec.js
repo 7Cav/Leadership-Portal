@@ -31,7 +31,7 @@ describe('PracticeGuestsPanel', () => {
         expect(row.text()).toContain('3/2/B/1-7');
         expect(row.find('[data-testid="practice-guest-visits"]').text()).toBe('2');
         expect(row.find('[data-testid="practice-guest-sp"]').text()).toBe('75%');
-        expect(row.text()).toContain('Week of');
+        expect(row.text()).toContain('Week Ending 09Oct26');
         expect(wrapper.find('[data-testid="practice-guests-count"]').text()).toBe('1 guest');
     });
 

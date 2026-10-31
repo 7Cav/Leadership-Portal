@@ -1,4 +1,4 @@
-import { forumDate } from './forumDate';
+import { forumDate, weekLabel } from './forumDate';
 
 // Pure helpers behind the report roll-up workspace (Story 5.8). The server sends the chain as a
 // tree of nodes (ReportRollupController::present); everything here only reads it — no KPI is
@@ -148,6 +148,6 @@ export function reminderText(node, { weekStart, reportDue, origin, now = Date.no
     const deadline = new Date(reportDue).getTime() > now ? `is due ${due}` : `was due ${due} and is overdue`;
     const unit = node.callsign ? `${node.name} (${node.callsign})` : node.name;
 
-    return `Reminder: the ${unit} weekly report for the week of ${forumDate(weekStart)} ${deadline}. `
+    return `Reminder: the ${unit} weekly report for the week ending ${weekLabel(weekStart)} ${deadline}. `
         + `Send it from the Leadership Portal: ${origin}${node.reportUrl}`;
 }

@@ -7,7 +7,7 @@ test('a commander walks the chain, opens a report and copies a reminder', async 
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.goto('/__e2e/login/Hale.S?to=/reports');
 
-    await expect(page.getByRole('heading', { name: /^Week of / })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^Week Ending / })).toBeVisible();
     await expect(page.getByTestId('progress-label')).toHaveText('Sections sent 5 of 8');
 
     const tree = page.getByRole('treegrid');
@@ -38,7 +38,7 @@ test('a commander walks the chain, opens a report and copies a reminder', async 
 
     await panel.getByTestId('copy-reminder').click();
     await expect(page.getByText('Reminder copied')).toBeVisible();
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/^Reminder: the 2nd Section \(2\/1\/A\/1-7\) weekly report for the week of \d{2}\w{3}\d{2} /);
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/^Reminder: the 2nd Section \(2\/1\/A\/1-7\) weekly report for the week ending \d{2}\w{3}\d{2} /);
 });
 
 test('a section leader lands on their own report', async ({ page }) => {

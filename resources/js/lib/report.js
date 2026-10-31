@@ -1,4 +1,4 @@
-import { forumDate } from '@/lib/forumDate';
+import { forumDate, weekLabel } from '@/lib/forumDate';
 import { owesMakeup, practiceOf, signatureOf } from '@/lib/rollcall';
 
 // Presentation rules for the weekly report screen (Stories 5.3–5.5, mockups/v2/report-p3.html).
@@ -81,9 +81,9 @@ export function unitLabel(unit) {
 
 // What the deltas are measured against (5.4), as one sentence under the KPI grid.
 export function baselineText(baseline) {
-    if (baseline?.kind === 'prior') return `Change compared with your sent report for ${forumDate(baseline.week)}.`;
+    if (baseline?.kind === 'prior') return `Change compared with your sent report for the week ending ${weekLabel(baseline.week)}.`;
     if (baseline?.kind === 'no_prior') {
-        return `No prior baseline: last week was not sent. The last sent report is ${forumDate(baseline.week)}.`;
+        return `No prior baseline: last week was not sent. The last sent report is for the week ending ${weekLabel(baseline.week)}.`;
     }
 
     return 'First report: no earlier sent report to compare with.';

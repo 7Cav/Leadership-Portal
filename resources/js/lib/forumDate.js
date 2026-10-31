@@ -11,6 +11,18 @@ export function forumDate(value) {
     return `${day}${month}${year}`;
 }
 
+const DAY_MS = 86_400_000;
+
+// A Cav week by its end date, the Friday, as the Google Form names it (`Week Ending 30Oct26`, #568). The week runs from
+// Saturday 00:00 UTC (AD-11), so a `week_start` names the week it opens and any other moment names the week it falls
+// in, read at its UTC instant. Only the label: weeks stay keyed by their start.
+export function weekLabel(value) {
+    const date = new Date(value);
+    const daysToFriday = (12 - date.getUTCDay()) % 7;
+
+    return forumDate(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) + daysToFriday * DAY_MS);
+}
+
 // `forumDate()` plus a UTC 24h clock — an audit trail needs to order same-day entries, which the
 // date-only convention can't do.
 export function forumDateTime(value) {

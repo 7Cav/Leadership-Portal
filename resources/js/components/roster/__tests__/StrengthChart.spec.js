@@ -34,7 +34,8 @@ describe('StrengthChart', () => {
         expect(row('2026-10-24')).toContain('Placement history');
         expect(row('2026-10-17')).toContain('Sent report');
         expect(row('2026-10-31')).toContain('Not known');
-        expect(row('2026-10-31')).not.toContain('0');
+        expect(row('2026-10-31')).toContain('06Nov26');
+        expect(row('2026-10-31').replace('06Nov26', '')).not.toContain('0');
     });
 
     it('shows the headcount change from the week before, colored by sign', () => {

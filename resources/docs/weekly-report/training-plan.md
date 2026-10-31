@@ -23,7 +23,7 @@ page: /reports/{unit}/plans/{month?}
 
 ## Fill in the weeks
 
-1. Under **Training subject for each week**, the month holds every Cav week whose Saturday falls in that month, so a month has 4 or 5 weeks.
+1. Under **Training subject for each week**, the month holds every Cav week whose Saturday falls in that month, so a month has 4 or 5 weeks. Each week is labelled by its last day, the Friday (**Week Ending 04Dec26**), so the last week of a month can show a date in the next month.
 2. Type a subject for each week you want to plan. A week left blank is not planned, and its sections fill in their own subject as usual. At least one week needs a subject.
 3. To lock the subjects on every section's report, tick **Lock these subjects, so sections cannot change them**. Leave it unticked to give sections a starting point they can change.
 

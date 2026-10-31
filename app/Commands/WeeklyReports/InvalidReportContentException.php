@@ -2,6 +2,7 @@
 
 namespace App\Commands\WeeklyReports;
 
+use App\Support\Time\WeekLabel;
 use Carbon\CarbonInterface;
 use RuntimeException;
 
@@ -39,6 +40,6 @@ class InvalidReportContentException extends RuntimeException
     /** The week is older than `WeekOf::floor()`, too far back to report. */
     public static function weekBeforeFloor(CarbonInterface $weekStart): self
     {
-        return new self("The week of {$weekStart->format('dMy')} is too far back to report.");
+        return new self('The week ending '.WeekLabel::ending($weekStart).' is too far back to report.');
     }
 }

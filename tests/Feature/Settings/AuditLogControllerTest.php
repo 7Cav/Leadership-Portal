@@ -242,8 +242,8 @@ describe('what each entry changed', function () {
 
         $links = auditLinksOn($this);
 
-        expect($links[$entries['practice']->id])->toBe(['href' => "/rollcall/{$this->section->id}?week=2026-10-03", 'label' => '2/1/A/1-7 roll call, week of 03Oct26'])
-            ->and($links[$entries['report']->id])->toBe(['href' => "/reports/{$this->platoon->id}/2026-09-26", 'label' => '1/A/1-7 report, week of 26Sep26'])
+        expect($links[$entries['practice']->id])->toBe(['href' => "/rollcall/{$this->section->id}?week=2026-10-03", 'label' => '2/1/A/1-7 roll call, week ending 09Oct26'])
+            ->and($links[$entries['report']->id])->toBe(['href' => "/reports/{$this->platoon->id}/2026-09-26", 'label' => '1/A/1-7 report, week ending 02Oct26'])
             ->and($links[$entries['unit']->id])->toBe(['href' => "/roster/{$this->platoon->id}", 'label' => '1/A/1-7'])
             ->and($links[$entries['trooper']->id])->toBe(['href' => "/troopers/{$this->trooper->id}", 'label' => 'SGT Vasquez.R'])
             ->and($links[$entries['identity']->id])->toBe(['href' => "/troopers/{$this->trooper->id}", 'label' => 'SGT Vasquez.R'])
@@ -274,8 +274,8 @@ describe('what each entry changed', function () {
         expect($links[$entries['assignment']->id])->toBe(['href' => "/rollcall/{$this->section->id}", 'label' => '2/1/A/1-7 fireteams'])
             ->and($links[$entries['display']->id])->toBe(['href' => "/rollcall/{$this->section->id}", 'label' => '2/1/A/1-7 fireteam display'])
             ->and($links[$entries['policy']->id])->toBeNull() // set from any of its sections' rollcalls, no page of its own
-            ->and($links[$entries['topic']->id])->toBe(['href' => "/reports/{$this->platoon->id}/2026-10-03", 'label' => '1/A/1-7 training topic, week of 03Oct26'])
-            ->and($links[$entries['dismissal']->id])->toBe(['href' => "/rollcall/{$this->section->id}?week=2026-10-03", 'label' => 'Stranger dismissed, 2/1/A/1-7 roll call, week of 03Oct26'])
+            ->and($links[$entries['topic']->id])->toBe(['href' => "/reports/{$this->platoon->id}/2026-10-03", 'label' => '1/A/1-7 training topic, week ending 09Oct26'])
+            ->and($links[$entries['dismissal']->id])->toBe(['href' => "/rollcall/{$this->section->id}?week=2026-10-03", 'label' => 'Stranger dismissed, 2/1/A/1-7 roll call, week ending 09Oct26'])
             ->and($links[$entries['unseen']->id])->toBeNull();
     });
 

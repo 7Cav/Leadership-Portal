@@ -4,7 +4,7 @@ import { PhMedal, PhUsers } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import EmptyState from '@/components/EmptyState.vue';
 import RankBadge from '@/components/roster/RankBadge.vue';
-import { forumDate } from '@/lib/forumDate';
+import { weekLabel } from '@/lib/forumDate';
 import { percentLabel } from '@/lib/roster';
 
 // "Guests at our practices" (JSAM evidence, decided 2026-10-23): troopers from outside this unit who attended its
@@ -83,7 +83,7 @@ const candidates = computed(() => rows.value.filter((row) => row.candidate).leng
                         </td>
                         <td class="px-2 py-2 font-mono text-xs text-muted-foreground">{{ row.section?.designation ?? 'No section' }}</td>
                         <td class="px-2 py-2 text-right tabular-nums" data-testid="practice-guest-visits">{{ row.visits }}</td>
-                        <td class="px-2 py-2 text-muted-foreground tabular-nums">Week of {{ forumDate(row.lastSeen) }}</td>
+                        <td class="px-2 py-2 text-muted-foreground tabular-nums">Week Ending {{ weekLabel(row.lastSeen) }}</td>
                         <td
                             class="px-2 py-2 text-right tabular-nums"
                             data-testid="practice-guest-sp"

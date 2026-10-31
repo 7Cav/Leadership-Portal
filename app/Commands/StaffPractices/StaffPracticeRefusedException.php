@@ -2,6 +2,7 @@
 
 namespace App\Commands\StaffPractices;
 
+use App\Support\Time\WeekLabel;
 use Carbon\CarbonInterface;
 use RuntimeException;
 
@@ -46,12 +47,12 @@ class StaffPracticeRefusedException extends RuntimeException
 
     public static function weekBeforeFloor(CarbonInterface $weekStart): self
     {
-        return new self("The week of {$weekStart->format('dMy')} is too far back to change.", 'before_floor', 'week');
+        return new self('The week ending '.WeekLabel::ending($weekStart).' is too far back to change.', 'before_floor', 'week');
     }
 
     public static function outsideWindow(CarbonInterface $weekStart, int $weeks): self
     {
-        return new self('The week of '.$weekStart->format('dMy').' is too far back. A staff practice can be entered for this week and the '.($weeks - 1).' before it.', 'outside_window', 'week');
+        return new self('The week ending '.WeekLabel::ending($weekStart).' is too far back. A staff practice can be entered for this week and the '.($weeks - 1).' before it.', 'outside_window', 'week');
     }
 
     public static function future(): self
@@ -61,13 +62,13 @@ class StaffPracticeRefusedException extends RuntimeException
 
     public static function locked(CarbonInterface $weekStart): self
     {
-        return new self("The report for the week of {$weekStart->format('dMy')} has been sent, so that week can no longer change.", 'locked', 'week');
+        return new self('The report for the week ending '.WeekLabel::ending($weekStart).' has been sent, so that week can no longer change.', 'locked', 'week');
     }
 
     /** The staff member sent their own staff report for the week, which froze its entries. */
     public static function staffReportSent(string $name, CarbonInterface $weekStart): self
     {
-        return new self("{$name} sent their staff report for the week of {$weekStart->format('dMy')}, so that week can no longer change.", 'locked', 'week');
+        return new self("{$name} sent their staff report for the week ending ".WeekLabel::ending($weekStart).', so that week can no longer change.', 'locked', 'week');
     }
 
     public static function alreadyRecorded(string $name): self

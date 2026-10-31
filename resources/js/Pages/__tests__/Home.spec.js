@@ -38,8 +38,8 @@ describe('Home page', () => {
     afterEach(() => vi.useRealTimers());
 
     describe('week bar (real dates, no mock data)', () => {
-        it('titles the week by its Saturday in forum date convention', () => {
-            expect(factory().find('h1').text()).toBe('Week of 03Oct26');
+        it('titles the week by its Friday, its end date, in forum date convention', () => {
+            expect(factory().find('h1').text()).toBe('Week Ending 09Oct26');
         });
 
         it('lays out Saturday to Friday plus the Saturday the report is due', () => {
@@ -145,7 +145,7 @@ describe('Home page', () => {
             const staffReport = { week: '2026-10-03', due: '2026-10-10T23:59:00+00:00', href: '/staff-report/7/2026-10-03' };
             const notice = mount(Home, { props: { week: WEEK, staffReport } }).find('[data-testid="home-staff-report"]');
 
-            expect(notice.text()).toContain('Your staff report for the week of 03Oct26 is not sent yet. It is due 10Oct26 23:59Z.');
+            expect(notice.text()).toContain('Your staff report for the week ending 09Oct26 is not sent yet. It is due 10Oct26 23:59Z.');
             expect(notice.find('[data-testid="home-staff-report-link"]').attributes('href')).toBe('/staff-report/7/2026-10-03');
         });
 

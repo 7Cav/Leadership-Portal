@@ -24,7 +24,7 @@ describe('reportSummary', () => {
     it('writes a sent report as a few plain lines', () => {
         expect(sent()).toBe(
             [
-                '2nd Section (2/1/A/1-7) weekly report, week of 03Oct26',
+                '2nd Section (2/1/A/1-7) weekly report, week ending 09Oct26',
                 'Sent Thu 08Oct26 16:24Z by SGT Vasquez.R',
                 'Headcount 12, with staff',
                 'In roll call 9 (+1)',

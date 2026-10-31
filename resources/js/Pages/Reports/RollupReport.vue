@@ -13,7 +13,7 @@ import {
 } from '@phosphor-icons/vue';
 import { Button } from '@/components/ui/button';
 import TimeAgo from '@/components/TimeAgo.vue';
-import { forumDate } from '@/lib/forumDate';
+import { weekLabel } from '@/lib/forumDate';
 import { dayTime, displayStatus, percent, points, TYPE_LABEL, unitLabel } from '@/lib/reportRollup';
 import StatusPill from './StatusPill.vue';
 
@@ -82,7 +82,7 @@ function ratioLine(child) {
 <template>
     <div class="flex min-h-0 flex-1 flex-col" data-testid="report-panel">
         <div class="border-b border-border p-4 pr-12">
-            <p class="text-xs text-muted-foreground">{{ TYPE_LABEL[node.type] }} report, week of {{ forumDate(week.start) }}</p>
+            <p class="text-xs text-muted-foreground">{{ TYPE_LABEL[node.type] }} report, week ending {{ weekLabel(week.start) }}</p>
             <div class="flex flex-wrap items-center gap-2">
                 <h2 :id="titleId" class="text-base leading-snug font-semibold">{{ unitLabel(node) }}</h2>
                 <StatusPill :status="status" />

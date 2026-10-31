@@ -32,7 +32,7 @@ const label = computed(() => `Last ${cells.value.length} weeks: ${cells.value.ma
             v-for="cell in cells"
             :key="cell.week"
             class="inline-flex"
-            :title="`Week of ${weekLabel(cell.week)}: ${cell.label}`"
+            :title="`Week Ending ${weekLabel(cell.week)}: ${cell.label}`"
             :data-state="cell.state"
         >
             <WeekCell :sp="cell.state" size="xs" />
