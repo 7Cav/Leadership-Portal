@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -75,6 +76,17 @@ const keepDays = (keep) => props.days.map((day) => ({ date: day.date, entries: d
 // The patch-notes tag an entry's text starts with ("Fixed: ..."), or null.
 const KINDS = ['Added', 'Changed', 'Fixed', 'Removed', 'Security'];
 const kindOf = (entry) => KINDS.find((kind) => (entry.body ?? '').toLowerCase().startsWith(`${kind.toLowerCase()}:`)) ?? null;
+// The Add and Edit forms pick the tag from a list and keep the text apart. A tag the editor typed anyway wins, so it is
+// never doubled; an existing entry's leading tag goes back into the picker.
+function splitTag(body) {
+    const kind = kindOf({ body });
+    return kind ? { tag: kind, text: body.slice(kind.length + 1).trimStart() } : { tag: 'Added', text: body };
+}
+function withTag(tag, text) {
+    const typed = splitTag(text.trim());
+    return `${kindOf({ body: text.trim() }) ? typed.tag : tag}: ${typed.text}`;
+}
+const textRoom = (tag) => MAX_BODY - tag.length - 2;
 
 // The filter bar: one chip at a time, remembered in this browser. Technical only while technical items show.
 const FILTERS = ['all', 'major', ...KINDS.map((kind) => kind.toLowerCase()), 'technical'];
@@ -203,7 +215,7 @@ function toggle(id) {
 
 // The Add dialog: one date and its rows. The outdated bar's "Add entry" opens it with `?add=1`.
 let nextKey = 1;
-const blankRow = () => ({ key: nextKey++, body: '', major: false, technical: false, hasDetails: false, details: '' });
+const blankRow = () => ({ key: nextKey++, tag: 'Added', body: '', major: false, technical: false, hasDetails: false, details: '' });
 const addOpen = ref(props.isEditor && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('add'));
 const addForm = useForm({ date: today(), rows: [blankRow()] });
 const addCount = ref(3);
@@ -263,7 +275,7 @@ function submitAdd() {
             date: data.date,
             entries: sent.value.map((index) => {
                 const row = data.rows[index];
-                return { body: row.body, details: row.hasDetails && row.details.trim() !== '' ? row.details : null, major: row.major, technical: row.technical };
+                return { body: withTag(row.tag, row.body), details: row.hasDetails && row.details.trim() !== '' ? row.details : null, major: row.major, technical: row.technical };
             }),
         }))
         .post('/changelog', {
@@ -275,13 +287,15 @@ function submitAdd() {
 
 // Edit one entry.
 const editing = ref(null);
-const editForm = useForm({ date: '', body: '', major: false, technical: false, hasDetails: false, details: '' });
+const editForm = useForm({ date: '', tag: 'Added', body: '', major: false, technical: false, hasDetails: false, details: '' });
 
 function edit(date, entry) {
     importOpen.value = false;
     editForm.clearErrors();
     editForm.date = date;
-    editForm.body = entry.body;
+    const { tag, text } = splitTag(entry.body ?? '');
+    editForm.tag = tag;
+    editForm.body = text;
     editForm.major = !!entry.major;
     editForm.technical = !!entry.technical;
     editForm.details = entry.details ?? '';
@@ -291,7 +305,7 @@ function edit(date, entry) {
 
 function submitEdit() {
     editForm
-        .transform((data) => ({ date: data.date, body: data.body, details: data.hasDetails && data.details.trim() !== '' ? data.details : null, major: data.major, technical: data.technical }))
+        .transform((data) => ({ date: data.date, body: withTag(data.tag, data.body), details: data.hasDetails && data.details.trim() !== '' ? data.details : null, major: data.major, technical: data.technical }))
         .patch(`/changelog/${editing.value.id}`, {
             preserveScroll: true,
             onSuccess: () => (editing.value = null),
@@ -613,10 +627,13 @@ function runImport() {
                     <ol class="space-y-2" data-testid="changelog-rows">
                         <li v-for="(row, index) in addForm.rows" :key="row.key" class="space-y-1.5" :data-testid="`changelog-row-${index}`">
                             <div class="flex items-center gap-1.5">
+                                <NativeSelect v-model="row.tag" class="w-28" :aria-label="`Tag for change ${index + 1}`" :data-testid="`changelog-row-tag-${index}`">
+                                    <NativeSelectOption v-for="kind in KINDS" :key="kind" :value="kind">{{ kind }}</NativeSelectOption>
+                                </NativeSelect>
                                 <Input
                                     :ref="(el) => (el ? rowInputs.set(row.key, el.$el ?? el) : rowInputs.delete(row.key))"
                                     v-model="row.body"
-                                    :maxlength="MAX_BODY"
+                                    :maxlength="textRoom(row.tag)"
                                     :aria-label="`Change ${index + 1}`"
                                     placeholder="What changed"
                                     class="flex-1"
@@ -662,7 +679,7 @@ function runImport() {
                                     Add additional information
                                 </label>
                             </div>
-                            <p v-if="row.technical" class="text-xs text-muted-foreground" :data-testid="`changelog-row-technical-hint-${index}`">Say what was fixed, not how it could be abused.</p>
+                            <p v-if="row.technical || row.tag === 'Security'" class="text-xs text-muted-foreground" :data-testid="`changelog-row-technical-hint-${index}`">Say what was fixed, not how it could be abused.</p>
                             <Textarea
                                 v-if="row.hasDetails"
                                 v-model="row.details"
@@ -710,7 +727,12 @@ function runImport() {
                     </div>
                     <div class="space-y-1.5">
                         <Label for="changelog-edit-body">Change</Label>
-                        <Input id="changelog-edit-body" v-model="editForm.body" :maxlength="MAX_BODY" data-testid="changelog-edit-body" :aria-invalid="!!editForm.errors.body" />
+                        <div class="flex items-center gap-1.5">
+                            <NativeSelect v-model="editForm.tag" class="w-28" aria-label="Tag" data-testid="changelog-edit-tag">
+                                <NativeSelectOption v-for="kind in KINDS" :key="kind" :value="kind">{{ kind }}</NativeSelectOption>
+                            </NativeSelect>
+                            <Input id="changelog-edit-body" v-model="editForm.body" class="flex-1" :maxlength="textRoom(editForm.tag)" data-testid="changelog-edit-body" :aria-invalid="!!editForm.errors.body" />
+                        </div>
                         <p v-if="editForm.errors.body" class="text-xs text-destructive">{{ editForm.errors.body }}</p>
                     </div>
                     <label class="flex items-center gap-2 text-xs text-muted-foreground">
@@ -721,7 +743,7 @@ function runImport() {
                         <Checkbox :model-value="editForm.technical" data-testid="changelog-edit-technical" @update:model-value="(value) => setKind(editForm, 'technical', value)" />
                         Technical
                     </label>
-                    <p v-if="editForm.technical" class="text-xs text-muted-foreground" data-testid="changelog-edit-technical-hint">Say what was fixed, not how it could be abused.</p>
+                    <p v-if="editForm.technical || editForm.tag === 'Security'" class="text-xs text-muted-foreground" data-testid="changelog-edit-technical-hint">Say what was fixed, not how it could be abused.</p>
                     <label class="flex items-center gap-2 text-xs text-muted-foreground">
                         <Checkbox v-model="editForm.hasDetails" data-testid="changelog-edit-has-details" />
                         Add additional information

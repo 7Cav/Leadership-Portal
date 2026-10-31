@@ -169,8 +169,8 @@ describe('Changelog page', () => {
             {
                 date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
                 entries: [
-                    { body: 'First', details: null, major: false, technical: false },
-                    { body: 'Third', details: 'Some **detail**', major: true, technical: false },
+                    { body: 'Added: First', details: null, major: false, technical: false },
+                    { body: 'Added: Third', details: 'Some **detail**', major: true, technical: false },
                 ],
             },
             expect.any(Object),
@@ -190,7 +190,64 @@ describe('Changelog page', () => {
         await flushPromises();
         body('[data-testid="changelog-edit-save"]').click();
         await flushPromises();
-        expect(formPost).toHaveBeenCalledWith('/changelog/3', { date: '2026-10-30', body: 'Newest change', details: 'More **here**', major: false, technical: false }, expect.any(Object));
+        expect(formPost).toHaveBeenCalledWith('/changelog/3', { date: '2026-10-30', body: 'Added: Newest change', details: 'More **here**', major: false, technical: false }, expect.any(Object));
+    });
+
+    it('picks a tag per add row: Added by default, Security shows the hint, a typed tag is not doubled', async () => {
+        mountPage({ isEditor: true });
+        await wrapper.get('[data-testid="changelog-add"]').trigger('click');
+        await flushPromises();
+
+        const tag = body('[data-testid="changelog-row-tag-0"]');
+        expect(tag.value).toBe('Added');
+        expect(document.body.querySelector('[data-testid="changelog-row-technical-hint-0"]')).toBeNull();
+        tag.value = 'Security';
+        tag.dispatchEvent(new Event('change'));
+        await flushPromises();
+        expect(body('[data-testid="changelog-row-technical-hint-0"]').textContent).toContain('Say what was fixed, not how it could be abused.');
+
+        const first = body('[data-testid="changelog-row-body-0"]');
+        first.value = 'Sign-in checks tightened';
+        first.dispatchEvent(new Event('input'));
+        first.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+        await flushPromises();
+        const second = body('[data-testid="changelog-row-body-1"]');
+        second.value = 'Fixed: roster sort';
+        second.dispatchEvent(new Event('input'));
+        await flushPromises();
+        body('[data-testid="changelog-add-save"]').click();
+        await flushPromises();
+
+        expect(formPost).toHaveBeenCalledWith(
+            '/changelog',
+            {
+                date: expect.any(String),
+                entries: [
+                    { body: 'Security: Sign-in checks tightened', details: null, major: false, technical: false },
+                    { body: 'Fixed: roster sort', details: null, major: false, technical: false },
+                ],
+            },
+            expect.any(Object),
+        );
+    });
+
+    it('edit puts the entry tag in the picker and the rest in the text', async () => {
+        mountPage({ isEditor: true, days: [{ date: '2026-10-30', entries: [{ id: 9, body: 'Security: Session timeout fixed', major: false, technical: true, detailsHtml: null, details: null }] }] });
+        await openFull();
+        await wrapper.get('[data-testid="changelog-edit-9"]').trigger('click');
+        await flushPromises();
+
+        expect(body('[data-testid="changelog-edit-tag"]').value).toBe('Security');
+        expect(body('[data-testid="changelog-edit-body"]').value).toBe('Session timeout fixed');
+        expect(body('[data-testid="changelog-edit-technical-hint"]')).toBeTruthy();
+
+        const tag = body('[data-testid="changelog-edit-tag"]');
+        tag.value = 'Fixed';
+        tag.dispatchEvent(new Event('change'));
+        await flushPromises();
+        body('[data-testid="changelog-edit-save"]').click();
+        await flushPromises();
+        expect(formPost).toHaveBeenCalledWith('/changelog/9', { date: '2026-10-30', body: 'Fixed: Session timeout fixed', details: null, major: false, technical: true }, expect.any(Object));
     });
 
     it('previews an import grouped by date, marks the entries it would skip, and imports the rest', async () => {
@@ -310,7 +367,7 @@ describe('Changelog page', () => {
             await flushPromises();
             expect(formPost).toHaveBeenCalledWith(
                 '/changelog',
-                { date: expect.any(String), entries: [{ body: 'Security hardening', details: null, major: false, technical: true }] },
+                { date: expect.any(String), entries: [{ body: 'Added: Security hardening', details: null, major: false, technical: true }] },
                 expect.any(Object),
             );
         });

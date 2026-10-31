@@ -538,9 +538,11 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
 - The sidebar shows a dot on Changelog while an entry was written after the viewer last opened the page. Opening it
   clears the dot, but not during a view-as preview or while someone acts as the viewer.
 - Only the changelog editors (`changelog_editors` in `config/portal.php`, matched without case), signed in as
-  themselves, write it. **Add** takes one date (today in Zulu by default) and up to 50 rows at once, each with an
+  themselves, write it. **Add** takes one date (today in Zulu by default) and up to 50 rows at once, each with a tag picker
+  (Added by default, Changed, Fixed, Removed, Security; saved as "<Tag>: <text>", a tag typed into the text is kept and
+  not doubled, and Edit splits an entry's tag back into the picker), a
   **Major change** tickbox (off, so the entry is full changelog only), a **Technical** tickbox (ticking one clears the
-  other; a technical row shows the hint "Say what was fixed, not how it could be abused.") and an optional **Add additional information**
+  other; a technical or Security row shows the hint "Say what was fixed, not how it could be abused.") and an optional **Add additional information**
   tickbox; Enter in a row adds a row below it. Each entry can be edited or
   deleted on its own (delete asks to confirm, with a reason). Bulk import takes pasted Markdown: a `## YYYY-MM-DD`
   heading per date, a `- ` bullet per entry, and an indented block under a bullet as its additional information. A bullet that starts with `[major]` (any case) is
