@@ -55,6 +55,8 @@ checklist:
 3. If the banner says the server could not be read, mark by hand, or choose **Try again** to read it again.
 4. Players the server saw who are linked to no trooper are listed for you to link or dismiss. See [Link or dismiss an unmatched player](/docs/weekly-rollcall/unmatched-players).
 
+> [!good-to-know] A trooper with no identity for the section's game has a warning icon by their name, and a warning at the top of the page lists them. The capture can't see them, so mark them by hand and link them on [Game identities](/docs/your-troopers/game-identities).
+
 ## Guests and make-ups
 
 1. A trooper from another section who came to your practice is a guest. It records **Make-up complete** on their own section's roll call. See [Add a guest to practice](/docs/weekly-rollcall/add-a-guest).

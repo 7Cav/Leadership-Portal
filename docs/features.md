@@ -331,6 +331,12 @@ missing. Every serving trooper placed in your scope is listed:
 section members, HQ staff and group members (ELOA, Reservists, New Recruits, staff departments). Linking someone
 outside a section only lets the capture recognise them; attendance is still marked in sections only.
 
+Missing identity alert: a trooper counts as missing when they have no identity on the game their own unit plays (its own
+or inherited, not retired), whatever ID kind; departed troopers, troopers placed on groups and units with no game are
+left out. A leader (synced billet, acting lead or Admin; view as shows the target's) sees a top-of-page warning on Home
+for their scope, naming the troopers by game. The section's roll call and the roster show the same warning at the top
+and an icon on each affected row. Not dismissible; read-only, with a fixed number of queries.
+
 The ID is checked against the shape of its kind when it is saved: a Steam ID is 17 digits starting 7656119, an Epic ID
 32 characters of 0 to 9 and a to f (stored lower case, as the game server reports it). Other kinds, such as Xbox ID or
 Arma's Player ID, take any value. The hint under the ID field says what the chosen kind looks like. An identity saved

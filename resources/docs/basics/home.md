@@ -9,6 +9,10 @@ page: /home
 
 > [!why] Home shows what is still to do this week across every section you lead, and who to chase.
 
+## Troopers missing a game identity
+
+If you lead a unit and one of your troopers has no identity for the game your unit plays, a warning at the top of Home names them. Link them on [Game identities](/docs/your-troopers/game-identities); until then the game server can't record their practice attendance.
+
 ## Read the week bar
 
 1. The bar at the top shows the days of the Cav week and when the report is due.

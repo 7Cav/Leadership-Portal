@@ -26,6 +26,8 @@ checklist:
 4. Filter by name, rank or billet with the box above the list.
 5. **Headcount** under the unit's name and on each unit in the order of battle is its headcount: everyone serving placed in the unit or under it, HQ staff and staff departments included. New Recruits, ELOA and Reservists count only on their own group. RC and SP are counted over the troopers in sections only, so the headcount never changes them.
 
+> [!good-to-know] A warning icon by a name means the trooper has no identity for their unit's game; the warning at the top of the page lists them all.
+
 ## See strength over time
 
 1. Choose the **Strength** tab on the roster, or **Strength** on a unit row on Home.
