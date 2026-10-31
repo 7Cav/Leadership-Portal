@@ -98,7 +98,7 @@ describe('Changelog page', () => {
         mountPage();
         await openFull();
 
-        expect(wrapper.findAll('[data-testid^="changelog-day-"] h3').map((h) => h.text())).toEqual(['30Oct26', '01Oct26']);
+        expect(wrapper.findAll('[data-testid^="changelog-day-"] h3').map((h) => h.text())).toEqual(['30OCT26', '01OCT26']);
         expect(wrapper.get('[data-testid="changelog-day-2026-10-30"]').findAll('[data-testid="changelog-entry-body"]').map((e) => e.text())).toEqual([
             'Newest change',
             'Second on the day',
@@ -169,8 +169,8 @@ describe('Changelog page', () => {
             {
                 date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
                 entries: [
-                    { body: 'First', details: null, major: false, technical: false },
-                    { body: 'Third', details: 'Some **detail**', major: true, technical: false },
+                    { body: 'Added: First', details: null, major: false, technical: false },
+                    { body: 'Added: Third', details: 'Some **detail**', major: true, technical: false },
                 ],
             },
             expect.any(Object),
@@ -190,7 +190,64 @@ describe('Changelog page', () => {
         await flushPromises();
         body('[data-testid="changelog-edit-save"]').click();
         await flushPromises();
-        expect(formPost).toHaveBeenCalledWith('/changelog/3', { date: '2026-10-30', body: 'Newest change', details: 'More **here**', major: false, technical: false }, expect.any(Object));
+        expect(formPost).toHaveBeenCalledWith('/changelog/3', { date: '2026-10-30', body: 'Added: Newest change', details: 'More **here**', major: false, technical: false }, expect.any(Object));
+    });
+
+    it('picks a tag per add row: Added by default, Security shows the hint, a typed tag is not doubled', async () => {
+        mountPage({ isEditor: true });
+        await wrapper.get('[data-testid="changelog-add"]').trigger('click');
+        await flushPromises();
+
+        const tag = body('[data-testid="changelog-row-tag-0"]');
+        expect(tag.value).toBe('Added');
+        expect(document.body.querySelector('[data-testid="changelog-row-technical-hint-0"]')).toBeNull();
+        tag.value = 'Security';
+        tag.dispatchEvent(new Event('change'));
+        await flushPromises();
+        expect(body('[data-testid="changelog-row-technical-hint-0"]').textContent).toContain('Say what was fixed, not how it could be abused.');
+
+        const first = body('[data-testid="changelog-row-body-0"]');
+        first.value = 'Sign-in checks tightened';
+        first.dispatchEvent(new Event('input'));
+        first.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+        await flushPromises();
+        const second = body('[data-testid="changelog-row-body-1"]');
+        second.value = 'Fixed: roster sort';
+        second.dispatchEvent(new Event('input'));
+        await flushPromises();
+        body('[data-testid="changelog-add-save"]').click();
+        await flushPromises();
+
+        expect(formPost).toHaveBeenCalledWith(
+            '/changelog',
+            {
+                date: expect.any(String),
+                entries: [
+                    { body: 'Security: Sign-in checks tightened', details: null, major: false, technical: false },
+                    { body: 'Fixed: roster sort', details: null, major: false, technical: false },
+                ],
+            },
+            expect.any(Object),
+        );
+    });
+
+    it('edit puts the entry tag in the picker and the rest in the text', async () => {
+        mountPage({ isEditor: true, days: [{ date: '2026-10-30', entries: [{ id: 9, body: 'Security: Session timeout fixed', major: false, technical: true, detailsHtml: null, details: null }] }] });
+        await openFull();
+        await wrapper.get('[data-testid="changelog-edit-9"]').trigger('click');
+        await flushPromises();
+
+        expect(body('[data-testid="changelog-edit-tag"]').value).toBe('Security');
+        expect(body('[data-testid="changelog-edit-body"]').value).toBe('Session timeout fixed');
+        expect(body('[data-testid="changelog-edit-technical-hint"]')).toBeTruthy();
+
+        const tag = body('[data-testid="changelog-edit-tag"]');
+        tag.value = 'Fixed';
+        tag.dispatchEvent(new Event('change'));
+        await flushPromises();
+        body('[data-testid="changelog-edit-save"]').click();
+        await flushPromises();
+        expect(formPost).toHaveBeenCalledWith('/changelog/9', { date: '2026-10-30', body: 'Fixed: Session timeout fixed', details: null, major: false, technical: true }, expect.any(Object));
     });
 
     it('previews an import grouped by date, marks the entries it would skip, and imports the rest', async () => {
@@ -213,7 +270,7 @@ describe('Changelog page', () => {
         await flushPromises();
 
         expect(postJson).toHaveBeenCalledWith('/changelog/import/preview', { markdown: expect.stringContaining('Fresh') });
-        expect(wrapper.get('[data-testid="changelog-import-entries"] h3').text()).toBe('01Oct26');
+        expect(wrapper.get('[data-testid="changelog-import-entries"] h3').text()).toBe('01OCT26');
         expect(wrapper.find('[data-testid="preview-skipped-2"]').exists()).toBe(true);
         expect(wrapper.find('[data-testid="preview-details-3"]').exists()).toBe(true);
         expect(wrapper.find('[data-testid="preview-major-3"]').exists()).toBe(true);
@@ -310,19 +367,129 @@ describe('Changelog page', () => {
             await flushPromises();
             expect(formPost).toHaveBeenCalledWith(
                 '/changelog',
-                { date: expect.any(String), entries: [{ body: 'Security hardening', details: null, major: false, technical: true }] },
+                { date: expect.any(String), entries: [{ body: 'Added: Security hardening', details: null, major: false, technical: true }] },
                 expect.any(Object),
             );
         });
 
         it('lets an Admin change the setting, and shows it to nobody else', async () => {
             mountPage({ technicalSetting: { enabled: false } });
-            await wrapper.get('[data-testid="changelog-technical-setting-toggle"]').trigger('click');
+            await wrapper.get('[data-testid="changelog-settings"]').trigger('click');
+            await flushPromises();
+            body('[data-testid="changelog-technical-setting-toggle"]').click();
+            await flushPromises();
             expect(routerPost).toHaveBeenCalledWith('/changelog/settings', { technical_enabled: true }, expect.any(Object));
 
             wrapper.unmount();
             mountPage();
-            expect(wrapper.find('[data-testid="changelog-technical-setting"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="changelog-settings"]').exists()).toBe(false);
+        });
+    });
+
+    describe('tags, filters and the count', () => {
+        const TAG_DAYS = [
+            {
+                date: '2026-10-30',
+                entries: [
+                    { id: 11, body: 'Security: Tighter session checks', major: true, technical: false, detailsHtml: null, details: null },
+                    { id: 12, body: 'Fixed: Roster sorting', major: false, technical: false, detailsHtml: null, details: null },
+                    { id: 13, body: 'Dependency updates', major: false, technical: true, detailsHtml: null, details: null },
+                ],
+            },
+            { date: '2026-10-24', entries: [{ id: 14, body: 'Added: Changelog page', major: true, technical: false, detailsHtml: null, details: null }] },
+        ];
+
+        it('marks Security entries in both columns and keeps their text', async () => {
+            mountPage({ days: TAG_DAYS });
+            await openFull();
+            expect(wrapper.get('[data-testid="changelog-security-11"]').text()).toBe('Security');
+            expect(wrapper.get('[data-testid="major-changelog-security-11"]').text()).toBe('Security');
+            expect(wrapper.get('[data-testid="changelog-entry-11"]').text()).toContain('Security: Tighter session checks');
+            expect(wrapper.find('[data-testid="changelog-security-12"]').exists()).toBe(false);
+        });
+
+        it('filters both columns by one chip and remembers it', async () => {
+            mountPage({ days: TAG_DAYS });
+            await openFull();
+            expect(wrapper.find('[data-testid="changelog-filter-technical"]').exists()).toBe(false);
+
+            await wrapper.get('[data-testid="changelog-filter-fixed"]').trigger('click');
+            await flushPromises();
+            expect(wrapper.find('[data-testid="changelog-entry-12"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="changelog-entry-11"]').exists()).toBe(false);
+            expect(wrapper.get('[data-testid="changelog-major-empty"]').text()).toBe('No major changes match this filter.');
+            expect(window.localStorage.getItem('changelog.filter')).toBe('fixed');
+
+            wrapper.unmount();
+            mountPage({ days: TAG_DAYS });
+            await wrapper.get('[data-testid="changelog-filter-added"]').trigger('click');
+            await flushPromises();
+            expect(wrapper.find('[data-testid="major-changelog-entry-14"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="major-changelog-entry-11"]').exists()).toBe(false);
+        });
+
+        it('offers a Technical chip once technical items show', async () => {
+            mountPage({ days: TAG_DAYS, isEditor: true });
+            await openFull();
+            await wrapper.get('[data-testid="changelog-filter-technical"]').trigger('click');
+            await flushPromises();
+            expect(wrapper.find('[data-testid="changelog-entry-13"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="changelog-entry-12"]').exists()).toBe(false);
+        });
+
+        it('starts on All when localStorage throws', () => {
+            vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+                throw new Error('blocked');
+            });
+            mountPage({ days: TAG_DAYS });
+            expect(wrapper.get('[data-testid="changelog-filter-all"]').attributes('data-state')).toBe('on');
+        });
+
+        it('counts the changes this viewer can see since the first date', () => {
+            mountPage({ days: TAG_DAYS });
+            expect(wrapper.get('[data-testid="changelog-stat"]').text()).toBe('3 changes recorded since 24OCT26');
+            wrapper.unmount();
+            mountPage({ days: TAG_DAYS, isEditor: true });
+            expect(wrapper.get('[data-testid="changelog-stat"]').text()).toBe('4 changes recorded since 24OCT26');
+        });
+    });
+
+    describe('delete all and restore', () => {
+        it('confirms with the count before deleting every entry, for editors only', async () => {
+            mountPage();
+            expect(wrapper.find('[data-testid="changelog-delete-all"]').exists()).toBe(false);
+            wrapper.unmount();
+
+            mountPage({ isEditor: true });
+            await wrapper.get('[data-testid="changelog-delete-all"]').trigger('click');
+            await flushPromises();
+
+            const dialog = body('[data-testid="changelog-delete-all-dialog"]');
+            expect(dialog.textContent).toContain('Delete all 3 entries?');
+            expect(dialog.textContent).toContain('You can restore them for 72 hours.');
+            expect(routerPost).not.toHaveBeenCalled();
+
+            body('[data-testid="changelog-delete-all-confirm"]').click();
+            await flushPromises();
+            expect(routerPost).toHaveBeenCalledWith('/changelog/delete-all', {}, expect.any(Object));
+        });
+
+        it('hides Delete all with no entries', () => {
+            mountPage({ isEditor: true, days: [] });
+            expect(wrapper.find('[data-testid="changelog-delete-all"]').exists()).toBe(false);
+        });
+
+        it('shows the restore bar with Zulu stamps and restores on click', async () => {
+            mountPage({ isEditor: true, days: [], pendingRestore: { count: 265, deletedAt: '2026-10-31T18:20:00Z', restoreUntil: '2026-11-03T18:20:00Z' } });
+
+            expect(wrapper.get('[data-testid="changelog-restore-text"]').text()).toBe('265 entries deleted on 31OCT26 18:20Z. Restore until 03NOV26 18:20Z.');
+            await wrapper.get('[data-testid="changelog-restore"]').trigger('click');
+            expect(routerPost).toHaveBeenCalledWith('/changelog/restore', {}, expect.any(Object));
+        });
+
+        it('shows no restore bar without a pending restore', () => {
+            mountPage({ isEditor: true });
+            expect(wrapper.find('[data-testid="changelog-restore-bar"]').exists()).toBe(false);
         });
     });
 });

@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { PhCaretRight, PhClockCounterClockwise, PhPencilSimple, PhPlus, PhTrash, PhUploadSimple } from '@phosphor-icons/vue';
+import { PhCaretRight, PhClockCounterClockwise, PhGear, PhPencilSimple, PhPlus, PhTrash, PhUploadSimple } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -9,11 +9,14 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import EmptyState from '@/components/EmptyState.vue';
 import ReasonDialog from '@/components/ReasonDialog.vue';
 import { toast } from 'vue-sonner';
-import { forumDate } from '@/lib/forumDate';
+import { forumDate, forumDateTime } from '@/lib/forumDate';
 import { onHttpException } from '@/lib/httpError';
 import { postJson } from '@/lib/postJson';
 
@@ -25,7 +28,7 @@ import { postJson } from '@/lib/postJson';
 // stripped.
 //
 // Technical entries (behind-the-scenes and security work) never show under Major changes. In the full changelog they
-// show, marked, only after the viewer ticks "Show technical and security items" (remembered in this browser), and an
+// show, marked, only after the viewer ticks "Show technical and security items" in the filter bar (remembered in this browser), and an
 // editor always sees them. The server sends them only while an Admin has made them available, or to an editor.
 const props = defineProps({
     // `[{ date, entries: [{ id, body, major, technical, detailsHtml, details }] }]`, newest date first; `details` (the Markdown) only for an editor.
@@ -35,6 +38,8 @@ const props = defineProps({
     technicalToggle: { type: Boolean, default: false },
     // The Admin setting `{ enabled }`, only for an Admin who may change it.
     technicalSetting: { type: Object, default: null },
+    // While a delete all can be restored, `{ count, deletedAt, restoreUntil }` (UTC), only for an editor.
+    pendingRestore: { type: Object, default: null },
 });
 
 const MAX_BODY = 300;
@@ -68,11 +73,67 @@ const technicalShown = computed(() => props.isEditor || (props.technicalToggle &
 
 const keepDays = (keep) => props.days.map((day) => ({ date: day.date, entries: day.entries.filter(keep) })).filter((day) => day.entries.length > 0);
 
+// The patch-notes tag an entry's text starts with ("Fixed: ..."), or null.
+const KINDS = ['Added', 'Changed', 'Fixed', 'Removed', 'Security'];
+const kindOf = (entry) => KINDS.find((kind) => (entry.body ?? '').toLowerCase().startsWith(`${kind.toLowerCase()}:`)) ?? null;
+// The Add and Edit forms pick the tag from a list and keep the text apart. A tag the editor typed anyway wins, so it is
+// never doubled; an existing entry's leading tag goes back into the picker.
+function splitTag(body) {
+    const kind = kindOf({ body });
+    return kind ? { tag: kind, text: body.slice(kind.length + 1).trimStart() } : { tag: 'Added', text: body };
+}
+function withTag(tag, text) {
+    const typed = splitTag(text.trim());
+    return `${kindOf({ body: text.trim() }) ? typed.tag : tag}: ${typed.text}`;
+}
+const textRoom = (tag) => MAX_BODY - tag.length - 2;
+
+// The filter bar: one chip at a time, remembered in this browser. Technical only while technical items show.
+const FILTERS = ['all', 'major', ...KINDS.map((kind) => kind.toLowerCase()), 'technical'];
+function readFilter() {
+    try {
+        const value = typeof window !== 'undefined' ? window.localStorage.getItem('changelog.filter') : null;
+        return FILTERS.includes(value) ? value : 'all';
+    } catch {
+        return 'all';
+    }
+}
+const filter = ref(readFilter());
+watch(filter, (value) => {
+    try {
+        window.localStorage.setItem('changelog.filter', value);
+    } catch {
+        // Not remembered.
+    }
+});
+const filterChips = computed(() => [
+    { key: 'all', label: 'All' },
+    { key: 'major', label: 'Major' },
+    ...KINDS.map((kind) => ({ key: kind.toLowerCase(), label: kind })),
+    ...(technicalShown.value ? [{ key: 'technical', label: 'Technical' }] : []),
+]);
+// A remembered Technical filter falls back to All once technical items are hidden.
+const activeFilter = computed(() => (filter.value === 'technical' && !technicalShown.value ? 'all' : filter.value));
+function matches(entry) {
+    const key = activeFilter.value;
+    if (key === 'all') return true;
+    if (key === 'major') return !!entry.major;
+    if (key === 'technical') return !!entry.technical;
+    return kindOf(entry)?.toLowerCase() === key;
+}
+
+// Every entry this viewer may see: technical ones only when shown.
+const visible = (entry) => technicalShown.value || !entry.technical;
 // The major column: only major entries, never technical ones, days left empty dropped.
-const majorDays = computed(() => keepDays((entry) => entry.major && !entry.technical));
-// The full column: every entry, technical ones only when shown.
-const fullDays = computed(() => keepDays((entry) => technicalShown.value || !entry.technical));
+const majorDays = computed(() => keepDays((entry) => entry.major && !entry.technical && matches(entry)));
+// The full column: every visible entry that passes the filter.
+const fullDays = computed(() => keepDays((entry) => visible(entry) && matches(entry)));
 const entryCount = computed(() => fullDays.value.reduce((total, day) => total + day.entries.length, 0));
+
+// The statistic in the header: every entry this viewer may see, whatever the filter, and the first date.
+const recordedDays = computed(() => keepDays(visible));
+const recordedCount = computed(() => recordedDays.value.reduce((total, day) => total + day.entries.length, 0));
+const firstDate = computed(() => recordedDays.value[recordedDays.value.length - 1]?.date ?? null);
 
 // Whether the full changelog is open, remembered per viewer.
 const fullOpen = ref(readFlag('changelog.fullOpen'));
@@ -89,6 +150,44 @@ function setTechnicalEnabled(enabled) {
             onStart: () => (settingSaving.value = true),
             onHttpException: onHttpException('The setting was not saved', (message) => toast.error(message)),
             onFinish: () => (settingSaving.value = false),
+        },
+    );
+}
+
+// Delete all: every entry, after a confirm that names the count. Editors get every entry, technical ones included, so
+// the count is the whole changelog. It can be restored for 72 hours from the bar the server then sends.
+const totalEntries = computed(() => props.days.reduce((total, day) => total + day.entries.length, 0));
+const entriesLabel = (count) => (count === 1 ? '1 entry' : `${count} entries`);
+const deleteAllOpen = ref(false);
+const deletingAll = ref(false);
+function deleteAll() {
+    router.post(
+        '/changelog/delete-all',
+        {},
+        {
+            preserveScroll: true,
+            onStart: () => (deletingAll.value = true),
+            onSuccess: () => (deleteAllOpen.value = false),
+            onError: (errors) => toast.error(Object.values(errors)[0] ?? 'Nothing was deleted. Try again.'),
+            onHttpException: onHttpException('Nothing was deleted', (message) => toast.error(message)),
+            onFinish: () => (deletingAll.value = false),
+        },
+    );
+}
+
+// `31OCT26 18:20Z`, the portal's Zulu stamp.
+const zulu = (value) => `${forumDateTime(value).toUpperCase()}Z`;
+const restoring = ref(false);
+function restoreAll() {
+    router.post(
+        '/changelog/restore',
+        {},
+        {
+            preserveScroll: true,
+            onStart: () => (restoring.value = true),
+            onError: (errors) => toast.error(Object.values(errors)[0] ?? 'Nothing was restored. Try again.'),
+            onHttpException: onHttpException('Nothing was restored', (message) => toast.error(message)),
+            onFinish: () => (restoring.value = false),
         },
     );
 }
@@ -116,7 +215,7 @@ function toggle(id) {
 
 // The Add dialog: one date and its rows. The outdated bar's "Add entry" opens it with `?add=1`.
 let nextKey = 1;
-const blankRow = () => ({ key: nextKey++, body: '', major: false, technical: false, hasDetails: false, details: '' });
+const blankRow = () => ({ key: nextKey++, tag: 'Added', body: '', major: false, technical: false, hasDetails: false, details: '' });
 const addOpen = ref(props.isEditor && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('add'));
 const addForm = useForm({ date: today(), rows: [blankRow()] });
 const addCount = ref(3);
@@ -176,7 +275,7 @@ function submitAdd() {
             date: data.date,
             entries: sent.value.map((index) => {
                 const row = data.rows[index];
-                return { body: row.body, details: row.hasDetails && row.details.trim() !== '' ? row.details : null, major: row.major, technical: row.technical };
+                return { body: withTag(row.tag, row.body), details: row.hasDetails && row.details.trim() !== '' ? row.details : null, major: row.major, technical: row.technical };
             }),
         }))
         .post('/changelog', {
@@ -188,13 +287,15 @@ function submitAdd() {
 
 // Edit one entry.
 const editing = ref(null);
-const editForm = useForm({ date: '', body: '', major: false, technical: false, hasDetails: false, details: '' });
+const editForm = useForm({ date: '', tag: 'Added', body: '', major: false, technical: false, hasDetails: false, details: '' });
 
 function edit(date, entry) {
     importOpen.value = false;
     editForm.clearErrors();
     editForm.date = date;
-    editForm.body = entry.body;
+    const { tag, text } = splitTag(entry.body ?? '');
+    editForm.tag = tag;
+    editForm.body = text;
     editForm.major = !!entry.major;
     editForm.technical = !!entry.technical;
     editForm.details = entry.details ?? '';
@@ -204,7 +305,7 @@ function edit(date, entry) {
 
 function submitEdit() {
     editForm
-        .transform((data) => ({ date: data.date, body: data.body, details: data.hasDetails && data.details.trim() !== '' ? data.details : null, major: data.major, technical: data.technical }))
+        .transform((data) => ({ date: data.date, body: withTag(data.tag, data.body), details: data.hasDetails && data.details.trim() !== '' ? data.details : null, major: data.major, technical: data.technical }))
         .patch(`/changelog/${editing.value.id}`, {
             preserveScroll: true,
             onSuccess: () => (editing.value = null),
@@ -306,12 +407,51 @@ function runImport() {
 
     <div class="max-w-6xl space-y-5">
         <div class="flex flex-wrap items-start justify-between gap-3">
-            <h1 class="text-xl font-semibold tracking-tight">Changelog</h1>
-            <div v-if="isEditor" class="flex flex-wrap gap-2">
-                <Button size="sm" data-testid="changelog-add" @click="openAdd"><PhPlus aria-hidden="true" />Add</Button>
-                <Button size="sm" variant="outline" data-testid="changelog-import" @click="openImport"><PhUploadSimple aria-hidden="true" />Bulk import</Button>
+            <div>
+                <h1 class="text-xl font-semibold tracking-tight">Changelog</h1>
+                <p v-if="recordedCount > 0" class="text-xs text-muted-foreground tabular-nums" data-testid="changelog-stat">
+                    {{ recordedCount === 1 ? '1 change' : `${recordedCount} changes` }} recorded since {{ forumDate(firstDate).toUpperCase() }}
+                </p>
+            </div>
+            <div v-if="isEditor || technicalSetting" class="flex flex-wrap gap-2">
+                <template v-if="isEditor">
+                    <Button size="sm" data-testid="changelog-add" @click="openAdd"><PhPlus aria-hidden="true" />Add</Button>
+                    <Button size="sm" variant="outline" data-testid="changelog-import" @click="openImport"><PhUploadSimple aria-hidden="true" />Bulk import</Button>
+                    <Button v-if="totalEntries > 0" size="sm" variant="outline" class="text-destructive" data-testid="changelog-delete-all" @click="deleteAllOpen = true">
+                        <PhTrash aria-hidden="true" />Delete all
+                    </Button>
+                </template>
+                <Popover v-if="technicalSetting">
+                    <PopoverTrigger as-child>
+                        <Button size="icon" variant="outline" class="size-8" aria-label="Changelog settings" title="Changelog settings" data-testid="changelog-settings">
+                            <PhGear aria-hidden="true" />
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" class="w-72 space-y-1 p-3" data-testid="changelog-technical-setting">
+                        <label class="flex items-center gap-2 text-[13px] font-medium">
+                            <Checkbox
+                                :model-value="technicalSetting.enabled"
+                                :disabled="settingSaving"
+                                data-testid="changelog-technical-setting-toggle"
+                                @update:model-value="(value) => setTechnicalEnabled(value === true)"
+                            />
+                            Make technical and security items available to everyone
+                        </label>
+                        <p class="pl-6 text-xs text-muted-foreground">When off, only the changelog editors see them.</p>
+                    </PopoverContent>
+                </Popover>
             </div>
         </div>
+
+        <Card v-if="isEditor && pendingRestore" class="max-w-3xl flex-row flex-wrap items-center justify-between gap-3 p-3" role="status" data-testid="changelog-restore-bar">
+            <p class="flex items-center gap-2 text-[13px]">
+                <PhClockCounterClockwise class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span data-testid="changelog-restore-text">
+                    {{ entriesLabel(pendingRestore.count) }} deleted on {{ zulu(pendingRestore.deletedAt) }}. Restore until {{ zulu(pendingRestore.restoreUntil) }}.
+                </span>
+            </p>
+            <Button size="sm" variant="outline" :disabled="restoring" data-testid="changelog-restore" @click="restoreAll">Restore</Button>
+        </Card>
 
         <Card v-if="isEditor && importOpen" class="max-w-3xl gap-3 p-4" data-testid="changelog-import-panel">
             <h2 class="text-[15px] font-semibold">Bulk import</h2>
@@ -340,7 +480,7 @@ function runImport() {
                 </ul>
                 <div v-if="previewDays.length" class="space-y-3 rounded-md border border-border p-3 text-[13px]" data-testid="changelog-import-entries">
                     <section v-for="day in previewDays" :key="day.date">
-                        <h3 class="text-xs font-semibold text-muted-foreground tabular-nums">{{ forumDate(day.date) }}</h3>
+                        <h3 class="text-xs font-semibold text-muted-foreground tabular-nums">{{ forumDate(day.date).toUpperCase() }}</h3>
                         <ul class="mt-1 space-y-0.5">
                             <li v-for="entry in day.entries" :key="entry.line" class="flex items-baseline gap-2" :data-testid="`preview-entry-${entry.line}`">
                                 <span class="size-1.5 shrink-0 translate-y-[-2px] rounded-full bg-muted-foreground/60" aria-hidden="true" />
@@ -358,18 +498,17 @@ function runImport() {
             </template>
         </Card>
 
-        <Card v-if="technicalSetting" class="max-w-3xl gap-1 p-4" data-testid="changelog-technical-setting">
-            <label class="flex items-center gap-2 text-[13px] font-medium">
-                <Checkbox
-                    :model-value="technicalSetting.enabled"
-                    :disabled="settingSaving"
-                    data-testid="changelog-technical-setting-toggle"
-                    @update:model-value="(value) => setTechnicalEnabled(value === true)"
-                />
-                Make technical and security items available to everyone
+        <div v-if="days.length" class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2" data-testid="changelog-filters">
+            <div class="max-w-full overflow-x-auto">
+                <ToggleGroup type="single" variant="segment" :model-value="activeFilter" aria-label="Show changes" @update:model-value="(value) => (filter = value || 'all')">
+                    <ToggleGroupItem v-for="chip in filterChips" :key="chip.key" :value="chip.key" :data-testid="`changelog-filter-${chip.key}`">{{ chip.label }}</ToggleGroupItem>
+                </ToggleGroup>
+            </div>
+            <label v-if="technicalToggle" class="flex w-fit items-center gap-2 text-xs text-muted-foreground">
+                <Checkbox v-model="showTechnical" data-testid="changelog-technical-toggle" />
+                Show technical and security items
             </label>
-            <p class="pl-6 text-xs text-muted-foreground">When off, only the changelog editors see them.</p>
-        </Card>
+        </div>
 
         <div v-if="days.length" class="grid items-start gap-x-8 gap-y-6 lg:grid-cols-2" data-testid="changelog-columns">
             <section
@@ -394,13 +533,11 @@ function runImport() {
                         <span class="text-xs font-normal text-muted-foreground tabular-nums">{{ entryCount === 1 ? '1 entry' : `${entryCount} entries` }}</span>
                     </button>
                 </h2>
-                <label v-if="column.key === 'full' && technicalToggle" class="mt-1.5 flex w-fit items-center gap-2 text-xs text-muted-foreground">
-                    <Checkbox v-model="showTechnical" data-testid="changelog-technical-toggle" />
-                    Show technical and security items
-                </label>
-
                 <p v-if="column.key === 'major' && column.days.length === 0" class="mt-2 text-[13px] text-muted-foreground" data-testid="changelog-major-empty">
-                    No major changes yet. Every change is in the full changelog.
+                    {{ activeFilter === 'all' ? 'No major changes yet. Every change is in the full changelog.' : 'No major changes match this filter.' }}
+                </p>
+                <p v-else-if="column.key === 'full' && fullOpen && column.days.length === 0" class="mt-2 text-[13px] text-muted-foreground" data-testid="changelog-full-empty">
+                    No changes match this filter.
                 </p>
                 <div
                     v-else-if="column.key === 'major' || fullOpen"
@@ -410,7 +547,7 @@ function runImport() {
                 >
                     <section v-for="day in column.days" :key="day.date" :data-testid="`${column.prefix}changelog-day-${day.date}`">
                         <h3 class="border-b border-border pb-1 text-[13px] font-semibold tabular-nums">
-                            <time :datetime="day.date">{{ forumDate(day.date) }}</time>
+                            <time :datetime="day.date">{{ forumDate(day.date).toUpperCase() }}</time>
                         </h3>
                         <ul class="mt-1.5 space-y-0.5">
                             <li v-for="entry in day.entries" :key="entry.id" class="group" :data-testid="`${column.prefix}changelog-entry-${entry.id}`">
@@ -432,6 +569,7 @@ function runImport() {
                                     </span>
                                     <span class="min-w-0 flex-1 break-words" data-testid="changelog-entry-body">{{ entry.body }}</span>
                                     <Badge v-if="column.key === 'full' && entry.major" variant="secondary" class="h-5 shrink-0 px-1.5 text-[11px]" :data-testid="`changelog-major-${entry.id}`">Major</Badge>
+                                    <Badge v-if="kindOf(entry) === 'Security'" variant="secondary" class="h-5 shrink-0 px-1.5 text-[11px]" :data-testid="`${column.prefix}changelog-security-${entry.id}`">Security</Badge>
                                     <Badge
                                         v-if="entry.technical"
                                         variant="outline"
@@ -489,10 +627,13 @@ function runImport() {
                     <ol class="space-y-2" data-testid="changelog-rows">
                         <li v-for="(row, index) in addForm.rows" :key="row.key" class="space-y-1.5" :data-testid="`changelog-row-${index}`">
                             <div class="flex items-center gap-1.5">
+                                <NativeSelect v-model="row.tag" class="w-28" :aria-label="`Tag for change ${index + 1}`" :data-testid="`changelog-row-tag-${index}`">
+                                    <NativeSelectOption v-for="kind in KINDS" :key="kind" :value="kind">{{ kind }}</NativeSelectOption>
+                                </NativeSelect>
                                 <Input
                                     :ref="(el) => (el ? rowInputs.set(row.key, el.$el ?? el) : rowInputs.delete(row.key))"
                                     v-model="row.body"
-                                    :maxlength="MAX_BODY"
+                                    :maxlength="textRoom(row.tag)"
                                     :aria-label="`Change ${index + 1}`"
                                     placeholder="What changed"
                                     class="flex-1"
@@ -538,7 +679,7 @@ function runImport() {
                                     Add additional information
                                 </label>
                             </div>
-                            <p v-if="row.technical" class="text-xs text-muted-foreground" :data-testid="`changelog-row-technical-hint-${index}`">Say what was fixed, not how it could be abused.</p>
+                            <p v-if="row.technical || row.tag === 'Security'" class="text-xs text-muted-foreground" :data-testid="`changelog-row-technical-hint-${index}`">Say what was fixed, not how it could be abused.</p>
                             <Textarea
                                 v-if="row.hasDetails"
                                 v-model="row.details"
@@ -586,7 +727,12 @@ function runImport() {
                     </div>
                     <div class="space-y-1.5">
                         <Label for="changelog-edit-body">Change</Label>
-                        <Input id="changelog-edit-body" v-model="editForm.body" :maxlength="MAX_BODY" data-testid="changelog-edit-body" :aria-invalid="!!editForm.errors.body" />
+                        <div class="flex items-center gap-1.5">
+                            <NativeSelect v-model="editForm.tag" class="w-28" aria-label="Tag" data-testid="changelog-edit-tag">
+                                <NativeSelectOption v-for="kind in KINDS" :key="kind" :value="kind">{{ kind }}</NativeSelectOption>
+                            </NativeSelect>
+                            <Input id="changelog-edit-body" v-model="editForm.body" class="flex-1" :maxlength="textRoom(editForm.tag)" data-testid="changelog-edit-body" :aria-invalid="!!editForm.errors.body" />
+                        </div>
                         <p v-if="editForm.errors.body" class="text-xs text-destructive">{{ editForm.errors.body }}</p>
                     </div>
                     <label class="flex items-center gap-2 text-xs text-muted-foreground">
@@ -597,7 +743,7 @@ function runImport() {
                         <Checkbox :model-value="editForm.technical" data-testid="changelog-edit-technical" @update:model-value="(value) => setKind(editForm, 'technical', value)" />
                         Technical
                     </label>
-                    <p v-if="editForm.technical" class="text-xs text-muted-foreground" data-testid="changelog-edit-technical-hint">Say what was fixed, not how it could be abused.</p>
+                    <p v-if="editForm.technical || editForm.tag === 'Security'" class="text-xs text-muted-foreground" data-testid="changelog-edit-technical-hint">Say what was fixed, not how it could be abused.</p>
                     <label class="flex items-center gap-2 text-xs text-muted-foreground">
                         <Checkbox v-model="editForm.hasDetails" data-testid="changelog-edit-has-details" />
                         Add additional information
@@ -617,6 +763,21 @@ function runImport() {
                         <Button type="submit" size="sm" :disabled="editForm.processing" data-testid="changelog-edit-save">Save changes</Button>
                     </DialogFooter>
                 </form>
+            </DialogContent>
+        </Dialog>
+
+        <Dialog v-if="isEditor" :open="deleteAllOpen" @update:open="(value) => !deletingAll && (deleteAllOpen = value)">
+            <DialogContent class="sm:max-w-md" data-testid="changelog-delete-all-dialog">
+                <DialogHeader>
+                    <DialogTitle>Delete all {{ entriesLabel(totalEntries) }}?</DialogTitle>
+                    <DialogDescription>You can restore them for 72 hours.</DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                    <Button type="button" variant="ghost" size="sm" :disabled="deletingAll" @click="deleteAllOpen = false">Cancel</Button>
+                    <Button type="button" variant="destructive" size="sm" :disabled="deletingAll" data-testid="changelog-delete-all-confirm" @click="deleteAll">
+                        Delete all
+                    </Button>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
 

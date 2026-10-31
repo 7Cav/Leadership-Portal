@@ -10,6 +10,7 @@ use App\Commands\Changelog\ChangelogSettings;
 use App\Docs\SafeMarkdown;
 use App\Models\ChangelogEntry;
 use App\Repositories\ChangelogRepository;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -66,6 +67,8 @@ class ChangelogController extends Controller
                     ])->values()->all(),
                 ])->values()->all(),
             'isEditor' => $editor,
+            // While a delete all can be restored, `{ count, deletedAt, restoreUntil }` (ISO, UTC), only to an editor.
+            'pendingRestore' => $editor ? $this->pendingRestore() : null,
             // Whether a non-editor gets the "Show technical and security items" toggle. Editors always see them.
             'technicalToggle' => ! $editor && $technicalEnabled,
             // The Admin setting, sent only to someone who may change it.
@@ -128,6 +131,32 @@ class ChangelogController extends Controller
         return redirect()->route('changelog.index');
     }
 
+    public function destroyAll(Request $request, ChangelogEntries $command): RedirectResponse
+    {
+        $this->authorizeEditor($request);
+
+        try {
+            $count = $command->deleteAll($request->user());
+        } catch (InvalidArgumentException $e) {
+            throw ValidationException::withMessages(['changelog' => $e->getMessage()]);
+        }
+
+        return redirect()->route('changelog.index')->with('notice', $count === 1 ? '1 entry deleted' : "{$count} entries deleted");
+    }
+
+    public function restore(Request $request, ChangelogEntries $command): RedirectResponse
+    {
+        $this->authorizeEditor($request);
+
+        try {
+            $count = $command->restoreDeleted($request->user());
+        } catch (InvalidArgumentException $e) {
+            throw ValidationException::withMessages(['changelog' => $e->getMessage()]);
+        }
+
+        return redirect()->route('changelog.index')->with('notice', $count === 1 ? '1 entry restored' : "{$count} entries restored");
+    }
+
     /** The bulk import's preview: the entries the paste holds, which would be skipped, and any errors. Writes nothing. */
     public function preview(Request $request, ChangelogEntries $command): JsonResponse
     {
@@ -173,6 +202,23 @@ class ChangelogController extends Controller
         $command->setTechnicalEnabled($request->user(), (bool) $data['technical_enabled']);
 
         return redirect()->route('changelog.index');
+    }
+
+    /** @return array{count: int, deletedAt: string, restoreUntil: string}|null */
+    private function pendingRestore(): ?array
+    {
+        $entries = $this->changelog->restorable(now());
+        if ($entries->isEmpty()) {
+            return null;
+        }
+
+        $deletedAt = CarbonImmutable::instance($entries->max('deleted_at'));
+
+        return [
+            'count' => $entries->count(),
+            'deletedAt' => $deletedAt->utc()->toIso8601ZuluString(),
+            'restoreUntil' => $deletedAt->addHours(ChangelogEntry::RESTORE_HOURS)->utc()->toIso8601ZuluString(),
+        ];
     }
 
     private function authorizeEditor(Request $request): void

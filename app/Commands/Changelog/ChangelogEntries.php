@@ -13,7 +13,8 @@ use Illuminate\Auth\Access\AuthorizationException;
 use InvalidArgumentException;
 
 /**
- * Every write to the changelog (AD-16): add, edit, delete, bulk import and dismissing the "Changelog outdated" bar.
+ * Every write to the changelog (AD-16): add, edit, delete, delete all, restore, bulk import and dismissing the
+ * "Changelog outdated" bar.
  * Each is checked against {@see ChangelogAccess::mayEdit()} before anything is written, so a non-editor, someone acted
  * as, or a view-as preview is refused whatever the caller forgot to gate. Only a delete needs a reason.
  *
@@ -98,6 +99,67 @@ class ChangelogEntries
             reasonRequired: true,
             mutation: fn () => $this->changelog->delete($entry),
         );
+    }
+
+    /**
+     * Delete every entry in one audited action. They can be restored for {@see ChangelogEntry::RESTORE_HOURS} hours; entries
+     * an earlier delete all removed that can still be restored join this one, with the window starting again.
+     *
+     * @return int how many entries a restore would now bring back
+     *
+     * @throws InvalidArgumentException when there is nothing to delete.
+     */
+    public function deleteAll(User $actor): int
+    {
+        $this->authorize($actor);
+        if ($this->changelog->all()->isEmpty()) {
+            throw new InvalidArgumentException('There are no entries to delete.');
+        }
+
+        $deleted = collect();
+        $this->audit->recordBatch(
+            actorId: $actor->id,
+            action: 'changelog.deleted_all',
+            reason: null,
+            reasonRequired: false,
+            mutation: function () use (&$deleted) {
+                $deleted = $this->changelog->deleteAll(now());
+
+                return new AuditedBatch(...$deleted->all());
+            },
+        );
+
+        return $deleted->count();
+    }
+
+    /**
+     * Bring back every entry the last delete all removed, as it was, in one audited action.
+     *
+     * @return int how many entries came back
+     *
+     * @throws InvalidArgumentException when nothing can be restored, or the 72 hours have passed.
+     */
+    public function restoreDeleted(User $actor): int
+    {
+        $this->authorize($actor);
+        if ($this->changelog->restorable(now())->isEmpty()) {
+            throw new InvalidArgumentException('There is nothing to restore. Deleted entries can be restored for '.ChangelogEntry::RESTORE_HOURS.' hours.');
+        }
+
+        $restored = collect();
+        $this->audit->recordBatch(
+            actorId: $actor->id,
+            action: 'changelog.restored',
+            reason: null,
+            reasonRequired: false,
+            mutation: function () use (&$restored) {
+                $restored = $this->changelog->restore(now());
+
+                return new AuditedBatch(...$restored->all());
+            },
+        );
+
+        return $restored->count();
     }
 
     /**

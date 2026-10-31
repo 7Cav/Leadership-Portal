@@ -46,9 +46,46 @@ class Eloquent implements ChangelogRepository
 
     public function delete(ChangelogEntry $entry): ChangelogEntry
     {
-        $entry->delete();
+        $entry->forceDelete();
 
         return $entry;
+    }
+
+    public function deleteAll(DateTimeInterface $at): Collection
+    {
+        $at = CarbonImmutable::instance($at)->startOfSecond();
+
+        // Through the base query, so `updated_at` stays as it was and a restore is exact.
+        DB::transaction(function () use ($at) {
+            ChangelogEntry::query()->toBase()->whereNull('deleted_at')->update(['deleted_at' => $at]);
+            ChangelogEntry::onlyTrashed()->toBase()->where('deleted_at', '>', $this->cutoff($at))->update(['deleted_at' => $at]);
+        });
+
+        return $this->restorable($at);
+    }
+
+    public function restorable(DateTimeInterface $now): Collection
+    {
+        return ChangelogEntry::onlyTrashed()->where('deleted_at', '>', $this->cutoff($now))->orderBy('id')->get();
+    }
+
+    public function restore(DateTimeInterface $now): Collection
+    {
+        $ids = $this->restorable($now)->modelKeys();
+        ChangelogEntry::onlyTrashed()->toBase()->whereIn('id', $ids)->update(['deleted_at' => null]);
+
+        return ChangelogEntry::query()->whereIn('id', $ids)->orderBy('id')->get();
+    }
+
+    public function purgeDeleted(DateTimeInterface $now): int
+    {
+        return ChangelogEntry::onlyTrashed()->toBase()->where('deleted_at', '<=', $this->cutoff($now))->delete();
+    }
+
+    /** The moment before which a delete all can no longer be restored. */
+    private function cutoff(DateTimeInterface $now): CarbonImmutable
+    {
+        return CarbonImmutable::instance($now)->subHours(ChangelogEntry::RESTORE_HOURS);
     }
 
     public function existingKeys(): array

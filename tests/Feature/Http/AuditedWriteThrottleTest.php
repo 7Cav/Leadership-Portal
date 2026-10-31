@@ -103,6 +103,8 @@ it('puts the writes the 2026-10-28 review found unlimited on the right buckets',
         'changelog.import' => 'audited-writes',
         'changelog.outdated.dismiss' => 'audited-writes',
         'changelog.settings' => 'audited-writes',
+        'changelog.destroy-all' => 'audited-writes',
+        'changelog.restore' => 'audited-writes',
         // The import reads Cav on the request, so it shares the roster sync's tight bucket.
         'settings.org-structure.import' => 'roster-sync',
         'counseling.store' => 'counseling-uploads',

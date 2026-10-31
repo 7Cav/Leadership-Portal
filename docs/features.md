@@ -513,7 +513,7 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
 ## Changelog
 
 - `/changelog`, under Help in the sidebar, for everyone signed in: what changed in the portal, written by hand, never
-  pulled from git. Dates (Zulu days, shown as forum dates like 30Oct26) are listed newest first, each with its entries
+  pulled from git. Dates (Zulu days, shown as forum dates with a capital month like 30OCT26) are listed newest first, each with its entries
   as a compact list. An entry is one line of text (up to 300 characters). One with additional information (Markdown, up
   to 2000 characters, shown with any raw HTML stripped) has a chevron that opens it; it starts closed.
 - The page has two columns, stacked on a phone with Major changes first. Major changes lists only the entries flagged
@@ -523,18 +523,26 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
 - Technical entries are behind-the-scenes and security work (CI, tests, dependency updates, refactors, infrastructure,
   security hardening). An entry is never both major and technical. They never show under Major changes. Whether anyone
   but the editors gets them is an Admin setting on the changelog page, **Make technical and security items available to
-  everyone**, off by default and stored on the changelog's state row; changing it is audited as
+  everyone**, in a popover behind the gear button (**Changelog settings**) in the page header, shown to Admins only, off by default and stored on the changelog's state row; changing it is audited as
   `changelog.technical_setting_changed`. While it is off, the server does not send technical entries to anyone but the
-  editors. While it is on, the full changelog has a **Show technical and security items** tickbox, off by default and
+  editors. While it is on, the filter bar has a **Show technical and security items** tickbox, off by default and
   remembered in the viewer's browser (localStorage); ticked, technical entries show inline with a muted Technical badge.
   The editors always see them, marked, with no tickbox. Technical entries do not light the sidebar dot for anyone but
   the editors.
+- A filter bar above both columns has single-select chips: All, Major, Added, Changed, Fixed, Removed, Security, and
+  Technical while technical entries show. Added to Security match the patch-notes tag the entry's text starts with
+  ("Fixed: ..."). The filter applies to both columns and is remembered in the viewer's browser (localStorage); without
+  storage it starts on All. An entry whose text starts with "Security:" gets a Security badge, styled like Major, with
+  its text unchanged. The header shows "N changes recorded since 24OCT26": the entries this viewer can see, whatever
+  the filter, and the first date.
 - The sidebar shows a dot on Changelog while an entry was written after the viewer last opened the page. Opening it
   clears the dot, but not during a view-as preview or while someone acts as the viewer.
 - Only the changelog editors (`changelog_editors` in `config/portal.php`, matched without case), signed in as
-  themselves, write it. **Add** takes one date (today in Zulu by default) and up to 50 rows at once, each with an
+  themselves, write it. **Add** takes one date (today in Zulu by default) and up to 50 rows at once, each with a tag picker
+  (Added by default, Changed, Fixed, Removed, Security; saved as "<Tag>: <text>", a tag typed into the text is kept and
+  not doubled, and Edit splits an entry's tag back into the picker), a
   **Major change** tickbox (off, so the entry is full changelog only), a **Technical** tickbox (ticking one clears the
-  other; a technical row shows the hint "Say what was fixed, not how it could be abused.") and an optional **Add additional information**
+  other; a technical or Security row shows the hint "Say what was fixed, not how it could be abused.") and an optional **Add additional information**
   tickbox; Enter in a row adds a row below it. Each entry can be edited or
   deleted on its own (delete asks to confirm, with a reason). Bulk import takes pasted Markdown: a `## YYYY-MM-DD`
   heading per date, a `- ` bullet per entry, and an indented block under a bullet as its additional information. A bullet that starts with `[major]` (any case) is
@@ -543,6 +551,13 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
   after the date on the heading is taken as the first entry). It previews the result with any errors, can skip entries
   whose date and text already exist, and saves them in one batch. Writes are audited as `changelog.created` (one per
   added batch), `changelog.updated`, `changelog.deleted`, `changelog.imported` and `changelog.outdated_dismissed`.
+- **Delete all** removes every entry after a confirm that states the count ("Delete all 265 entries? You can restore them
+  for 72 hours."). The entries are only marked deleted (`deleted_at`), so they leave the page, the sidebar dot and the
+  import's duplicate check at once. For 72 hours the editors see a bar such as "265 entries deleted on 31OCT26 18:20Z.
+  Restore until 03NOV26 18:20Z." with **Restore**, which brings every entry back as it was: same text, details, date,
+  flags and order. A second delete all inside the window joins the pending one, so one restore brings back both and the
+  72 hours start again. After 72 hours the entries count as gone, and `portal:purge-changelog` (hourly) removes the rows.
+  Deleting one entry still removes it at once. Audited as `changelog.deleted_all` and `changelog.restored`.
 - After each redeploy (a new asset build version) the editors see a bright blue "Changelog outdated" bar with "Add entry" and
   "Dismiss". Adding an entry, an import, or a dismiss clears it for both editors until the next deploy.
 
