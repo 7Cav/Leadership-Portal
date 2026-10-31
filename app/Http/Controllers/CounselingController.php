@@ -204,8 +204,10 @@ class CounselingController extends Controller
     {
         $shared = $this->handle($request, fn () => $handler->handle($request->user(), new ShareCounselingRecord($counseling, $this->pmGrant($request))));
 
-        // Shared either way; a copy that could not go to S1 is the leader's to send, and they are told so.
-        return back()->with('status', $shared->followUp ?? 'Shared with the trooper.');
+        // Shared either way; a copy that could not go to S1 is the leader's to send, and the shell's notice tells them so.
+        return $shared->followUp === null
+            ? back()->with('status', 'Shared with the trooper.')
+            : back()->with('notice', $shared->followUp);
     }
 
     public function withdraw(Request $request, int $counseling, WithdrawCounselingRecordHandler $handler): RedirectResponse

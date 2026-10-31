@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
+import { toast } from 'vue-sonner';
 import Record from '../Record.vue';
 
 // #565: one counseling record. The page draws what the server sent and posts each step; who may do what is the
@@ -8,6 +9,8 @@ import Record from '../Record.vue';
 const sent = vi.fn();
 // Errors the next request answers with, as the server's validation would.
 let nextErrors = null;
+// The page the next successful post answers with (its shared props), or undefined.
+let nextPage;
 const guards = [];
 
 vi.mock('vue-sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -62,8 +65,9 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => {
                         form.errors = nextErrors;
                         options?.onError?.(nextErrors);
                         nextErrors = null;
+        nextPage = undefined;
                     } else {
-                        options?.onSuccess?.();
+                        options?.onSuccess?.(nextPage);
                     }
                 };
             }
@@ -133,6 +137,8 @@ const open = async (wrapper, key) => {
 describe('Counseling/Record', () => {
     beforeEach(() => {
         sent.mockReset();
+        toast.success.mockReset();
+        nextPage = undefined;
         nextErrors = null;
         guards.length = 0;
         vi.useFakeTimers({ toFake: ['Date'] });
@@ -239,6 +245,17 @@ describe('Counseling/Record', () => {
             await wrapper.find('[data-testid="share-submit"]').trigger('click');
 
             expect(sent).toHaveBeenCalledWith('post', '/counseling/42/share', {});
+            expect(toast.success).toHaveBeenCalledWith('Shared with the trooper');
+        });
+
+        it('leaves the S1 follow-up to the shell\'s notice instead of a success toast', async () => {
+            const wrapper = page({ missing: [] });
+            await open(wrapper, 'share');
+            nextPage = { props: { flash: { notice: 'The letter was shared with the trooper, but the forum refused its copy to S1. Send the letter to S1 yourself.' } } };
+            await wrapper.find('[data-testid="share-submit"]').trigger('click');
+
+            expect(sent).toHaveBeenCalledWith('post', '/counseling/42/share', {});
+            expect(toast.success).not.toHaveBeenCalledWith('Shared with the trooper');
         });
 
         it('asks for PM permission before the invite or share, linking to the forum consent page', async () => {

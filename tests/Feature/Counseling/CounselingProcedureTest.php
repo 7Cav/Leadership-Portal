@@ -226,7 +226,7 @@ it('never tells S1 of an LOR whose share failed, and keeps a share whose S1 copy
         MockResponse::make(['conversation' => ['conversation_id' => 1]]),
         MockResponse::make(['errors' => [['code' => 'no_permission']]], 403),
     ]);
-    ($this->share)($this->pl, $draft)->assertSessionHasNoErrors()->assertSessionHas('status', fn (string $status) => str_contains($status, 'Send it to S1 yourself'));
+    ($this->share)($this->pl, $draft)->assertSessionHasNoErrors()->assertSessionHas('notice', 'The letter was shared with the trooper, but the forum refused its copy to S1 and the oversight officer. Send the letter to S1 yourself.');
     expect($draft->fresh()->isShared())->toBeTrue();
 });
 
@@ -235,7 +235,7 @@ it('tells the leader when nobody can take the LOR\'s copy for record processing'
     $this->actingAs($this->pl)->withSession(counselingPmSession($this->pl))->post(route('counseling.invite', $draft->id), ['windows' => ['a', 'b', 'c']]);
     ($this->save)($this->pl, $draft, counselingDraftPayload(['type' => 'lor'], ['consequences' => ['nfa']]));
 
-    ($this->share)($this->pl, $draft)->assertSessionHas('status', fn (string $status) => str_contains($status, 'No S1 or oversight officer'));
+    ($this->share)($this->pl, $draft)->assertSessionHas('notice', fn (string $notice) => str_contains($notice, 'No S1 or oversight officer'));
     expect($draft->fresh()->isShared())->toBeTrue();
 });
 

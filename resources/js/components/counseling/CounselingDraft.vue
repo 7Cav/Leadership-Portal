@@ -194,7 +194,10 @@ function postShare() {
     share.post(`/counseling/${props.record.id}/share`, {
         preserveScroll: true,
         preserveState: true,
-        onSuccess: () => toast.success('Shared with the trooper'),
+        // A copy to S1 that could not go comes back as the shell's notice, which says what to do instead.
+        onSuccess: (page) => {
+            if (!page?.props?.flash?.notice) toast.success('Shared with the trooper');
+        },
         onHttpException: onHttpException('The record was not shared', (message) => toast.error(message)),
     });
 }

@@ -19,7 +19,10 @@ class CounselingPmException extends RuntimeException
     /** Forum codes that mean the token itself no longer serves, so asking again can help. */
     private const TOKEN_CODES = ['invalid_token', 'expired_token', 'invalid_grant', 'no_api_key_in_request', 'invalid_scope'];
 
-    public function __construct(string $message, public readonly bool $needsConsent = false, ?Throwable $previous = null)
+    /**
+     * @param  bool  $mayHaveSent  the forum timed out, failed or answered unreadably: the PM may have gone all the same
+     */
+    public function __construct(string $message, public readonly bool $needsConsent = false, ?Throwable $previous = null, public readonly bool $mayHaveSent = false)
     {
         parent::__construct($message, 0, $previous);
     }
@@ -52,6 +55,6 @@ class CounselingPmException extends RuntimeException
 
         $why = $status === null ? 'the forum did not answer in time, or answered in a way the portal could not read' : "the forum answered HTTP {$status}";
 
-        return new self("The PM may or may not have been sent: {$why}. Nothing was changed in the portal. Check your forum conversations before trying again, so it is not sent twice.", previous: $previous);
+        return new self("The PM may or may not have been sent: {$why}. Nothing was changed in the portal. Check your forum conversations before trying again, so it is not sent twice.", previous: $previous, mayHaveSent: true);
     }
 }

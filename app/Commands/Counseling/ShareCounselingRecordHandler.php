@@ -111,7 +111,9 @@ class ShareCounselingRecordHandler
         } catch (CounselingPmException $e) {
             report($e);
 
-            return 'The letter was shared, but its copy to S1 and the oversight officer could not be sent ('.$e->getMessage().'). Send it to S1 yourself.';
+            return $e->mayHaveSent
+                ? 'The letter was shared with the trooper, but its copy to S1 and the oversight officer may not have gone. Check your forum conversations, and send it to S1 yourself if it is not there.'
+                : 'The letter was shared with the trooper, but the forum refused its copy to S1 and the oversight officer. Send the letter to S1 yourself.';
         }
 
         return null;
