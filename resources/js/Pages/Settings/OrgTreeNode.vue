@@ -32,7 +32,11 @@ const childNameCh = computed(() => {
     const names = props.node.children.filter((child) => !child.ref && child.callsign && !isHq(child)).map((child) => child.name.length);
     return names.length > 1 ? Math.max(...names) : null;
 });
-const nameStyle = computed(() => (props.nameCh && props.node.callsign && !isHq(props.node) ? { minWidth: `${props.nameCh}ch` } : undefined));
+// Only from `sm` up (the class reads the variable): on a phone the callsign sits under the name instead.
+const nameStyle = computed(() => (props.nameCh && props.node.callsign && !isHq(props.node) ? { '--name-ch': `${props.nameCh}ch` } : undefined));
+
+// Game, label, vacant lead and oversight: inline from `sm` up, their own line under the name on a phone.
+const hasMeta = computed(() => Boolean(props.node.game || props.node.label || (props.node.lead_vacant && !props.node.empty) || oversightText.value));
 
 const oversightText = computed(() => {
     if (props.node.oversight) return `Oversight: ${props.node.oversight.displayName}${props.node.oversight.serving ? '' : ' (not serving)'}`;
@@ -51,12 +55,12 @@ const oversightText = computed(() => {
             role="treeitem"
             tabindex="0"
             :aria-selected="false"
-            class="flex min-h-8 cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] text-muted-foreground hover:bg-accent/70"
+            class="flex min-h-8 cursor-pointer flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-md px-1.5 py-1 text-[13px] text-muted-foreground hover:bg-accent/70"
             @click="emit('reference', node.id)"
             @keydown.enter.space.prevent="emit('reference', node.id)"
         >
             <PhArrowBendDownRight class="size-3.5 shrink-0" aria-hidden="true" />
-            <span class="min-w-0 truncate">
+            <span class="min-w-0 flex-1 break-words sm:flex-initial">
                 {{ node.name }}
                 <span v-if="node.callsign" class="ml-1.5 font-mono text-[11px]">{{ node.callsign }}</span>
                 <span class="ml-1.5 text-[11px]">{{ node.refNote }}</span>
@@ -64,13 +68,13 @@ const oversightText = computed(() => {
             <span
                 v-if="node.game"
                 :data-testid="`ref-game-${node.refParentId}-${node.id}`"
-                class="shrink-0 truncate text-[11px]"
+                class="min-w-0 text-[11px] max-sm:order-last max-sm:basis-full max-sm:pl-5 sm:shrink-0 sm:truncate"
                 :title="node.game.from ? `${node.game.name}, from ${node.game.from}` : node.game.name"
                 >{{ node.game.name }}<template v-if="node.game.retired"> (retired)</template
                 ><template v-if="node.game.from"> from {{ node.game.from }}</template></span
             >
-            <span v-if="oversightText" :data-testid="`ref-oversight-${node.refParentId}-${node.id}`" class="shrink-0 text-[11px]">{{ oversightText }}</span>
-            <span class="ml-auto shrink-0 text-[11px] tabular-nums">Headcount {{ node.trooper_count }}</span>
+            <span v-if="oversightText" :data-testid="`ref-oversight-${node.refParentId}-${node.id}`" class="text-[11px] max-sm:order-last max-sm:basis-full max-sm:pl-5 sm:shrink-0">{{ oversightText }}</span>
+            <span class="ml-auto shrink-0 text-[11px] tabular-nums"><span class="sr-only sm:not-sr-only">Headcount </span>{{ node.trooper_count }}</span>
         </div>
     </li>
     <li v-else role="none">
@@ -81,7 +85,7 @@ const oversightText = computed(() => {
             :aria-selected="node.id === selectedId"
             :aria-expanded="node.children.length ? !collapsed.has(node.id) : undefined"
             :data-highlighted="node.id === highlightId || undefined"
-            class="group relative flex min-h-8 cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] transition-shadow duration-700 hover:bg-accent/70"
+            class="group relative flex min-h-8 cursor-pointer flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-md px-1.5 py-1 text-[13px] transition-shadow duration-700 hover:bg-accent/70"
             :class="{
                 'text-muted-foreground': node.empty,
                 'bg-accent font-medium shadow-[inset_2px_0_0_var(--primary)]': node.id === selectedId,
@@ -105,15 +109,18 @@ const oversightText = computed(() => {
 
             <!-- The unit's saved guidon (#446); nothing for a unit with none. -->
             <Guidon :design="node.guidon" :height="12" />
-            <span class="flex min-w-0 items-baseline truncate">
-                <span class="inline-block shrink-0" :style="nameStyle">{{ node.name }}</span>
-                <span v-if="node.callsign" class="ml-1.5 font-mono text-[11px] text-muted-foreground">{{ node.callsign }}</span>
+            <!-- On a phone the name takes the row and the callsign sits under it; from `sm` up they share a line, with
+                 sister units' callsigns lined up in one column. -->
+            <span class="flex min-w-0 flex-1 flex-col sm:flex-initial sm:flex-row sm:items-baseline">
+                <span class="break-words sm:shrink-0 sm:min-w-(--name-ch)" :style="nameStyle">{{ node.name }}</span>
+                <span v-if="node.callsign" class="font-mono text-[11px] break-all text-muted-foreground sm:ml-1.5">{{ node.callsign }}</span>
             </span>
+            <span v-if="hasMeta" class="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 max-sm:order-last max-sm:basis-full max-sm:pl-[1.625rem]">
             <!-- The game the unit plays: its own in full, one it inherits muted with the unit it comes from. -->
             <span
                 v-if="node.game"
                 :data-testid="`unit-game-${node.id}`"
-                class="shrink-0 truncate text-[11px]"
+                class="min-w-0 text-[11px] sm:shrink-0 sm:truncate"
                 :class="node.game.from ? 'text-muted-foreground/80' : 'font-medium text-muted-foreground'"
                 :title="node.game.from ? `${node.game.name}, from ${node.game.from}` : node.game.name"
                 >{{ node.game.name }}<template v-if="node.game.retired"> (retired)</template
@@ -138,8 +145,10 @@ const oversightText = computed(() => {
                 :class="node.oversight?.serving ? 'text-muted-foreground' : 'text-warning'"
                 >{{ oversightText }}</span
             >
+            </span>
 
-            <span class="ml-auto shrink-0 text-[11px] text-muted-foreground tabular-nums">Headcount {{ node.trooper_count }}</span>
+            <!-- Just the number on a phone; the word stays for screen readers. -->
+            <span class="ml-auto shrink-0 text-[11px] text-muted-foreground tabular-nums"><span class="sr-only sm:not-sr-only">Headcount </span>{{ node.trooper_count }}</span>
 
             <!--
               Inline tools (UX-DR4 / settings-v1-tree.html), Admin-only and revealed on hover or
@@ -148,7 +157,8 @@ const oversightText = computed(() => {
             -->
             <span
                 v-if="isAdmin"
-                class="flex shrink-0 items-center gap-0.5 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
+                class="shrink-0 items-center gap-0.5 sm:flex sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100"
+                :class="node.id === selectedId ? 'flex' : 'hidden'"
             >
                 <button
                     type="button"
