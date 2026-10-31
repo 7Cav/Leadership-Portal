@@ -1,0 +1,36 @@
+# Secret scan for this public repo (docs/sensitive-information.md). CI runs gitleaks over the commits of each pull
+# request and of each push to develop. It extends gitleaks' built-in rules with the portal's own.
+
+[extend]
+useDefault = true
+
+# Private game server and CRCON addresses: any 7cav.us host whose name points at a game server panel.
+[[rules]]
+id = "7cav-game-server-host"
+description = "A 7Cav game server or CRCON address"
+regex = '''(?i)\b[a-z0-9-]*(?:rcon|hll|hllv|squad|arma|dcs)[a-z0-9-]*\.7cav\.us\b'''
+keywords = ["7cav.us"]
+
+# Public IPv4 addresses. Loopback, private ranges and the documentation ranges used in tests are allowed below.
+[[rules]]
+id = "public-ipv4"
+description = "A public IPv4 address"
+regex = '''\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b'''
+[[rules.allowlists]]
+regexes = [
+  '''^(?:127|10|0)\.''',
+  '''^192\.168\.''',
+  '''^172\.(?:1[6-9]|2\d|3[01])\.''',
+  '''^(?:192\.0\.2|198\.51\.100|203\.0\.113)\.''',
+  '''^(?:255\.255|169\.254)\.''',
+]
+paths = ['''(?i)(composer|package)(-lock)?\.(json|lock)$''', '''\.svg$''']
+
+[allowlist]
+description = "Lock files and generated assets carry hashes and version numbers, not secrets"
+paths = [
+  '''(?i)(composer|package)-lock\.json$''',
+  '''composer\.lock$''',
+  '''^public/build/''',
+  '''resources/js/lib/guidonGlyphs\.js$''',
+]

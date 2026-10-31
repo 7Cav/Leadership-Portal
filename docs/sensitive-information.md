@@ -56,6 +56,10 @@ says what must never be pushed, what is fine, and where the real values live ins
 
 ## Technical appendix
 
+- CI's **Secret scan (gitleaks)** job scans the commits of every pull request and every push to develop with
+  gitleaks' built-in rules plus `.gitleaks.toml`, which adds 7Cav game server and CRCON addresses and public IPv4
+  addresses (loopback, private and documentation ranges are allowed). A hit fails the build. It cannot read pull
+  request text, issues or screenshots, so check those yourself.
 - `.gitignore` and `.dockerignore` keep `.env*` (except the examples), `backup*.sql` and `backups/` out of git and
   out of the Docker image.
 - `phpunit.xml` pins every env key the tests read, so tests never need real values.
