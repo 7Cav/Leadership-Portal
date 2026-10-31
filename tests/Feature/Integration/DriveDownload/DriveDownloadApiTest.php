@@ -5,8 +5,11 @@ use App\Integration\DriveDownload\DriveDownloadConnector;
 use App\Integration\DriveDownload\DriveDownloadFailed;
 use App\Integration\DriveDownload\DriveDownloadFailure;
 use App\Integration\DriveDownload\Requests\DownloadFileRequest;
+use GuzzleHttp\Exception\ConnectException;
+use Saloon\Exceptions\Request\FatalRequestException;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
+use Saloon\Http\PendingRequest;
 
 /**
  * #565: the public Drive download behind the counseling import. Every call is faked with Saloon's MockClient; nothing
@@ -98,7 +101,6 @@ it('treats a sign-in redirect, a web page, a refusal or another file as not publ
     'html page' => [[MockResponse::make('<html>Sign in</html>', 200, ['Content-Type' => 'text/html; charset=utf-8'])]],
     'html sent as octet-stream' => [[MockResponse::make('<!doctype html><html></html>', 200, ['Content-Type' => 'application/octet-stream'])]],
     'forbidden' => [[MockResponse::make('', 403)]],
-    'not found' => [[MockResponse::make('', 404)]],
 ]);
 
 it('stops after a few redirects', function () {
@@ -114,7 +116,9 @@ it('refuses a file over the cap', function () {
 });
 
 it('says Drive is unreachable on a server error, a rate limit or a failed connection', function (?int $status) {
-    MockClient::global([$status === null ? fn () => throw new RuntimeException('connection refused') : MockResponse::make('', $status)]);
+    MockClient::global([$status === null
+        ? fn (PendingRequest $pending) => throw new FatalRequestException(new ConnectException('connection refused', $pending->createPsrRequest()), $pending)
+        : MockResponse::make('', $status)]);
 
     expect(driveFailure(fn () => (new DriveDownloadApi)->download(DRIVE_ID, DRIVE_MAX)))->toBe(DriveDownloadFailure::Unreachable);
 })->with([
@@ -140,4 +144,16 @@ it('allows only Google\'s own download hosts', function () {
         ->and(DriveDownloadApi::isAllowedHost('lh3.googleusercontent.com'))->toBeFalse()
         ->and(DriveDownloadApi::isAllowedHost('accounts.google.com'))->toBeFalse()
         ->and(DriveDownloadApi::isAllowedHost('drive.google.com.evil.test'))->toBeFalse();
+});
+
+it('tells a file Drive does not have apart from one that is not public', function () {
+    MockClient::global([MockResponse::make('', 404)]);
+
+    expect(driveFailure(fn () => (new DriveDownloadApi)->download(DRIVE_ID, DRIVE_MAX)))->toBe(DriveDownloadFailure::NotFound);
+});
+
+it('lets a failure that is not the transport\'s through, instead of calling Drive unreachable', function () {
+    MockClient::global([fn () => throw new LogicException('a bug, not the network')]);
+
+    expect(fn () => (new DriveDownloadApi)->download(DRIVE_ID, DRIVE_MAX))->toThrow(LogicException::class);
 });

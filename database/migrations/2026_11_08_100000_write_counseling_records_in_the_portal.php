@@ -28,7 +28,8 @@ return new class extends Migration
      *  - The Google Drive copy is gone, with its three columns. Copies already on the Drive stay there.
      *
      * Every record already in the portal keeps its uploaded PDF as its source document and counts as shared and
-     * acknowledged when it was filed, so its windows and its freeze run as they did.
+     * acknowledged when it was filed, so its freeze runs as it did; a DCS kept with its PDF still counts its 30 and 90
+     * days from the date it carries (`CounselingRecord::windowStart()`), so no expired record comes back.
      */
     public function up(): void
     {
@@ -59,6 +60,10 @@ return new class extends Migration
             // The Appeals queue reads the undecided appeals of one unit.
             $table->index(['appeal_unit_id', 'appeal_decided_at']);
         });
+
+        // The Drive copy a record already has becomes its import key, so importing the old Drive folder later finds the
+        // copies the portal made itself and never brings them in twice.
+        DB::table('counseling_records')->whereNotNull('drive_file_id')->update(['import_key' => DB::raw('drive_file_id')]);
 
         Schema::table('counseling_records', function (Blueprint $table) {
             // A draft has no date yet, and a record written in the portal has neither a free-text reason nor a file.

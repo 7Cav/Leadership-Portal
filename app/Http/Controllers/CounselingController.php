@@ -202,9 +202,10 @@ class CounselingController extends Controller
 
     public function share(Request $request, int $counseling, ShareCounselingRecordHandler $handler): RedirectResponse
     {
-        $this->handle($request, fn () => $handler->handle($request->user(), new ShareCounselingRecord($counseling, $this->pmGrant($request))));
+        $shared = $this->handle($request, fn () => $handler->handle($request->user(), new ShareCounselingRecord($counseling, $this->pmGrant($request))));
 
-        return back()->with('status', 'Shared with the trooper.');
+        // Shared either way; a copy that could not go to S1 is the leader's to send, and they are told so.
+        return back()->with('status', $shared->followUp ?? 'Shared with the trooper.');
     }
 
     public function withdraw(Request $request, int $counseling, WithdrawCounselingRecordHandler $handler): RedirectResponse
@@ -305,8 +306,9 @@ class CounselingController extends Controller
         return [
             'edit' => $draft,
             'delete' => $draft,
-            'invite' => $draft && $record->invited_at === null,
-            'share' => $draft,
+            // Sending the invite and sharing issue the record, so they need the right to issue its type.
+            'invite' => $draft && $record->invited_at === null && $permissions->files($record->type),
+            'share' => $draft && $permissions->files($record->type),
             'withdraw' => $writable && $permissions->withdraws($record),
             'respond' => $writable && $permissions->responds($record),
             'decide' => $writable && $permissions->decidesAppeal($record),
@@ -355,6 +357,9 @@ class CounselingController extends Controller
         } catch (CounselingPmException $e) {
             if ($e->needsConsent) {
                 $this->forgetPmGrant($request);
+            } elseif ($e->getPrevious() !== null) {
+                // The forum's own answer is kept in the report, never shown: it may help diagnose a refused PM.
+                report($e);
             }
 
             throw ValidationException::withMessages([$e->needsConsent ? 'pm_consent' : 'pm' => $e->getMessage()]);

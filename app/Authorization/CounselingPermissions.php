@@ -42,7 +42,7 @@ final readonly class CounselingPermissions
      * @param  bool  $appealsOwn  the viewer is the trooper, signed in as themselves: nobody acting as anyone and no
      *                            view-as preview. The only one who may respond to their records
      * @param  bool  $seesInactiveDcs  Platoon Leader and up over the trooper, or an Admin reading as one: who sees a DCS
-     *                                 between 30 and 90 days after it was shared
+     *                                 31 to 90 days after it was shared
      * @param  bool  $readsDrafts  an Admin reading as one: sees every draft
      * @param  ?int  $userId  the identity the request runs as: a draft's issuer always sees it
      * @param  ?int  $leadsUnit  the unit the viewer commands (its lead billet), outside a view-as preview: the appeals
@@ -109,9 +109,10 @@ final readonly class CounselingPermissions
     }
 
     /**
-     * Whether the viewer may save, invite on, share or delete the draft `$record`: they see it, may work on the trooper
-     * (not departed, not themselves unless an Admin by flag), and are an Admin, its issuer, or command the unit it was
-     * started through while still reaching the trooper from above.
+     * Whether the viewer may save, invite on, share or delete the draft `$record`: they see it (never the trooper it is
+     * on, an Admin by flag included: a draft is not seen by its trooper), the trooper still serves, and they are an Admin,
+     * its issuer, or command the unit it was started through while still reaching the trooper from above. Inviting and
+     * sharing also need the right to start its type ({@see files()}), which the handlers check.
      */
     public function editsDraft(CounselingRecord $record): bool
     {
@@ -156,11 +157,15 @@ final readonly class CounselingPermissions
         return $record->hasSourceDocument() && ! $record->isDraft() && ! $record->isOverturned() && $this->worksOn($record);
     }
 
-    /** Whether the viewer is the appeal authority of `$record` and its appeal is still pending. */
+    /**
+     * Whether the viewer is the appeal authority of `$record` and its appeal is still pending. Never the one who issued
+     * it: a commander who issued an LOR through a platoon they also lead does not hear its appeal.
+     */
     public function decidesAppeal(CounselingRecord $record, ?CarbonImmutable $now = null): bool
     {
         return $this->leadsUnit !== null
             && ! $this->self
+            && ($this->userId === null || (int) $record->issued_by !== $this->userId)
             && $record->appeal_unit_id !== null
             && (int) $record->appeal_unit_id === $this->leadsUnit
             && $this->seesLor

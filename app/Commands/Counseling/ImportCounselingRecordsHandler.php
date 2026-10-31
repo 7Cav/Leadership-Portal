@@ -5,6 +5,7 @@ namespace App\Commands\Counseling;
 use App\Authorization\ScopeResolver;
 use App\Integration\DriveDownload\DriveDownloadApi;
 use App\Integration\DriveDownload\DriveDownloadFailed;
+use App\Integration\DriveDownload\DriveDownloadFailure;
 use App\Models\CounselingKind;
 use App\Models\CounselingType;
 use App\Models\User;
@@ -41,7 +42,7 @@ use Throwable;
  *  - The **issuer**, by Last.F among the portal's users: no match, or several, attributes it to the Admin who ran the
  *    import, noted on the row.
  *  - The **form's fields**: a scanned or flattened PDF, a Drive link and every row from the console have none read,
- *    and are stored flagged **needs review** for the issuer's chain or an Admin to fill in by hand
+ *    and are stored flagged **needs review** for its issuer or an Admin to fill in by hand
  *    (`counseling.review`). The source document is kept either way and is what downloads.
  *
  * **Never twice.** Each record keeps an `import_key`: the Drive file id, or the uploaded file's SHA-256. A row whose
@@ -51,6 +52,12 @@ use Throwable;
  *
  * **Audited per record** (`counseling.imported`, AD-16), with the Admin who ran it as the actor and, as the reason, the
  * CSV line and whether it ran from the console. The import is Admins' only, checked here whatever the caller checked.
+ *
+ * **Failures.** A row's own problem skips that row with its reason, and the run goes on. A record whose key another
+ * import took in the meantime is skipped as already imported (told apart by asking for the key again, since a Command
+ * may not see the database's own exceptions, AD-2). Anything else that stops a record being stored (the counseling disk,
+ * the database, the code) is reported and stops the run: {@see ImportAbortedException} carries the rows stored so far.
+ * A staging area that cannot be written stops it the same way ({@see ImportStagingFailed}).
  */
 class ImportCounselingRecordsHandler
 {
@@ -69,6 +76,8 @@ class ImportCounselingRecordsHandler
 
     /**
      * @throws AuthorizationException the actor is not an Admin
+     * @throws ImportAbortedException a record could not be stored for a reason other than the row's own
+     * @throws ImportStagingFailed a Drive download could not be kept on the server
      */
     public function handle(User $actor, ImportCounselingRecords $command): ImportReport
     {
@@ -79,9 +88,22 @@ class ImportCounselingRecordsHandler
         $rows = $this->plan($actor, $command);
 
         if (! $command->dryRun) {
-            foreach ($rows as $row) {
-                if ($row->isStored()) {
+            foreach ($rows as $index => $row) {
+                if (! $row->isStored()) {
+                    continue;
+                }
+
+                try {
                     $this->store($actor, $row, $command->viaConsole);
+                } catch (Throwable $e) {
+                    // Already reported by store(). The row it stopped on and every one after it were not imported.
+                    foreach (array_slice($rows, $index) as $rest) {
+                        if ($rest->isStored() && $rest->recordId === null) {
+                            $rest->skip($rest === $row ? 'the record could not be stored: the import stopped here' : "not imported: the import stopped at line {$row->line}");
+                        }
+                    }
+
+                    throw new ImportAbortedException(new ImportReport($rows, false), $row->line, $e);
                 }
             }
         }
@@ -288,6 +310,7 @@ class ImportCounselingRecordsHandler
             $command->viaConsole => 'The console does not read the form\'s fields',
             $row->driveUrl !== '' => 'The form\'s fields are not read from a Drive link',
             $fields === null => 'No form fields could be read (a scanned or flattened PDF)',
+            $fields->unreadable => 'The PDF could not be opened to read its form fields',
             default => null,
         };
 
@@ -300,8 +323,9 @@ class ImportCounselingRecordsHandler
                 // Only the length caps: an older form's appeal choice may be blank, which is not for the import to refuse.
                 $response->check(CounselingType::Dcs);
                 $result->formData = [...$form->toArray(), ...$response->toArray()];
-            } catch (InvalidCounselingRecordException) {
-                $why = 'A field in the form is longer than the portal allows';
+            } catch (InvalidCounselingRecordException $e) {
+                $field = str_replace(['form.', '_'], ['', ' '], $e->field);
+                $why = "The form's {$field} field could not be kept (".rtrim($e->getMessage(), '.').')';
             }
 
             // Nothing the leader writes in Section 2: an empty form, not worth storing as filled in.
@@ -340,20 +364,16 @@ class ImportCounselingRecordsHandler
                 try {
                     $bytes = $this->drive->download($result->importKey, CounselingRules::DOCUMENT_MAX_BYTES);
                 } catch (DriveDownloadFailed $e) {
+                    // Drive down or unreachable says nothing about the row: keep the cause for whoever looks.
+                    if ($e->reason === DriveDownloadFailure::Unreachable && $e->getPrevious() !== null) {
+                        report($e->getPrevious());
+                    }
                     $result->skip($e->getMessage());
 
                     return;
                 }
 
-                if (! is_dir($command->downloadDir)) {
-                    @mkdir($command->downloadDir, 0700, true);
-                }
-
-                if (@file_put_contents($path, $bytes) === false) {
-                    $result->skip('the downloaded file could not be kept on the server');
-
-                    return;
-                }
+                $this->keepDownload($command->downloadDir, $path, $bytes);
             }
 
             $result->documentName = CounselingRules::displayName("drive-{$result->importKey}.pdf");
@@ -383,6 +403,29 @@ class ImportCounselingRecordsHandler
     }
 
     /**
+     * Write a Drive download into the batch's download directory. A disk that will not take it stops the run: every
+     * later download would fail the same way.
+     *
+     * @throws ImportStagingFailed
+     */
+    private function keepDownload(string $dir, string $path, string $bytes): void
+    {
+        try {
+            $kept = (is_dir($dir) || mkdir($dir, 0700, true)) && file_put_contents($path, $bytes) === strlen($bytes);
+        } catch (Throwable $e) {
+            Log::error('Counseling import: a Drive download could not be written.', ['path' => $path, 'error' => $e->getMessage()]);
+
+            throw ImportStagingFailed::write($path, $e);
+        }
+
+        if (! $kept) {
+            Log::error('Counseling import: a Drive download could not be written.', ['path' => $path, 'error' => error_get_last()['message'] ?? null]);
+
+            throw ImportStagingFailed::write($path);
+        }
+    }
+
+    /**
      * Whether any of `$keys` is already in the portal or was taken by an earlier row; the row is then skipped.
      *
      * @param  list<string>  $keys
@@ -409,18 +452,20 @@ class ImportCounselingRecordsHandler
 
     /**
      * Store one row: its PDF onto the private disk as the record's source document, then the record, shared and
-     * acknowledged on its date. A record that cannot be stored (its key taken by an import running at the same time,
-     * say) leaves no file behind and turns the row into a skipped one.
+     * acknowledged on its date. A record whose key another import took in the meantime leaves no file behind and turns
+     * the row into a skipped one ("already imported"). Any other failure is reported first, its file cleaned up as far
+     * as possible (a cleanup that fails is reported too, never in the way), and thrown on, which stops the run.
+     *
+     * @throws Throwable
      */
     private function store(User $actor, ImportRowResult $row, bool $viaConsole): void
     {
         try {
             $document = $this->documents->store((string) $row->path, (string) $row->documentName);
         } catch (Throwable $e) {
-            Log::warning('Counseling import: a document could not be stored.', ['line' => $row->line, 'exception' => $e->getMessage()]);
-            $row->skip('the document could not be stored');
+            report($e);
 
-            return;
+            throw $e;
         }
 
         try {
@@ -444,9 +489,33 @@ class ImportCounselingRecordsHandler
             );
             $row->recordId = $record->id;
         } catch (Throwable $e) {
-            $this->documents->delete($document->path);
-            Log::warning('Counseling import: a record could not be stored.', ['line' => $row->line, 'exception' => $e->getMessage()]);
-            $row->skip($this->records->importedKeys([(string) $row->importKey]) !== [] ? 'already imported' : 'the record could not be stored');
+            report($e);
+
+            try {
+                $this->documents->delete($document->path);
+            } catch (Throwable $cleanup) {
+                report($cleanup);
+            }
+
+            if ($this->keyTaken((string) $row->importKey)) {
+                $row->skip('already imported');
+
+                return;
+            }
+
+            throw $e;
+        }
+    }
+
+    /** Whether another import stored `$key` meanwhile. A lookup that fails is reported and counts as no. */
+    private function keyTaken(string $key): bool
+    {
+        try {
+            return $this->records->importedKeys([$key]) !== [];
+        } catch (Throwable $e) {
+            report($e);
+
+            return false;
         }
     }
 

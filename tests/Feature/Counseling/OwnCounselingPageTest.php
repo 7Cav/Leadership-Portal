@@ -44,7 +44,7 @@ it('opens a trooper\'s own milpac with their DCSs and LORs, read-only, and no wa
 
 it('never lets a trooper start, withdraw or delete their own records', function () {
     $this->actingAs($this->self)->post(route('counseling.store', $this->rifleman->id), ['type' => 'dcs', 'kind' => 'conduct'])->assertNotFound();
-    $this->actingAs($this->self)->withSession(counselingPmSession())->post(route('counseling.withdraw', $this->dcs->id), ['reason' => 'x'])->assertForbidden();
+    $this->actingAs($this->self)->withSession(counselingPmSession($this->self))->post(route('counseling.withdraw', $this->dcs->id), ['reason' => 'x'])->assertForbidden();
     $this->actingAs($this->self)->delete(route('counseling.destroy', $this->lor->id))->assertForbidden();
 
     expect(CounselingRecord::query()->count())->toBe(2)

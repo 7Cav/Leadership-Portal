@@ -26,7 +26,7 @@ import { toast } from 'vue-sonner';
 // The leader's case file for a draft DCS or LOR (#565): the wiki procedure as steps, the form filled live beside them,
 // and every clock that will run. On a desktop the steps sit beside the document; on a phone it is one step at a time
 // with Back, Save draft and Continue at the bottom, and the document on its own tab. Any step saves the whole draft
-// (PATCH counseling.update) and Continue saves too; nothing reaches the trooper until the explicit Share step, which
+// (PATCH counseling.update) and Continue saves too; nothing but the meeting invite reaches the trooper until the explicit Share step, which
 // the server refuses while anything is missing (`missing`, judged on the saved draft). Leaving with unsaved changes asks
 // first.
 const props = defineProps({

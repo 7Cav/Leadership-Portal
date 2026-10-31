@@ -62,7 +62,7 @@ describe('a trooper who commands a unit above their own placement', function () 
     it('keeps their Section Leader from withdrawing or deleting a DCS shared before', function () {
         $sl = $this->tree['users']['sl'];
 
-        $this->actingAs($sl)->withSession(counselingPmSession())->post(route('counseling.withdraw', $this->dcs->id), ['reason' => 'x'])->assertNotFound();
+        $this->actingAs($sl)->withSession(counselingPmSession($sl))->post(route('counseling.withdraw', $this->dcs->id), ['reason' => 'x'])->assertNotFound();
         $this->actingAs($sl)->delete(route('counseling.destroy', $this->dcs->id))->assertNotFound();
 
         expect($this->dcs->fresh()->isShared())->toBeTrue();
@@ -75,7 +75,7 @@ describe('a trooper who commands a unit above their own placement', function () 
         expect(CounselingRecord::query()->count())->toBe(2)
             ->and(collect(ownCommandPage($this, $co, $this->rifleman)['records'])->pluck('id')->all())->toContain($this->dcs->id);
         counselingFakeForum();
-        $this->actingAs($co)->withSession(counselingPmSession())->post(route('counseling.withdraw', $this->dcs->id), ['reason' => 'Filed by mistake.'])->assertSessionHasNoErrors();
+        $this->actingAs($co)->withSession(counselingPmSession($co))->post(route('counseling.withdraw', $this->dcs->id), ['reason' => 'Filed by mistake.'])->assertSessionHasNoErrors();
     });
 });
 
@@ -120,7 +120,7 @@ describe('acting as someone', function () {
             ->and($props['canFile'])->toBe(['dcs' => false, 'lor' => false]);
 
         $this->actingAs($this->admin)->get(route('counseling.document', $this->dcs->id))->assertNotFound();
-        $this->actingAs($this->admin)->withSession(counselingPmSession())->post(route('counseling.withdraw', $this->dcs->id), ['reason' => 'x'])->assertNotFound();
+        $this->actingAs($this->admin)->withSession(counselingPmSession($this->admin))->post(route('counseling.withdraw', $this->dcs->id), ['reason' => 'x'])->assertNotFound();
         expect($this->dcs->fresh())->not->toBeNull();
 
         // The person acted as keeps their reach over everyone else.

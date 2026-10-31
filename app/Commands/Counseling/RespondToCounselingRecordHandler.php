@@ -58,7 +58,8 @@ class RespondToCounselingRecordHandler
             throw CounselingForbiddenException::responseClosed($record->type);
         }
 
-        $response = $command->response;
+        // Judged by the record's own type, whatever type the request assumed.
+        $response = $command->response->forType($record->type);
         $response->check($record->type);
 
         $authority = null;

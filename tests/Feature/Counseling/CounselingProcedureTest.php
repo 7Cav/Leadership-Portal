@@ -5,10 +5,12 @@ use App\Models\CounselingRecord;
 use App\Models\CounselingStatus;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
+use App\Models\UnitActingLead;
 use App\Models\UnitOversight;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Storage;
+use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
 
 require_once __DIR__.'/fixture.php';
@@ -33,7 +35,7 @@ beforeEach(function () {
         return CounselingRecord::query()->latest('id')->firstOrFail();
     };
     $this->save = fn (User $as, CounselingRecord $record, array $payload) => $this->actingAs($as)->patch(route('counseling.update', $record->id), $payload);
-    $this->share = fn (User $as, CounselingRecord $record) => $this->actingAs($as)->withSession(counselingPmSession())->post(route('counseling.share', $record->id));
+    $this->share = fn (User $as, CounselingRecord $record) => $this->actingAs($as)->withSession(counselingPmSession($as))->post(route('counseling.share', $record->id));
 });
 
 it('starts a draft through the issuer\'s command and opens it, seen only by the issuer, their chain and Admins', function () {
@@ -166,7 +168,7 @@ it('shares a DCS: locks it, snapshots Section 1 and the Date of Letter, and send
 it('sends the meeting invite from the leader\'s account with the three Zulu windows, once, and starts the 72-hour window', function () {
     $draft = ($this->start)($this->sl);
 
-    $this->actingAs($this->sl)->withSession(counselingPmSession())
+    $this->actingAs($this->sl)->withSession(counselingPmSession($this->sl))
         ->post(route('counseling.invite', $draft->id), ['windows' => ['Thu 1900Z to 2100Z', 'Fri 1800Z to 2000Z', 'Sat 1400Z to 1600Z']])
         ->assertSessionHasNoErrors();
 
@@ -180,13 +182,13 @@ it('sends the meeting invite from the leader\'s account with the three Zulu wind
         ->and($pms[0]['message'])->toContain('1. Thu 1900Z to 2100Z')
         ->and($pms[0]['message'])->toContain('What time can you meet?');
 
-    $this->actingAs($this->sl)->withSession(counselingPmSession())
+    $this->actingAs($this->sl)->withSession(counselingPmSession($this->sl))
         ->post(route('counseling.invite', $draft->id), ['windows' => ['a', 'b', 'c']])->assertForbidden();
-    $this->actingAs($this->sl)->withSession(counselingPmSession())
+    $this->actingAs($this->sl)->withSession(counselingPmSession($this->sl))
         ->post(route('counseling.invite', ($this->start)($this->sl)->id), ['windows' => ['a', 'b']])->assertSessionHasErrors('windows');
 });
 
-it('shares an LOR with S1 1IC, S1 2IC and the battalion\'s oversight officer, then the trooper, and resolves the appeal authority', function () {
+it('shares an LOR with the trooper, then copies it to S1 1IC, S1 2IC and the battalion\'s oversight officer, and resolves the appeal authority', function () {
     $s1 = Trooper::factory()->create(['billet' => 'S1 1IC', 'status' => TrooperStatus::Combat]);
     $s2 = Trooper::factory()->create(['billet' => 'S1 2IC', 'status' => TrooperStatus::Combat]);
     Trooper::factory()->create(['billet' => 'S1 1IC', 'status' => TrooperStatus::Inactive]);
@@ -194,17 +196,103 @@ it('shares an LOR with S1 1IC, S1 2IC and the battalion\'s oversight officer, th
     UnitOversight::query()->create(['unit_id' => $this->tree['units']['battalion']->id, 'trooper_id' => $officer->id]);
 
     $draft = ($this->start)($this->pl, 'lor');
-    $this->actingAs($this->pl)->withSession(counselingPmSession())->post(route('counseling.invite', $draft->id), ['windows' => ['a', 'b', 'c']]);
+    $this->actingAs($this->pl)->withSession(counselingPmSession($this->pl))->post(route('counseling.invite', $draft->id), ['windows' => ['a', 'b', 'c']]);
     ($this->save)($this->pl, $draft, counselingDraftPayload(['type' => 'lor'], ['consequences' => ['nfa']]));
 
-    ($this->share)($this->pl, $draft)->assertSessionHasNoErrors();
+    ($this->share)($this->pl, $draft)->assertSessionHasNoErrors()->assertSessionHas('status', 'Shared with the trooper.');
 
     $pms = counselingSentPms($this->forum);
-    expect(array_column($pms, 'title'))->toBe(['Meeting: Letter of Reprimand', 'Letter of Reprimand: '.trim($this->rifleman->rank_short.' Brandt.L'), 'After-Action: Letter of Reprimand'])
-        ->and($pms[1]['recipients'])->toBe([(int) $s1->forum_user_id, (int) $s2->forum_user_id, (int) $officer->forum_user_id])
-        ->and($pms[2]['recipients'])->toBe([(int) $this->rifleman->forum_user_id])
-        ->and($pms[2]['message'])->toContain('within 24 hours')
+    expect(array_column($pms, 'title'))->toBe(['Meeting: Letter of Reprimand', 'After-Action: Letter of Reprimand', 'Letter of Reprimand: '.trim($this->rifleman->rank_short.' Brandt.L')])
+        ->and($pms[1]['recipients'])->toBe([(int) $this->rifleman->forum_user_id])
+        ->and($pms[1]['message'])->toContain('within 24 hours')
+        ->and($pms[2]['recipients'])->toBe([(int) $s1->forum_user_id, (int) $s2->forum_user_id, (int) $officer->forum_user_id])
         ->and($draft->fresh()->appeal_unit_id)->toBe($this->tree['units']['company']->id);
+});
+
+it('never tells S1 of an LOR whose share failed, and keeps a share whose S1 copy failed, telling the leader to send it', function () {
+    Trooper::factory()->create(['billet' => 'S1 1IC', 'status' => TrooperStatus::Combat]);
+    $draft = ($this->start)($this->pl, 'lor');
+    $this->actingAs($this->pl)->withSession(counselingPmSession($this->pl))->post(route('counseling.invite', $draft->id), ['windows' => ['a', 'b', 'c']]);
+    ($this->save)($this->pl, $draft, counselingDraftPayload(['type' => 'lor'], ['consequences' => ['nfa']]));
+
+    // The trooper's PM fails: the share rolls back, and S1 was never written to.
+    $this->forum = counselingFakeForum(MockResponse::make(['errors' => [['code' => 'server_error']]], 500));
+    ($this->share)($this->pl, $draft)->assertSessionHasErrors('pm');
+    expect($draft->fresh()->isDraft())->toBeTrue()->and(counselingSentPms($this->forum))->toHaveCount(1);
+
+    // The trooper's PM goes, the S1 copy does not: shared all the same, and the leader is told to send the copy.
+    MockClient::destroyGlobal();
+    $this->forum = MockClient::global([
+        MockResponse::make(['conversation' => ['conversation_id' => 1]]),
+        MockResponse::make(['errors' => [['code' => 'no_permission']]], 403),
+    ]);
+    ($this->share)($this->pl, $draft)->assertSessionHasNoErrors()->assertSessionHas('status', fn (string $status) => str_contains($status, 'Send it to S1 yourself'));
+    expect($draft->fresh()->isShared())->toBeTrue();
+});
+
+it('tells the leader when nobody can take the LOR\'s copy for record processing', function () {
+    $draft = ($this->start)($this->pl, 'lor');
+    $this->actingAs($this->pl)->withSession(counselingPmSession($this->pl))->post(route('counseling.invite', $draft->id), ['windows' => ['a', 'b', 'c']]);
+    ($this->save)($this->pl, $draft, counselingDraftPayload(['type' => 'lor'], ['consequences' => ['nfa']]));
+
+    ($this->share)($this->pl, $draft)->assertSessionHas('status', fn (string $status) => str_contains($status, 'No S1 or oversight officer'));
+    expect($draft->fresh()->isShared())->toBeTrue();
+});
+
+it('issues a draft turned from a DCS into an LOR through the command that may issue an LOR', function () {
+    // The Platoon Leader is acting Section Leader too: a DCS goes through the section, an LOR through the platoon.
+    UnitActingLead::query()->forceCreate(['unit_id' => $this->tree['units']['section']->id, 'trooper_id' => Trooper::query()->where('cav_id', $this->pl->cav_id)->value('id')]);
+    $draft = ($this->start)($this->pl, 'dcs');
+    expect($draft->issuer_unit_id)->toBe($this->tree['units']['section']->id);
+
+    ($this->save)($this->pl, $draft, counselingDraftPayload(['type' => 'lor']))->assertSessionHasNoErrors();
+
+    expect($draft->fresh()->issuer_unit_id)->toBe($this->tree['units']['platoon']->id);
+});
+
+it('sends a PM only from the person whose forum account allowed it', function () {
+    $draft = ($this->start)($this->sl);
+    ($this->save)($this->sl, $draft, counselingDraftPayload());
+
+    // A grant left in the session by someone else's account serves nobody else.
+    $this->actingAs($this->sl)->withSession(counselingPmSession($this->pl))->post(route('counseling.share', $draft->id))->assertSessionHasErrors('pm_consent');
+    expect($draft->fresh()->isDraft())->toBeTrue()->and(counselingSentPms($this->forum))->toBe([]);
+});
+
+it('says the PM may have gone out when the forum does not answer in time, so it is checked before a retry', function () {
+    $draft = ($this->start)($this->sl);
+    ($this->save)($this->sl, $draft, counselingDraftPayload());
+    $this->forum = counselingFakeForum(MockResponse::make(['conversation' => []]));
+
+    ($this->share)($this->sl, $draft)->assertSessionHasErrors(['pm' => 'The PM may or may not have been sent: the forum did not answer in time, or answered in a way the portal could not read. Nothing was changed in the portal. Check your forum conversations before trying again, so it is not sent twice.']);
+    expect($draft->fresh()->isDraft())->toBeTrue();
+});
+
+it('drops the trooper\'s answer when a record is withdrawn, so they answer the corrected one again', function () {
+    $draft = ($this->start)($this->sl);
+    ($this->save)($this->sl, $draft, counselingDraftPayload());
+    ($this->share)($this->sl, $draft);
+    $this->actingAs($this->self)->post(route('counseling.respond', $draft->id), ['plan_trooper' => 'First answer.'])->assertSessionHasNoErrors();
+
+    $this->actingAs($this->sl)->withSession(counselingPmSession($this->sl))->post(route('counseling.withdraw', $draft->id), ['reason' => 'Wrong date.']);
+    ($this->share)($this->sl, $draft)->assertSessionHasNoErrors();
+
+    $again = $draft->fresh();
+    expect($again->state())->toBe('shared')
+        ->and($again->form_data)->not->toHaveKey('plan_trooper');
+    $this->actingAs($this->self)->post(route('counseling.respond', $draft->id), ['plan_trooper' => 'Second answer.'])->assertSessionHasNoErrors();
+});
+
+it('refuses a response made while someone acts as the trooper', function () {
+    $record = CounselingRecord::factory()->written()->sharedHoursAgo(2)->create([
+        'trooper_id' => $this->rifleman->id, 'issued_by' => $this->sl->id, 'issuer_unit_id' => $this->tree['units']['section']->id,
+    ]);
+    $admin = $this->tree['users']['admin'];
+    $this->actingAs($admin)->post('/act-as', ['kind' => 'user', 'id' => $this->self->id])->assertRedirect('/home');
+
+    // Acting as someone never opens their own records: the record is not there for the one acting.
+    $this->actingAs($admin)->post(route('counseling.respond', $record->id), ['plan_trooper' => 'Not mine to write.'])->assertNotFound();
+    expect($record->fresh()->isResponded())->toBeFalse();
 });
 
 it('asks the leader to allow PMs first, and shares nothing without that', function () {
@@ -239,8 +327,8 @@ it('withdraws a shared record back to draft with a required reason before it loc
     ($this->save)($this->sl, $draft, counselingDraftPayload());
     ($this->share)($this->sl, $draft);
 
-    $this->actingAs($this->sl)->withSession(counselingPmSession())->post(route('counseling.withdraw', $draft->id), ['reason' => ''])->assertSessionHasErrors('reason');
-    $this->actingAs($this->sl)->withSession(counselingPmSession())->post(route('counseling.withdraw', $draft->id), ['reason' => 'Wrong date.'])->assertSessionHasNoErrors();
+    $this->actingAs($this->sl)->withSession(counselingPmSession($this->sl))->post(route('counseling.withdraw', $draft->id), ['reason' => ''])->assertSessionHasErrors('reason');
+    $this->actingAs($this->sl)->withSession(counselingPmSession($this->sl))->post(route('counseling.withdraw', $draft->id), ['reason' => 'Wrong date.'])->assertSessionHasNoErrors();
 
     $withdrawn = $draft->fresh();
     expect($withdrawn->status)->toBe(CounselingStatus::Draft)
@@ -255,7 +343,7 @@ it('refuses to withdraw a record once it locks, 72 hours after it was shared', f
         'trooper_id' => $this->rifleman->id, 'issued_by' => $this->sl->id, 'issuer_unit_id' => $this->tree['units']['section']->id,
     ]);
 
-    $this->actingAs($this->sl)->withSession(counselingPmSession())->post(route('counseling.withdraw', $record->id), ['reason' => 'x'])->assertForbidden();
+    $this->actingAs($this->sl)->withSession(counselingPmSession($this->sl))->post(route('counseling.withdraw', $record->id), ['reason' => 'x'])->assertForbidden();
     expect($record->fresh()->isShared())->toBeTrue();
 });
 

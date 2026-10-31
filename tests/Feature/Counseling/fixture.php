@@ -59,13 +59,14 @@ function counselingPdf(string $name = 'Brandt DCS.pdf', string $marker = 'signed
 }
 
 /**
- * A session holding a live PM grant (#565), as the forum consent leaves it: what a request needs to send a PM.
+ * A session holding `$as`'s live PM grant (#565), as the forum consent leaves it: what a request needs to send a PM from
+ * their forum account.
  *
  * @return array<string, string>
  */
-function counselingPmSession(): array
+function counselingPmSession(User $as): array
 {
-    return ['forum_pm_grant' => encrypt((new ForumPmGrant('pm-token', CarbonImmutable::now()->addHour()))->toArray())];
+    return ['forum_pm_grant' => encrypt((new ForumPmGrant('pm-token', CarbonImmutable::now()->addHour(), (int) $as->forum_user_id))->toArray())];
 }
 
 /**

@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { CONSEQUENCE_CHECKS, SECTION_1, SPECIAL_PUNISHMENTS, TEXT_FIELDS } from '../counselingFields';
 import { fillCounselingForm } from '../counselingPdf';
-import { importableCount, importDate, readAllImportFields, readImportFields, sourceLabel } from '../counselingImport';
+import { UNREADABLE, importableCount, importDate, readAllImportFields, readImportFields, sourceLabel } from '../counselingImport';
 
 // #565: the counseling import reads each chosen PDF's form in the browser. These fill the real checked-in templates with
 // the portal's own filler and read them back, so the field map is proven against the forms themselves.
@@ -60,22 +60,29 @@ describe('readImportFields', () => {
         expect(read.form).toMatchObject({ consequences: [], removal: null, appeal: null });
     });
 
-    it('answers null for a PDF without form fields, or for bytes that are not a PDF', async () => {
+    it('answers null for a PDF without form fields, and the unreadable marker for bytes pdf-lib cannot open', async () => {
+        const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
         const { PDFDocument } = await import('@cantoo/pdf-lib');
         const flat = await PDFDocument.create();
         flat.addPage();
 
         expect(await readImportFields(await flat.save())).toBeNull();
-        expect(await readImportFields(new TextEncoder().encode('not a pdf'))).toBeNull();
+        expect(await readImportFields(new TextEncoder().encode('not a pdf'), 'x.pdf')).toEqual({ error: 'unreadable' });
+        expect(logged).toHaveBeenCalled();
+        logged.mockRestore();
     });
 
     it('reads every chosen file by name', async () => {
         const file = (name, bytes) => ({ name, arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) });
 
-        const read = await readAllImportFields([file('a.pdf', template('7CAV-R-042')), file('junk.pdf', new TextEncoder().encode('junk'))]);
+        const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const broken = { name: 'gone.pdf', arrayBuffer: async () => Promise.reject(new Error('file moved')) };
+        const read = await readAllImportFields([broken, file('a.pdf', template('7CAV-R-042')), file('junk.pdf', new TextEncoder().encode('junk'))]);
 
         expect(read['a.pdf'].type).toBe('dcs');
-        expect(read['junk.pdf']).toBeNull();
+        expect(read['junk.pdf']).toBe(UNREADABLE);
+        expect(read['gone.pdf']).toBe(UNREADABLE);
+        logged.mockRestore();
     });
 });
 

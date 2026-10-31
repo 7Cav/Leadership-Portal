@@ -11,6 +11,7 @@ use App\Repositories\CounselingRecordRepository;
 use App\Repositories\UnitRepository;
 use App\Support\Audit\AuditEnvelope;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Share a draft with the trooper (#565), the explicit step nothing else takes. Refused, saying what is missing
@@ -20,12 +21,14 @@ use Carbon\CarbonImmutable;
  *
  * Sharing snapshots Section 1 as it stands ({@see CounselingFormParties::forRecord()}), locks the leader's fields, and
  * resolves who would decide an appeal: the commander of the unit one level above the one the record was started
- * through. Then, from the leader's own forum account, an LOR is copied to S1 and the battalion's oversight officer
- * ({@see CounselingMessages::s1Copy()}) and the trooper gets the After-Action PM ({@see CounselingMessages::afterAction()}).
+ * through. Then, from the leader's own forum account, the trooper gets the After-Action PM
+ * ({@see CounselingMessages::afterAction()}) and an LOR is copied to S1 and the battalion's oversight officer
+ * ({@see CounselingMessages::s1Copy()}).
  *
- * One audited action (`counseling.shared`, AD-16), the PMs sent last inside it: a PM the forum does not take rolls the
- * share back, and the record stays a draft. The trooper's PM goes last, so they are never told about a share that did
- * not happen.
+ * One audited action (`counseling.shared`, AD-16). The trooper's PM is sent last inside it: if the forum does not take
+ * it the share rolls back and the record stays a draft. The S1 copy goes only once the share has committed, so S1 is
+ * never told of a share that did not happen and a retry never sends it twice; if it cannot go (nobody to send it to,
+ * or the forum refuses it), the record stays shared and the result says the leader has to send it by hand.
  */
 class ShareCounselingRecordHandler
 {
@@ -44,9 +47,14 @@ class ShareCounselingRecordHandler
      * @throws CounselingNotReadyException
      * @throws CounselingPmException
      */
-    public function handle(User $actor, ShareCounselingRecord $command): CounselingRecord
+    public function handle(User $actor, ShareCounselingRecord $command): SharedCounselingRecord
     {
-        [$record] = $this->loader->draft($actor, $command->recordId);
+        [$record, $permissions] = $this->loader->draft($actor, $command->recordId);
+
+        // Sharing issues the record: whoever shares it must still be able to issue its type on the trooper.
+        if (! $permissions->files($record->type)) {
+            throw CounselingForbiddenException::file($record->type);
+        }
 
         $missing = SaveCounselingDraftHandler::missing($record);
         if ($missing !== []) {
@@ -56,30 +64,57 @@ class ShareCounselingRecordHandler
         $this->messenger->requireGrant($command->pm);
         $trooperId = $this->messenger->forumIdOf($record->trooper);
         $lor = $record->type === CounselingType::Lor;
-        $keepers = $lor ? $this->messenger->recordKeepers($record->trooper) : [];
         $snapshot = $this->parties->forRecord($record);
+        $trooperName = trim($snapshot['trooper']['rank'].' '.$snapshot['trooper']['name']);
 
-        return $this->audit->record(
+        $shared = $this->audit->record(
             actorId: $actor->id,
             action: 'counseling.shared',
             reason: null,
             reasonRequired: false,
-            mutation: function () use ($record, $snapshot, $lor, $keepers, $trooperId, $command) {
+            mutation: function () use ($record, $snapshot, $lor, $trooperId, $trooperName, $command) {
                 $shared = $this->records->share($record, $snapshot, CarbonImmutable::now(), $lor ? $this->appealUnit($record) : null)
                     ?? throw CounselingForbiddenException::notDraft();
-
-                $trooperName = trim($snapshot['trooper']['rank'].' '.$snapshot['trooper']['name']);
-
-                if ($lor) {
-                    $issuerName = trim($snapshot['authority']['rank'].' '.$snapshot['authority']['name']);
-                    $this->messenger->send($command->pm, $keepers, CounselingMessages::s1Copy($shared, $trooperName, $issuerName));
-                }
 
                 $this->messenger->send($command->pm, [$trooperId], CounselingMessages::afterAction($shared, $trooperName));
 
                 return $shared;
             },
         );
+
+        if (! $lor) {
+            return new SharedCounselingRecord($shared);
+        }
+
+        return new SharedCounselingRecord($shared, $this->copyToRecordKeepers($shared, $command, $trooperName, $snapshot));
+    }
+
+    /**
+     * The LOR's copy to S1 and the oversight officer, after the share committed. What the leader still has to do when it
+     * cannot go, or null when it went.
+     *
+     * @param  array{trooper: array{rank: string, name: string}, authority: array{rank: string, name: string}}  $snapshot
+     */
+    private function copyToRecordKeepers(CounselingRecord $shared, ShareCounselingRecord $command, string $trooperName, array $snapshot): ?string
+    {
+        $keepers = $this->messenger->recordKeepers($shared->trooper);
+
+        if ($keepers === []) {
+            Log::warning('Counseling: no S1 or oversight officer with a forum account to copy a shared LOR to.', ['record' => $shared->id]);
+
+            return 'No S1 or oversight officer with a forum account was found, so the copy for record processing was not sent. Send the letter to S1 yourself.';
+        }
+
+        try {
+            $issuerName = trim($snapshot['authority']['rank'].' '.$snapshot['authority']['name']);
+            $this->messenger->send($command->pm, $keepers, CounselingMessages::s1Copy($shared, $trooperName, $issuerName));
+        } catch (CounselingPmException $e) {
+            report($e);
+
+            return 'The letter was shared, but its copy to S1 and the oversight officer could not be sent ('.$e->getMessage().'). Send it to S1 yourself.';
+        }
+
+        return null;
     }
 
     /**

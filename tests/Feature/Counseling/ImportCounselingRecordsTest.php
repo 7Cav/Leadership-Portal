@@ -9,6 +9,11 @@ use App\Models\CounselingStatus;
 use App\Models\CounselingType;
 use App\Models\Trooper;
 use App\Models\User;
+use App\Repositories\CounselingDocuments;
+use App\Repositories\CounselingRecordRepository;
+use App\Repositories\CounselingRecordRepository\Eloquent as EloquentCounselingRecords;
+use App\Repositories\StoredDocument;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -189,7 +194,7 @@ it('downloads a public Drive file in the check and keeps it for the import, whic
     expect(planRow($plan, 2))->toMatchArray(['outcome' => 'review', 'source' => 'drive', 'reason' => 'The form\'s fields are not read from a Drive link: fill them in after the import.'])
         ->and($mock->getRecordedResponses())->toHaveCount(2);
 
-    $this->actingAs($this->admin)->post('/settings/counseling-import/'.$plan['batch'])->assertRedirect('/settings/counseling-import');
+    $this->actingAs($this->admin)->post('/settings/counseling-import/'.$plan['batch'])->assertRedirect('/settings/counseling-import?batch='.$plan['batch']);
 
     $record = CounselingRecord::query()->sole();
     expect($record->import_key)->toBe(IMPORT_DRIVE_ID)
@@ -218,7 +223,7 @@ it('imports the checked rows as shared and acknowledged on their date, audited p
     ]), [counselingPdf('Brandt DCS.pdf', 'one'), counselingPdf('scan.pdf', 'two')], ['Brandt DCS.pdf' => importFields(), 'scan.pdf' => null]);
 
     $this->actingAs($this->admin)->post('/settings/counseling-import/'.$plan['batch'])
-        ->assertRedirect('/settings/counseling-import')->assertSessionHas('status');
+        ->assertRedirect('/settings/counseling-import?batch='.$plan['batch']);
 
     $records = CounselingRecord::query()->orderBy('id')->get();
     expect($records)->toHaveCount(2);
@@ -247,8 +252,179 @@ it('imports the checked rows as shared and acknowledged on their date, audited p
     $entries = AuditLogEntry::query()->where('action', 'counseling.imported')->get();
     expect($entries)->toHaveCount(2)
         ->and($entries->pluck('actor_id')->unique()->all())->toBe([$this->admin->id])
-        ->and($entries->first()->reason)->toBe('Counseling import, CSV line 2')
-        ->and(app(ImportStaging::class)->manifest($plan['batch']))->toBeNull();
+        ->and($entries->first()->reason)->toBe('Counseling import, CSV line 2');
+
+    // The outcome stays for the page; the CSV and the PDFs are gone.
+    $run = app(ImportStaging::class)->status($plan['batch']);
+    expect($run['state'])->toBe('finished')
+        ->and($run['report']['counts'])->toBe(['all' => 2, 'import' => 1, 'review' => 1, 'skipped' => 0])
+        ->and(collect($run['report']['rows'])->pluck('recordId')->all())->toBe([$dcs->id, $lor->id])
+        ->and(Storage::disk('local')->allFiles('counseling-import/'.$plan['batch']))->toEqualCanonicalizing([
+            'counseling-import/'.$plan['batch'].'/manifest.json',
+            'counseling-import/'.$plan['batch'].'/plan.json',
+            'counseling-import/'.$plan['batch'].'/status.json',
+        ]);
+
+    $this->actingAs($this->admin)->get('/settings/counseling-import?batch='.$plan['batch'])->assertInertia(fn (Assert $page) => $page
+        ->where('run.state', 'finished')
+        ->where('run.report.rows.0.recordId', $dcs->id)
+        ->where('check.batch', $plan['batch']));
+});
+
+it('imports a batch once: a second import of the same check is refused', function () {
+    $plan = checkImport($this, importCsv([['', 'a.pdf', 'dcs', 'Brandt.L', '', '', '2025-03-12']]), [counselingPdf('a.pdf')]);
+    $this->actingAs($this->admin)->post('/settings/counseling-import/'.$plan['batch']);
+
+    $this->actingAs($this->admin)->post('/settings/counseling-import/'.$plan['batch'])->assertSessionHasErrors('batch');
+    expect(CounselingRecord::query()->count())->toBe(1);
+});
+
+it('shows rows skipped only at import time in the import\'s own report', function () {
+    Trooper::factory()->create(['username' => 'Novak.J']);
+    Trooper::factory()->create(['username' => 'Novak.J']);
+    $plan = checkImport($this, importCsv([
+        ['', 'a.pdf', 'dcs', 'Novak.J', '', '', '2025-03-12'],
+        ['', 'b.pdf', 'dcs', 'Brandt.L', '', '', '2025-03-12'],
+    ]), [counselingPdf('a.pdf', 'a'), counselingPdf('b.pdf', 'b')]);
+    // Brandt.L leaves the roster between the check and the import.
+    $this->tree['rifleman']->forceFill(['username' => 'Brandt.LX'])->save();
+
+    $this->actingAs($this->admin)->post('/settings/counseling-import/'.$plan['batch']);
+
+    $run = app(ImportStaging::class)->status($plan['batch']);
+    expect($run['state'])->toBe('finished')
+        ->and(collect($run['report']['rows'])->firstWhere('line', 2))->toMatchArray(['outcome' => 'skipped', 'reason' => '2 troopers are named Novak.J and none was picked'])
+        ->and(collect($run['report']['rows'])->firstWhere('line', 3))->toMatchArray(['outcome' => 'skipped', 'reason' => 'no trooper named Brandt.L on the roster'])
+        ->and(CounselingRecord::query()->count())->toBe(0);
+});
+
+it('stops and says so when the counseling disk will not take a document, instead of skipping every row', function () {
+    app()->instance(CounselingDocuments::class, new class extends CounselingDocuments
+    {
+        public function store(string $sourcePath, string $name): StoredDocument
+        {
+            throw new RuntimeException('disk full');
+        }
+    });
+    $plan = checkImport($this, importCsv([
+        ['', 'a.pdf', 'dcs', 'Brandt.L', '', '', '2025-03-12'],
+        ['', 'b.pdf', 'dcs', 'Brandt.L', '', '', '2025-03-12'],
+    ]), [counselingPdf('a.pdf', 'a'), counselingPdf('b.pdf', 'b')]);
+
+    $this->actingAs($this->admin)->post('/settings/counseling-import/'.$plan['batch']);
+
+    $run = app(ImportStaging::class)->status($plan['batch']);
+    expect($run['state'])->toBe('failed')
+        ->and($run['reason'])->toContain('The import stopped at CSV line 2')
+        ->and(collect($run['report']['rows'])->pluck('reason')->all())->toBe(['the record could not be stored: the import stopped here', 'not imported: the import stopped at line 2'])
+        ->and(CounselingRecord::query()->count())->toBe(0);
+});
+
+/** A repository whose createImported fails; with `$raced`, as if another import stored the key in the meantime. */
+function failingRecords(bool $raced): EloquentCounselingRecords
+{
+    return new class($raced) extends EloquentCounselingRecords
+    {
+        private bool $failed = false;
+
+        public function __construct(private readonly bool $raced) {}
+
+        public function createImported(int $trooperId, CounselingType $type, CounselingKind $kind, CarbonImmutable $counseledOn, int $issuedBy, ?int $issuerUnitId, StoredDocument $document, string $importKey, bool $needsReview, ?array $formData): CounselingRecord
+        {
+            $this->failed = true;
+
+            throw new RuntimeException('database refused the row');
+        }
+
+        public function importedKeys(array $keys): array
+        {
+            return $this->raced && $this->failed ? $keys : parent::importedKeys($keys);
+        }
+    };
+}
+
+it('skips a row as already imported when another import stored its document meanwhile, leaving no file', function () {
+    $plan = checkImport($this, importCsv([['', 'a.pdf', 'dcs', 'Brandt.L', '', '', '2025-03-12']]), [counselingPdf('a.pdf')]);
+    app()->instance(CounselingRecordRepository::class, failingRecords(raced: true));
+
+    $this->actingAs($this->admin)->post('/settings/counseling-import/'.$plan['batch']);
+
+    $run = app(ImportStaging::class)->status($plan['batch']);
+    expect($run['state'])->toBe('finished')
+        ->and($run['report']['rows'][0])->toMatchArray(['outcome' => 'skipped', 'reason' => 'already imported'])
+        ->and(Storage::disk('counseling')->allFiles())->toBe([]);
+});
+
+it('stops the run, keeping no file, when the database refuses a record for another reason', function () {
+    $plan = checkImport($this, importCsv([['', 'a.pdf', 'dcs', 'Brandt.L', '', '', '2025-03-12']]), [counselingPdf('a.pdf')]);
+    app()->instance(CounselingRecordRepository::class, failingRecords(raced: false));
+
+    $this->actingAs($this->admin)->post('/settings/counseling-import/'.$plan['batch']);
+
+    expect(app(ImportStaging::class)->status($plan['batch']))->toMatchArray(['state' => 'failed'])
+        ->and(Storage::disk('counseling')->allFiles())->toBe([]);
+
+    $this->actingAs($this->admin)->get('/settings/counseling-import?batch='.$plan['batch'])->assertInertia(fn (Assert $page) => $page
+        ->where('run.state', 'failed')
+        ->where('run.reason', fn (string $reason) => str_contains($reason, 'The import stopped at CSV line 2')));
+});
+
+it('skips a PDF with scripts or actions, an encrypted one and a text file named .pdf, keeping none of them', function () {
+    $active = "%PDF-1.4\n1 0 obj << /Type /Catalog /OpenAction 2 0 R >> endobj\n2 0 obj << /S /JavaScript /JS (app.alert(1)) >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n";
+    $encrypted = "%PDF-1.7\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R /Encrypt 4 0 R >>\n%%EOF\n";
+    $plan = checkImport($this, importCsv([
+        ['', 'active.pdf', 'dcs', 'Brandt.L', '', '', '2025-03-12'],
+        ['', 'locked.pdf', 'dcs', 'Brandt.L', '', '', '2025-03-12'],
+        ['', 'notes.pdf', 'dcs', 'Brandt.L', '', '', '2025-03-12'],
+    ]), [
+        UploadedFile::fake()->createWithContent('active.pdf', $active),
+        UploadedFile::fake()->createWithContent('locked.pdf', $encrypted),
+        UploadedFile::fake()->createWithContent('notes.pdf', "Just some notes about the counseling.\n"),
+    ]);
+
+    expect(planRow($plan, 2))->toMatchArray(['outcome' => 'skipped', 'reason' => 'this PDF has scripts, attachments or actions that run on their own, which the portal does not accept. Print it to a new PDF and attach that copy'])
+        ->and(planRow($plan, 3))->toMatchArray(['outcome' => 'skipped', 'reason' => 'this PDF has a password or encryption. Attach a copy without one'])
+        ->and(planRow($plan, 4))->toMatchArray(['outcome' => 'skipped', 'reason' => 'attach the signed document as a PDF']);
+
+    $this->actingAs($this->admin)->post('/settings/counseling-import/'.$plan['batch']);
+    expect(CounselingRecord::query()->count())->toBe(0)
+        ->and(Storage::disk('counseling')->allFiles())->toBe([]);
+});
+
+it('stores one record when two checks name the same PDF before either is imported', function () {
+    $first = checkImport($this, importCsv([['', 'a.pdf', 'dcs', 'Brandt.L', '', '', '2025-03-12']]), [counselingPdf('a.pdf', 'same')]);
+    $second = checkImport($this, importCsv([['', 'copy.pdf', 'dcs', 'Brandt.L', '', '', '2025-03-12']]), [counselingPdf('copy.pdf', 'same')]);
+    expect(planRow($second, 2)['outcome'])->toBe('review');
+
+    $this->actingAs($this->admin)->post('/settings/counseling-import/'.$first['batch']);
+    $this->actingAs($this->admin)->post('/settings/counseling-import/'.$second['batch']);
+
+    expect(CounselingRecord::query()->count())->toBe(1)
+        ->and(collect(app(ImportStaging::class)->status($second['batch'])['report']['rows'])->firstWhere('line', 2))->toMatchArray(['outcome' => 'skipped', 'reason' => 'already imported'])
+        ->and(Storage::disk('counseling')->allFiles())->toHaveCount(1);
+});
+
+it('says when a PDF could not be opened in the browser, and which field of a form was too long', function () {
+    $plan = checkImport($this, importCsv([
+        ['', 'odd.pdf', 'dcs', 'Brandt.L', '', '', '2025-03-12'],
+        ['', 'long.pdf', 'dcs', 'Brandt.L', '', '', '2025-03-12'],
+    ]), [counselingPdf('odd.pdf', 'odd'), counselingPdf('long.pdf', 'long')], [
+        'odd.pdf' => ['error' => 'unreadable'],
+        'long.pdf' => importFields(['form' => ['discussion' => str_repeat('x', 3001)]]),
+    ]);
+
+    expect(planRow($plan, 2)['reason'])->toBe('The PDF could not be opened to read its form fields: fill them in after the import.')
+        ->and(planRow($plan, 3)['reason'])->toBe('The form\'s discussion field could not be kept (Keep this to 3000 characters): fill them in after the import.');
+});
+
+it('says the files could not be kept when the staging area will not take them', function () {
+    // A file where the batches' directory should be: nothing can be written under it.
+    Storage::disk('local')->put('counseling-import', 'in the way');
+
+    $this->actingAs($this->admin)->post('/settings/counseling-import/check', [
+        'csv' => importCsv([['', 'a.pdf', 'dcs', 'Brandt.L', '', '', '2025-03-12']]),
+        'files' => [counselingPdf('a.pdf')],
+    ])->assertSessionHasErrors(['csv' => 'The import\'s files could not be kept on the server. Try again; if it keeps failing, the server\'s storage needs checking.']);
 });
 
 it('never imports the same document twice, across runs or within one CSV', function () {

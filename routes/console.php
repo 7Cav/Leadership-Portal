@@ -1,12 +1,14 @@
 <?php
 
 use App\Authorization\ScopeResolver;
+use App\Commands\Counseling\ImportAbortedException;
 use App\Commands\Counseling\ImportCounselingRecords;
 use App\Commands\Counseling\ImportCounselingRecordsHandler;
 use App\Commands\Counseling\ImportCsv;
 use App\Commands\Counseling\ImportRefusedException;
 use App\Commands\Counseling\ImportRowResult;
 use App\Commands\Counseling\ImportStaging;
+use App\Commands\Counseling\ImportStagingFailed;
 use App\Commands\Demo\GenerateDemoHistory;
 use App\Commands\Demo\GenerateDemoHistoryHandler;
 use App\Commands\Demo\PurgeDemoHistory;
@@ -287,9 +289,10 @@ Artisan::command('counseling:import {csv : The filled-in import template}
     $dryRun = (bool) $this->option('dry-run');
     $this->line(($dryRun ? 'Dry run, recording nothing' : 'Importing').", as {$actor->username}".($as === null ? ' (the earliest Admin; pass --as to choose).' : '.'));
 
-    $batch = $staging->scratch();
+    $failure = null;
 
     try {
+        $batch = $staging->scratch();
         $report = $handler->handle($actor, new ImportCounselingRecords(
             rows: $rows,
             files: $files,
@@ -298,8 +301,18 @@ Artisan::command('counseling:import {csv : The filled-in import template}
             dryRun: $dryRun,
             viaConsole: true,
         ));
+    } catch (ImportAbortedException $e) {
+        // Stopped partway: show what was stored before it, then the reason.
+        [$report, $failure] = [$e->report, $e->getMessage().' Cause: '.$e->getPrevious()?->getMessage()];
+    } catch (ImportStagingFailed $e) {
+        report($e);
+        $this->error($e->getMessage()." ({$e->path})");
+
+        return 1;
     } finally {
-        $staging->delete($batch);
+        if (isset($batch)) {
+            $staging->delete($batch);
+        }
     }
 
     $this->table(['Line', 'Source', 'Result', 'Type', 'Trooper', 'Issuer', 'Date', 'Why'], array_map(fn (ImportRowResult $row) => [
@@ -316,6 +329,12 @@ Artisan::command('counseling:import {csv : The filled-in import template}
         $row->counseledOn?->toDateString() ?? '',
         implode(' ', array_filter([$row->reason, ...$row->notes])),
     ], $report->rows));
+
+    if ($failure !== null) {
+        $this->error($failure);
+
+        return 1;
+    }
 
     $this->info($report->summary());
 

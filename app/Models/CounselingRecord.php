@@ -33,7 +33,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * A DCS is **active** for {@see DCS_ACTIVE_DAYS} days after it was shared, **inactive** (hidden from the trooper and
  * their section leaders, still counting) up to {@see DCS_EXPIRY_DAYS} days, then **expired** (Admins only, no longer
- * counting, kept forever) ({@see dcsPhase()}). Worked out on every read, so it needs no job. An LOR never expires.
+ * counting, kept forever) ({@see dcsPhase()}), counted from {@see windowStart()}. Worked out on every read, so it needs
+ * no job. An LOR never expires.
  */
 class CounselingRecord extends Model
 {
@@ -187,7 +188,7 @@ class CounselingRecord extends Model
         return $this->appealed_at !== null;
     }
 
-    /** When the appeal authority has to have decided by, or null without an appeal. */
+    /** When the appeal authority has to have decided by, or null for a DCS or without an appeal. */
     public function appealDueAt(): ?CarbonImmutable
     {
         return $this->type === CounselingType::Lor ? $this->appealed_at?->addHours(self::APPEAL_DECISION_HOURS) : null;
@@ -237,7 +238,7 @@ class CounselingRecord extends Model
             return null;
         }
 
-        $days = (int) $this->shared_at->utc()->startOfDay()->diffInDays(($today ?? CarbonImmutable::now('UTC'))->startOfDay());
+        $days = (int) $this->windowStart()->diffInDays(($today ?? CarbonImmutable::now('UTC'))->startOfDay());
 
         return match (true) {
             $days <= self::DCS_ACTIVE_DAYS => 'active',
@@ -246,11 +247,23 @@ class CounselingRecord extends Model
         };
     }
 
+    /**
+     * The day a shared DCS's windows run from: the day it was shared, or for a record kept with its source PDF (filed
+     * before #565, or imported) the date it carries, as before #565, so the migration moves no existing record's expiry
+     * and a reviewer correcting an imported date moves its windows with it.
+     */
+    public function windowStart(): CarbonImmutable
+    {
+        $day = $this->hasSourceDocument() && $this->counseled_on !== null ? $this->counseled_on : $this->shared_at;
+
+        return CarbonImmutable::parse($day->toDateString(), 'UTC');
+    }
+
     /** The day a shared DCS turns inactive (the trooper no longer sees it), or null. */
     public function inactiveOn(): ?CarbonImmutable
     {
         return $this->type === CounselingType::Dcs && $this->isShared()
-            ? $this->shared_at->utc()->startOfDay()->addDays(self::DCS_ACTIVE_DAYS + 1)
+            ? $this->windowStart()->addDays(self::DCS_ACTIVE_DAYS + 1)
             : null;
     }
 
@@ -258,7 +271,7 @@ class CounselingRecord extends Model
     public function expiresOn(): ?CarbonImmutable
     {
         return $this->type === CounselingType::Dcs && $this->isShared()
-            ? $this->shared_at->utc()->startOfDay()->addDays(self::DCS_EXPIRY_DAYS + 1)
+            ? $this->windowStart()->addDays(self::DCS_EXPIRY_DAYS + 1)
             : null;
     }
 

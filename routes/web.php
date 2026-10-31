@@ -121,8 +121,8 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/troopers/{trooper}', [TrooperDetailController::class, 'show'])->name('troopers.show');
     // Developmental Counseling Statements and Letters of Reprimand, written in the portal through the wiki procedure
     // (#381, #565). Each write is an audited Command whose handler decides who may take the step
-    // (Authorization\CounselingAccess); a trooper or record the viewer cannot see is a 404, the document included. All
-    // share the audited-writes throttle. The steps that send a PM use the user's own forum account (`auth.forum-pm`).
+    // (Authorization\CounselingAccess); a trooper or record the viewer cannot see is a 404, the document included. Every
+    // write, and the audited document download, share the audited-writes throttle. The steps that send a PM use the user's own forum account (`auth.forum-pm`).
     Route::post('/troopers/{trooper}/counseling', [CounselingController::class, 'store'])->middleware('throttle:audited-writes')->name('counseling.store');
     Route::get('/counseling/appeals', [CounselingAppealsController::class, 'index'])->name('counseling.appeals');
     Route::get('/counseling/{counseling}', [CounselingController::class, 'show'])->name('counseling.show');
@@ -320,7 +320,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/settings/counseling-import/template', [CounselingImportController::class, 'template'])->name('settings.counseling-import.template');
     Route::post('/settings/counseling-import/check', [CounselingImportController::class, 'check'])->middleware('throttle:counseling-uploads')->name('settings.counseling-import.check');
     Route::post('/settings/counseling-import/{batch}', [CounselingImportController::class, 'import'])->whereUuid('batch')->middleware('throttle:audited-writes')->name('settings.counseling-import.import');
-    // Filling in a record kept with its source PDF (an upload from before #565, or an import that needs review).
+    // Filling in a record kept with its source PDF (an upload from before #565, or an import, flagged for review or not).
     Route::post('/counseling/{counseling}/review', [CounselingReviewController::class, 'review'])->middleware('throttle:audited-writes')->name('counseling.review');
 
     // Audit-log review (Story 1.14). The whole screen is Admin-only (AC #4) — the gate is

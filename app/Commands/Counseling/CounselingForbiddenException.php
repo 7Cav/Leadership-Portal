@@ -19,8 +19,8 @@ class CounselingForbiddenException extends AuthorizationException
     public static function file(CounselingType $type): self
     {
         return new self($type === CounselingType::Lor
-            ? 'Only command from platoon level up can file a Letter of Reprimand on this trooper.'
-            : 'Only a leader whose command includes this trooper can file a Developmental Counseling Statement on them.');
+            ? 'Only command from platoon level up can issue a Letter of Reprimand on this trooper.'
+            : 'Only a leader whose command includes this trooper can issue a Developmental Counseling Statement on them.');
     }
 
     public static function departed(Trooper $trooper): self
@@ -108,7 +108,7 @@ class CounselingForbiddenException extends AuthorizationException
 
     public static function overturnOwn(): self
     {
-        return new self('You cannot overturn an LOR filed on yourself.');
+        return new self('You cannot overturn an LOR on yourself.');
     }
 
     public static function overturn(): self

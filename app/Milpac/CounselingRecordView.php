@@ -95,7 +95,7 @@ final class CounselingRecordView
         ];
     }
 
-    /** Who did it, named as on a filing: the person, `Hale.S for Okafor.B` when acted as, or the billet held. */
+    /** Who did it, named as a record's issuer is: the person, `Hale.S for Okafor.B` when acted as, or the billet held. */
     public static function actor(?User $user, ?User $actingAdmin, ?Unit $asUnit): string
     {
         $name = $user?->username ?? 'Unknown';

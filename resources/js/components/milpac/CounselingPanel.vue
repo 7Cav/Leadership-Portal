@@ -112,8 +112,8 @@ function meta(record) {
 }
 
 const isDraft = (record) => ['draft', 'invited'].includes(record.state);
-// A record kept with its source PDF is its PDF; it opens only to be reviewed or overturned.
-const opens = (record) => record.can?.open && (!record.hasSourceDocument || record.needsReview || record.can?.overturn);
+// Every record the viewer sees opens: a record kept with its source PDF too, where its chain fills in its fields.
+const opens = (record) => !!record.can?.open;
 
 // A seeded demo record's document has no file behind it: say so instead of starting a download that would fail.
 const demoDocumentOpen = ref(false);

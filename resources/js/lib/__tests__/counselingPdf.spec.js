@@ -62,6 +62,27 @@ describe('counselingPdf', () => {
         expect(lor.fileName).toBe('LOR 2026-10-29 Okafor.D.pdf');
     });
 
+    // The server's own answer (pinned by CounselingDocumentFixtureTest), filled into the real templates: a field the
+    // server names and the template lacks fails here, whichever side changed.
+    it('fills what the server answers for a DCS and an LOR into the real templates', async () => {
+        const fixture = (type) => JSON.parse(readFileSync(fileURLToPath(new URL(`../../../../tests/Fixtures/counseling/document-${type}.json`, import.meta.url)), 'utf8'));
+
+        for (const type of ['dcs', 'lor']) {
+            const payload = fixture(type);
+            const form = (await filled(payload.template, payload)).getForm();
+
+            for (const [name, value] of Object.entries(payload.text)) {
+                expect(form.getTextField(name).getText() ?? '', `${type}: ${name}`).toBe(value);
+            }
+            for (const name of payload.checks) {
+                expect(form.getCheckBox(name).isChecked(), `${type}: ${name}`).toBe(true);
+            }
+            for (const { group } of payload.radios) {
+                onWidget(form, group);
+            }
+        }
+    });
+
     it('fills the text fields, with what Helvetica cannot draw as ?', async () => {
         const form = (await filled('7CAV-R-042', dcs)).getForm();
 

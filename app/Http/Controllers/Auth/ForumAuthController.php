@@ -337,7 +337,8 @@ class ForumAuthController extends Controller
         $expectedState = $request->session()->pull(self::PM_STATE_KEY);
         $return = (string) $request->session()->pull(self::PM_RETURN_KEY, route('home', absolute: false));
         $providedState = $request->query('state');
-        $user = $request->user();
+        // The PMs go from the person really signed in, so the token must be theirs, also while they act as someone.
+        $user = $this->pmSender($request);
 
         if ($user === null) {
             return redirect()->route('login');
@@ -346,7 +347,17 @@ class ForumAuthController extends Controller
         $back = redirect()->to($return);
 
         if ($request->filled('error')) {
-            return $back->with('error', 'The forum did not allow the portal to send PMs for you.');
+            $error = (string) $request->query('error');
+
+            if ($error === 'access_denied') {
+                return $back->with('error', 'You did not allow the portal to send PMs for you, so nothing was sent.');
+            }
+
+            // Anything but a refusal is the forum's side (a scope the OAuth client lacks, a server error): logged by its
+            // fixed code for whoever runs the portal.
+            Log::warning('Forum PM consent failed on the forum.', ['error' => preg_match('/^[a-z_]{1,64}$/', $error) === 1 ? $error : 'unrecognised']);
+
+            return $back->with('error', 'The forum could not give the portal permission to send PMs. Tell an Admin.');
         }
 
         if (! is_string($expectedState) || ! is_string($providedState) || ! hash_equals($expectedState, $providedState)

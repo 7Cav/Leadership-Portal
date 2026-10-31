@@ -4,6 +4,7 @@ namespace App\Commands\Counseling;
 
 use App\Commands\Auth\ForumPmGrant;
 use App\Models\AppealOutcome;
+use InvalidArgumentException;
 
 /**
  * The appeal authority decides an appealed LOR (#565): HAVE AMENDED, with the consequence as amended (`$amended`, only
@@ -12,11 +13,18 @@ use App\Models\AppealOutcome;
  */
 final readonly class DecideCounselingAppeal
 {
+    /**
+     * @throws InvalidArgumentException when an amendment comes without the consequence as amended, or the other way round
+     */
     public function __construct(
         public int $recordId,
         public AppealOutcome $outcome,
         public string $reason,
         public ?CounselingForm $amended,
         public ?ForumPmGrant $pm,
-    ) {}
+    ) {
+        if (($outcome === AppealOutcome::Amended) !== ($amended !== null)) {
+            throw new InvalidArgumentException('An amended decision carries the consequence as amended, and only an amended one.');
+        }
+    }
 }

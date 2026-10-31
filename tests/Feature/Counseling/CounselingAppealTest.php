@@ -8,6 +8,7 @@ use App\Models\TrooperStatus;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Storage;
+use Saloon\Http\Faking\MockResponse;
 
 require_once __DIR__.'/fixture.php';
 
@@ -35,9 +36,9 @@ beforeEach(function () {
         'form_data' => [...CounselingRecord::factory()->written()->make()->form_data, 'consequences' => ['nfa', 'removal'], 'removal' => 'assistant_section_leader'],
     ]);
 
-    $this->appeal = fn () => $this->actingAs($this->self)->withSession(counselingPmSession())
+    $this->appeal = fn () => $this->actingAs($this->self)->withSession(counselingPmSession($this->self))
         ->post(route('counseling.respond', $this->lor->id), ['appeal' => 'do', 'appeal_reason' => 'My shifts changed; an LOR is too much.']);
-    $this->decide = fn (User $as, array $data) => $this->actingAs($as)->withSession(counselingPmSession())
+    $this->decide = fn (User $as, array $data) => $this->actingAs($as)->withSession(counselingPmSession($as))
         ->post(route('counseling.decide', $this->lor->id), $data);
 });
 
@@ -153,5 +154,35 @@ it('lets an undecided appeal lapse after 72 hours: the letter stands as written 
 it('refuses a withdrawal once the trooper has asked to appeal', function () {
     ($this->appeal)();
 
-    $this->actingAs($this->pl)->withSession(counselingPmSession())->post(route('counseling.withdraw', $this->lor->id), ['reason' => 'x'])->assertForbidden();
+    $this->actingAs($this->pl)->withSession(counselingPmSession($this->pl))->post(route('counseling.withdraw', $this->lor->id), ['reason' => 'x'])->assertForbidden();
+});
+
+it('records no appeal the forum did not send, so the trooper can answer again', function () {
+    $this->forum = counselingFakeForum(MockResponse::make(['errors' => [['code' => 'server_error']]], 500));
+
+    ($this->appeal)()->assertSessionHasErrors('pm');
+
+    expect($this->lor->fresh()->isResponded())->toBeFalse()
+        ->and($this->lor->fresh()->isAppealed())->toBeFalse();
+    $this->forum = counselingFakeForum();
+    ($this->appeal)()->assertSessionHasNoErrors();
+});
+
+it('records no decision the forum did not send: the appeal stays pending and the LOR unfrozen', function () {
+    ($this->appeal)();
+    $this->forum = counselingFakeForum(MockResponse::make(['errors' => [['code' => 'server_error']]], 500));
+
+    ($this->decide)($this->co, ['outcome' => 'not_amended', 'reason' => 'Fair.'])->assertSessionHasErrors('pm');
+
+    $lor = $this->lor->fresh();
+    expect($lor->isAppealPending())->toBeTrue()
+        ->and($lor->appeal_outcome)->toBeNull()
+        ->and($lor->isFrozen())->toBeFalse();
+});
+
+it('never lets the one who issued an LOR decide its appeal', function () {
+    $this->lor->forceFill(['issued_by' => $this->co->id])->save();
+    ($this->appeal)();
+
+    ($this->decide)($this->co, ['outcome' => 'not_amended', 'reason' => 'Mine.'])->assertForbidden();
 });

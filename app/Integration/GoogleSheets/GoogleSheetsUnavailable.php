@@ -27,9 +27,9 @@ class GoogleSheetsUnavailable extends RuntimeException
         return new self("Google Sheets answered HTTP {$status} to the {$step}.");
     }
 
-    public static function malformed(string $why): self
+    public static function malformed(string $why, ?Throwable $previous = null): self
     {
-        return new self("Google answered in a shape the portal cannot read: {$why}.");
+        return new self("Google answered in a shape the portal cannot read: {$why}.", 0, $previous);
     }
 
     public static function refused(string $why): self

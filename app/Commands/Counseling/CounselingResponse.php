@@ -99,6 +99,12 @@ final readonly class CounselingResponse
         }
     }
 
+    /** This response as `$type`'s form takes it: a DCS has no appeal, so its choice and reason are dropped. */
+    public function forType(CounselingType $type): self
+    {
+        return $type === CounselingType::Lor ? $this : new self($this->planTrooper, $this->commentsTrooper);
+    }
+
     public function appeals(): bool
     {
         return $this->appeal === 'do';

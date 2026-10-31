@@ -3,6 +3,8 @@
 namespace App\Integration\DriveDownload;
 
 use App\Integration\DriveDownload\Requests\DownloadFileRequest;
+use GuzzleHttp\Exception\GuzzleException;
+use Saloon\Exceptions\Request\FatalRequestException;
 use Saloon\Http\Response;
 use Throwable;
 
@@ -116,7 +118,7 @@ class DriveDownloadApi
             return $connector->send(new DownloadFileRequest($url));
         } catch (DriveDownloadFailed $e) {
             throw $e;
-        } catch (Throwable $e) {
+        } catch (FatalRequestException|GuzzleException $e) {
             // A size cap tripped mid-transfer arrives wrapped by Guzzle and Saloon; anything else is a failed connection.
             throw $this->capCause($e) ?? DriveDownloadFailed::unreachable($e);
         }
@@ -150,6 +152,12 @@ class DriveDownloadApi
 
         if ($status === 429 || $status >= 500) {
             throw DriveDownloadFailed::unreachable();
+        }
+
+        // Drive answers a file id it does not have (deleted, or a typo in the link) with a 404. A private file is
+        // answered with a sign-in redirect or a refusal instead.
+        if ($status === 404) {
+            throw DriveDownloadFailed::notFound();
         }
 
         if ($status !== 200 || str_contains(strtolower((string) $response->header('Content-Type')), 'text/html')) {

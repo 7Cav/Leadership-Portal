@@ -34,7 +34,7 @@ page: /counseling/{counseling}
 
 ## Send the meeting invite
 
-1. In **Meeting invite**, give three times you can meet in the next 72 hours, in Zulu, and choose **Send meeting invite**. The portal sends the wiki's "Meeting: …" PM to the trooper from your forum account.
+1. In **Meeting invite**, give three times you can meet in the next 72 hours, in Zulu, and choose **Send invite**. The portal sends the wiki's "Meeting: …" PM to the trooper from your forum account.
 2. The record shows **Invite sent** and the 72-hour meeting window.
 3. For an LOR the invite is required. For a DCS you can skip it when you reached the trooper by voice within 24 hours, or for a positive development session.
 
@@ -99,7 +99,7 @@ The portal follows the counseling rules on the 7Cav wiki (7CAV-R-012, 7CAV-R-014
 ## Records from before
 
 1. Records filed in the portal with a PDF before it wrote them keep that PDF, and count as shared and answered on the day they were filed.
-2. Their fields are empty. You, the command above you or an Admin can fill them in with **Review** on the record. The PDF stays as it is.
+2. Their fields may be empty. Open the record from the trooper's milpac page: you, the command above you or an Admin can fill them in under **Fill in from the PDF**. The PDF stays as it is.
 3. Admins bring in older records from Google Drive links or PDFs (see [Import older counseling records](/docs/admin/counseling-import)).
 
 ## Overturn an LOR

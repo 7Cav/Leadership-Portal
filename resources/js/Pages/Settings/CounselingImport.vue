@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
 import { PhDownloadSimple, PhLockSimple, PhMagnifyingGlass, PhTerminalWindow, PhTrayArrowDown } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
@@ -25,8 +25,17 @@ const props = defineProps({
     // The last check, or null: `{ batch, csvName, checkedAt, dryRun, counts: { all, import, review, skipped }, rows }`,
     // each row `{ line, source, label, outcome, reason, notes, type, trooper, issuer, counseledOn, candidates, recordId }`.
     check: { type: Object, default: null },
+    // Once the check was imported: `{ state, reason, report, updatedAt }`, `state` one of queued, running, finished,
+    // refused or failed, `reason` plain English for a refused or failed run, `report` the run's rows (as `check`'s)
+    // once it has them. Reloaded every few seconds while queued or running.
+    run: { type: Object, default: null },
+    // The batch's files on the server could not be read.
+    error: { type: String, default: null },
     status: { type: String, default: null },
 });
+
+// How often the page asks how a queued or running import stands.
+const POLL_MS = 3000;
 
 const csv = ref(null);
 const pdfs = ref([]);
@@ -38,17 +47,48 @@ const filter = ref('all');
 // The trooper the Admin picked for each row whose Last.F several troopers share: `{ [line]: trooperId }`.
 const picks = reactive({});
 
-const rows = computed(() => props.check?.rows ?? []);
+// After the import: its own report, rows skipped only at import time included; before it, the check.
+const result = computed(() => props.run?.report ?? props.check);
+const imported = computed(() => Boolean(props.run?.report));
+const running = computed(() => ['queued', 'running'].includes(props.run?.state));
+const rows = computed(() => result.value?.rows ?? []);
 const shown = computed(() => (filter.value === 'all' ? rows.value : rows.value.filter((row) => row.outcome === filter.value)));
 const toImport = computed(() => importableCount(rows.value, picks));
 const tooLarge = computed(() => pdfs.value.filter((file) => file.size > props.limits.fileBytes).map((file) => file.name));
 
 const tabs = computed(() => [
-    { value: 'all', label: 'All', count: props.check?.counts.all ?? 0 },
-    { value: 'import', label: 'Import', count: props.check?.counts.import ?? 0 },
-    { value: 'review', label: 'Needs review', count: props.check?.counts.review ?? 0 },
-    { value: 'skipped', label: 'Skipped', count: props.check?.counts.skipped ?? 0 },
+    { value: 'all', label: 'All', count: result.value?.counts.all ?? 0 },
+    { value: 'import', label: imported.value ? 'Imported' : 'Import', count: result.value?.counts.import ?? 0 },
+    { value: 'review', label: 'Needs review', count: result.value?.counts.review ?? 0 },
+    { value: 'skipped', label: 'Skipped', count: result.value?.counts.skipped ?? 0 },
 ]);
+
+// The first error under any `files.*` key, then `files` itself.
+const filesError = computed(() => errors.value.files ?? Object.entries(errors.value).find(([key]) => key.startsWith('files.'))?.[1] ?? null);
+
+const runLine = computed(() => {
+    const run = props.run;
+    if (!run) return null;
+    if (run.state === 'queued') return 'Import queued. This page updates on its own.';
+    if (run.state === 'running') return 'Importing. This page updates on its own.';
+    if (run.state === 'finished') {
+        const counts = run.report.counts;
+        return `Import finished: ${counts.import + counts.review} stored (${counts.review} needing review), ${counts.skipped} skipped.`;
+    }
+
+    return run.reason ?? 'The import did not finish.';
+});
+
+let poll = null;
+watch(
+    running,
+    (now) => {
+        clearInterval(poll);
+        poll = now ? setInterval(() => router.reload({ only: ['run'] }), POLL_MS) : null;
+    },
+    { immediate: true },
+);
+onBeforeUnmount(() => clearInterval(poll));
 
 const typeLabel = (type) => (type ? type.toUpperCase() : '?');
 const dash = (row, value, unread = 'Not read') => (row.outcome === 'skipped' && !value ? '-' : value || unread);
@@ -79,8 +119,17 @@ async function checkFiles() {
 
     checking.value = true;
     reading.value = true;
-    const fields = await readAllImportFields(pdfs.value);
-    reading.value = false;
+    let fields;
+    try {
+        fields = await readAllImportFields(pdfs.value);
+    } catch (error) {
+        console.error('Counseling import: the PDF reader did not load.', error);
+        toast.error('The PDF reader did not load. Reload the page and check the files again.');
+        checking.value = false;
+        return;
+    } finally {
+        reading.value = false;
+    }
 
     router.post(
         '/settings/counseling-import/check',
@@ -106,7 +155,7 @@ function importRecords() {
         { picks: Object.fromEntries(Object.entries(picks).filter(([, trooper]) => trooper)) },
         {
             preserveScroll: true,
-            onError: () => toast.error('The import did not start. Check the files again.'),
+            onError: (failed) => toast.error(Object.values(failed)[0] ?? 'The import did not start. Check the files again.'),
             onFinish: () => (importing.value = false),
             onHttpException: onHttpException('The import did not start', (message) => toast.error(message)),
         },
@@ -114,8 +163,8 @@ function importRecords() {
 }
 
 function resultLabel(row) {
-    if (row.outcome === 'import') return 'Import';
-    if (row.outcome === 'review') return 'Needs review';
+    if (row.outcome === 'import') return imported.value ? 'Imported' : 'Import';
+    if (row.outcome === 'review') return imported.value ? 'Imported, needs review' : 'Needs review';
 
     return `Skipped: ${row.reason}`;
 }
@@ -141,6 +190,16 @@ function resultLabel(row) {
         </div>
 
         <Card v-if="status" class="p-4 text-[13px]" role="status" data-testid="import-status">{{ status }}</Card>
+        <Card v-if="error" class="p-4 text-[13px] text-destructive" role="alert" data-testid="import-error">{{ error }}</Card>
+        <Card
+            v-if="runLine"
+            class="p-4 text-[13px]"
+            :class="['refused', 'failed'].includes(run.state) ? 'text-destructive' : ''"
+            :role="['refused', 'failed'].includes(run.state) ? 'alert' : 'status'"
+            data-testid="import-run"
+        >
+            {{ runLine }}
+        </Card>
 
         <div class="grid gap-4 lg:grid-cols-2">
             <Card class="min-w-0 gap-0 py-0">
@@ -191,7 +250,7 @@ function resultLabel(row) {
                             class="block w-full text-[13px] file:mr-3 file:rounded-md file:border file:border-border file:bg-card file:px-3 file:py-1.5 file:text-[13px]"
                             @change="choosePdfs"
                         />
-                        <p v-if="errors.files || errors['files.0']" class="text-destructive" data-testid="files-error">{{ errors.files ?? errors['files.0'] }}</p>
+                        <p v-if="filesError" class="text-destructive" data-testid="files-error">{{ filesError }}</p>
                         <p v-if="errors.fields" class="text-destructive">{{ errors.fields }}</p>
                     </div>
                     <p class="text-muted-foreground">
@@ -207,7 +266,7 @@ function resultLabel(row) {
 
         <Card v-if="check" class="min-w-0 gap-0 py-0" data-testid="check-result">
             <div class="flex flex-wrap items-baseline gap-x-2 border-b border-border px-4 py-3">
-                <h2 class="text-[15px] font-semibold">3. Check result</h2>
+                <h2 class="text-[15px] font-semibold">{{ imported ? '3. Import result' : '3. Check result' }}</h2>
                 <span class="text-[13px] text-muted-foreground">
                     {{ check.csvName }} · {{ check.counts.all }} {{ check.counts.all === 1 ? 'row' : 'rows' }} · checked {{ forumDateTime(check.checkedAt) }}Z
                 </span>
@@ -243,7 +302,7 @@ function resultLabel(row) {
                             <TableCell>{{ row.outcome === 'skipped' && !row.type ? '-' : typeLabel(row.type) }}</TableCell>
                             <TableCell>
                                 <NativeSelect
-                                    v-if="row.candidates.length"
+                                    v-if="row.candidates.length && !run"
                                     v-model="picks[row.line]"
                                     :aria-label="`Trooper for row ${row.line}`"
                                     :data-testid="`pick-${row.line}`"
@@ -266,6 +325,7 @@ function resultLabel(row) {
                                     {{ resultLabel(row) }}
                                 </Badge>
                                 <p v-if="row.outcome === 'review' && row.reason" class="mt-1 text-[12px] text-muted-foreground">{{ row.reason }}</p>
+                                <a v-if="row.recordId" :href="`/counseling/${row.recordId}`" class="mt-1 block text-[12px] underline" :data-testid="`record-${row.line}`">Open the record</a>
                                 <p v-for="note in row.notes" :key="note" class="mt-1 text-[12px] text-muted-foreground">{{ note }}</p>
                             </TableCell>
                         </TableRow>
@@ -273,7 +333,7 @@ function resultLabel(row) {
                 </Table>
             </div>
 
-            <div class="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
+            <div v-if="!run" class="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
                 <p class="text-[13px] text-muted-foreground">
                     Rows needing review are imported and flagged for you to complete. Skipped rows, and rows still waiting for a trooper
                     to be picked, are left out.

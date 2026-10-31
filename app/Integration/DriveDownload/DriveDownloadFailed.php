@@ -35,6 +35,11 @@ class DriveDownloadFailed extends RuntimeException
         return new self(DriveDownloadFailure::NotPublic, 'not publicly shared / not a PDF');
     }
 
+    public static function notFound(): self
+    {
+        return new self(DriveDownloadFailure::NotFound, 'not found on Google Drive');
+    }
+
     public static function tooLarge(int $maxBytes): self
     {
         return new self(DriveDownloadFailure::TooLarge, 'larger than '.intdiv($maxBytes, 1024 * 1024).' MB');

@@ -642,7 +642,7 @@ describe('their own counseling records', function () {
         $draft = CounselingRecord::factory()->lor()->draft()->create(['trooper_id' => $this->chiefTrooper->id, 'issuer_unit_id' => null]);
 
         expect(rhqaIsAdmin($this->chief))->toBeTrue();
-        $this->actingAs($this->chief)->withSession(counselingPmSession())->post(route('counseling.withdraw', $lor->id), ['reason' => 'Mine.'])->assertForbidden();
+        $this->actingAs($this->chief)->withSession(counselingPmSession($this->chief))->post(route('counseling.withdraw', $lor->id), ['reason' => 'Mine.'])->assertForbidden();
         $this->actingAs($this->chief)->delete(route('counseling.destroy', $draft->id))->assertNotFound();
 
         expect($lor->fresh()->isShared())->toBeTrue()->and($draft->fresh())->not->toBeNull();
@@ -655,7 +655,7 @@ describe('their own counseling records', function () {
         $mine = Trooper::query()->where('cav_id', $this->admin->cav_id)->sole();
         $lor = CounselingRecord::factory()->lor()->create(['trooper_id' => $mine->id, 'issuer_unit_id' => null]);
 
-        $this->actingAs($this->admin)->withSession(counselingPmSession())->post(route('counseling.withdraw', $lor->id), ['reason' => 'Filed in error.'])->assertSessionHasNoErrors();
+        $this->actingAs($this->admin)->withSession(counselingPmSession($this->admin))->post(route('counseling.withdraw', $lor->id), ['reason' => 'Filed in error.'])->assertSessionHasNoErrors();
 
         expect($lor->fresh()->isDraft())->toBeTrue();
     });

@@ -31,6 +31,11 @@ class ImportRefusedException extends RuntimeException
         return new self('csv', 'Import at most '.ImportCsv::MAX_ROWS.' rows at a time. Split the CSV and import each part.');
     }
 
+    public static function alreadyRun(): self
+    {
+        return new self('batch', 'This check was already imported. Upload the CSV and check it again to import more.');
+    }
+
     public static function batchGone(): self
     {
         return new self('batch', 'This check is no longer there. Upload the CSV and check it again.');

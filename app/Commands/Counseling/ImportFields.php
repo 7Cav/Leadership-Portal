@@ -12,7 +12,8 @@ use App\Models\CounselingType;
  * It comes from the browser, so it is treated as what it is: a hint the Admin's machine produced from a file they
  * chose. Every value is kept only if it has the expected shape, cut to a sane length, and the form fields go through
  * {@see CounselingForm} and {@see CounselingResponse}'s own rules before they are stored. A PDF with no fillable fields
- * (scanned or flattened) has no ImportFields at all: {@see fromInput()} answers null.
+ * (scanned or flattened) has no ImportFields at all: {@see fromInput()} answers null. A PDF the browser could not open
+ * at all comes as `{ error: 'unreadable' }`, which is `$unreadable`, so the row says so instead of "scanned or flattened".
  */
 final readonly class ImportFields
 {
@@ -28,6 +29,7 @@ final readonly class ImportFields
         public string $trooper = '',
         public string $issuer = '',
         public array $form = [],
+        public bool $unreadable = false,
     ) {}
 
     /** The fields read from one file, or null when the browser read none (no AcroForm, or not given). */
@@ -35,6 +37,10 @@ final readonly class ImportFields
     {
         if (! is_array($input)) {
             return null;
+        }
+
+        if (($input['error'] ?? null) === 'unreadable') {
+            return new self(unreadable: true);
         }
 
         $short = fn (string $key): string => is_string($input[$key] ?? null) ? mb_substr(trim($input[$key]), 0, self::SHORT) : '';

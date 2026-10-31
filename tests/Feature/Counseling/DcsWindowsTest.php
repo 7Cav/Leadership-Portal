@@ -46,10 +46,19 @@ it('keeps a DCS active to day 30, inactive from day 31 to day 90, and expired fr
         ->and($day91->expiresOn()->toDateString())->toBe(now('UTC')->toDateString());
 });
 
-it('judges the windows from the day it was shared, never from the date it carries', function () {
-    $record = ($this->record)('dcs', 5, ['counseled_on' => now('UTC')->subDays(200)->toDateString()]);
+it('judges a DCS written in the portal from the day it was shared, never from the date it carries', function () {
+    $record = CounselingRecord::factory()->written()->sharedDaysAgo(5)->create([
+        'trooper_id' => $this->rifleman->id, 'counseled_on' => now('UTC')->subDays(200)->toDateString(),
+    ]);
 
     expect($record->dcsPhase())->toBe('active');
+});
+
+it('judges a DCS kept with its PDF (filed before #565, or imported) from the date it carries, as before', function () {
+    // Counseled 100 days ago, uploaded 5 days ago: it had expired before #565, and stays expired.
+    $record = ($this->record)('dcs', 5, ['counseled_on' => now('UTC')->subDays(100)->toDateString()]);
+
+    expect($record->dcsPhase())->toBe('expired');
 });
 
 it('shows an active DCS to the trooper and the whole chain, the Section Leader included', function () {

@@ -37,7 +37,11 @@ class SendCounselingInviteHandler
      */
     public function handle(User $actor, SendCounselingInvite $command): CounselingRecord
     {
-        [$record] = $this->loader->draft($actor, $command->recordId);
+        [$record, $permissions] = $this->loader->draft($actor, $command->recordId);
+
+        if (! $permissions->files($record->type)) {
+            throw CounselingForbiddenException::file($record->type);
+        }
 
         if ($record->status !== CounselingStatus::Draft) {
             throw CounselingForbiddenException::alreadyInvited();

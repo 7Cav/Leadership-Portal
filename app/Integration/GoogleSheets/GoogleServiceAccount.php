@@ -57,13 +57,22 @@ class GoogleServiceAccount
         }
 
         if ($response->failed()) {
-            throw GoogleSheetsUnavailable::httpError($response->status(), 'token request');
+            // Google's own error code (`invalid_grant` for a disabled key or a skewed clock) names no secret.
+            try {
+                $error = $response->json('error');
+            } catch (Throwable) {
+                $error = null;
+            }
+
+            $step = is_string($error) && preg_match('/^[a-z_]{1,64}$/', $error) === 1 ? "token request ({$error})" : 'token request';
+
+            throw GoogleSheetsUnavailable::httpError($response->status(), $step);
         }
 
         try {
             $token = $response->json('access_token');
-        } catch (Throwable) {
-            $token = null;
+        } catch (Throwable $e) {
+            throw GoogleSheetsUnavailable::malformed('the token answer was not JSON', $e);
         }
 
         if (! is_string($token) || $token === '') {

@@ -99,7 +99,13 @@ export function saveFile(bytes, fileName, type = 'application/pdf') {
 function attachmentName(header) {
     if (!header) return null;
     const star = /filename\*=UTF-8''([^;]+)/i.exec(header);
-    if (star) return decodeURIComponent(star[1]);
+    if (star) {
+        try {
+            return decodeURIComponent(star[1]);
+        } catch {
+            // A malformed escape: fall back to the plain name below.
+        }
+    }
     const plain = /filename="?([^";]+)"?/i.exec(header);
 
     return plain ? plain[1] : null;
@@ -115,7 +121,13 @@ export async function downloadCounselingDocument(recordId) {
     });
 
     if (!response.ok) {
-        const why = { 403: 'You may not download this record.', 404: 'This record is no longer there.', 429: 'Too many downloads; wait a minute and try again.' }[response.status];
+        const why = {
+            401: 'Your session has ended. Sign in again and retry.',
+            403: 'You may not download this record.',
+            404: 'This record is no longer there.',
+            419: 'Your session has ended. Reload the page and retry.',
+            429: 'Too many downloads; wait a minute and try again.',
+        }[response.status];
         throw new Error(why ?? `The document could not be downloaded (error ${response.status}). Try again.`);
     }
 
@@ -125,6 +137,11 @@ export async function downloadCounselingDocument(recordId) {
         saveFile(await fillCounselingPdf(payload), payload.fileName);
 
         return;
+    }
+
+    // Anything else must be the source PDF itself: a sign-in or maintenance page is never saved as a PDF.
+    if (!type.includes('application/pdf')) {
+        throw new Error('The server did not answer with the document. Reload the page and try again.');
     }
 
     saveFile(await response.blob(), attachmentName(response.headers.get('Content-Disposition')) ?? `counseling-${recordId}.pdf`);

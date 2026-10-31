@@ -320,7 +320,7 @@ A leader writes a Developmental Counseling Statement (DCS) or Letter of Repriman
 following the wiki procedure end to end (#565). On a trooper's milpac page the Counseling panel holds their records,
 drafts first, then newest first. Who may start and see which is in [permissions.md](permissions.md#counseling-dcs-and-lor);
 who may start one is unchanged from #381. A trooper sees their own shared records on their own page, never a draft,
-and never starts, withdraws or deletes their own (an Admin by the flag excepted). Acting as someone never shows their
+and never starts, withdraws or deletes their own; an Admin by the flag may still withdraw or fill in a shared record of their own. Acting as someone never shows their
 records through this: only what the acting identity's command shows.
 
 - **Draft**: **New DCS or LOR** asks for the type and what it is for (a missed section practice or roll call, or other
@@ -367,7 +367,7 @@ records through this: only what the acting identity's command shows.
   keeps no generated file, so there is nothing to purge. A record kept with a source PDF (filed before #565, or
   imported) downloads that file, always as an attachment, `application/pdf`, `no-store`.
 - **Records from before**: every record filed before #565 keeps its uploaded PDF as its source document and counts as
-  shared and acknowledged when it was filed. Its fields can be filled in with **Review**. Admins import older records
+  shared and acknowledged when it was filed. Its fields can be filled in under **Fill in from the PDF** on its page. Admins import older records
   from Drive links or PDFs on Settings > Counseling import, or with `php artisan counseling:import`.
 - The regulations' rules, measured between records by their dates as the 7Cav wiki does: each record is weighed
   against the ones dated before it, and a record that crossed a threshold shows the flag it earned, which stays with

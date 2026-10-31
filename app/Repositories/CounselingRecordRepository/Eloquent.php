@@ -39,11 +39,12 @@ class Eloquent implements CounselingRecordRepository
         return $record->refresh();
     }
 
-    public function saveDraft(CounselingRecord $record, CounselingType $type, CounselingKind $kind, ?CarbonImmutable $counseledOn, array $formData, bool $meetingConfirmed): ?CounselingRecord
+    public function saveDraft(CounselingRecord $record, CounselingType $type, CounselingKind $kind, ?CarbonImmutable $counseledOn, array $formData, bool $meetingConfirmed, ?int $issuerUnitId): ?CounselingRecord
     {
         return $this->change($record, fn (CounselingRecord $locked) => $locked->isDraft(), fn (CounselingRecord $locked) => [
             'type' => $type,
             'kind' => $kind,
+            'issuer_unit_id' => $issuerUnitId,
             'counseled_on' => $counseledOn?->toDateString(),
             // The trooper's fields stay where a withdrawal left them: none, since it clears them.
             'form_data' => [...($locked->form_data ?? []), ...$formData],
@@ -74,7 +75,9 @@ class Eloquent implements CounselingRecordRepository
     {
         return $this->change(
             $record,
-            fn (CounselingRecord $locked) => $locked->isShared() && ! $locked->isAppealed(),
+            // The lock and the appeal are checked again here, under the row lock: a withdrawal that waited for it past the
+            // 72 hours finds the record frozen.
+            fn (CounselingRecord $locked) => $locked->isShared() && ! $locked->isAppealed() && ! $locked->isOverturned() && ! $locked->isFrozen($at),
             fn (CounselingRecord $locked) => [
                 // Back to a draft the leader can invite on again; the trooper's part, if any, is dropped with the share.
                 'status' => CounselingStatus::Draft,
@@ -179,7 +182,17 @@ class Eloquent implements CounselingRecordRepository
 
     public function importedKeys(array $keys): array
     {
-        return $keys === [] ? [] : CounselingRecord::query()->whereIn('import_key', $keys)->pluck('import_key')->all();
+        if ($keys === []) {
+            return [];
+        }
+
+        // A key is taken by an import that used it, or by any record keeping that very file: a PDF uploaded before #565
+        // (its Drive copy is what an import of the old Drive folder finds) has its SHA-256 and no import key.
+        $rows = CounselingRecord::query()
+            ->where(fn ($query) => $query->whereIn('import_key', $keys)->orWhereIn('document_sha256', $keys))
+            ->get(['import_key', 'document_sha256']);
+
+        return array_values(array_intersect($keys, [...$rows->pluck('import_key')->all(), ...$rows->pluck('document_sha256')->all()]));
     }
 
     public function review(CounselingRecord $record, CounselingType $type, CounselingKind $kind, CarbonImmutable $counseledOn, array $formData): ?CounselingRecord

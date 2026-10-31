@@ -9,9 +9,10 @@ use Carbon\CarbonImmutable;
 
 /**
  * The PM consent's second leg (#565): exchange the code for a token, then check, through the forum profile, that the
- * token belongs to the user signed in to the portal. Anyone else's token (signed in to the forum as someone else in the
- * same browser) is refused, so a PM never goes out under another person's name. The token is handed back for the
- * session; nothing is written here. Every forum-side failure becomes a {@see ForumLoginException}.
+ * token belongs to the person really signed in to the portal (`$user`: while acting as someone, the one acting). Anyone
+ * else's token (signed in to the forum as someone else in the same browser) is refused, so a PM never goes out under
+ * another person's name. The token is handed back for the session, tied to that forum account; nothing is written here.
+ * Every forum-side failure becomes a {@see ForumLoginException}.
  */
 class CompleteForumPmConsent
 {
@@ -36,6 +37,7 @@ class CompleteForumPmConsent
         return new ForumPmGrant(
             accessToken: $token->accessToken,
             expiresAt: CarbonImmutable::now()->addSeconds($token->expiresIn ?? ForumPmGrant::DEFAULT_HOURS * 3600),
+            forumUserId: (int) $profile->forumUserId,
         );
     }
 }

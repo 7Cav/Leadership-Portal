@@ -293,7 +293,7 @@ through the identity they act as.
 | See an inactive DCS (31 to 90 days) and download it | All | All | Own | Own | Own | Own | If acting lead of a platoon or above | No | No | No | Target (6) |
 | See an LOR and download it | All | All | Own | Own | Own | Own | Own | Own | Their own (8) | Read | Target |
 | Withdraw a shared record back to draft (reason required) | All (9) | The issuer's chain (7) | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | No | No | No |
-| Fill in a record kept with its source PDF (Review) | All | The issuer's chain (7) | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | No | No | No |
+| Fill in a record kept with its source PDF (an import: its issuer and Admins only) | All | The issuer's chain (7) | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | No | No | No |
 | Respond to their own shared record (LOR: appeal or not) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | No |
 | Decide an LOR appeal (reason required) | No (12) | The commander one level above the issuing unit (12) | No | (12) | (12) | No | No | No | No | No | No |
 | Overturn a frozen LOR (reason required) | No (10) | The RXO only (10) | No | No | No | No | No | No | No | No | No |
@@ -308,8 +308,8 @@ unit, and everyone above, as long as they still counsel the trooper by the rules
 unit) is its issuer's and the Admins' alone. The trooper never sees a draft.
 (8) Every trooper, in every column, sees their own shared DCSs (while active) and LORs on their own milpac page and
 downloads them (decided 2026-10-28), signed in as themselves (not while acting as or viewing as anyone). Nobody starts,
-withdraws or deletes their own records, except that an Admin by the `is_admin` flag still works on them as an Admin.
-An Admin by billet does not (2026-10-29).
+withdraws or deletes their own records, and nobody ever edits a draft on themselves; an Admin by the `is_admin` flag
+may still withdraw or fill in a shared record of their own as an Admin. An Admin by billet may not (2026-10-29).
 (9) Only before it locks (72 hours after it is shared) and before the trooper asks to appeal. Once locked nobody
 withdraws it, Admins by flag or by billet included. Only a draft is deleted. A DCS has no overturn.
 (11) Only the trooper the record is on, signed in as themselves, once, by its deadline: an LOR within 24 hours of the

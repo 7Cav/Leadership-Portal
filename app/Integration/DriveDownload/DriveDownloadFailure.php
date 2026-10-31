@@ -20,6 +20,9 @@ enum DriveDownloadFailure: string
      */
     case NotPublic = 'not_public';
 
+    /** Drive has no file with this id: deleted, or the link is wrong. */
+    case NotFound = 'not_found';
+
     /** The file is larger than the import accepts. */
     case TooLarge = 'too_large';
 

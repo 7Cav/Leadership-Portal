@@ -19,20 +19,21 @@ use Illuminate\Support\Collection;
  * Who may start, see, share and withdraw a trooper's counseling records (#381, #565, AD-8), decided once per viewer and
  * trooper on top of the {@see ScopeResolver}, the way the regulations and the portal's rules put it:
  *
- *  - **File a DCS**: any leader whose command (billet, acting lead, a held billet, never a staff grant) reaches the
- *    trooper's unit: Section Leader and up, portfolio officers over their departments included. **File an LOR**: only
+ *  - **Start a DCS**: any leader whose command (billet, acting lead, a held billet, never a staff grant) reaches the
+ *    trooper's unit: Section Leader and up, portfolio officers over their departments included. **Start an LOR**: only
  *    command from platoon level up (Platoon Leader and Sergeant, company, battalion and regiment command, an acting
- *    lead of a platoon or above). An Admin may file either.
- *  - A command the trooper shares, or one inside the trooper's own command, does not count: a leader never files on,
+ *    lead of a platoon or above). An Admin may start either. Inviting on and sharing a draft need the same right.
+ *  - A command the trooper shares, or one inside the trooper's own command, does not count: a leader never starts one on,
  *    or sees the DCSs of, someone who holds the same unit (an ASL and their Section Leader, a Platoon Sergeant and their
  *    Platoon Leader) or a unit above theirs (the Section Leader of a trooper who is acting lead of their platoon), and
- *    nobody files on themselves. The next echelon up does.
- *  - **Their own records**: every trooper sees their own DCSs and LORs, read-only, on their own milpac page
- *    ({@see ScopeResolver::isOwnTrooper()}, decided 2026-10-28), with no command and no grant. They never file, correct
- *    or delete their own; that refusal is the same as before, except that an Admin by the `users.is_admin` flag keeps
- *    changing records as an Admin, their own included (an Admin by billet does not, 2026-10-29).
+ *    nobody starts one on themselves. The next echelon up does.
+ *  - **Their own records**: every trooper sees their own shared DCSs and LORs on their own milpac page
+ *    ({@see ScopeResolver::isOwnTrooper()}, decided 2026-10-28), with no command and no grant, and answers them. They
+ *    never start, edit a draft of, or delete their own, Admins included: a draft is never seen by the trooper it is on.
+ *    An Admin by the `users.is_admin` flag may still withdraw or fill in (review) a shared record of their own as an
+ *    Admin; an Admin by billet may not (2026-10-29).
  *  - "Themselves" is also the person really signed in while acting as someone ({@see RealActor}): acting as a billet
- *    or as a person never lets anyone file on, see the DCSs of, or change the records of the one doing the acting:
+ *    or as a person never lets anyone start one on, see the DCSs of, or change the records of the one doing the acting:
  *    their own page shows them their DCSs only as themselves, not through the identity they act as.
  *  - **See an active DCS**: Admins, and every leader who could file one on the trooper, which is the chain from
  *    Platoon Leader up plus the trooper's own Section Leader and ASL. A staff grant does not. **See an inactive DCS**
@@ -124,7 +125,8 @@ class CounselingAccess
     /**
      * The unit the user leads whose LOR appeals are theirs to decide (#565): a line company or above their billet maps to, if
      * they hold its lead billet ({@see UnitCommandMappingRepository::commandersOf()}, the CO of a company or a
-     * battalion). Never in a view-as preview. Two queries for a commander, one for anyone else.
+     * battalion, or the regiment's). Never in a view-as preview; an Admin acting as the commander decides as them, and the
+     * record names the Admin. Two queries for a commander, one for anyone else.
      */
     public function leadsUnit(User $user): ?int
     {
@@ -145,7 +147,8 @@ class CounselingAccess
 
     /**
      * Whether `$trooper` is the viewer, signed in as themselves: nobody is acting as anyone on this request
-     * ({@see RealActor}) and no view-as preview is active. Only then may they appeal their own records.
+     * ({@see RealActor}) and no view-as preview is active. Only then may they respond to their own records (on an LOR,
+     * choose whether to appeal).
      */
     private function appealsOwn(User $user, Trooper $trooper): bool
     {

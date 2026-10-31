@@ -52,6 +52,9 @@ class SaveCounselingDraftHandler
                 counseledOn: $counseledOn,
                 formData: $form->toArray(),
                 meetingConfirmed: $command->meetingConfirmed,
+                // A new type is issued through the command that may issue it (an LOR through platoon command or above),
+                // which decides the draft's chain and, once shared, who hears an appeal.
+                issuerUnitId: $command->type === $record->type ? $record->issuer_unit_id : $permissions->issuingUnit($command->type),
             ) ?? throw CounselingForbiddenException::notDraft(),
         );
     }

@@ -169,9 +169,9 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('report-sends', fn (Request $request) => Limit::perMinute(10)
             ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
 
-        // Filing a DCS or LOR (#381) stores a PDF of up to 10 MB on the server's own disk, so it has a bucket of its own,
-        // far below the shared one: 10 a minute per user still covers a leader filing a stack of old paperwork, and keeps
-        // one account from filling the disk at 600 MB a minute.
+        // The counseling import's check (#565) stores the uploaded CSV and its PDFs (up to 10 MB each) on the server's
+        // own disk, so it has a bucket of its own, far below the shared one: 10 a minute per Admin is plenty for a
+        // backfill, and keeps one account from filling the disk.
         RateLimiter::for('counseling-uploads', fn (Request $request) => Limit::perMinute(10)
             ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
 

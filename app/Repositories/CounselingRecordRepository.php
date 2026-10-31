@@ -31,12 +31,13 @@ interface CounselingRecordRepository
     ): CounselingRecord;
 
     /**
-     * Save a draft as it stands: its type and kind, the Date of Letter, the leader's fields and whether the meeting
-     * took place. Null when it is gone or no longer a draft.
+     * Save a draft as it stands: its type and kind, the unit it is issued through (which follows the type: an LOR goes
+     * through platoon command or above), the Date of Letter, the leader's fields and whether the meeting took place.
+     * Null when it is gone or no longer a draft.
      *
      * @param  array<string, mixed>  $formData  the leader's fields, as the counseling form names them
      */
-    public function saveDraft(CounselingRecord $record, CounselingType $type, CounselingKind $kind, ?CarbonImmutable $counseledOn, array $formData, bool $meetingConfirmed): ?CounselingRecord;
+    public function saveDraft(CounselingRecord $record, CounselingType $type, CounselingKind $kind, ?CarbonImmutable $counseledOn, array $formData, bool $meetingConfirmed, ?int $issuerUnitId): ?CounselingRecord;
 
     /**
      * Mark a draft invited: the meeting windows and when the invite went. Null when it is gone or no longer a draft.
@@ -55,7 +56,7 @@ interface CounselingRecordRepository
 
     /**
      * Take a shared record back to draft, with when and why; the snapshot and any response are cleared. Null when it is
-     * gone, not shared, or the trooper has asked to appeal.
+     * gone, not shared, frozen or overturned, or the trooper has asked to appeal.
      */
     public function withdraw(CounselingRecord $record, CarbonImmutable $at, string $reason): ?CounselingRecord;
 
@@ -78,8 +79,8 @@ interface CounselingRecordRepository
     public function decideAppeal(CounselingRecord $record, CarbonImmutable $at, int $by, ?int $byAdmin, AppealOutcome $outcome, string $reason, array $authority, ?array $amended): ?CounselingRecord;
 
     /**
-     * Mark an LOR overturned (S6, 2026-10-29): when, by whom (with the one acting as them, and the billet held, as on a
-     * filing) and why. Null when the record is gone or already overturned. Nothing else on the record changes.
+     * Mark an LOR overturned (S6, 2026-10-29): when, by whom (with the one acting as them, and the billet held, as for a
+     * record's issuer) and why. Null when the record is gone or already overturned. Nothing else on the record changes.
      */
     public function overturn(CounselingRecord $record, CarbonImmutable $at, int $by, ?int $byAdmin, ?int $asUnit, string $reason): ?CounselingRecord;
 
@@ -108,7 +109,13 @@ interface CounselingRecordRepository
         ?array $formData,
     ): CounselingRecord;
 
-    /** Which of `$keys` an import already brought in. @param list<string> $keys @return list<string> */
+    /**
+     * Which of `$keys` (Drive file ids or SHA-256s) are already in the portal: an import used it, or a record keeps a
+     * source document with that SHA-256 (a PDF uploaded before #565 included).
+     *
+     * @param  list<string>  $keys
+     * @return list<string>
+     */
     public function importedKeys(array $keys): array;
 
     /**

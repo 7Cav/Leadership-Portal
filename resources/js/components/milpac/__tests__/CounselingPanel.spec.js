@@ -166,8 +166,8 @@ describe('CounselingPanel', () => {
         expect(rows[1].find('[data-testid="counseling-download"]').text()).toBe('PDF');
         expect(rows[1].find('[data-testid="counseling-meta"]').text()).toContain('the trooper sees it until 2 Nov 2026');
         expect(rows[2].find('[data-testid="counseling-meta"]').text()).toContain('counts until 13 Dec 2026');
-        // An imported record is its original PDF.
-        expect(rows[3].find('[data-testid="counseling-open"]').exists()).toBe(false);
+        // An imported record opens too, beside its original PDF.
+        expect(rows[3].find('[data-testid="counseling-open"]').exists()).toBe(true);
         expect(rows[3].find('[data-testid="counseling-download"]').text()).toBe('Original PDF');
         expect(rows[3].find('[data-testid="counseling-meta"]').text()).toContain('expired, no longer counts');
         // The trooper's own record waiting for them.

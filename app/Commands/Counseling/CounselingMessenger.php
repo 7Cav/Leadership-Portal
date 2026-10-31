@@ -52,7 +52,7 @@ class CounselingMessenger
         try {
             $this->forum->startConversation($grant->accessToken, $recipientIds, $pm['title'], $pm['message']);
         } catch (ForumRequestException $e) {
-            throw CounselingPmException::refused($e->httpStatus, $e);
+            throw CounselingPmException::refused($e->httpStatus, $e->forumCode, $e);
         }
     }
 

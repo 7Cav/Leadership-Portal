@@ -65,7 +65,7 @@ beforeEach(function () {
     ]);
     Storage::disk('counseling')->put($this->lor->document_path, counselingPdfBytes('frozen-lor'));
     counselingFakeForum();
-    $this->withdraw = fn (User $as, CounselingRecord $record) => $this->actingAs($as)->withSession(counselingPmSession())
+    $this->withdraw = fn (User $as, CounselingRecord $record) => $this->actingAs($as)->withSession(counselingPmSession($as))
         ->post(route('counseling.withdraw', $record->id), ['reason' => 'Wrong trooper.']);
 });
 
@@ -193,7 +193,7 @@ it('refuses the RXO an LOR filed on themselves', function () {
 
     $this->actingAs($this->rxo)->post(route('counseling.overturn', $own->id), ['reason' => 'Mine.'])->assertForbidden();
     expect(fn () => app(OverturnCounselingRecordHandler::class)->handle($this->rxo, new OverturnCounselingRecord($own->id, 'Mine.')))
-        ->toThrow(CounselingForbiddenException::class, 'You cannot overturn an LOR filed on yourself.');
+        ->toThrow(CounselingForbiddenException::class, 'You cannot overturn an LOR on yourself.');
     expect($own->fresh()->overturned_at)->toBeNull();
 });
 

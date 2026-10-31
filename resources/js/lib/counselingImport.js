@@ -5,20 +5,32 @@ import { pickWidget } from '@/lib/counselingPdf';
 // reads the AcroForm of each PDF they chose, with the same field names the portal fills the forms with
 // (counselingFields.js), and sends what it read beside the files. The server treats it as a hint: it checks every
 // value again and stores none of it unless the row resolves (App\Commands\Counseling\ImportFields). A PDF with no form
-// fields (scanned or flattened) reads as null, which the server flags for review. Drive links are not read here: the
-// browser cannot fetch them, so the server imports them for review.
+// fields (scanned or flattened) reads as null, and one pdf-lib cannot open as `UNREADABLE`, which the server flags for
+// review with that reason. Drive links are not read here: the browser cannot fetch them, so the server imports them for
+// review.
 
-// What one PDF's form says: `{ type, date, trooper, issuer, form }`, or null when it has no form fields or cannot be
-// opened. `type` is 'dcs' or 'lor' by which form it is (null for another form); `form` is keyed as `form_data` keys it.
-export async function readImportFields(bytes) {
-    const { PDFDocument } = await import('@cantoo/pdf-lib');
+// What the server takes for a PDF the browser could not open.
+export const UNREADABLE = Object.freeze({ error: 'unreadable' });
+
+// pdf-lib, loaded only on this page. A failure here (the chunk did not load: a deploy since the page opened, or the
+// network) is not about any one PDF, so it is thrown for the page to ask for a reload.
+export function loadPdfLib() {
+    return import('@cantoo/pdf-lib');
+}
+
+// What one PDF's form says: `{ type, date, trooper, issuer, form }`, null when it has no form fields, or `UNREADABLE`
+// when pdf-lib cannot open it. `type` is 'dcs' or 'lor' by which form it is (null for another form); `form` is keyed as
+// `form_data` keys it.
+export async function readImportFields(bytes, name = 'PDF') {
+    const { PDFDocument } = await loadPdfLib();
 
     let form;
     try {
         const doc = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
         form = doc.getForm();
-    } catch {
-        return null;
+    } catch (error) {
+        console.error(`Counseling import: ${name} could not be opened to read its form.`, error);
+        return UNREADABLE;
     }
 
     const fields = form.getFields();
@@ -81,15 +93,18 @@ function radioChoice(form, names, radio) {
     return null;
 }
 
-// What every chosen PDF's form says, by file name, for the check's `fields`. A file that cannot be read is null.
+// What every chosen PDF's form says, by file name, for the check's `fields`.
+// Throws only when pdf-lib itself cannot be loaded; a file that cannot be read is `UNREADABLE`.
 export async function readAllImportFields(files) {
+    await loadPdfLib();
     const read = {};
 
     for (const file of files) {
         try {
-            read[file.name] = await readImportFields(new Uint8Array(await file.arrayBuffer()));
-        } catch {
-            read[file.name] = null;
+            read[file.name] = await readImportFields(new Uint8Array(await file.arrayBuffer()), file.name);
+        } catch (error) {
+            console.error(`Counseling import: ${file.name} could not be read.`, error);
+            read[file.name] = UNREADABLE;
         }
     }
 

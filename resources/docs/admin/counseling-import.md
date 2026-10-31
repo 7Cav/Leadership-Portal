@@ -36,7 +36,7 @@ page: /settings/counseling-import
 
 ## Import
 
-1. Choose **Import**. The import runs in the background. Each record appears on the trooper's milpac as it is stored.
+1. Choose **Import N records** (the button counts them). The import runs in the background, and the page updates on its own until it ends. Then it shows the import's own result: each stored record with a link to it, and any row skipped only now, for example a row whose trooper you did not pick, or a document another import stored first. If the import stopped partway, the page says where. Records stored before that point are kept, so you can import the CSV again.
 2. An imported record counts as shared and acknowledged on its date. Its original PDF is kept and is what downloads.
 3. Every record is in the audit log as `counseling.imported`, with you as the one who ran it.
 
@@ -44,10 +44,10 @@ page: /settings/counseling-import
 
 ## Fill in a record that needs review
 
-1. Open the record from the trooper's milpac. Its PDF shows beside the fields.
+1. Open the record from the trooper's milpac. **Open the original PDF** beside the fields shows the document.
 2. Copy the form's fields into the portal and save. The flag clears. The PDF itself never changes.
 
-The issuer, their chain of command and Admins can do this.
+The issuer named on the record and Admins can do this. The import records no issuing unit, so the issuer's chain of command cannot.
 
 ## From the server
 

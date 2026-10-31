@@ -18,6 +18,9 @@ class ForumRequestException extends RuntimeException
     /** The HTTP status the forum answered with, when it answered. */
     public ?int $httpStatus = null;
 
+    /** The forum's own error code (`errors.0.code`), when it sent one. A fixed machine string, never free text. */
+    public ?string $forumCode = null;
+
     /**
      * Whether retrying cannot help: the forum said no (forbidden, not found, gone) or the thread is not
      * what was asked for. A temporary failure (unreachable, a 5xx) is not permanent, so a caller retries it.
@@ -60,11 +63,15 @@ class ForumRequestException extends RuntimeException
         return $exception;
     }
 
-    /** A PM (a forum conversation) the forum would not start (#565): 401/403 mean the user's token no longer serves. */
+    /**
+     * A PM (a forum conversation) the forum answered with an error status (#565). `$forumCode` keeps the forum's own code
+     * (`no_permission`, `invalid_token`…), so the caller can say what to do about it.
+     */
     public static function conversationFailed(int $status, ?string $code = null): self
     {
         $exception = new self("The forum did not send the PM (HTTP {$status}".($code === null ? '' : ", {$code}").').');
         $exception->httpStatus = $status;
+        $exception->forumCode = $code;
 
         return $exception;
     }

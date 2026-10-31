@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Settings;
 use App\Authorization\ScopeResolver;
 use App\Commands\Counseling\CounselingRules;
 use App\Commands\Counseling\ImportCounselingBatch;
+use App\Commands\Counseling\ImportCounselingBatchHandler;
 use App\Commands\Counseling\ImportCounselingCheck;
 use App\Commands\Counseling\ImportCounselingCheckHandler;
 use App\Commands\Counseling\ImportCsv;
 use App\Commands\Counseling\ImportRefusedException;
 use App\Commands\Counseling\ImportStaging;
+use App\Commands\Counseling\ImportStagingFailed;
 use App\Http\Controllers\Controller;
 use App\Jobs\ImportCounselingRecordsJob;
 use Illuminate\Http\RedirectResponse;
@@ -42,7 +44,11 @@ class CounselingImportController extends Controller
         private readonly ImportStaging $staging,
     ) {}
 
-    /** The screen, with the result of the check `?batch=` names, when it is the viewer's and still waiting. */
+    /**
+     * The screen. With `?batch=` naming one of the viewer's batches: its check, and once imported, where the import
+     * stands (`run`: queued, running, finished, refused or failed, with the reason and the final report), which the
+     * page reloads until the run ends. A batch whose files cannot be read shows that error instead of a blank page.
+     */
     public function show(Request $request): Response
     {
         if (! $this->scope->actsAsAdmin($request->user())) {
@@ -50,7 +56,19 @@ class CounselingImportController extends Controller
         }
 
         $batch = $request->query('batch');
-        $plan = is_string($batch) && $this->ownsBatch($request, $batch) ? $this->staging->plan($batch) : null;
+        $plan = null;
+        $run = null;
+        $error = null;
+
+        try {
+            if (is_string($batch) && $this->ownsBatch($request, $batch)) {
+                $plan = $this->staging->plan($batch);
+                $run = $plan === null ? null : $this->staging->status($batch);
+            }
+        } catch (ImportStagingFailed $e) {
+            report($e);
+            $error = $e->getMessage();
+        }
 
         return Inertia::render('Settings/CounselingImport', [
             'columns' => ImportCsv::COLUMNS,
@@ -60,6 +78,8 @@ class CounselingImportController extends Controller
                 'fileBytes' => CounselingRules::DOCUMENT_MAX_BYTES,
             ],
             'check' => $plan,
+            'run' => $run,
+            'error' => $error,
             'status' => $request->session()->get('status'),
         ]);
     }
@@ -115,6 +135,10 @@ class CounselingImportController extends Controller
             ));
         } catch (ImportRefusedException $e) {
             throw ValidationException::withMessages([$e->field => $e->getMessage()]);
+        } catch (ImportStagingFailed $e) {
+            report($e);
+
+            throw ValidationException::withMessages(['csv' => $e->getMessage()]);
         }
 
         return redirect()->route('settings.counseling-import', ['batch' => $checked['batch']]);
@@ -124,10 +148,10 @@ class CounselingImportController extends Controller
      * Queue the import of a checked batch. `picks` names the trooper picked for each row whose Last.F matched several,
      * as CSV line => trooper id; the import takes a pick only if it is one of that row's matches.
      */
-    public function import(Request $request, string $batch): RedirectResponse
+    public function import(Request $request, string $batch, ImportCounselingBatchHandler $handler): RedirectResponse
     {
         $this->authorizeAdmin($request);
-        abort_unless($this->ownsBatch($request, $batch) && $this->staging->plan($batch) !== null, 404);
+        abort_unless($this->ownsBatch($request, $batch), 404);
 
         $data = $request->validate([
             'picks' => ['nullable', 'array', 'max:'.ImportCsv::MAX_ROWS],
@@ -141,12 +165,22 @@ class CounselingImportController extends Controller
             }
         }
 
+        try {
+            $handler->queue($request->user(), $batch);
+        } catch (ImportRefusedException $e) {
+            throw ValidationException::withMessages([$e->field => $e->getMessage()]);
+        } catch (ImportStagingFailed $e) {
+            report($e);
+
+            throw ValidationException::withMessages(['batch' => $e->getMessage()]);
+        }
+
         ImportCounselingRecordsJob::dispatch(new ImportCounselingBatch($batch, $request->user()->id, $picks));
 
-        return redirect()->route('settings.counseling-import')
-            ->with('status', 'Import started. The records appear on each trooper\'s milpac as they are stored; the audit log lists each one.');
+        return redirect()->route('settings.counseling-import', ['batch' => $batch]);
     }
 
+    /** @throws ImportStagingFailed */
     private function ownsBatch(Request $request, string $batch): bool
     {
         $manifest = $this->staging->manifest($batch);
