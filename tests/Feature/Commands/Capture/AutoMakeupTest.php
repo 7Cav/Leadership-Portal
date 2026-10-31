@@ -138,7 +138,22 @@ it('never gives a make-up from a source that only knows who was seen', function 
     expect(homeRow($this))->toBeNull()->and(CrossSectionSighting::query()->exists())->toBeFalse();
 });
 
-it('gives no make-up to a trooper whose own section shares the slot: it was their own practice', function () {
+it('gives a make-up to a trooper whose own section practises in the same window on another server', function () {
+    $sister = makeupTrooper($this->sharing, '76561190000000002');
+    app(UnitRepository::class)->setGame($this->sharing, game('arma')->id);
+    $server = fn (string $slug, string $ref, array $players) => new CaptureServer(null, $slug, [new CaptureSource('crcon', $ref,
+        fn ($start, $end) => new CrconPresence($players, $start, $end, CarbonImmutable::now()->toDateTimeImmutable()))]);
+    app()->instance(CaptureSources::class, new CaptureSources([], fn ($game) => $game->slug === 'hll'
+        ? [$server('hll', 'crcon:1', [seen('76561190000000002', 60)])]
+        : [$server('arma', 'battlemetrics:2', [])]));
+
+    app(CaptureSectionPracticeHandler::class)->handle(new CaptureSectionPractice($this->hostPractice->id, game('hll')->id, $this->start, $this->end));
+
+    expect(CrossSectionSighting::query()->sole()->trooper_id)->toBe($sister->id)
+        ->and(Attendance::query()->where('trooper_id', $sister->id)->sole()->status)->toBe(AttendanceStatus::Makeup);
+});
+
+it('gives no make-up to a trooper whose own section shares the slot on the same server: it was their own practice', function () {
     $sister = makeupTrooper($this->sharing, '76561190000000002');
 
     captureHost($this, [seen('76561190000000002', 60)]);

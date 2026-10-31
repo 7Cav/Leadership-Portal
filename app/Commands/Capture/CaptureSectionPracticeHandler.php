@@ -48,8 +48,9 @@ use Throwable;
  *   Of a practice read over its slot's hour (#558), one whose time on the server is known and at least the
  *   presence minimum ({@see PresenceMinimum}) is a guest: a `cross_section_sightings` row for this practice, and an
  *   automatic make-up on their own section's rollcall for the week ({@see MarkAttendanceHandler::preMarkMakeups()}),
- *   unless their own section practises in the same window (shared slots are common), which makes it their own
- *   practice, captured as such. A source that only knows who was seen (no minutes) and a capture of the whole week
+ *   unless their own section practises in the same window on the server they were seen on (shared slots are
+ *   common), which makes it their own practice, captured as such; minutes on a server their own practice does not read
+ *   still count towards a make-up. A source that only knows who was seen (no minutes) and a capture of the whole week
  *   (no slot) give no sighting and no make-up: being on a shared server some time does not mean they were at this
  *   practice. A staff member
  *   (HQ staff or a staff department, on no rollcall) is surfaced the same way, and that stored row is what their milpac
@@ -164,8 +165,8 @@ class CaptureSectionPracticeHandler
             return null;
         }
 
-        $presence = $this->merge(array_column($answers, 'presence'));
-        $result = $this->resolve($presence, '', $game, $practice);
+        [$presence, $serversOf] = $this->merge($answers);
+        $result = $this->resolve($presence, '', $game, $practice, $serversOf);
         $slotted = $this->isSlotWindow($practice, $command);
         $minimum = $this->minimum->forUnit($practice->section_id);
         $attended = $slotted
@@ -246,12 +247,12 @@ class CaptureSectionPracticeHandler
                 return CaptureResult::unavailable($reasons);
             }
 
-            $presence = $this->merge(array_column($answers, 'presence'));
+            [$presence, $serversOf] = $this->merge($answers);
             $sourceName = implode(',', array_values(array_unique(array_map(fn (array $answer) => $answer['source']->name, $answers))));
             // Every server that answered (#389), cut to the column's width; a practice has a handful at most.
             $serverRef = Str::limit(implode(', ', array_map(fn (array $answer) => $answer['source']->serverRef, $answers)), 250);
 
-            $result = $this->resolve($presence, $sourceName, $game, $practice);
+            $result = $this->resolve($presence, $sourceName, $game, $practice, $serversOf);
             $this->persistUnresolved($practice->id, $game, $result);
 
             // Over the slot's hour (#558) a trooper counts once on the server for the minimum; a whole-week read counts
@@ -314,7 +315,7 @@ class CaptureSectionPracticeHandler
      * `$runId` and records no read.
      *
      * @param  list<string>  $reasons
-     * @return array{source: CaptureSource, presence: CrconPresence}|null
+     * @return array{server: CaptureServer, source: CaptureSource, presence: CrconPresence}|null
      */
     private function read(CaptureServer $server, CaptureSectionPractice $command, int $practiceId, ?int $runId, array &$reasons): ?array
     {
@@ -362,7 +363,7 @@ class CaptureSectionPracticeHandler
                 );
             }
 
-            return ['source' => $source, 'presence' => $presence];
+            return ['server' => $server, 'source' => $source, 'presence' => $presence];
         }
 
         array_push($reasons, ...$failures);
@@ -378,22 +379,34 @@ class CaptureSectionPracticeHandler
      * would fail the whole run on the unique key. An Epic ID (32 hex characters, the only kind of ID whose case can
      * differ for the same account) is taken in lower case, the way CRCON reports it and the portal stores it; any other
      * ID keeps the spelling first seen. A Steam ID is digits, so nothing changes for it. A player on two servers has
-     * their minutes added, capped at the window (#558); unknown minutes add nothing.
+     * their minutes added, capped at the window (#558); unknown minutes add nothing. Which server each player was seen on
+     * is kept beside it, with their minutes there, keyed by the merged player's ID in lower case: a shared slot only
+     * counts as their own practice on a server their own section reads ({@see guestsOf()}).
      *
-     * @param  list<CrconPresence>  $presences
+     * @param  list<array{server: CaptureServer, source: CaptureSource, presence: CrconPresence}>  $answers
+     * @return array{0: CrconPresence, 1: array<string, array<string, int|null>>}
      */
-    private function merge(array $presences): CrconPresence
+    private function merge(array $answers): array
     {
+        $presences = array_column($answers, 'presence');
+
         /** @var array<string, CrconPlayer> $byPlatformId */
         $byPlatformId = [];
+        /** @var array<string, array<string, int|null>> $serversOf */
+        $serversOf = [];
 
         $cap = self::windowMinutes($presences[0]->windowStart, $presences[0]->windowEnd);
 
-        foreach ($presences as $presence) {
-            foreach ($presence->players as $player) {
+        foreach ($answers as $answer) {
+            $server = self::serverKey($answer['server']);
+
+            foreach ($answer['presence']->players as $player) {
                 $id = preg_match('/^[0-9a-f]{32}$/i', $player->platformId) === 1 ? strtolower($player->platformId) : $player->platformId;
                 $key = mb_strtolower($id);
                 $seen = $byPlatformId[$key] ?? null;
+                $serversOf[$key][$server] = array_key_exists($server, $serversOf[$key] ?? [])
+                    ? self::addMinutes($serversOf[$key][$server], $player->minutes, $cap)
+                    : $player->minutes;
 
                 if ($seen === null) {
                     $byPlatformId[$key] = $id === $player->platformId ? $player : $player->with(platformId: $id);
@@ -412,7 +425,13 @@ class CaptureSectionPracticeHandler
 
         $fetchedAt = max(array_map(fn (CrconPresence $presence) => $presence->fetchedAt, $presences));
 
-        return new CrconPresence(array_values($byPlatformId), $presences[0]->windowStart, $presences[0]->windowEnd, $fetchedAt);
+        return [new CrconPresence(array_values($byPlatformId), $presences[0]->windowStart, $presences[0]->windowEnd, $fetchedAt), $serversOf];
+    }
+
+    /** One server's key: the stored server's id, or for the legacy env server the reference of its own source. */
+    private static function serverKey(CaptureServer $server): string
+    {
+        return $server->gameServerId !== null ? "server:{$server->gameServerId}" : ($server->sources[0]->serverRef ?? $server->label);
     }
 
     /**
@@ -455,7 +474,10 @@ class CaptureSectionPracticeHandler
         return CaptureResult::weekLocked();
     }
 
-    private function resolve(CrconPresence $presence, string $source, Game $game, SectionPractice $practice): CaptureResult
+    /**
+     * @param  array<string, array<string, int|null>>  $serversOf  each player's minutes per server, from {@see merge()}
+     */
+    private function resolve(CrconPresence $presence, string $source, Game $game, SectionPractice $practice, array $serversOf = []): CaptureResult
     {
         $links = [];
         $unmatched = [];
@@ -473,7 +495,7 @@ class CaptureSectionPracticeHandler
             if ($link === null) {
                 $unmatched[] = $player;
             } else {
-                $links[] = ['player' => $player, 'trooperId' => $link->trooper_id, 'minutes' => $player->minutes];
+                $links[] = ['player' => $player, 'trooperId' => $link->trooper_id, 'minutes' => $player->minutes, 'servers' => $serversOf[mb_strtolower($player->platformId)] ?? []];
             }
         }
 
@@ -489,14 +511,21 @@ class CaptureSectionPracticeHandler
         // A trooper seen under two linked IDs counts once for the minimum (#558): their minutes add up, capped at the window.
         $cap = self::windowMinutes($presence->windowStart, $presence->windowEnd);
         $minutesOf = [];
+        $serversOfTrooper = [];
 
         foreach ($links as $link) {
             $minutesOf[$link['trooperId']] = array_key_exists($link['trooperId'], $minutesOf)
                 ? self::addMinutes($minutesOf[$link['trooperId']], $link['minutes'], $cap)
                 : $link['minutes'];
+
+            foreach ($link['servers'] as $server => $minutes) {
+                $serversOfTrooper[$link['trooperId']][$server] = array_key_exists($server, $serversOfTrooper[$link['trooperId']] ?? [])
+                    ? self::addMinutes($serversOfTrooper[$link['trooperId']][$server], $minutes, $cap)
+                    : $minutes;
+            }
         }
 
-        $links = array_map(fn (array $link) => ['minutes' => $minutesOf[$link['trooperId']]] + $link, $links);
+        $links = array_map(fn (array $link) => ['minutes' => $minutesOf[$link['trooperId']], 'servers' => $serversOfTrooper[$link['trooperId']] ?? []] + $link, $links);
 
         foreach ($links as $link) {
             $trooper = $troopers->get($link['trooperId']);
@@ -531,11 +560,11 @@ class CaptureSectionPracticeHandler
     /**
      * The automatic make-ups of a slotted practice (#558): each trooper from another section who was on the server for
      * at least `$minimum` minutes, with known minutes, placed in a section of their own whose practice this week is not
-     * in the same window. Each gets a `cross_section_sightings` row for this practice (first sighting wins) and then a
+     * in the same window on a server it reads. Each gets a `cross_section_sightings` row for this practice (first sighting wins) and then a
      * make-up through {@see MarkAttendanceHandler::preMarkMakeups()}, which keeps a leader's mark, `present`, LOA, a
      * locked week and a confirmed practice as they are. Staff (on no section) get neither.
      *
-     * @param  list<array{player: CrconPlayer, trooperId: int, minutes: int|null}>  $otherSection
+     * @param  list<array{player: CrconPlayer, trooperId: int, minutes: int|null, servers: array<string, int|null>}>  $otherSection
      */
     private function giveMakeups(SectionPractice $host, CaptureSectionPractice $command, array $otherSection, int $minimum): MakeupMarkResult
     {
@@ -553,15 +582,15 @@ class CaptureSectionPracticeHandler
     /**
      * Who of `$otherSection` was a guest at `$host` ({@see giveMakeups()}), in id order.
      *
-     * @param  list<array{player: CrconPlayer, trooperId: int, minutes: int|null}>  $otherSection
+     * @param  list<array{player: CrconPlayer, trooperId: int, minutes: int|null, servers: array<string, int|null>}>  $otherSection
      * @return list<int>
      */
     private function guestsOf(SectionPractice $host, CaptureSectionPractice $command, array $otherSection, int $minimum): array
     {
-        $ids = array_values(array_unique(array_column(
-            array_filter($otherSection, fn (array $row) => $row['minutes'] !== null && $row['minutes'] >= $minimum),
-            'trooperId',
-        )));
+        $eligible = array_filter($otherSection, fn (array $row) => $row['minutes'] !== null && $row['minutes'] >= $minimum);
+        $ids = array_values(array_unique(array_column($eligible, 'trooperId')));
+        $serversOf = array_column($eligible, 'servers', 'trooperId');
+        $cap = self::windowMinutes($command->windowStart, $command->windowEnd);
 
         if ($ids === []) {
             return [];
@@ -574,12 +603,24 @@ class CaptureSectionPracticeHandler
                 continue;
             }
 
-            // Their own section practises in the same window (a shared slot): this was their own practice, not a make-up.
+            // Their own section practises in the same window (a shared slot): time on a server their own practice reads
+            // was their own practice, not a make-up. Only their minutes on the host's other servers count towards one.
             $own = $this->schedule->scheduledWindow($sectionId, $host->week_start);
 
             if ($own !== null && $own->start->getTimestamp() < $command->windowEnd->getTimestamp()
                 && $own->end->getTimestamp() > $command->windowStart->getTimestamp()) {
-                continue;
+                $ownServers = array_flip($this->serversReadBy($sectionId));
+                $elsewhere = null;
+
+                foreach ($serversOf[$trooperId] ?? [] as $server => $minutes) {
+                    if (! isset($ownServers[$server])) {
+                        $elsewhere = self::addMinutes($elsewhere, $minutes, $cap);
+                    }
+                }
+
+                if ($elsewhere === null || $elsewhere < $minimum) {
+                    continue;
+                }
             }
 
             $guests[] = $trooperId;
@@ -588,6 +629,19 @@ class CaptureSectionPracticeHandler
         sort($guests);
 
         return $guests;
+    }
+
+    /**
+     * The keys of the servers a capture of the section's practice reads: the training servers of its game in effect.
+     *
+     * @return list<string>
+     */
+    private function serversReadBy(int $sectionId): array
+    {
+        $gameId = $this->units->gameOf($sectionId)?->gameId;
+        $game = $gameId === null ? null : $this->games->find($gameId);
+
+        return $game === null ? [] : array_map(self::serverKey(...), $this->sources->for($game));
     }
 
     private static function windowMinutes(DateTimeInterface $start, DateTimeInterface $end): int
