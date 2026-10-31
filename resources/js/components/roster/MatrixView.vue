@@ -22,7 +22,7 @@ import {
     SP_STATES,
     weekCell,
     weekLabel,
-    weekTick,
+    weekEndTick,
 } from '@/lib/roster';
 import { vStickyHead } from '@/lib/stickyHead';
 import CellLegend from './CellLegend.vue';
@@ -276,9 +276,9 @@ function clearAll() {
                             scope="col"
                             class="wk"
                             :class="weeks[i] === currentWeek && 'is-now'"
-                            :title="`Cav week ${weekLabel(weeks[i])}${weeks[i] === currentWeek ? ', this week' : ''}`"
+                            :title="`Week ending ${weekEndTick(weeks[i])} (${weekLabel(weeks[i])})${weeks[i] === currentWeek ? ', this week' : ''}`"
                         >
-                            {{ weekTick(weeks[i]) }}
+                            {{ weekEndTick(weeks[i]) }}
                         </th>
                         <th class="sum sum-rc" scope="col" :aria-sort="sortKey === 'rc' ? 'ascending' : 'none'">
                             <button type="button" class="ml-auto inline-flex items-center gap-1 hover:text-foreground" title="Sort by RC 30d" @click="sortKey = 'rc'">

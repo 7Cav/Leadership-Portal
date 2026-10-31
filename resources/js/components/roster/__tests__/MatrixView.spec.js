@@ -28,7 +28,7 @@ describe('Attendance matrix (roster-s3)', () => {
 
         expect(head).toHaveLength(1 + 20 + 3);
         expect(head[20].classes()).toContain('is-now');
-        expect(head[20].text()).toBe('03 to 09OCT');
+        expect(head[20].text()).toBe('09OCT');
         expect(head.slice(-3).map((th) => th.text())).toEqual(['RC 30d', 'SP 30d', 'At-risk']);
     });
 

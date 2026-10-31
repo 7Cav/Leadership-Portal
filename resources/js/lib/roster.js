@@ -163,7 +163,7 @@ export function sourceLabel(mark) {
     return null;
 }
 
-export { weekLabel, weekStartTick, weekTick, weekTitle } from './forumDate';
+export { weekEndTick, weekLabel, weekStartTick, weekTick, weekTitle } from './forumDate';
 
 /**
  * One move from the placement history (`Milpac\PlacementHistory`, 2026-10-27), as the milpac and the Sheet word it:
