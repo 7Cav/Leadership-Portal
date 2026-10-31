@@ -16,6 +16,7 @@ the Cav roster (or an Admin's assignment), not on a role someone types in.
 | [features.md](features.md) | S6, unit leadership | Every page and what it does, the background syncs, makeups, JSAM guests and the KPI definitions |
 | [operations.md](operations.md) | S6, whoever deploys | Deploy and after-deploy steps, the Import from Cav roster step, the env keys that matter |
 | [copywriting.md](copywriting.md) | Developers, coding agents | The rules and glossary for every piece of user-facing text in the portal |
+| [sensitive-information.md](sensitive-information.md) | Everyone who commits, writes PRs or issues | What must never be pushed to this public repo, what is fine, and what to do if something leaks |
 
 Each file ends with a short technical appendix for developers that names the code behind the rules.
 
