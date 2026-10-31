@@ -67,6 +67,7 @@ use App\Repositories\TrooperRepository;
 use App\Repositories\UnitActingLeadRepository;
 use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitDesignationOrder;
+use App\Repositories\UnitGuidonRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Rollcall\RollcallGuests;
@@ -147,6 +148,7 @@ class RollcallController extends Controller
         private readonly MarkAttendanceHandler $makeups,
         private readonly UpcomingLeave $upcomingLeave,
         private readonly AutoExcused $autoExcused,
+        private readonly UnitGuidonRepository $guidons,
     ) {}
 
     /**
@@ -217,6 +219,8 @@ class RollcallController extends Controller
 
         return Inertia::render('Rollcall', [
             'section' => $this->roster->section($section, $sections),
+            // A section carries no guidon of its own, so the header shows its company's (or the nearest one above).
+            'guidon' => $this->guidons->designsFor([$section], inherit: true)[$section->id],
             'sections' => $this->pickerOptions($sections, $weekStart),
             'week' => $this->weekProps($weekStart, $currentWeek),
             // Whether this viewer may mark, confirm or post here: command authority, not a staff grant, which only

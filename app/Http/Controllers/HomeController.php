@@ -24,6 +24,7 @@ use App\Repositories\AttendanceRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\StaffReportRepository;
 use App\Repositories\TrooperRepository;
+use App\Repositories\UnitGuidonRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\Time\WeekOf;
@@ -71,6 +72,7 @@ class HomeController extends Controller
         private readonly StaffReportAccess $staffReports,
         private readonly StaffReportRepository $sentStaffReports,
         private readonly AutoExcused $autoExcused,
+        private readonly UnitGuidonRepository $guidons,
     ) {}
 
     public function show(Request $request): Response
@@ -93,6 +95,10 @@ class HomeController extends Controller
         $paths = $tree->mapWithKeys(fn (Unit $unit) => [$unit->id => $unit->path]);
 
         return Inertia::render('Home', [
+            // The guidon of the unit in scope, for the header: its own or its nearest ancestor's. None for a scope of
+            // several units, or a unit with no guidon above it.
+            'guidon' => $roots->count() === 1 ? $this->guidons->designsFor($roots, inherit: true)[$roots->first()->id] : null,
+            'guidonUnit' => $roots->count() === 1 ? ($roots->first()->callsign ?? $roots->first()->name) : null,
             'week' => [
                 // Saturday 00:00 UTC (AD-11). The page draws Sat → Fri plus the due Saturday.
                 'start' => $weekStart->toIso8601String(),

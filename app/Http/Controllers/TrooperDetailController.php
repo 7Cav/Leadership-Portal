@@ -20,6 +20,7 @@ use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\UnitGuidonRepository;
 use App\Repositories\UnitRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
@@ -55,6 +56,7 @@ class TrooperDetailController extends Controller
         private readonly StaffPracticeHistory $staffHistory,
         private readonly Headcount $headcount,
         private readonly CounselingFormParties $formParties,
+        private readonly UnitGuidonRepository $guidons,
     ) {}
 
     /**
@@ -74,12 +76,24 @@ class TrooperDetailController extends Controller
             ...$this->milpac->for($trooper, $this->scope->resolve($user), $this->missedWeeks($trooper)),
             // Opened only because it is the viewer's own page (2026-10-28): the page leaves out what leads into their unit.
             'ownPage' => ! $inScope,
+            // The guidon shown beside their section in the subtitle: the nearest one above it (their company's).
+            'unitGuidon' => $this->unitGuidon($trooper),
             // Their attendance across every unit they were in (2026-10-27): anyone who may see the trooper now sees
             // the weeks from before a transfer too. Past weekly reports stay with the unit that sent them.
             'attendance' => $this->history->forTrooper($trooper, WeekOf::start(CarbonImmutable::now())),
             'counseling' => $this->counseling($user, $trooper),
             'staffPractices' => $this->staffPractices($user, $trooper),
         ]);
+    }
+
+    /**
+     * @return array<string, string>|null
+     */
+    private function unitGuidon(Trooper $trooper): ?array
+    {
+        $section = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
+
+        return $section === null ? null : $this->guidons->designsFor([$section], inherit: true)[$section->id];
     }
 
     /**

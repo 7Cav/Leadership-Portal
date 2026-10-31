@@ -12,6 +12,7 @@ use App\Kpi\UnitKpis;
 use App\Models\Unit;
 use App\Models\WeeklyReport;
 use App\Models\WeeklyReportStatus;
+use App\Repositories\UnitGuidonRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
 use App\Repositories\WeeklyReportRepository;
@@ -47,6 +48,7 @@ class ReportRollupController extends Controller
         private readonly ReportChain $chain,
         private readonly Headcount $headcount,
         private readonly WeeklyReportRepository $reports,
+        private readonly UnitGuidonRepository $guidons,
     ) {}
 
     public function index(Request $request, ?int $unit = null): Response|RedirectResponse
@@ -85,6 +87,10 @@ class ReportRollupController extends Controller
                     ->all(),
             ],
             'scopeUnitId' => $unit,
+            // The guidon of the one unit the chain starts from, or the nearest one above it, for the header. None for a
+            // chain with several tops.
+            'guidon' => $roots->count() === 1 ? $this->guidons->designsFor($roots, inherit: true)[$roots->first()->id] : null,
+            'guidonUnit' => $roots->count() === 1 ? ($roots->first()->callsign ?? $roots->first()->name) : null,
             'roots' => $chains->map(fn (ChainNode $node) => $this->present($node, $week, $senders))->values()->all(),
         ]);
     }

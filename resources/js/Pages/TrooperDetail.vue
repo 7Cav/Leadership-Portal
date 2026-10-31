@@ -16,12 +16,15 @@ import { forumDate, forumDateTime } from '@/lib/forumDate';
 import { initialsOf } from '@/lib/initials';
 import { makeupPmUrl } from '@/lib/makeupPm';
 import { historyCell, RC_STATES, SP_STATES, trooperStatusOf, weekLabel } from '@/lib/roster';
+import Guidon from '@/components/Guidon.vue';
 
 // One trooper's milpac (Stories 6.3 to 6.7): the ID block from the cached Cav roster, the courses and
 // qualifications panel, the awards history and the service-record timeline. Everything is shaped on the server (`Milpac\TrooperMilpac`) and drawn here; the
 // page decides nothing about who may look, the controller has already gated it. The service record that
 // completes the mockup's second column arrives with 6.6.
 const props = defineProps({
+    // The guidon beside their section: the nearest one above it (their company's); null for none.
+    unitGuidon: { type: Object, default: null },
     trooper: { type: Object, required: true },
     courses: { type: Object, required: true },
     awards: { type: Object, required: true },
@@ -122,7 +125,7 @@ const staleNotice = computed(() => {
                 <h1 class="text-xl font-semibold tracking-tight" data-testid="trooper-name">{{ trooper.displayName }}</h1>
                 <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13px] text-muted-foreground" data-testid="trooper-subtitle">
                     <span class="max-w-full truncate">{{ trooper.billet ?? 'No billet on record' }}</span>
-                    <span v-if="sectionLabel">· {{ sectionLabel }}</span>
+                    <span v-if="sectionLabel" class="inline-flex items-center gap-1">· <Guidon :design="unitGuidon" :height="16" />{{ sectionLabel }}</span>
                     <span>· Milpac ID #{{ trooper.cavId }}</span>
                     <span class="inline-flex items-center gap-1">
                         ·

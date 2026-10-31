@@ -18,7 +18,8 @@ use App\Support\Audit\AuditEnvelope;
  * neither does a platoon or section leader beneath it. A view-as preview never gets here (the read-only middleware).
  *
  * The page draws the flag as SVG from these fields, so each is checked here as well as in the controller: a color is
- * exactly `#rrggbb`, a text at most {@see MAX_TEXT} letters, digits, `/`, `-` or spaces. Nothing else can reach the
+ * exactly `#rrggbb`, a text at most {@see MAX_TEXT} letters, digits, `.`, `/`, `-` or spaces,
+ * a format and a placement one of a fixed list, the large character one or two letters or digits. Nothing else can reach the
  * drawing. An unchanged design writes nothing and logs nothing.
  */
 class SaveUnitGuidonHandler
@@ -30,7 +31,16 @@ class SaveUnitGuidonHandler
     // `\z`, not `$`: `$` would let a trailing newline through.
     public const COLOR_PATTERN = '/^#[0-9a-f]{6}\z/';
 
-    public const TEXT_PATTERN = '/^[A-Za-z0-9\/\- ]*\z/';
+    public const TEXT_PATTERN = '/^[A-Za-z0-9.\/\- ]*\z/';
+
+    /** The large character at the hoist: none, or one or two letters or digits. */
+    public const LARGE_PATTERN = '/^[A-Za-z0-9]{0,2}\z/';
+
+    /** How the flag is split. A guidon saved before formats is `diagonal`. */
+    public const FORMATS = ['diagonal', 'horizontal', 'quartered', 'solid'];
+
+    /** Where a text sits on its half or quarter in every format but the diagonal. */
+    public const ALIGNS = ['left', 'center'];
 
     /** The echelons that carry a guidon. */
     public const TYPES = [UnitType::Regiment, UnitType::Battalion, UnitType::Company];
@@ -59,11 +69,18 @@ class SaveUnitGuidonHandler
             throw InvalidGuidonException::notAGuidonUnit();
         }
 
+        // The same keys in the same order as UnitGuidon::design(), so an unchanged design compares equal.
         $design = [
+            'format' => self::oneOf($command->format, self::FORMATS, 'format'),
             'primary' => self::color($command->primaryColor, 'first color'),
             'secondary' => self::color($command->secondaryColor, 'second color'),
             'topLeft' => self::text($command->topLeftText, 'top left text'),
             'bottomRight' => self::text($command->bottomRightText, 'bottom right text'),
+            'topAlign' => self::oneOf($command->topAlign, self::ALIGNS, 'top text placement'),
+            'bottomAlign' => self::oneOf($command->bottomAlign, self::ALIGNS, 'bottom text placement'),
+            'large' => preg_match(self::LARGE_PATTERN, $command->largeText) === 1
+                ? $command->largeText
+                : throw InvalidGuidonException::badField('large character'),
         ];
 
         $current = $this->guidons->find($unit->id);
@@ -88,6 +105,12 @@ class SaveUnitGuidonHandler
         $value = strtolower($value);
 
         return preg_match(self::COLOR_PATTERN, $value) === 1 ? $value : throw InvalidGuidonException::badField($field);
+    }
+
+    /** @param  list<string>  $allowed */
+    private static function oneOf(string $value, array $allowed, string $field): string
+    {
+        return in_array($value, $allowed, true) ? $value : throw InvalidGuidonException::badField($field);
     }
 
     private static function text(string $value, string $field): string

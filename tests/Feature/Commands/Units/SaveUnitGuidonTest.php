@@ -42,7 +42,7 @@ describe('who may save', function () {
         saveGuidon($this, $user, $this->company->id)->assertRedirect('/roster');
 
         expect(UnitGuidon::query()->where('unit_id', $this->company->id)->sole()->design())
-            ->toBe(['primary' => '#1f2a44', 'secondary' => '#ffffff', 'topLeft' => '2/7', 'bottomRight' => 'A']);
+            ->toBe(['format' => 'diagonal', 'primary' => '#1f2a44', 'secondary' => '#ffffff', 'topLeft' => '2/7', 'bottomRight' => 'A', 'topAlign' => 'left', 'bottomAlign' => 'left', 'large' => '']);
     })->with(['Commander', 'Executive Officer', 'First Sergeant']);
 
     it('refuses a company commander for a sibling company, the battalion above, or another battalion\'s company', function () {
@@ -254,7 +254,7 @@ describe('where it shows', function () {
         // The picker leaves out units with nobody in them (#442).
         manUnits($this->section);
         saveGuidon($this, $co, $this->company->id)->assertRedirect();
-        $saved = ['primary' => '#1f2a44', 'secondary' => '#ffffff', 'topLeft' => '2/7', 'bottomRight' => 'A'];
+        $saved = ['format' => 'diagonal', 'primary' => '#1f2a44', 'secondary' => '#ffffff', 'topLeft' => '2/7', 'bottomRight' => 'A', 'topAlign' => 'left', 'bottomAlign' => 'left', 'large' => ''];
 
         $this->actingAs($co)->get("/roster/{$this->company->id}")->assertOk()->assertInertia(fn (Assert $page) => $page
             ->where('unit.guidon', $saved)

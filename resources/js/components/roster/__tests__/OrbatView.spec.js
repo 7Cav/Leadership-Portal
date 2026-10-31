@@ -76,6 +76,28 @@ describe('Order of battle (roster-s2)', () => {
         expect(strip[7].classes()).toContain('is-now');
     });
 
+    it("labels the strip with the first and last week's start dates, apart, not two ranges run together", () => {
+        const ends = factory().find('[data-testid="strip-ends"]');
+
+        expect(ends.findAll('span').map((s) => s.text())).toEqual(['15AUG', '03OCT']);
+        expect(ends.classes()).toEqual(expect.arrayContaining(['justify-between', 'gap-2']));
+    });
+
+    it('shows the small plain guidon on a platoon header, as decoration beside its name', () => {
+        const { units, troopers } = roster();
+        const flag = { format: 'quartered', primary: '#1f2a44', secondary: '#ffffff', topLeft: '7', bottomRight: 'A', topAlign: 'left', bottomAlign: 'left', large: '2' };
+        const company = { id: 9, type: 'company', name: 'Alpha Company', callsign: 'A/1-7', parentId: null, leader: null, kpis: units[0].kpis };
+        const wrapper = factory({ units: [company, { ...units[0], headerGuidon: flag }, ...units.slice(1)], troopers });
+        const img = wrapper.find('[data-testid="group-1"] [data-testid="guidon"]');
+
+        expect(img.exists()).toBe(true);
+        expect(img.attributes('alt')).toBe('');
+        expect(img.attributes('height')).toBe('12');
+        // Plain at 12px: no text drawn.
+        expect(decodeURIComponent(img.attributes('src'))).not.toContain('data-text');
+        expect(wrapper.find('[data-testid="section-2"] [data-testid="guidon"]').exists()).toBe(false);
+    });
+
     it('flags at-risk from the server row, with the miss count, and LOA separately (4.9)', () => {
         const wrapper = factory();
 

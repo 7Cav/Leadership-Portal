@@ -13,6 +13,7 @@ import StepLanes from '@/components/home/StepLanes.vue';
 import StepMatrix from '@/components/home/StepMatrix.vue';
 import SubordinateUnits from '@/components/home/SubordinateUnits.vue';
 import NeedsAttention from '@/components/home/NeedsAttention.vue';
+import Guidon from '@/components/Guidon.vue';
 
 // The weekly-cycle home (Story 1.15, mockups/v2/shell-f.html) and the leader's dashboard (Stories
 // 5.9 to 5.11). The week bar's calendar comes from HomeController via WeekOf (AD-11); the step
@@ -20,6 +21,9 @@ import NeedsAttention from '@/components/home/NeedsAttention.vue';
 // it. Where the scope or the data is missing each area is an honest empty state; nothing here
 // shows a number the portal does not have.
 const props = defineProps({
+    // The guidon of the one unit in scope (or the nearest one above it) and that unit's designation; null for none.
+    guidon: { type: Object, default: null },
+    guidonUnit: { type: String, default: null },
     // `{ start, reportDue }`, ISO-8601 UTC. `start` is the Saturday 0000Z that opens the week.
     week: { type: Object, required: true },
     // The six KPIs for the viewer's scope with their sent-snapshot history (Story 5.9); null when
@@ -130,6 +134,8 @@ const countdown = computed(() => {
         <!-- Week bar: the Cav week, Saturday to Friday, and the countdown to the report. -->
         <Card role="region" class="gap-0 overflow-hidden py-0" aria-labelledby="week-title" data-testid="week-bar">
             <div class="flex flex-wrap items-end gap-x-6 gap-y-3 px-4 pt-4 pb-3 sm:px-5">
+                <!-- The guidon of the unit in scope; the unit's name is not beside it, so it is named. -->
+                <Guidon v-if="guidon" :design="guidon" :height="32" :alt="`Guidon of ${guidonUnit}`" class="self-center" />
                 <div class="min-w-0">
                     <p class="text-xs text-muted-foreground">Weekly cycle</p>
                     <h1 id="week-title" class="text-xl font-semibold tracking-tight sm:text-[22px]"><WeekHeading :week="week.start" /></h1>

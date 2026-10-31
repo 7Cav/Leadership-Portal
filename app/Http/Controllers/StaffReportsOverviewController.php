@@ -9,6 +9,7 @@ use App\Milpac\StaffReportWeek;
 use App\Models\StaffReport;
 use App\Models\Trooper;
 use App\Models\Unit;
+use App\Repositories\UnitGuidonRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
@@ -34,6 +35,7 @@ class StaffReportsOverviewController extends Controller
         private readonly StaffReportWeek $week,
         private readonly PushStaffReportToSheetHandler $sheet,
         private readonly StaffHqHealth $health,
+        private readonly UnitGuidonRepository $guidons,
     ) {}
 
     public function index(Request $request): Response
@@ -57,10 +59,14 @@ class StaffReportsOverviewController extends Controller
             $weekStart,
         );
 
+        // Every HQ's guidon in one query: an HQ has none of its own, so each shows its unit's (the company or battalion).
+        $guidonOf = $this->guidons->designsFor($hqs, inherit: true);
+
         $groups = $hqs
             ->map(fn (Unit $hq) => [
                 'id' => $hq->id,
                 'label' => $hq->callsign ?? $hq->name,
+                'guidon' => $guidonOf[$hq->id] ?? null,
                 'rows' => collect($staff[$hq->id])
                     ->reject(fn (array $row) => $own !== null && $row['trooper']->id === $own->id)
                     ->map(fn (array $row) => [

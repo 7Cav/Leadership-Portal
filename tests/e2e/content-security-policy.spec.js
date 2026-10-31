@@ -28,7 +28,8 @@ test('the main pages load with no content security policy violation', async ({ p
     await page.goto('/roster');
     await page.getByTestId('roster-guidon').click();
     const generator = page.getByTestId('guidon-generator');
-    const preview = generator.getByTestId('guidon');
+    // The large preview, named for the unit; the format buttons carry small unnamed ones.
+    const preview = generator.getByRole('img', { name: /^Guidon of / });
     await expect(preview).toBeVisible();
     await expect.poll(() => preview.evaluate((image) => image.complete && image.naturalWidth > 0)).toBe(true);
     for (const button of ['guidon-download-svg', 'guidon-download-png']) {

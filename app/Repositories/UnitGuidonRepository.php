@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Models\Unit;
 use App\Models\UnitGuidon;
 use Illuminate\Support\Collection;
 
@@ -21,9 +22,18 @@ interface UnitGuidonRepository
     public function find(int $unitId): ?UnitGuidon;
 
     /**
+     * The design to draw for each of `$units`, keyed by unit id (null for one with none), in one query however many
+     * units: its own, or with `$inherit` the nearest ancestor's ({@see UnitGuidon::designFor()}).
+     *
+     * @param  iterable<Unit>  $units
+     * @return array<int, array<string, string>|null>
+     */
+    public function designsFor(iterable $units, bool $inherit = false): array;
+
+    /**
      * Save the unit's guidon, replacing any earlier one.
      *
-     * @param  array{primary: string, secondary: string, topLeft: string, bottomRight: string}  $design
+     * @param  array{format: string, primary: string, secondary: string, topLeft: string, bottomRight: string, topAlign: string, bottomAlign: string, large: string}  $design
      */
     public function save(int $unitId, array $design, ?int $updatedBy): UnitGuidon;
 }

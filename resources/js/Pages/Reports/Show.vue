@@ -33,6 +33,7 @@ import ReportPreview from '@/components/reports/ReportPreview.vue';
 import SendDialog from '@/components/reports/SendDialog.vue';
 import StaffReportsPanel from '@/components/reports/StaffReportsPanel.vue';
 import TimeAgo from '@/components/TimeAgo.vue';
+import Guidon from '@/components/Guidon.vue';
 import { weekLabel, weekPhrase } from '@/lib/forumDate';
 import WeekHeading from '@/components/week/WeekHeading.vue';
 import {
@@ -445,7 +446,9 @@ function useSuggestion() {
     <div class="flex flex-col gap-4" data-testid="report-page">
         <section aria-labelledby="page-title" class="flex flex-wrap items-end gap-x-6 gap-y-3">
             <div class="min-w-0">
-                <p class="text-xs text-muted-foreground">{{ unitLabel(unit) }} weekly report</p>
+                <p class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Guidon :design="unit.guidon" :height="16" />{{ unitLabel(unit) }} weekly report
+                </p>
                 <h1 id="page-title" class="flex flex-wrap items-center gap-2.5 text-xl font-semibold tracking-tight sm:text-[22px]">
                     <WeekHeading :week="week.start" />
                     <Badge v-if="sent" variant="success" data-testid="status-badge"><PhLockSimple aria-hidden="true" />Sent</Badge>

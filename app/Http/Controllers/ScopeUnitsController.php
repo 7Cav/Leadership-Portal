@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Authorization\ScopeResolver;
 use App\Kpi\Headcount;
 use App\Models\Unit;
+use App\Repositories\UnitGuidonRepository;
 use App\Repositories\UnitRepository;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,11 +21,13 @@ class ScopeUnitsController extends Controller
      * Every unit in scope in tree order (each after its parent, siblings in id order), with its depth under the top of
      * the scope. A line unit with no troopers is left out, as the roster's picker and Home leave it out (#442).
      */
-    public function __invoke(Request $request, ScopeResolver $scope, UnitRepository $units, Headcount $headcount): JsonResponse
+    public function __invoke(Request $request, ScopeResolver $scope, UnitRepository $units, Headcount $headcount, UnitGuidonRepository $guidons): JsonResponse
     {
         $inScope = $scope->resolve($request->user())->flip();
         $shown = $headcount->withoutEmptyLineUnits($units->tree()->filter(fn (Unit $unit) => $inScope->has($unit->id)));
         $ids = $shown->pluck('id')->flip();
+        // Each unit's own guidon, for the list (one query); a unit without one shows none.
+        $guidonOf = $guidons->designsFor($shown);
 
         return response()->json([
             'units' => $shown->map(fn (Unit $unit) => [
@@ -33,6 +36,7 @@ class ScopeUnitsController extends Controller
                 'name' => $unit->name,
                 'type' => $unit->type->value,
                 'line' => $unit->isLine(),
+                'guidon' => $guidonOf[$unit->id] ?? null,
                 // Its ancestors that are listed too: 0 for a top of the scope.
                 'depth' => collect(explode('/', rtrim($unit->path, '/')))
                     ->slice(0, -1)

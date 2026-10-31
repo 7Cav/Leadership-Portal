@@ -42,6 +42,7 @@ use App\Repositories\AttendanceRepository;
 use App\Repositories\CountingMark;
 use App\Repositories\PlatoonTrainingTopicRepository;
 use App\Repositories\TrooperRepository;
+use App\Repositories\UnitGuidonRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
 use App\Repositories\WeeklyReportAlreadySentException;
@@ -92,6 +93,7 @@ class ReportController extends Controller
         private readonly StaffReportAccess $staffReportAccess,
         private readonly StaffReportWeek $staffReportWeek,
         private readonly AutoExcused $autoExcused,
+        private readonly UnitGuidonRepository $guidons,
     ) {}
 
     public function show(Request $request, UnaccountedSuggestions $suggestions, int $unit, string $week): Response
@@ -147,6 +149,8 @@ class ReportController extends Controller
                 ...$this->unitProps($unit),
                 'isLeaf' => $isLeaf,
                 'parent' => $parent === null ? null : $this->unitProps($parent),
+                // The unit's guidon, or the nearest one above it (a section's or platoon's company), for the header.
+                'guidon' => $this->guidons->designsFor([$unit], inherit: true)[$unit->id],
             ],
             'week' => [
                 'start' => $weekStart->toIso8601String(),

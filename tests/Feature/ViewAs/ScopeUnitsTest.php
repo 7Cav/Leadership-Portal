@@ -64,10 +64,10 @@ describe('the units list', function () {
         $this->actingAs($commander)->getJson('/scope/units')
             ->assertOk()
             ->assertExactJson(['units' => [
-                ['id' => $tree['company']->id, 'designation' => 'A/1-7', 'name' => 'Alpha Company', 'type' => 'company', 'line' => true, 'depth' => 0],
-                ['id' => $tree['platoon']->id, 'designation' => '1/A/1-7', 'name' => '1st Platoon', 'type' => 'platoon', 'line' => true, 'depth' => 1],
-                ['id' => $tree['section']->id, 'designation' => '1/1/A/1-7', 'name' => '1st Section', 'type' => 'section', 'line' => true, 'depth' => 2],
-                ['id' => $tree['section2']->id, 'designation' => '2/1/A/1-7', 'name' => '2nd Section', 'type' => 'section', 'line' => true, 'depth' => 2],
+                ['id' => $tree['company']->id, 'designation' => 'A/1-7', 'name' => 'Alpha Company', 'type' => 'company', 'line' => true, 'depth' => 0, 'guidon' => null],
+                ['id' => $tree['platoon']->id, 'designation' => '1/A/1-7', 'name' => '1st Platoon', 'type' => 'platoon', 'line' => true, 'depth' => 1, 'guidon' => null],
+                ['id' => $tree['section']->id, 'designation' => '1/1/A/1-7', 'name' => '1st Section', 'type' => 'section', 'line' => true, 'depth' => 2, 'guidon' => null],
+                ['id' => $tree['section2']->id, 'designation' => '2/1/A/1-7', 'name' => '2nd Section', 'type' => 'section', 'line' => true, 'depth' => 2, 'guidon' => null],
             ]]);
     });
 
@@ -149,7 +149,7 @@ describe('the top of the scope every page shares', function () {
 
         $this->actingAs(User::factory()->admin()->create())->get('/home')
             ->assertInertia(fn ($page) => $page->where('scopeTop', [
-                ['id' => $tree['regiment']->id, 'designation' => '7CAV', 'name' => '7th Cavalry Regiment'],
+                ['id' => $tree['regiment']->id, 'designation' => '7CAV', 'name' => '7th Cavalry Regiment', 'guidon' => null],
             ]));
     });
 
@@ -183,7 +183,7 @@ describe('the top of the scope every page shares', function () {
         PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $tree['empty']->id]);
 
         $this->actingAs($staff)->get('/home')->assertInertia(fn ($page) => $page
-            ->where('scopeTop', [['id' => $tree['otherCompany']->id, 'designation' => 'E/2-7', 'name' => 'Echo Company']]));
+            ->where('scopeTop', [['id' => $tree['otherCompany']->id, 'designation' => 'E/2-7', 'name' => 'Echo Company', 'guidon' => null]]));
         expect(suListed())->not->toContain($tree['empty']->id);
     });
 
@@ -195,7 +195,7 @@ describe('the top of the scope every page shares', function () {
         PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $second->id]);
 
         $this->actingAs($staff)->get('/home')->assertInertia(fn ($page) => $page
-            ->where('scopeTop', [['id' => $tree['empty']->id, 'designation' => '3/1/A/1-7', 'name' => '3rd Section']]));
+            ->where('scopeTop', [['id' => $tree['empty']->id, 'designation' => '3/1/A/1-7', 'name' => '3rd Section', 'guidon' => null]]));
     });
 
     it('is empty for a user with no scope', function () {

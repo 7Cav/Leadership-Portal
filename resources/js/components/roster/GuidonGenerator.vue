@@ -8,15 +8,21 @@ import { Label } from '@/components/ui/label';
 import Guidon from '@/components/Guidon.vue';
 import { onHttpException } from '@/lib/httpError';
 import {
+    ALIGNS,
+    FORMATS,
+    MAX_LARGE,
     MAX_TEXT,
     PALETTE,
+    cleanLarge,
     cleanText,
     defaultDesign,
+    formatOf,
     guidonDataUrl,
     guidonFileName,
     guidonPngDataUrl,
+    hasPair,
     isColor,
-    tooClose,
+    pairTooClose,
 } from '@/lib/guidon';
 
 // The guidon generator (#446), opened from the roster's unit header by those who may save the unit's guidon. It starts
@@ -29,23 +35,40 @@ const props = defineProps({
 
 const emit = defineEmits(['saved']);
 
-const start = props.unit.guidon ?? defaultDesign(props.unit);
-const form = useForm({ ...start });
+// A saved design from before formats has no format, placements or large character: it is diagonal with none. One saved
+// in a retired format opens in the format it draws as.
+const saved = props.unit.guidon ? { ...defaultDesign(props.unit), ...props.unit.guidon, format: formatOf(props.unit.guidon) } : null;
+const form = useForm({ ...(saved ?? defaultDesign(props.unit)) });
 
-const design = computed(() => ({
-    primary: form.primary,
-    secondary: form.secondary,
-    topLeft: form.topLeft,
-    bottomRight: form.bottomRight,
-}));
-const unchanged = computed(() => props.unit.guidon !== null && props.unit.guidon !== undefined && JSON.stringify(design.value) === JSON.stringify(props.unit.guidon));
-const close = computed(() => tooClose(form.primary, form.secondary));
+const KEYS = ['format', 'primary', 'secondary', 'topLeft', 'bottomRight', 'topAlign', 'bottomAlign', 'large'];
+const design = computed(() => Object.fromEntries(KEYS.map((key) => [key, form[key]])));
+const unchanged = computed(() => saved !== null && KEYS.every((key) => form[key] === saved[key]));
+const close = computed(() => pairTooClose(design.value));
 const name = computed(() => props.unit.callsign ?? props.unit.name);
+// The other formats place each text left or centered; the diagonal keeps its fixed spots.
+const placed = computed(() => form.format !== 'diagonal');
 
-const halves = [
-    { key: 'primary', text: 'topLeft', label: 'Top left' },
-    { key: 'secondary', text: 'bottomRight', label: 'Bottom right' },
-];
+// What each half is called in the format on screen. A format change keeps the colors and texts already entered; a
+// solid guidon keeps the second color too, in case the leader switches back.
+const halves = computed(() =>
+    form.format === 'diagonal'
+        ? [
+              { key: 'primary', text: 'topLeft', align: 'topAlign', label: 'Top left' },
+              { key: 'secondary', text: 'bottomRight', align: 'bottomAlign', label: 'Bottom right' },
+          ]
+        : [
+              { key: 'primary', text: 'topLeft', align: 'topAlign', label: 'Top', color: true },
+              { key: 'secondary', text: 'bottomRight', align: 'bottomAlign', label: 'Bottom', color: hasPair(design.value) },
+          ].map((half) => ({ color: true, ...half })),
+);
+
+// Each format's small preview, drawn from the colors and texts on screen.
+const formatPreviews = computed(() => FORMATS.map((f) => ({ ...f, design: { ...design.value, format: f.value } })));
+
+function setLarge(event) {
+    form.large = cleanLarge(event.target.value);
+    event.target.value = form.large;
+}
 
 function pickColor(key, value) {
     if (isColor(value)) form[key] = value.toLowerCase();
@@ -96,9 +119,29 @@ async function downloadPng() {
             <Guidon :design="design" :height="144" :alt="`Guidon of ${name}`" />
         </div>
 
+        <fieldset class="space-y-2">
+            <legend class="text-[13px] font-medium">Format</legend>
+            <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="Format">
+                <button
+                    v-for="f in formatPreviews"
+                    :key="f.value"
+                    type="button"
+                    role="radio"
+                    :aria-checked="form.format === f.value"
+                    :data-testid="`guidon-format-${f.value}`"
+                    class="flex flex-col items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs outline-offset-2 hover:bg-muted/60 aria-checked:border-primary aria-checked:bg-muted aria-checked:font-medium"
+                    @click="form.format = f.value"
+                >
+                    <Guidon :design="f.design" :height="24" />
+                    {{ f.label }}
+                </button>
+            </div>
+            <p v-if="form.errors.format" class="text-xs text-destructive">{{ form.errors.format }}</p>
+        </fieldset>
+
         <fieldset v-for="half in halves" :key="half.key" class="space-y-2">
             <legend class="text-[13px] font-medium">{{ half.label }}</legend>
-            <div class="flex flex-wrap items-center gap-1.5" role="group" :aria-label="`${half.label} color`">
+            <div v-if="half.color !== false" class="flex flex-wrap items-center gap-1.5" role="group" :aria-label="`${half.label} color`">
                 <button
                     v-for="color in PALETTE"
                     :key="color.hex"
@@ -123,7 +166,7 @@ async function downloadPng() {
                 </label>
                 <span class="font-mono text-xs text-muted-foreground">{{ form[half.key] }}</span>
             </div>
-            <p v-if="form.errors[half.key]" class="text-xs text-destructive">{{ form.errors[half.key] }}</p>
+            <p v-if="half.color !== false && form.errors[half.key]" class="text-xs text-destructive">{{ form.errors[half.key] }}</p>
             <div class="space-y-1">
                 <Label :for="`guidon-${half.text}`">{{ half.label }} text</Label>
                 <!-- A plain input, not the Input component: its own copy of the value would put a dropped character back. -->
@@ -140,9 +183,43 @@ async function downloadPng() {
                 />
                 <p v-if="form.errors[half.text]" class="text-xs text-destructive">{{ form.errors[half.text] }}</p>
             </div>
+            <div v-if="placed" class="flex items-center gap-1" role="radiogroup" :aria-label="`${half.label} text placement`">
+                <button
+                    v-for="a in ALIGNS"
+                    :key="a.value"
+                    type="button"
+                    role="radio"
+                    :aria-checked="form[half.align] === a.value"
+                    :data-testid="`guidon-${half.align}-${a.value}`"
+                    class="h-7 rounded-md border border-border px-2.5 text-xs aria-checked:border-primary aria-checked:bg-muted aria-checked:font-medium"
+                    @click="form[half.align] = a.value"
+                >
+                    {{ a.label }}
+                </button>
+            </div>
         </fieldset>
 
-        <p class="text-xs text-muted-foreground">Up to {{ MAX_TEXT }} letters, digits, /, - or spaces on each half. The text is black or white, whichever reads better on its color.</p>
+        <div class="space-y-1">
+            <Label for="guidon-large">Large character</Label>
+            <input
+                id="guidon-large"
+                type="text"
+                :value="form.large"
+                :maxlength="MAX_LARGE"
+                autocomplete="off"
+                data-testid="guidon-large"
+                :aria-invalid="!!form.errors.large"
+                aria-describedby="guidon-large-hint"
+                class="h-8 w-16 rounded-md border border-input bg-card px-2.5 py-1 font-mono text-[13px] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive dark:bg-input/30"
+                @input="setLarge"
+            />
+            <p id="guidon-large-hint" class="text-xs text-muted-foreground">
+                Optional. One or two letters or digits most of the height of the flag at the left, in the opposite color of each half. The texts move just right of it, left aligned, and take the opposite color too.
+            </p>
+            <p v-if="form.errors.large" class="text-xs text-destructive">{{ form.errors.large }}</p>
+        </div>
+
+        <p class="text-xs text-muted-foreground">Up to {{ MAX_TEXT }} letters, digits, ., /, - or spaces on each half. The text is black or white, whichever reads better on its color.</p>
 
         <p v-if="close" role="status" class="flex items-center gap-1.5 text-xs text-warning" data-testid="guidon-too-close">
             <PhWarning aria-hidden="true" />The two colors are too close to tell apart. Pick colors with more contrast.

@@ -71,11 +71,14 @@ import {
     weeksNeedingWork,
 } from '@/lib/rollcall';
 import { cn } from '@/lib/utils';
+import Guidon from '@/components/Guidon.vue';
 
 // The weekly rollcall of one section (Stories 3.7–3.10), binding design mockups/v2/rollcall-r3.html
 // "Guided week": three steps — signatures, Section Practice, review and post — over the section's
 // troopers. With no section chosen (`section` null) it is the section picker.
 const props = defineProps({
+    // The section's company guidon (or the nearest one above it), for the header; null for none.
+    guidon: { type: Object, default: null },
     // `{ id, designation, name, platoon }`, or null for the picker.
     section: { type: Object, default: null },
     // Every section in the viewer's scope: `[{ id, designation, name, platoon }]`.
@@ -858,7 +861,8 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
         <!-- Page head -->
         <div class="flex flex-wrap items-end gap-x-6 gap-y-3">
             <div class="min-w-0">
-                <p class="flex flex-wrap gap-x-1.5 text-xs text-muted-foreground">
+                <p class="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+                    <Guidon :design="guidon" :height="16" />
                     <span>{{ section.designation }} weekly cycle</span>
                     <template v-if="sections.length > 1">
                         <span aria-hidden="true">·</span>

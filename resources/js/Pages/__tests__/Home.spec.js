@@ -178,4 +178,14 @@ describe('Home page', () => {
             },
         );
     });
+
+    it('shows the guidon of the unit in scope in the header, named, and nothing without one', () => {
+        const withGuidon = mount(Home, { props: { week: WEEK, guidon: { format: 'diagonal', primary: '#f47a20', secondary: '#ffffff', topLeft: 'ACD', bottomRight: 'B', topAlign: 'left', bottomAlign: 'left', large: '7' }, guidonUnit: 'B/ACD' } });
+        const flag = withGuidon.find('[data-testid="guidon"]');
+
+        expect(flag.attributes('alt')).toBe('Guidon of B/ACD');
+        expect(flag.attributes('height')).toBe('32');
+        expect(decodeURIComponent(flag.attributes('src'))).toContain('data-text="ACD"');
+        expect(mount(Home, { props: { week: WEEK } }).find('[data-testid="guidon"]').exists()).toBe(false);
+    });
 });
