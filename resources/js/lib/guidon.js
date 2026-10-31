@@ -112,18 +112,20 @@ export function pairTooClose(design) {
     return hasPair(design) && tooClose(design.primary, design.secondary);
 }
 
-// What a leader typed, kept to what the server accepts: allowed characters only, at most MAX_TEXT of them.
+// What a leader typed, kept to what the server accepts: allowed characters only, at most MAX_TEXT of them, in capitals.
 export function cleanText(value) {
     return String(value ?? '')
         .replace(NOT_TEXT, '')
-        .slice(0, MAX_TEXT);
+        .slice(0, MAX_TEXT)
+        .toUpperCase();
 }
 
-// What a leader typed for the large character: letters and digits only, at most MAX_LARGE of them.
+// What a leader typed for the large character: letters and digits only, at most MAX_LARGE of them, in capitals.
 export function cleanLarge(value) {
     return String(value ?? '')
         .replace(NOT_LARGE, '')
-        .slice(0, MAX_LARGE);
+        .slice(0, MAX_LARGE)
+        .toUpperCase();
 }
 
 // WCAG 2 relative luminance of a `#rrggbb` color.
@@ -149,8 +151,9 @@ export function textColorOn(hex) {
     return contrastRatio(hex, '#ffffff') >= contrastRatio(hex, '#000000') ? '#ffffff' : '#000000';
 }
 
-// Below this contrast ratio the other color does not read as text on a color (WCAG's ratio for large text).
-export const MIN_OPPOSITE_CONTRAST = 3;
+// Below this contrast ratio the other color does not read as text on a color. Guidon text is very large and bold, so
+// this sits below WCAG's 3:1 for large text: orange on white (2.7:1) reads, yellow on white (1.6:1) does not.
+export const MIN_OPPOSITE_CONTRAST = 2;
 
 // The color for every text and large character on `background`: the flag's other color when it reads there,
 // otherwise black or white, whichever reads better.
@@ -600,7 +603,14 @@ export function guidonSvg(design, { width = WIDTH, plain = false } = {}) {
 
     return [
         `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${WIDTH} ${HEIGHT}">`,
-        ...DRAW[formatOf(design)](plain ? { ...design, topLeft: '', bottomRight: '', large: '' } : design, primary, secondary),
+        // Guidon text is capitals only; a design saved in lower case before that draws in capitals too.
+        ...DRAW[formatOf(design)](
+            plain
+                ? { ...design, topLeft: '', bottomRight: '', large: '' }
+                : { ...design, topLeft: design.topLeft.toUpperCase(), bottomRight: design.bottomRight.toUpperCase(), large: (design.large ?? '').toUpperCase() },
+            primary,
+            secondary,
+        ),
         // A faint edge, so a white half still shows against a white page.
         `<polygon points="${OUTLINE}" fill="none" stroke="#000000" stroke-opacity="0.25" stroke-width="2" stroke-linejoin="round"/>`,
         '</svg>',

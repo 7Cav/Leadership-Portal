@@ -214,12 +214,12 @@ async function downloadPng() {
                 @input="setLarge"
             />
             <p id="guidon-large-hint" class="text-xs text-muted-foreground">
-                Optional. One or two letters or digits most of the height of the flag at the left, in the opposite color of each half. The texts move just right of it, left aligned, and take the opposite color too.
+                Optional. One or two capital letters or digits most of the height of the flag at the left, in the opposite color of each half. The texts move just right of it, left aligned, and take the opposite color too.
             </p>
             <p v-if="form.errors.large" class="text-xs text-destructive">{{ form.errors.large }}</p>
         </div>
 
-        <p class="text-xs text-muted-foreground">Up to {{ MAX_TEXT }} letters, digits, ., /, - or spaces on each half. The text is black or white, whichever reads better on its color.</p>
+        <p class="text-xs text-muted-foreground">Up to {{ MAX_TEXT }} capital letters, digits, ., /, - or spaces on each half. The text takes the other color of the flag when it reads on its half, otherwise black or white.</p>
 
         <p v-if="close" role="status" class="flex items-center gap-1.5 text-xs text-warning" data-testid="guidon-too-close">
             <PhWarning aria-hidden="true" />The two colors are too close to tell apart. Pick colors with more contrast.

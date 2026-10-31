@@ -189,7 +189,7 @@ describe('default text', () => {
 
 describe('helpers', () => {
     it('keeps typed text to what the server accepts', () => {
-        expect(cleanText('<b>2/7</b>')).toBe('b2/7/b');
+        expect(cleanText('<b>2/7</b>')).toBe('B2/7/B');
         expect(cleanText('A"&B')).toBe('AB');
         expect(cleanText('ABCDEFGH')).toBe('ABCDEF');
     });
@@ -270,7 +270,7 @@ describe('formats', () => {
         expect(texts(svg).map((g) => g.getAttribute('fill'))).toEqual(['#000000', '#000000']);
     });
 
-    it('draws the ACD guidon: a large 7 and both texts in black, as orange and white are too close for the other color to read, the texts right of the 7', () => {
+    it('draws the ACD guidon: a large 7 and the texts in the other color of each half, the texts right of the 7', () => {
         const svg = parse(guidonSvg(acd));
         const clips = svg.querySelectorAll('clipPath');
         const sevens = texts(svg, true);
@@ -278,21 +278,21 @@ describe('formats', () => {
 
         expect(clips).toHaveLength(2);
         expect(clips[0].querySelector('polygon').getAttribute('points')).toBe('0,0 300,0 0,216');
-        // Orange and white are under 3 to 1, so the other color would not read: black on both halves.
+        // Orange and white are over 2 to 1, so each half takes the other color: white on orange, orange on white.
         expect(sevens.map((g) => [g.getAttribute('data-text'), g.getAttribute('fill')])).toEqual([
-            ['7', '#000000'],
-            ['7', '#000000'],
+            ['7', '#ffffff'],
+            ['7', '#f47a20'],
         ]);
         // About 72% of the flag's height.
         expect(Number(sevens[0].getAttribute('data-cap'))).toBe(156);
         expect(top.getAttribute('data-text')).toBe('ACD');
-        expect(top.getAttribute('fill')).toBe('#000000');
+        expect(top.getAttribute('fill')).toBe('#ffffff');
         // The 7 hugs the hoist; both texts start just right of it, at the same x, about a third of the way across.
         expect(origin(sevens[0]).x).toBe(9);
         expect(origin(top).x).toBe(95);
         expect(origin(top).y).toBeLessThanOrEqual(66);
         expect(bottom.getAttribute('data-text')).toBe('B');
-        expect(bottom.getAttribute('fill')).toBe('#000000');
+        expect(bottom.getAttribute('fill')).toBe('#f47a20');
         // The B starts at the same x unless the diagonal is closer there: it keeps clear of the split.
         expect(origin(bottom).x).toBeGreaterThanOrEqual(origin(top).x);
     });
@@ -444,7 +444,7 @@ describe('formats', () => {
             bottomAlign: 'left',
             large: '',
         });
-        expect(cleanLarge('7!x9')).toBe('7x');
+        expect(cleanLarge('7!x9')).toBe('7X');
     });
 });
 
@@ -626,12 +626,19 @@ describe('text fit', () => {
 
     it('falls back to black or white only when the other color does not read, and on a solid guidon', () => {
         const fills = (d) => texts(parse(guidonSvg(d))).map((g) => g.getAttribute('fill'));
-        const acd = { ...design, primary: '#f47a20', secondary: '#ffffff', topLeft: 'ACD', bottomRight: 'B' };
+        const yellow = { ...design, primary: '#ffc72c', secondary: '#ffffff', topLeft: 'ACD', bottomRight: 'B' };
 
         // Blue over purple: too close, so white.
         expect(fills({ ...design, format: 'horizontal', primary: '#004cff', secondary: '#8000ff' })).toEqual(['#ffffff', '#ffffff']);
-        // Orange and white are under 3 to 1: black on both.
-        for (const format of ['diagonal', 'horizontal', 'quartered']) expect(fills({ ...acd, format })).toEqual(['#000000', '#000000']);
+        // Yellow and white are under 2 to 1: black on both.
+        for (const format of ['diagonal', 'horizontal', 'quartered']) expect(fills({ ...yellow, format })).toEqual(['#000000', '#000000']);
         expect(fills({ ...design, format: 'solid', primary: '#1f2a44' })).toEqual(['#ffffff', '#ffffff']);
+    });
+
+    it('draws text and the large character in capitals, even from a design saved in small letters', () => {
+        const svg = parse(guidonSvg({ ...design, topLeft: 'dev', bottomRight: 'a', large: 'b' }));
+
+        expect(texts(svg).map((g) => g.getAttribute('data-text'))).toEqual(['DEV', 'A']);
+        expect(texts(svg, true)[0].getAttribute('data-text')).toBe('B');
     });
 });
