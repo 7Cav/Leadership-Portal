@@ -242,6 +242,8 @@ function clearAll() {
                     @keydown.esc="query = ''"
                 />
             </label>
+            <!-- The page can put a control before the chips, such as the way back up to the unit above. -->
+            <slot name="before-filters" />
             <FilterChips v-model="filter" :troopers="troopers" :current-week="currentWeek" />
             <div class="ml-auto flex items-center gap-2">
                 <ToggleGroup :model-value="win" type="single" variant="segment" aria-label="Weeks shown" @update:model-value="selectWindow">

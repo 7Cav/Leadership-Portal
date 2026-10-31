@@ -73,7 +73,7 @@ describe('Roster page', () => {
         const inScope = [{ id: 8, type: 'company', name: 'Alpha Company', callsign: 'A/1-7', inScope: true }, props().trail[1]];
         const up = factory({ trail: inScope }).find('[data-testid="roster-up"]');
 
-        expect(up.text()).toBe('Back to A/1-7');
+        expect(up.text()).toBe('Return to A/1-7');
         expect(up.attributes('href')).toBe('/roster/8?view=matrix');
         expect(factory().find('[data-testid="roster-up"]').exists()).toBe(false);
     });
