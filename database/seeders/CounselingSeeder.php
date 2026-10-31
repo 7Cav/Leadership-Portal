@@ -5,24 +5,21 @@ namespace Database\Seeders;
 use App\Models\CounselingKind;
 use App\Models\CounselingRecord;
 use App\Models\CounselingType;
-use App\Models\DriveUploadStatus;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
 use App\Models\User;
-use App\Repositories\CounselingDocuments;
 use Carbon\CarbonImmutable;
 use Database\Seeders\Concerns\RefusesOutsideDevEnvironments;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Str;
 
 /**
  * Counseling records for the browser test (#381), under their own company and usernames. `Lindqvist.P` leads 1st
  * Platoon of Foxtrot Company (1/F/1-7) and `Sato.K` its 1st Section (1/1/F/1-7), both by billet. `Novak.E`, a rifleman
- * in that section, already has a DCS from Sato.K and an LOR from Lindqvist.P, each 20 days ago, with demo documents
- * (no file behind them, {@see CounselingDocuments::isDemo()}). Refuses to run outside local, testing and e2e: its users lead units by command billet.
+ * in that section, already has a DCS from Sato.K and an LOR from Lindqvist.P, each written in the portal and shared 20
+ * days ago (#565). Refuses to run outside local, testing and e2e: its users lead units by command billet.
  */
 class CounselingSeeder extends Seeder
 {
@@ -66,26 +63,42 @@ class CounselingSeeder extends Seeder
         return User::factory()->create(['username' => $username, 'cav_id' => $cavId]);
     }
 
-    private function record(Trooper $trooper, CounselingType $type, CounselingKind $kind, User $issuer, Unit $through, string $reason): void
+    /**
+     * A record written in the portal (#565), shared 20 days ago and answered by the trooper; an LOR says they did not
+     * appeal. Its form fills from these fields, so the page's PDF works without a file.
+     */
+    private function record(Trooper $trooper, CounselingType $type, CounselingKind $kind, User $issuer, Unit $through, string $infraction): void
     {
-        // A demo document: its path is under the demo prefix and no file is written, so the page says it is a demo
-        // instead of downloading it. The bytes only give the record a size and a checksum.
-        $bytes = "%PDF-1.4\n% seeded {$type->short()} for {$trooper->username}\n%%EOF\n";
-        $path = CounselingDocuments::DEMO_PREFIX.Str::uuid()->toString().'.pdf';
+        $lor = $type === CounselingType::Lor;
+        $sharedAt = CarbonImmutable::now('UTC')->subDays(20);
 
-        CounselingRecord::factory()->create([
+        CounselingRecord::factory()->written()->sharedDaysAgo(20)->responded()->create([
             'trooper_id' => $trooper->id,
             'type' => $type,
             'kind' => $kind,
-            'counseled_on' => CarbonImmutable::now('UTC')->subDays(20)->toDateString(),
-            'reason' => $reason,
+            'counseled_on' => $sharedAt->toDateString(),
             'issued_by' => $issuer->id,
             'issuer_unit_id' => $through->id,
-            'document_path' => $path,
-            'document_name' => strtolower($type->short()).'-signed.pdf',
-            'document_size' => strlen($bytes),
-            'document_sha256' => hash('sha256', $bytes),
-            'drive_status' => DriveUploadStatus::Skipped,
+            'snapshot' => [
+                'date' => $sharedAt->toDateString(),
+                'trooper' => ['rank' => (string) $trooper->rank_short, 'name' => (string) $trooper->username, 'billet' => (string) $trooper->billet],
+                'authority' => ['rank' => '', 'name' => (string) $issuer->username, 'billet' => $through->billet()],
+            ],
+            'form_data' => [
+                'infraction' => $infraction,
+                'regulation' => '1/F/1-7 Platoon SOP.',
+                'discussion' => 'We went through what happened and what the SOP asks.',
+                'plan_authority' => 'Check in weekly before practice for four weeks.',
+                'plan_trooper' => 'Post an LOA when I cannot attend.',
+                'plan_other' => '',
+                'comments_authority' => '',
+                'comments_trooper' => '',
+                'comments_other' => '',
+                'consequences' => $lor ? ['nfa'] : [],
+                'removal' => null,
+                'special_punishments' => '',
+                'appeal' => $lor ? 'do_not' : null,
+            ],
         ]);
     }
 }

@@ -3,7 +3,9 @@
 use App\Http\Controllers\ActAsController;
 use App\Http\Controllers\Auth\ForumAuthController;
 use App\Http\Controllers\ChangelogController;
+use App\Http\Controllers\CounselingAppealsController;
 use App\Http\Controllers\CounselingController;
+use App\Http\Controllers\CounselingReviewController;
 use App\Http\Controllers\DocsController;
 use App\Http\Controllers\GameIdentityController;
 use App\Http\Controllers\HomeController;
@@ -17,6 +19,7 @@ use App\Http\Controllers\RosterController;
 use App\Http\Controllers\ScopeUnitsController;
 use App\Http\Controllers\Settings\ActivityLogController;
 use App\Http\Controllers\Settings\AuditLogController;
+use App\Http\Controllers\Settings\CounselingImportController;
 use App\Http\Controllers\Settings\DemoDataController;
 use App\Http\Controllers\Settings\GamesController;
 use App\Http\Controllers\Settings\LoaSyncController;
@@ -116,17 +119,25 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // One trooper's milpac (Story 6.3): the page every entry point to a trooper opens. Scope-gated
     // in the controller through the ScopeResolver (AD-8).
     Route::get('/troopers/{trooper}', [TrooperDetailController::class, 'show'])->name('troopers.show');
-    // Developmental Counseling Statements and Letters of Reprimand (#381). Each write is an audited Command whose handler
-    // decides who may file which type and who may change a record (Authorization\CounselingAccess); a trooper or record
-    // the viewer cannot see is a 404, the document download included. Filing stores a PDF of up to 10 MB, so it has its
-    // own, tighter throttle (counseling-uploads); corrections, deletes, overturns and appeals share the audited-writes one.
-    Route::post('/troopers/{trooper}/counseling', [CounselingController::class, 'store'])->middleware('throttle:counseling-uploads')->name('counseling.store');
-    Route::post('/troopers/{trooper}/counseling/preview', [CounselingController::class, 'preview'])->middleware('throttle:audited-writes')->name('counseling.preview');
+    // Developmental Counseling Statements and Letters of Reprimand, written in the portal through the wiki procedure
+    // (#381, #565). Each write is an audited Command whose handler decides who may take the step
+    // (Authorization\CounselingAccess); a trooper or record the viewer cannot see is a 404, the document included. Every
+    // write, and the audited document download, share the audited-writes throttle. The steps that send a PM use the user's own forum account (`auth.forum-pm`).
+    Route::post('/troopers/{trooper}/counseling', [CounselingController::class, 'store'])->middleware('throttle:audited-writes')->name('counseling.store');
+    Route::get('/counseling/appeals', [CounselingAppealsController::class, 'index'])->name('counseling.appeals');
+    Route::get('/counseling/{counseling}', [CounselingController::class, 'show'])->name('counseling.show');
     Route::patch('/counseling/{counseling}', [CounselingController::class, 'update'])->middleware('throttle:audited-writes')->name('counseling.update');
     Route::delete('/counseling/{counseling}', [CounselingController::class, 'destroy'])->middleware('throttle:audited-writes')->name('counseling.destroy');
+    Route::post('/counseling/{counseling}/invite', [CounselingController::class, 'invite'])->middleware('throttle:audited-writes')->name('counseling.invite');
+    Route::post('/counseling/{counseling}/share', [CounselingController::class, 'share'])->middleware('throttle:audited-writes')->name('counseling.share');
+    Route::post('/counseling/{counseling}/withdraw', [CounselingController::class, 'withdraw'])->middleware('throttle:audited-writes')->name('counseling.withdraw');
+    Route::post('/counseling/{counseling}/respond', [CounselingController::class, 'respond'])->middleware('throttle:audited-writes')->name('counseling.respond');
+    Route::post('/counseling/{counseling}/decide', [CounselingController::class, 'decide'])->middleware('throttle:audited-writes')->name('counseling.decide');
     Route::post('/counseling/{counseling}/overturn', [CounselingController::class, 'overturn'])->middleware('throttle:audited-writes')->name('counseling.overturn');
-    Route::post('/counseling/{counseling}/appeal', [CounselingController::class, 'appeal'])->middleware('throttle:audited-writes')->name('counseling.appeal');
-    Route::get('/counseling/{counseling}/document', [CounselingController::class, 'document'])->name('counseling.document');
+    Route::get('/counseling/{counseling}/document', [CounselingController::class, 'document'])->middleware('throttle:audited-writes')->name('counseling.document');
+    // Let the portal send the counseling PMs from the signed-in user's own forum account (#565): the forum's consent
+    // screen, back through `auth.callback`. On the login limiter, like the sign-in handshake.
+    Route::get('/auth/forum-pm', [ForumAuthController::class, 'pmConsent'])->middleware('throttle:login')->name('auth.forum-pm');
     // The section practices a staff member attended (#448): staff are on no section's rollcall, so the staff member, their
     // staff leader or an Admin enters one on the milpac. Each write is an audited Command whose handler decides who may
     // (Authorization\StaffPracticeAccess); a trooper the viewer cannot see is a 404. On the shared audited-writes throttle.
@@ -301,6 +312,16 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/settings/servers', [ServersController::class, 'index'])->name('settings.servers');
     Route::post('/settings/servers/fetch', [ServersController::class, 'fetch'])->middleware('throttle:server-fetch')->name('settings.servers.fetch');
     Route::patch('/settings/servers/{server}', [ServersController::class, 'update'])->middleware('throttle:audited-writes')->name('settings.servers.update');
+
+    // The counseling import (#565): older DCSs and LORs brought in from Drive links or PDFs. The whole screen is
+    // Admin-only, gated in the controller (AD-6). The check stores the uploaded CSV and PDFs, so it shares the tighter
+    // counseling-uploads throttle; the import itself is queued.
+    Route::get('/settings/counseling-import', [CounselingImportController::class, 'show'])->name('settings.counseling-import');
+    Route::get('/settings/counseling-import/template', [CounselingImportController::class, 'template'])->name('settings.counseling-import.template');
+    Route::post('/settings/counseling-import/check', [CounselingImportController::class, 'check'])->middleware('throttle:counseling-uploads')->name('settings.counseling-import.check');
+    Route::post('/settings/counseling-import/{batch}', [CounselingImportController::class, 'import'])->whereUuid('batch')->middleware('throttle:audited-writes')->name('settings.counseling-import.import');
+    // Filling in a record kept with its source PDF (an upload from before #565, or an import, flagged for review or not).
+    Route::post('/counseling/{counseling}/review', [CounselingReviewController::class, 'review'])->middleware('throttle:audited-writes')->name('counseling.review');
 
     // Audit-log review (Story 1.14). The whole screen is Admin-only (AC #4) — the gate is
     // enforced in the controller, not route middleware, matching every other Admin gate here.

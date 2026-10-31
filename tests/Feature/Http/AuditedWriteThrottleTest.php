@@ -104,9 +104,21 @@ it('puts the writes the 2026-10-28 review found unlimited on the right buckets',
         'changelog.outdated.dismiss' => 'audited-writes',
         // The import reads Cav on the request, so it shares the roster sync's tight bucket.
         'settings.org-structure.import' => 'roster-sync',
-        'counseling.store' => 'counseling-uploads',
+        'counseling.store' => 'audited-writes',
+        'counseling.update' => 'audited-writes',
+        'counseling.invite' => 'audited-writes',
+        'counseling.share' => 'audited-writes',
+        'counseling.withdraw' => 'audited-writes',
+        'counseling.respond' => 'audited-writes',
+        'counseling.decide' => 'audited-writes',
         'counseling.overturn' => 'audited-writes',
-        'counseling.preview' => 'audited-writes',
+        'counseling.document' => 'audited-writes',
+        'counseling.review' => 'audited-writes',
+        // The counseling import's check stores the uploaded CSV and PDFs (#565).
+        'settings.counseling-import.check' => 'counseling-uploads',
+        'settings.counseling-import.import' => 'audited-writes',
+        // Asking the forum to allow PMs is a handshake, like sign-in.
+        'auth.forum-pm' => 'login',
     ];
 
     foreach ($expected as $name => $limiter) {
@@ -203,22 +215,22 @@ it('gives report drafts and sends their own buckets: 120 drafts and 10 sends a m
     expect($this->postJson('/reports/999999/2026-10-03/send', [])->status())->not->toBe(429);
 });
 
-it('gives filing a DCS or LOR its own, tighter bucket: 10 uploads a minute per user', function () {
+it('gives the counseling import\'s upload its own, tighter bucket: 10 a minute per user', function () {
     $user = User::factory()->serving()->create();
     $other = User::factory()->serving()->create();
 
-    // No such trooper: each request is refused with a 404, and still spends a slot.
+    // Not an Admin: each request is refused, and still spends a slot.
     $this->actingAs($user);
     foreach (range(1, 10) as $i) {
-        expect($this->post('/troopers/999999/counseling', [])->status())->toBe(404);
+        expect($this->post('/settings/counseling-import/check', [])->status())->not->toBe(429);
     }
-    $this->post('/troopers/999999/counseling', [])->assertTooManyRequests();
+    $this->post('/settings/counseling-import/check', [])->assertTooManyRequests();
 
     // A separate bucket: the shared audited writes are untouched by it.
     expect($this->deleteJson('/reports/999999/2026-10-03/topic')->status())->not->toBe(429);
 
     $this->actingAs($other);
-    expect($this->post('/troopers/999999/counseling', [])->status())->toBe(404);
+    expect($this->post('/settings/counseling-import/check', [])->status())->not->toBe(429);
 });
 
 it('caps loading the act as list, a heavy read, at 20 a minute per user', function () {

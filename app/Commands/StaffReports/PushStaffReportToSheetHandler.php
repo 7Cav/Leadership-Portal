@@ -17,8 +17,8 @@ use App\Repositories\UnitRepository;
  * never adds a second row after a success it saw. A failure is rethrown for the queue to retry; the send it came from
  * stands either way.
  *
- * The timestamp is the push's own bookkeeping, like the counseling Drive copy's status, not a personnel action: it is
- * not audited (AD-16's carve-out for system jobs). The send is.
+ * The timestamp is the push's own bookkeeping, not a personnel action: it is not audited (AD-16's carve-out for system
+ * jobs). The send is.
  */
 class PushStaffReportToSheetHandler
 {

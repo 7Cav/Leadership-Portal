@@ -16,45 +16,48 @@ use App\Repositories\UnitCommandMappingRepository;
 use Illuminate\Support\Collection;
 
 /**
- * Who may file, see, correct and delete a trooper's counseling records (#381, AD-8), decided once per viewer and
+ * Who may start, see, share and withdraw a trooper's counseling records (#381, #565, AD-8), decided once per viewer and
  * trooper on top of the {@see ScopeResolver}, the way the regulations and the portal's rules put it:
  *
- *  - **File a DCS**: any leader whose command (billet, acting lead, a held billet, never a staff grant) reaches the
- *    trooper's unit: Section Leader and up, portfolio officers over their departments included. **File an LOR**: only
+ *  - **Start a DCS**: any leader whose command (billet, acting lead, a held billet, never a staff grant) reaches the
+ *    trooper's unit: Section Leader and up, portfolio officers over their departments included. **Start an LOR**: only
  *    command from platoon level up (Platoon Leader and Sergeant, company, battalion and regiment command, an acting
- *    lead of a platoon or above). An Admin may file either.
- *  - A command the trooper shares, or one inside the trooper's own command, does not count: a leader never files on,
+ *    lead of a platoon or above). An Admin may start either. Inviting on and sharing a draft need the same right.
+ *  - A command the trooper shares, or one inside the trooper's own command, does not count: a leader never starts one on,
  *    or sees the DCSs of, someone who holds the same unit (an ASL and their Section Leader, a Platoon Sergeant and their
  *    Platoon Leader) or a unit above theirs (the Section Leader of a trooper who is acting lead of their platoon), and
- *    nobody files on themselves. The next echelon up does.
- *  - **Their own records**: every trooper sees their own DCSs and LORs, read-only, on their own milpac page
- *    ({@see ScopeResolver::isOwnTrooper()}, decided 2026-10-28), with no command and no grant. They never file, correct
- *    or delete their own; that refusal is the same as before, except that an Admin by the `users.is_admin` flag keeps
- *    changing records as an Admin, their own included (an Admin by billet does not, 2026-10-29).
+ *    nobody starts one on themselves. The next echelon up does.
+ *  - **Their own records**: every trooper sees their own shared DCSs and LORs on their own milpac page
+ *    ({@see ScopeResolver::isOwnTrooper()}, decided 2026-10-28), with no command and no grant, and answers them. They
+ *    never start, edit a draft of, or delete their own, Admins included: a draft is never seen by the trooper it is on.
+ *    An Admin by the `users.is_admin` flag may still withdraw or fill in (review) a shared record of their own as an
+ *    Admin; an Admin by billet may not (2026-10-29).
  *  - "Themselves" is also the person really signed in while acting as someone ({@see RealActor}): acting as a billet
- *    or as a person never lets anyone file on, see the DCSs of, or change the records of the one doing the acting:
+ *    or as a person never lets anyone start one on, see the DCSs of, or change the records of the one doing the acting:
  *    their own page shows them their DCSs only as themselves, not through the identity they act as.
- *  - **See a DCS**: Admins, and every leader who could file one on the trooper, which is the chain from Platoon
- *    Leader up plus the trooper's own Section Leader and ASL. A staff grant does not. **See an LOR**: everyone who
- *    can see the trooper ({@see ScopeResolver::canSee()}). Nothing is seen of a trooper the viewer cannot see, but
- *    their own.
- *  - **Correct or delete**: Admins, and the commanders of the unit the record was filed through (the issuer and the
- *    chain above them), as long as they still see the record. A record with no issuing unit (filed by an Admin, or its
- *    unit deleted) is the Admins' alone.
- *  - **A frozen record**: 72 hours after a DCS or LOR is filed, its appeal window, nobody corrects or deletes it,
- *    Admins included ({@see CounselingPermissions::frozen()}). Only an LOR may then be overturned, by the **Regimental
- *    Executive Officer** (the serving holder of the billet titled so, which the org import maps to the regiment), with a
- *    reason; it stays on file. Never their own, never in a view-as preview, and only signed in as themselves, so nobody
- *    acting as anyone overturns, not an Admin acting as the RXO, not the RCO under the command team rule, and not the RXO
- *    while acting as someone else. A DCS has no overturn.
- *  - **The trooper's appeal**: within those 72 hours the trooper may file one appeal on an LOR, or one comment or
- *    dispute on a DCS ({@see CounselingPermissions::appeals()}), on their own record, signed in as themselves: never
- *    through act as or a view-as preview.
- *  - **An expired DCS** (90 days after it was counseled, {@see CounselingRecord::isExpired()}): seen
- *    by Admins only, read-only to everyone but them. Leaders and the trooper no longer see it.
- *  - **A trooper who has left the Cav** (not serving, {@see TrooperStatus::serving()}): nobody files, corrects or
- *    deletes, Admins included (2026-10-28). Who could see the records still sees and downloads them. Serving again
- *    makes them writable again.
+ *  - **See an active DCS**: Admins, and every leader who could file one on the trooper, which is the chain from
+ *    Platoon Leader up plus the trooper's own Section Leader and ASL. A staff grant does not. **See an inactive DCS**
+ *    (31 to 90 days after it was shared, #565): Platoon Leader and up and Admins only. **See an LOR**: everyone who can
+ *    see the trooper ({@see ScopeResolver::canSee()}). Nothing is seen of a trooper the viewer cannot see, but their own.
+ *  - **A draft** (#565): seen and worked on by its issuer, the commanders of the unit it was started through (the
+ *    chain above the issuer) and Admins, never by the trooper. A record with no issuing unit (started by an Admin, or
+ *    its unit deleted) is its issuer's and the Admins' alone. The same people withdraw a shared record before it
+ *    freezes ({@see CounselingPermissions::withdraws()}).
+ *  - **A frozen record**: 72 hours after a DCS or LOR is shared, or when an LOR's appeal is decided, nobody withdraws
+ *    it, Admins included ({@see CounselingPermissions::frozen()}). Only an LOR may then be overturned, by the
+ *    **Regimental Executive Officer** (the serving holder of the billet titled so, which the org import maps to the
+ *    regiment), with a reason; it stays on file. Never their own, never in a view-as preview, and only signed in as
+ *    themselves, so nobody acting as anyone overturns, not an Admin acting as the RXO, not the RCO under the command
+ *    team rule, and not the RXO while acting as someone else. A DCS has no overturn.
+ *  - **The trooper's response**: once a record is shared the trooper responds once, by its deadline
+ *    ({@see CounselingPermissions::responds()}), on their own record, signed in as themselves: never through act as or
+ *    a view-as preview. On an LOR that is where they ask to appeal.
+ *  - **The appeal**: decided by the commander of the unit one level above the one the LOR was issued through
+ *    ({@see leadsUnit()}, {@see CounselingPermissions::decidesAppeal()}).
+ *  - **An expired DCS** (90 days after it was shared, {@see CounselingRecord::isExpired()}): seen by Admins only.
+ *  - **A trooper who has left the Cav** (not serving, {@see TrooperStatus::serving()}): nobody starts, shares,
+ *    withdraws or responds, Admins included (2026-10-28). Who could see the records still sees and downloads them.
+ *    Serving again makes them writable again.
  *
  * Writes are judged on real authority narrowed by an active view-as preview ({@see ScopeResolver::writeScope()}); the
  * `ReadOnlyWhileViewingAs` middleware refuses them during a preview anyway. Reads follow the preview through `canSee`,
@@ -111,12 +114,41 @@ class CounselingAccess
             // An expired DCS is the Admins' alone, and follows a view-as preview like every other DCS read.
             seesExpired: $canSee && $readsAsAdmin,
             appealsOwn: $this->appealsOwn($user, $trooper),
+            // A DCS 31 to 90 days after it was shared: Platoon Leader and up (those who could file an LOR), and Admins.
+            seesInactiveDcs: $canSee && ($readsAsAdmin || $issuing[CounselingType::Lor->value] !== null),
+            readsDrafts: $canSee && $readsAsAdmin,
+            userId: $user->id,
+            leadsUnit: $this->leadsUnit($user),
         );
     }
 
     /**
+     * The unit the user leads whose LOR appeals are theirs to decide (#565): a line company or above their billet maps to, if
+     * they hold its lead billet ({@see UnitCommandMappingRepository::commandersOf()}, the CO of a company or a
+     * battalion, or the regiment's). Never in a view-as preview; an Admin acting as the commander decides as them, and the
+     * record names the Admin. Two queries for a commander, one for anyone else.
+     */
+    public function leadsUnit(User $user): ?int
+    {
+        if ($user->cav_id === null || $this->scope->activeViewAs($user) !== null) {
+            return null;
+        }
+
+        // An LOR is issued through a platoon or above, so its appeal is heard one level up: a company or above.
+        $unit = $this->commands->commandedUnitFor($user);
+        if ($unit === null || ! $unit->type->isLine() || $unit->type->rank() > UnitType::Company->rank()) {
+            return null;
+        }
+
+        $lead = $this->commands->commandersOf([$unit->id])->get($unit->id);
+
+        return $lead !== null && (int) $lead->cav_id === (int) $user->cav_id ? $unit->id : null;
+    }
+
+    /**
      * Whether `$trooper` is the viewer, signed in as themselves: nobody is acting as anyone on this request
-     * ({@see RealActor}) and no view-as preview is active. Only then may they appeal their own records.
+     * ({@see RealActor}) and no view-as preview is active. Only then may they respond to their own records (on an LOR,
+     * choose whether to appeal).
      */
     private function appealsOwn(User $user, Trooper $trooper): bool
     {

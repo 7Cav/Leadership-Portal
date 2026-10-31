@@ -5,15 +5,14 @@ namespace App\Commands\Counseling;
 use App\Models\CounselingType;
 
 /**
- * What a leader fills in when the portal makes the DCS or LOR document from the regiment's own form (7CAV-R-042 or
- * 7CAV-R-043) instead of taking an uploaded PDF. Section 1 (the date, the trooper and the issuing authority) is not
- * here: the portal fills it from its own records when it renders ({@see CounselingFormParties}), so nobody can type
- * another trooper or issuer into it.
+ * The leader's part of the regiment's form (7CAV-R-042 for a DCS, 7CAV-R-043 for an LOR, #565): what they fill in on
+ * the draft, field by field. Section 1 (the date, the trooper and the authority) is not here: the portal fills it from
+ * milpac, live on a draft and snapshotted when shared, so nobody can type another trooper or issuer into it. The
+ * trooper's part is {@see CounselingResponse}.
  *
- * Every field is plain text with a length cap. The text is only ever printed escaped by the Blade view
- * (`resources/views/pdf/counseling.blade.php`), so markup or Markdown in it stays text. The LOR fields (the recommended
- * consequence, the special punishments and the appeal choice) are dropped from a DCS, whose form covers them with fixed
- * text. The appeal outcome is a later step and is never filled in here.
+ * Every field is plain text with a length cap, printed as text wherever it shows. A draft may be saved with any of it
+ * empty; {@see missing()} says what share still needs. The LOR fields (the recommended consequence, the removal and the
+ * special punishments) are dropped from a DCS, whose form has none.
  */
 final readonly class CounselingForm
 {
@@ -25,66 +24,52 @@ final readonly class CounselingForm
 
     public const COMMENT_MAX = 1000;
 
-    /** The LOR's recommended consequences, as on the form. */
+    /** The LOR's recommended consequences, in the form's order (its `Check Box1` to `Check Box4`). */
     public const CONSEQUENCES = ['nfa', 'removal', 'article_15', 'special_punishment'];
 
-    /** What the 2nd-instance removal is from. */
+    /** What the 2nd-instance removal is from (the form's `Group2`). */
     public const REMOVALS = ['section_leader', 'assistant_section_leader'];
 
-    /** Whether the trooper wishes to appeal. */
-    public const APPEALS = ['do', 'do_not'];
+    /** The leader's fields, as stored in `form_data`. */
+    public const FIELDS = ['infraction', 'regulation', 'discussion', 'plan_authority', 'plan_other', 'comments_authority', 'comments_other', 'consequences', 'removal', 'special_punishments'];
 
     /**
      * @param  list<string>  $consequences
      */
     public function __construct(
-        public string $infraction,
-        public string $regulation,
-        public string $discussion,
-        public string $planAuthority,
-        public string $planTrooper = '',
+        public string $infraction = '',
+        public string $regulation = '',
+        public string $discussion = '',
+        public string $planAuthority = '',
         public string $planOther = '',
         public string $commentsAuthority = '',
-        public string $commentsTrooper = '',
         public string $commentsOther = '',
         public array $consequences = [],
         public ?string $removal = null,
         public string $specialPunishments = '',
-        public ?string $appeal = null,
     ) {}
 
     /**
-     * The request's rules for the form's fields, under `form.`. The type decides whether the LOR fields are asked for.
-     * A removal without its position is caught by {@see check()}.
+     * The request's rules for the leader's fields, under `form.`. Nothing is required: a draft saves as it stands.
      *
      * @return array<string, mixed>
      */
-    public static function rules(?CounselingType $type): array
+    public static function rules(): array
     {
-        $rules = [
-            'form' => ['required', 'array'],
-            'form.infraction' => ['required', 'string', 'max:'.self::LONG_MAX],
-            'form.regulation' => ['required', 'string', 'max:'.self::SHORT_MAX],
-            'form.discussion' => ['required', 'string', 'max:'.self::LONG_MAX],
-            'form.plan_authority' => ['required', 'string', 'max:'.self::PLAN_MAX],
-            'form.plan_trooper' => ['nullable', 'string', 'max:'.self::PLAN_MAX],
+        return [
+            'form' => ['nullable', 'array'],
+            'form.infraction' => ['nullable', 'string', 'max:'.self::LONG_MAX],
+            'form.regulation' => ['nullable', 'string', 'max:'.self::SHORT_MAX],
+            'form.discussion' => ['nullable', 'string', 'max:'.self::LONG_MAX],
+            'form.plan_authority' => ['nullable', 'string', 'max:'.self::PLAN_MAX],
             'form.plan_other' => ['nullable', 'string', 'max:'.self::PLAN_MAX],
             'form.comments_authority' => ['nullable', 'string', 'max:'.self::COMMENT_MAX],
-            'form.comments_trooper' => ['nullable', 'string', 'max:'.self::COMMENT_MAX],
             'form.comments_other' => ['nullable', 'string', 'max:'.self::COMMENT_MAX],
+            'form.consequences' => ['nullable', 'array', 'max:'.count(self::CONSEQUENCES)],
+            'form.consequences.*' => ['string', 'distinct', 'in:'.implode(',', self::CONSEQUENCES)],
+            'form.removal' => ['nullable', 'string', 'in:'.implode(',', self::REMOVALS)],
+            'form.special_punishments' => ['nullable', 'string', 'max:'.self::LONG_MAX],
         ];
-
-        if ($type === CounselingType::Lor) {
-            $rules += [
-                'form.consequences' => ['required', 'array', 'min:1', 'max:'.count(self::CONSEQUENCES)],
-                'form.consequences.*' => ['string', 'distinct', 'in:'.implode(',', self::CONSEQUENCES)],
-                'form.removal' => ['nullable', 'string', 'in:'.implode(',', self::REMOVALS)],
-                'form.special_punishments' => ['nullable', 'string', 'max:'.self::LONG_MAX],
-                'form.appeal' => ['required', 'string', 'in:'.implode(',', self::APPEALS)],
-            ];
-        }
-
-        return $rules;
     }
 
     /**
@@ -93,25 +78,17 @@ final readonly class CounselingForm
     public static function messages(): array
     {
         return [
-            'form.required' => 'Fill in the form.',
-            'form.infraction.required' => 'Give the infraction and its details.',
-            'form.regulation.required' => 'Give the regulation, order or SOP.',
-            'form.discussion.required' => 'Give the notes of the discussion.',
-            'form.plan_authority.required' => 'Give the plan of action for the authority.',
             'form.*.max' => 'Keep this to :max characters.',
-            'form.consequences.required' => 'Choose at least one recommended consequence.',
-            'form.consequences.min' => 'Choose at least one recommended consequence.',
             'form.consequences.max' => 'Choose a consequence from the list.',
             'form.consequences.*.in' => 'Choose a consequence from the list.',
             'form.consequences.*.distinct' => 'Choose a consequence from the list.',
             'form.removal.in' => 'Choose which position the removal is from.',
-            'form.appeal.required' => 'Say whether the trooper wishes to appeal.',
-            'form.appeal.in' => 'Say whether the trooper wishes to appeal.',
         ];
     }
 
     /**
-     * Build the form from validated input. Text is trimmed; for a DCS the LOR fields are dropped.
+     * Build the form from validated input (or from a stored `form_data`). Text is trimmed; for a DCS the LOR fields are
+     * dropped; a removal is kept only with the removal consequence.
      *
      * @param  array<string, mixed>  $input
      */
@@ -127,71 +104,76 @@ final readonly class CounselingForm
             regulation: $text('regulation'),
             discussion: $text('discussion'),
             planAuthority: $text('plan_authority'),
-            planTrooper: $text('plan_trooper'),
             planOther: $text('plan_other'),
             commentsAuthority: $text('comments_authority'),
-            commentsTrooper: $text('comments_trooper'),
             commentsOther: $text('comments_other'),
             consequences: $consequences,
             removal: in_array('removal', $consequences, true) && in_array($input['removal'] ?? null, self::REMOVALS, true) ? $input['removal'] : null,
             specialPunishments: $lor ? $text('special_punishments') : '',
-            appeal: $lor && in_array($input['appeal'] ?? null, self::APPEALS, true) ? $input['appeal'] : null,
         );
     }
 
     /**
-     * The checks the handler makes again, whatever the request already checked.
+     * The length caps the handler checks again, whatever the request already checked.
      *
      * @throws InvalidCounselingRecordException
      */
-    public function check(CounselingType $type): void
+    public function check(): void
     {
-        $required = [
-            'infraction' => [$this->infraction, self::LONG_MAX, 'Give the infraction and its details.'],
-            'regulation' => [$this->regulation, self::SHORT_MAX, 'Give the regulation, order or SOP.'],
-            'discussion' => [$this->discussion, self::LONG_MAX, 'Give the notes of the discussion.'],
-            'plan_authority' => [$this->planAuthority, self::PLAN_MAX, 'Give the plan of action for the authority.'],
-        ];
-
-        foreach ($required as $field => [$value, $max, $missing]) {
-            if ($value === '') {
-                throw new InvalidCounselingRecordException("form.{$field}", $missing);
-            }
-            self::cap($field, $value, $max);
-        }
-
-        $optional = [
-            'plan_trooper' => [$this->planTrooper, self::PLAN_MAX],
+        $caps = [
+            'infraction' => [$this->infraction, self::LONG_MAX],
+            'regulation' => [$this->regulation, self::SHORT_MAX],
+            'discussion' => [$this->discussion, self::LONG_MAX],
+            'plan_authority' => [$this->planAuthority, self::PLAN_MAX],
             'plan_other' => [$this->planOther, self::PLAN_MAX],
             'comments_authority' => [$this->commentsAuthority, self::COMMENT_MAX],
-            'comments_trooper' => [$this->commentsTrooper, self::COMMENT_MAX],
             'comments_other' => [$this->commentsOther, self::COMMENT_MAX],
             'special_punishments' => [$this->specialPunishments, self::LONG_MAX],
         ];
 
-        foreach ($optional as $field => [$value, $max]) {
-            self::cap($field, $value, $max);
-        }
-
-        if ($type !== CounselingType::Lor) {
-            return;
-        }
-
-        if ($this->consequences === []) {
-            throw new InvalidCounselingRecordException('form.consequences', 'Choose at least one recommended consequence.');
-        }
-
-        if (in_array('removal', $this->consequences, true) && $this->removal === null) {
-            throw new InvalidCounselingRecordException('form.removal', 'Choose which position the removal is from.');
-        }
-
-        if ($this->appeal === null) {
-            throw new InvalidCounselingRecordException('form.appeal', 'Say whether the trooper wishes to appeal.');
+        foreach ($caps as $field => [$value, $max]) {
+            if (mb_strlen($value) > $max) {
+                throw new InvalidCounselingRecordException("form.{$field}", "Keep this to {$max} characters.");
+            }
         }
     }
 
     /**
-     * What is stored on the record (`form_data`) and printed: the leader's fields only, never section 1.
+     * What share still needs of the leader's fields, as `field => message`, in the form's order: the infraction and
+     * its regulation, the notes of discussion and the leader's plan of action, and on an LOR a recommended consequence
+     * (with the position, for a removal).
+     *
+     * @return array<string, string>
+     */
+    public function missing(CounselingType $type): array
+    {
+        $missing = [];
+        $required = [
+            'infraction' => [$this->infraction, 'Give the infraction and its details.'],
+            'regulation' => [$this->regulation, 'Give the regulation, order or SOP.'],
+            'discussion' => [$this->discussion, 'Write the notes of discussion.'],
+            'plan_authority' => [$this->planAuthority, 'Write your plan of action.'],
+        ];
+
+        foreach ($required as $field => [$value, $message]) {
+            if ($value === '') {
+                $missing[$field] = $message;
+            }
+        }
+
+        if ($type === CounselingType::Lor) {
+            if ($this->consequences === []) {
+                $missing['consequences'] = 'Choose at least one recommended consequence.';
+            } elseif (in_array('removal', $this->consequences, true) && $this->removal === null) {
+                $missing['removal'] = 'Choose which position the removal is from.';
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
+     * The leader's fields as stored in `form_data`, beside the trooper's ({@see CounselingResponse::toArray()}).
      *
      * @return array<string, mixed>
      */
@@ -202,22 +184,12 @@ final readonly class CounselingForm
             'regulation' => $this->regulation,
             'discussion' => $this->discussion,
             'plan_authority' => $this->planAuthority,
-            'plan_trooper' => $this->planTrooper,
             'plan_other' => $this->planOther,
             'comments_authority' => $this->commentsAuthority,
-            'comments_trooper' => $this->commentsTrooper,
             'comments_other' => $this->commentsOther,
             'consequences' => $this->consequences,
             'removal' => $this->removal,
             'special_punishments' => $this->specialPunishments,
-            'appeal' => $this->appeal,
         ];
-    }
-
-    private static function cap(string $field, string $value, int $max): void
-    {
-        if (mb_strlen($value) > $max) {
-            throw new InvalidCounselingRecordException("form.{$field}", "Keep this to {$max} characters.");
-        }
     }
 }

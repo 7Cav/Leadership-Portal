@@ -4,10 +4,13 @@ namespace App\Http\Middleware;
 
 use App\Authorization\ActAs;
 use App\Authorization\ChangelogAccess;
+use App\Authorization\CounselingAccess;
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffReportAccess;
 use App\Kpi\Headcount;
 use App\Repositories\AdminBilletRepository;
+use App\Repositories\CounselingRecordRepository;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -27,6 +30,8 @@ class HandleInertiaRequests extends Middleware
         private readonly ActAs $actAs,
         private readonly Headcount $headcount,
         private readonly AdminBilletRepository $adminBillets,
+        private readonly CounselingAccess $counselingAccess,
+        private readonly CounselingRecordRepository $counselingRecords,
         private readonly StaffReportAccess $staffReports,
         private readonly ChangelogAccess $changelog,
     ) {}
@@ -101,6 +106,13 @@ class HandleInertiaRequests extends Middleware
                 && $this->scope->activeViewAs($request->user()) === null
                 && $this->scope->managesAnyTemplates($request->user()),
             'adminBilletsPending' => fn () => $request->user() && $this->scope->actsAsAdmin($request->user()) ? $this->adminBillets->pendingCount() : 0,
+            // The sidebar's Appeals item (#565), only for a commander who hears LOR appeals from the units directly under
+            // theirs (`counselingAppeals`), with the number waiting for them. Navigation only: the page and the decision
+            // check for themselves.
+            'counselingAppeals' => fn () => $request->user() !== null && $this->counselingAccess->leadsUnit($request->user()) !== null,
+            'counselingAppealsPending' => fn () => $request->user() !== null && ($unitId = $this->counselingAccess->leadsUnit($request->user())) !== null
+                ? $this->counselingRecords->pendingAppealCount($unitId, CarbonImmutable::now())
+                : 0,
             // `actAs`: whether the banner offers to act as the preview's target, which only a real Admin may (the
             // server checks again on the start).
             'viewAs' => fn () => $request->user() && ($preview = $this->scope->activeViewAs($request->user())) !== null

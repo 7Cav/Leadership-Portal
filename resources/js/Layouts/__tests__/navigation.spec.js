@@ -112,6 +112,20 @@ describe('navigation', () => {
     it('locates the Demo data page for its breadcrumb', () => {
         expect(locate('/settings/demo-data').item.label).toBe('Demo data');
     });
+
+    it('shows Appeals only to a commander who hears appeals (counselingAppeals), Admins included (#565)', () => {
+        const items = (isAdmin, props) => visibleGroups(isAdmin, {}, props).flatMap((group) => group.items.map((item) => item.label));
+
+        expect(items(false, { counselingAppeals: true })).toContain('Appeals');
+        expect(items(false, { counselingAppeals: false })).not.toContain('Appeals');
+        expect(items(true, {})).not.toContain('Appeals');
+    });
+
+    it('treats a DCS or LOR as a child of Roster, but keeps Appeals its own item', () => {
+        expect(locate('/counseling/12')).toMatchObject({ item: { href: '/roster' }, nested: true });
+        expect(locate('/counseling/appeals').item.label).toBe('Appeals');
+        expect(isActive('/counseling/appeals', '/roster')).toBe(false);
+    });
 });
 
 describe('resolveLayout', () => {

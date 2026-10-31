@@ -215,9 +215,9 @@ it('counts rate limits against the Admin really signed in, not the person acted 
     $secondTrooper = Trooper::factory()->create(['cav_id' => 902, 'status' => TrooperStatus::Combat]);
     $second = User::factory()->create(['cav_id' => 902, 'forum_user_id' => $secondTrooper->forum_user_id]);
     $trooper = Trooper::factory()->create(['primary_section_id' => $this->section->id, 'status' => TrooperStatus::Combat]);
-    $upload = fn () => $this->actingAs($this->admin)->post("/troopers/{$trooper->id}/counseling", []);
+    $upload = fn () => $this->actingAs($this->admin)->post('/settings/counseling-import/check', []);
 
-    // The counseling upload limit is 10 a minute. Every attempt counts, refused or not.
+    // The counseling import's upload limit is 10 a minute. Every attempt counts, refused or not.
     startActing($this);
     foreach (range(1, 10) as $attempt) {
         expect($upload()->status())->not->toBe(429);

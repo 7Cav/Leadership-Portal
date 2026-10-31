@@ -4,13 +4,11 @@ use App\Authorization\CounselingPermissions;
 use App\Authorization\ViewAs;
 use App\Authorization\ViewAsKind;
 use App\Authorization\ViewAsTarget;
-use App\Commands\Counseling\CorrectCounselingRecord;
-use App\Commands\Counseling\CorrectCounselingRecordHandler;
 use App\Commands\Counseling\CounselingForbiddenException;
-use App\Commands\Counseling\DeleteCounselingRecord;
-use App\Commands\Counseling\DeleteCounselingRecordHandler;
 use App\Commands\Counseling\OverturnCounselingRecord;
 use App\Commands\Counseling\OverturnCounselingRecordHandler;
+use App\Commands\Counseling\WithdrawCounselingRecord;
+use App\Commands\Counseling\WithdrawCounselingRecordHandler;
 use App\Models\AdminBillet;
 use App\Models\AdminBilletStatus;
 use App\Models\AuditLogEntry;
@@ -26,9 +24,8 @@ use Illuminate\Support\Facades\Storage;
 
 require_once __DIR__.'/fixture.php';
 
-// S6, 2026-10-29: an LOR is frozen 72 hours after it is filed, its appeal window (the wiki: 24 hours to say they appeal,
-// the appeal done within 72, no further appeal). Until then whoever may change it still can; after it nobody corrects or
-// deletes it, Admins included. Only the Regimental Executive Officer may then overturn it, with a reason: it stays on
+// S6, 2026-10-29, and #565: an LOR is frozen 72 hours after it is shared (or when its appeal is decided). Until then the
+// issuer's chain may still withdraw it back to draft; after it nobody withdraws or deletes it, Admins included. Only the Regimental Executive Officer may then overturn it, with a reason: it stays on
 // file, marked overturned, and stops counting toward the counseling rules. A DCS freezes the same way but has no
 // overturn (DcsFreezeAndAppealTest).
 
@@ -59,7 +56,7 @@ beforeEach(function () {
     $this->rifleman = $this->tree['rifleman'];
     $this->rxo = freezeHolder(500, 'Vance.R', 'Regimental Executive Officer', $this->tree['units']['regiment']);
     $this->rco = freezeHolder(501, 'Stone.A', 'Regimental Commanding Officer', $this->tree['units']['regiment']);
-    $this->lor = CounselingRecord::factory()->lor()->filedHoursAgo()->create([
+    $this->lor = CounselingRecord::factory()->lor()->sharedHoursAgo()->create([
         'trooper_id' => $this->rifleman->id,
         'issued_by' => $this->tree['users']['pl']->id,
         'issuer_unit_id' => $this->tree['units']['platoon']->id,
@@ -67,61 +64,54 @@ beforeEach(function () {
         'reason' => 'Disrespect toward an NCO.',
     ]);
     Storage::disk('counseling')->put($this->lor->document_path, counselingPdfBytes('frozen-lor'));
-    $this->correction = [
-        'counseled_on' => now()->subDays(5)->toDateString(),
-        'reason' => 'Disrespect toward an NCO, twice.',
-        'audit_reason' => 'Count was wrong.',
-    ];
+    counselingFakeForum();
+    $this->withdraw = fn (User $as, CounselingRecord $record) => $this->actingAs($as)->withSession(counselingPmSession($as))
+        ->post(route('counseling.withdraw', $record->id), ['reason' => 'Wrong trooper.']);
 });
 
-it('freezes an LOR exactly 72 hours after it is filed, not a second before', function () {
-    $filed = CarbonImmutable::now()->subDays(10)->setTime(18, 30);
-    $lor = CounselingRecord::factory()->lor()->create([
-        'trooper_id' => $this->rifleman->id, 'issuer_unit_id' => $this->tree['units']['platoon']->id,
-        'counseled_on' => $filed->toDateString(), 'created_at' => $filed, 'updated_at' => $filed,
+it('freezes an LOR exactly 72 hours after it is shared, not a second before', function () {
+    $shared = CarbonImmutable::now()->subDays(10)->setTime(18, 30);
+    $make = fn () => CounselingRecord::factory()->lor()->create([
+        'trooper_id' => $this->rifleman->id, 'issued_by' => $this->tree['users']['pl']->id, 'issuer_unit_id' => $this->tree['units']['platoon']->id,
+        'counseled_on' => $shared->toDateString(), 'created_at' => $shared, 'updated_at' => $shared, 'shared_at' => $shared,
     ]);
-    $this->correction['counseled_on'] = $filed->toDateString();
+    $lor = $make();
 
-    expect(CounselingPermissions::frozen($lor, $filed->addHours(72)->subSecond()))->toBeFalse()
-        ->and(CounselingPermissions::frozen($lor, $filed->addHours(72)))->toBeTrue();
+    expect(CounselingPermissions::frozen($lor, $shared->addHours(72)->subSecond()))->toBeFalse()
+        ->and(CounselingPermissions::frozen($lor, $shared->addHours(72)))->toBeTrue();
 
-    $this->travelTo($filed->addHours(72)->subSecond());
-    $this->actingAs($this->tree['users']['pl'])->patch(route('counseling.update', $lor->id), $this->correction)->assertRedirect();
-    expect($lor->fresh()->reason)->toBe('Disrespect toward an NCO, twice.');
+    $this->travelTo($shared->addHours(72)->subSecond());
+    ($this->withdraw)($this->tree['users']['pl'], $lor)->assertSessionHasNoErrors();
+    expect($lor->fresh()->isDraft())->toBeTrue();
 
-    $this->travelTo($filed->addHours(72));
-    $this->actingAs($this->tree['users']['pl'])
-        ->patch(route('counseling.update', $lor->id), [...$this->correction, 'reason' => 'Changed again.'])
-        ->assertForbidden();
-    expect($lor->fresh()->reason)->toBe('Disrespect toward an NCO, twice.');
+    $late = $make();
+    $this->travelTo($shared->addHours(72));
+    ($this->withdraw)($this->tree['users']['pl'], $late)->assertForbidden();
+    expect($late->fresh()->isShared())->toBeTrue();
 });
 
-it('judges the window from when the LOR was filed, never from the date it carries', function () {
-    // Dated a month back but filed an hour ago: still in its window.
-    $late = CounselingRecord::factory()->lor()->filedHoursAgo(1)->create([
-        'trooper_id' => $this->rifleman->id, 'issuer_unit_id' => $this->tree['units']['platoon']->id,
+it('judges the window from when the LOR was shared, never from the date it carries', function () {
+    // Dated a month back but shared an hour ago: still in its window.
+    $late = CounselingRecord::factory()->lor()->sharedHoursAgo(1)->create([
+        'trooper_id' => $this->rifleman->id, 'issued_by' => $this->tree['users']['pl']->id, 'issuer_unit_id' => $this->tree['units']['platoon']->id,
         'counseled_on' => now()->subDays(30)->toDateString(),
     ]);
 
-    $this->actingAs($this->tree['users']['pl'])->patch(route('counseling.update', $late->id), $this->correction)->assertRedirect();
-    expect($late->fresh()->reason)->toBe('Disrespect toward an NCO, twice.');
+    ($this->withdraw)($this->tree['users']['pl'], $late)->assertSessionHasNoErrors();
+    expect($late->fresh()->isDraft())->toBeTrue();
 });
 
-it('refuses every correction and delete of a frozen LOR, the flag Admin and the issuer included, with a message that says why', function () {
+it('refuses every withdrawal of a frozen LOR, the flag Admin and the issuer included, with a message that says why', function () {
     foreach (['admin', 'pl', 'co'] as $who) {
-        $user = $this->tree['users'][$who];
-        $this->actingAs($user)->patch(route('counseling.update', $this->lor->id), $this->correction)->assertForbidden();
-        $this->actingAs($user)->delete(route('counseling.destroy', $this->lor->id), ['audit_reason' => 'Upheld appeal.'])->assertForbidden();
+        ($this->withdraw)($this->tree['users'][$who], $this->lor)->assertForbidden();
+        $this->actingAs($this->tree['users'][$who])->delete(route('counseling.destroy', $this->lor->id))->assertForbidden();
     }
 
-    $message = 'This LOR was filed more than 72 hours ago, so it can no longer be changed. The Regimental Executive Officer can overturn it.';
     $admin = $this->tree['users']['admin'];
-    expect(fn () => app(CorrectCounselingRecordHandler::class)->handle($admin, new CorrectCounselingRecord($this->lor->id, CarbonImmutable::now()->subDay(), 'New.', 'Typo.')))
-        ->toThrow(CounselingForbiddenException::class, $message)
-        ->and(fn () => app(DeleteCounselingRecordHandler::class)->handle($admin, new DeleteCounselingRecord($this->lor->id, 'Upheld appeal.')))
-        ->toThrow(CounselingForbiddenException::class, $message);
+    expect(fn () => app(WithdrawCounselingRecordHandler::class)->handle($admin, new WithdrawCounselingRecord($this->lor->id, 'Upheld appeal.', null)))
+        ->toThrow(CounselingForbiddenException::class, 'This LOR is locked, so it can no longer be withdrawn. The Regimental Executive Officer can overturn it.');
 
-    expect($this->lor->fresh()->reason)->toBe('Disrespect toward an NCO.')
+    expect($this->lor->fresh()->isShared())->toBeTrue()
         ->and(AuditLogEntry::query()->count())->toBe(0);
     Storage::disk('counseling')->assertExists($this->lor->document_path);
 });
@@ -138,8 +128,8 @@ it('refuses an Admin by billet a frozen LOR too', function () {
     ]);
     $chief = User::factory()->create(['cav_id' => 600]);
 
-    $this->actingAs($chief)->delete(route('counseling.destroy', $this->lor->id), ['audit_reason' => 'Upheld appeal.'])->assertForbidden();
-    expect(CounselingRecord::query()->find($this->lor->id))->not->toBeNull();
+    ($this->withdraw)($chief, $this->lor)->assertForbidden();
+    expect($this->lor->fresh()->isShared())->toBeTrue();
 });
 
 it('lets the RXO overturn a frozen LOR: kept on file, marked, audited with the reason', function () {
@@ -147,7 +137,7 @@ it('lets the RXO overturn a frozen LOR: kept on file, marked, audited with the r
 
     $this->actingAs($this->rxo)
         ->post(route('counseling.overturn', $this->lor->id), ['reason' => 'Appeal upheld by the RXO after review.'])
-        ->assertRedirect(route('troopers.show', $this->rifleman->id));
+        ->assertRedirect();
 
     $record = $this->lor->fresh();
     expect($record)->not->toBeNull()
@@ -166,8 +156,7 @@ it('lets the RXO overturn a frozen LOR: kept on file, marked, audited with the r
     // Whoever could see it still sees it, overturned, and can download it.
     $props = freezeProps($this, $this->tree['users']['grant'], $this->rifleman);
     expect($props['records'][0]['overturned'])->toBe(['date' => '2026-10-29', 'by' => 'Vance.R', 'reason' => 'Appeal upheld by the RXO after review.'])
-        ->and($props['records'][0]['canChange'])->toBeFalse()
-        ->and($props['records'][0]['canOverturn'])->toBeFalse();
+        ->and($props['records'][0]['can']['overturn'])->toBeFalse();
     $this->actingAs($this->tree['users']['grant'])->get(route('counseling.document', $this->lor->id))->assertOk();
     $this->actingAs($this->tree['users']['pl'])
         ->get(route('counseling.document', $this->lor->id))->assertOk();
@@ -196,7 +185,7 @@ it('refuses an overturn by anyone but the RXO, Admins and the RCO as themselves 
 });
 
 it('refuses the RXO an LOR filed on themselves', function () {
-    $own = CounselingRecord::factory()->lor()->filedHoursAgo()->create([
+    $own = CounselingRecord::factory()->lor()->sharedHoursAgo()->create([
         'trooper_id' => Trooper::query()->where('cav_id', $this->rxo->cav_id)->sole()->id,
         'issued_by' => $this->rco->id,
         'issuer_unit_id' => $this->tree['units']['regiment']->id,
@@ -204,16 +193,16 @@ it('refuses the RXO an LOR filed on themselves', function () {
 
     $this->actingAs($this->rxo)->post(route('counseling.overturn', $own->id), ['reason' => 'Mine.'])->assertForbidden();
     expect(fn () => app(OverturnCounselingRecordHandler::class)->handle($this->rxo, new OverturnCounselingRecord($own->id, 'Mine.')))
-        ->toThrow(CounselingForbiddenException::class, 'You cannot overturn an LOR filed on yourself.');
+        ->toThrow(CounselingForbiddenException::class, 'You cannot overturn an LOR on yourself.');
     expect($own->fresh()->overturned_at)->toBeNull();
 });
 
 it('refuses to overturn an LOR still in its window, a DCS, or one already overturned', function () {
-    $open = CounselingRecord::factory()->lor()->filedHoursAgo(71)->create(['trooper_id' => $this->rifleman->id]);
-    $dcs = CounselingRecord::factory()->filedHoursAgo()->create(['trooper_id' => $this->rifleman->id]);
+    $open = CounselingRecord::factory()->lor()->sharedHoursAgo(71)->create(['trooper_id' => $this->rifleman->id]);
+    $dcs = CounselingRecord::factory()->sharedHoursAgo()->create(['trooper_id' => $this->rifleman->id]);
 
     $overturn = fn (int $id) => app(OverturnCounselingRecordHandler::class)->handle($this->rxo, new OverturnCounselingRecord($id, 'Appeal upheld.'));
-    expect(fn () => $overturn($open->id))->toThrow(CounselingForbiddenException::class, 'This LOR is still in its 72-hour appeal window.')
+    expect(fn () => $overturn($open->id))->toThrow(CounselingForbiddenException::class, 'This LOR is not locked yet.')
         ->and(fn () => $overturn($dcs->id))->toThrow(CounselingForbiddenException::class, 'Only a Letter of Reprimand can be overturned.');
 
     $overturn($this->lor->id);
@@ -221,12 +210,11 @@ it('refuses to overturn an LOR still in its window, a DCS, or one already overtu
         ->and(AuditLogEntry::query()->where('action', 'counseling.overturned')->count())->toBe(1);
 });
 
-it('keeps an overturned LOR on file for good: nobody corrects or deletes it, the Admin included', function () {
+it('keeps an overturned LOR on file for good: nobody withdraws or deletes it, the Admin included', function () {
     app(OverturnCounselingRecordHandler::class)->handle($this->rxo, new OverturnCounselingRecord($this->lor->id, 'Appeal upheld.'));
 
-    $this->actingAs($this->tree['users']['admin'])->delete(route('counseling.destroy', $this->lor->id), ['audit_reason' => 'Clean up.'])->assertForbidden();
-    expect(fn () => app(DeleteCounselingRecordHandler::class)->handle($this->tree['users']['admin'], new DeleteCounselingRecord($this->lor->id, 'Clean up.')))
-        ->toThrow(CounselingForbiddenException::class, 'This LOR was overturned, so it can no longer be changed.');
+    ($this->withdraw)($this->tree['users']['admin'], $this->lor)->assertForbidden();
+    $this->actingAs($this->tree['users']['admin'])->delete(route('counseling.destroy', $this->lor->id))->assertForbidden();
     expect(CounselingRecord::query()->find($this->lor->id))->not->toBeNull();
 });
 
@@ -238,7 +226,7 @@ it('lets the RXO overturn a departed trooper\'s LOR, which corrects the record',
 });
 
 it('stops counting an overturned LOR toward the flags, the no favorable action period and the forecast', function () {
-    $second = CounselingRecord::factory()->lor()->conduct()->filedHoursAgo()->create([
+    $second = CounselingRecord::factory()->lor()->conduct()->sharedHoursAgo()->create([
         'trooper_id' => $this->rifleman->id, 'issuer_unit_id' => $this->tree['units']['platoon']->id,
         'counseled_on' => now()->subDays(40)->toDateString(),
     ]);
@@ -269,25 +257,30 @@ it('drops an overturned LOR from the no favorable action banner', function () {
     expect(freezeProps($this, $this->tree['users']['pl'], $this->rifleman)['warnings'])->toBe([]);
 });
 
-it('offers Overturn to the RXO only, on frozen LORs only, and Correct on none of them', function () {
-    $open = CounselingRecord::factory()->lor()->filedHoursAgo(2)->create([
-        'trooper_id' => $this->rifleman->id, 'issuer_unit_id' => $this->tree['units']['platoon']->id,
+it('offers Overturn to the RXO only, on frozen LORs only, and Withdraw only on a record not yet locked', function () {
+    $open = CounselingRecord::factory()->lor()->sharedHoursAgo(2)->create([
+        'trooper_id' => $this->rifleman->id, 'issued_by' => $this->tree['users']['pl']->id, 'issuer_unit_id' => $this->tree['units']['platoon']->id,
     ]);
 
     $rxo = collect(freezeProps($this, $this->rxo, $this->rifleman)['records'])->keyBy('id');
-    expect($rxo[$this->lor->id])->toMatchArray(['frozen' => true, 'canOverturn' => true, 'canChange' => false, 'overturned' => null])
-        ->and($rxo[$open->id])->toMatchArray(['frozen' => false, 'canOverturn' => false]);
+    expect($rxo[$this->lor->id]['frozen'])->toBeTrue()
+        ->and($rxo[$this->lor->id]['can']['overturn'])->toBeTrue()
+        ->and($rxo[$this->lor->id]['overturned'])->toBeNull()
+        ->and($rxo[$open->id]['frozen'])->toBeFalse()
+        ->and($rxo[$open->id]['can']['overturn'])->toBeFalse();
 
     $admin = collect(freezeProps($this, $this->tree['users']['admin'], $this->rifleman)['records'])->keyBy('id');
-    expect($admin[$this->lor->id])->toMatchArray(['frozen' => true, 'canOverturn' => false, 'canChange' => false])
-        ->and($admin[$open->id])->toMatchArray(['frozen' => false, 'canChange' => true]);
+    expect($admin[$this->lor->id]['can']['overturn'])->toBeFalse();
+
+    expect($this->actingAs($this->tree['users']['pl'])->get(route('counseling.show', $open->id))->viewData('page')['props']['can']['withdraw'])->toBeTrue()
+        ->and($this->actingAs($this->tree['users']['pl'])->get(route('counseling.show', $this->lor->id))->viewData('page')['props']['can']['withdraw'])->toBeFalse();
 });
 
 it('refuses an Admin acting as the RXO: only the RXO, signed in as themselves, overturns', function () {
     $admin = $this->tree['users']['admin'];
     $this->actingAs($admin)->post('/act-as', ['kind' => 'user', 'id' => $this->rxo->id])->assertRedirect('/home');
 
-    expect(collect(freezeProps($this, $admin, $this->rifleman)['records'])->firstWhere('id', $this->lor->id)['canOverturn'])->toBeFalse();
+    expect(collect(freezeProps($this, $admin, $this->rifleman)['records'])->firstWhere('id', $this->lor->id)['can']['overturn'])->toBeFalse();
     $this->actingAs($admin)->post(route('counseling.overturn', $this->lor->id), ['reason' => 'Appeal upheld.'])
         ->assertForbidden()
         ->assertSee('Only the Regimental Executive Officer, signed in as themselves, can overturn an LOR.');
@@ -299,7 +292,7 @@ it('refuses an Admin acting as the RXO: only the RXO, signed in as themselves, o
 it('refuses the RCO acting as the RXO under the command team rule', function () {
     $this->actingAs($this->rco)->post('/act-as', ['kind' => 'user', 'id' => $this->rxo->id])->assertRedirect('/home');
 
-    expect(collect(freezeProps($this, $this->rco, $this->rifleman)['records'])->firstWhere('id', $this->lor->id)['canOverturn'])->toBeFalse();
+    expect(collect(freezeProps($this, $this->rco, $this->rifleman)['records'])->firstWhere('id', $this->lor->id)['can']['overturn'])->toBeFalse();
     $this->actingAs($this->rco)->post(route('counseling.overturn', $this->lor->id), ['reason' => 'Appeal upheld.'])->assertForbidden();
 
     expect($this->lor->fresh()->overturned_at)->toBeNull();
@@ -309,7 +302,7 @@ it('lets the RXO overturn again once signed in as themselves, after an act as en
     $this->actingAs($this->rco)->post('/act-as', ['kind' => 'user', 'id' => $this->rxo->id])->assertRedirect('/home');
     $this->actingAs($this->rco)->delete('/act-as');
 
-    expect(collect(freezeProps($this, $this->rxo, $this->rifleman)['records'])->firstWhere('id', $this->lor->id)['canOverturn'])->toBeTrue();
+    expect(collect(freezeProps($this, $this->rxo, $this->rifleman)['records'])->firstWhere('id', $this->lor->id)['can']['overturn'])->toBeTrue();
     $this->actingAs($this->rxo)->post(route('counseling.overturn', $this->lor->id), ['reason' => 'Appeal upheld.'])->assertRedirect();
 
     expect($this->lor->fresh())
@@ -320,7 +313,7 @@ it('lets the RXO overturn again once signed in as themselves, after an act as en
 it('never lets the RXO overturn during a view-as preview, and offers nothing then', function () {
     app(ViewAs::class)->enter($this->rxo, new ViewAsTarget(ViewAsKind::Unit, $this->tree['units']['platoon']->id));
 
-    expect(collect(freezeProps($this, $this->rxo, $this->rifleman)['records'])->firstWhere('id', $this->lor->id)['canOverturn'])->toBeFalse();
+    expect(collect(freezeProps($this, $this->rxo, $this->rifleman)['records'])->firstWhere('id', $this->lor->id)['can']['overturn'])->toBeFalse();
     $this->actingAs($this->rxo)->post(route('counseling.overturn', $this->lor->id), ['reason' => 'Appeal upheld.'])->assertForbidden();
     expect($this->lor->fresh()->overturned_at)->toBeNull();
 });

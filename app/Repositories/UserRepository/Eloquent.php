@@ -84,6 +84,23 @@ class Eloquent implements UserRepository
         return User::query()->where('username', $username)->orderBy('id')->get();
     }
 
+    public function idsByUsername(array $usernames): array
+    {
+        $wanted = array_values(array_unique(array_map(fn (string $name) => mb_strtolower($name), $usernames)));
+
+        if ($wanted === []) {
+            return [];
+        }
+
+        $found = [];
+
+        foreach (User::query()->whereIn(DB::raw('lower(username)'), $wanted)->orderBy('id')->get(['id', 'username']) as $user) {
+            $found[mb_strtolower($user->username)][] = $user->id;
+        }
+
+        return $found;
+    }
+
     public function firstAdmin(): ?User
     {
         return User::query()->where('is_admin', true)->orderBy('id')->first();

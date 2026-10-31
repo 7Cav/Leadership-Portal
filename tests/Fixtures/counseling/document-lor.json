@@ -1,0 +1,44 @@
+{
+    "template": "7CAV-R-043",
+    "fileName": "LOR 2026-10-29 Brandt.L.pdf",
+    "version": 3,
+    "text": {
+        "Date of Letter": "29 Oct 2026",
+        "RankTrooper": "PFC",
+        "Name LastFTrooper": "Brandt.L",
+        "BilletTrooper": "Rifleman",
+        "RankDisciplining Authority": "2LT",
+        "Name LastFDisciplining Authority": "Mercer.J",
+        "BilletDisciplining Authority": "Platoon Leader",
+        "Evidenced infraction and associated details  Previous instances and counsellings": "Missed section practice on 10, 17 and 24 Oct.",
+        "Associated regulation  order  SOP": "Platoon SOP, attendance.",
+        "Notes of discussion": "Shifts changed.",
+        "Counselling Authority": "Weekly check-in.",
+        "Counselling Authority2": "Post an LOA.",
+        "Counselling Authority3": "SL confirms attendance.",
+        "Counselling AuthorityAny comments": "Good talk.",
+        "TrooperAny comments": "Understood.",
+        "Misc  OthersAny comments": "None.",
+        "Any Instance  30 Days NFA 2nd Instance in 90 days  Removal from Section Leader position if applicable Assistant Section Leader position if applicable Unit Commander escalation to Article 15 Commanders Investigation Any special punishment directed by a General Staff Officer to followSpecial punishments ordered": "To follow."
+    },
+    "checks": [
+        "Check Box1",
+        "Check Box2",
+        "Check Box3",
+        "Check Box4"
+    ],
+    "radios": [
+        {
+            "group": "Group2",
+            "pick": "bottom"
+        },
+        {
+            "group": "Group4",
+            "pick": "right"
+        },
+        {
+            "group": "Group3",
+            "pick": "left"
+        }
+    ]
+}

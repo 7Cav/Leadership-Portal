@@ -2,85 +2,149 @@
 
 namespace App\Repositories;
 
+use App\Models\AppealOutcome;
 use App\Models\CounselingKind;
 use App\Models\CounselingRecord;
 use App\Models\CounselingType;
-use App\Models\DriveUploadStatus;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 /**
- * Sole DB access for `counseling_records` (AD-2, #381). Portal-owned (AD-22): the audited `app/Commands/Counseling`
- * Commands are its one writer, plus the Drive upload's status, which the queued upload moves along. The document
- * itself is on the private disk, behind {@see CounselingDocuments}.
+ * Sole DB access for `counseling_records` (AD-2, #381, #565). Portal-owned (AD-22): the audited `app/Commands/Counseling`
+ * Commands are its one writer. A source document itself is on the private disk, behind {@see CounselingDocuments}.
+ *
+ * Every write that changes a record re-reads it under a lock in the caller's transaction and checks it is still in the
+ * step the write expects, so two writes at once cannot both land: it answers null when the record is gone or has moved
+ * on. Every write raises `version` by one.
  */
 interface CounselingRecordRepository
 {
-    /**
-     * Store a new record. Every column is named here, none taken from a request as a whole.
-     */
-    public function create(
+    /** Start a draft. Every column is named here, none taken from a request as a whole. */
+    public function startDraft(
         int $trooperId,
         CounselingType $type,
         CounselingKind $kind,
-        CarbonImmutable $counseledOn,
-        string $reason,
         int $issuedBy,
         ?int $issuedByAdmin,
         ?int $issuedAsUnit,
         ?int $issuerUnitId,
-        StoredDocument $document,
-        DriveUploadStatus $driveStatus,
-        ?array $formData = null,
     ): CounselingRecord;
 
     /**
-     * Whether the trooper already has a record of `$type` with this date, reason and document (by SHA-256) filed at or
-     * after `$since`: a double submit. Called inside the filing's transaction, it first locks the trooper's row, so two
-     * filings on one trooper run one after the other and the second sees the first; the read itself is a locking one,
-     * so it sees the latest committed rows whatever snapshot the transaction holds. With `$formData` (a document the
-     * portal generated) the form is compared in place of the document's hash.
+     * Save a draft as it stands: its type and kind, the unit it is issued through (which follows the type: an LOR goes
+     * through platoon command or above), the Date of Letter, the leader's fields and whether the meeting took place.
+     * Null when it is gone or no longer a draft.
+     *
+     * @param  array<string, mixed>  $formData  the leader's fields, as the counseling form names them
      */
-    public function filedSince(int $trooperId, CounselingType $type, CarbonImmutable $counseledOn, string $reason, string $sha256, CarbonImmutable $since, ?array $formData = null): bool;
+    public function saveDraft(CounselingRecord $record, CounselingType $type, CounselingKind $kind, ?CarbonImmutable $counseledOn, array $formData, bool $meetingConfirmed, ?int $issuerUnitId): ?CounselingRecord;
+
+    /**
+     * Mark a draft invited: the meeting windows and when the invite went. Null when it is gone or no longer a draft.
+     *
+     * @param  list<string>  $windows
+     */
+    public function invite(CounselingRecord $record, array $windows, CarbonImmutable $at): ?CounselingRecord;
+
+    /**
+     * Share a draft: Section 1 as it stands (`$snapshot`), when, and the unit whose commander would decide an appeal.
+     * Null when it is gone or no longer a draft.
+     *
+     * @param  array<string, mixed>  $snapshot
+     */
+    public function share(CounselingRecord $record, array $snapshot, CarbonImmutable $at, ?int $appealUnitId): ?CounselingRecord;
+
+    /**
+     * Take a shared record back to draft, with when and why; the snapshot and any response are cleared. Null when it is
+     * gone, not shared, frozen or overturned, or the trooper has asked to appeal.
+     */
+    public function withdraw(CounselingRecord $record, CarbonImmutable $at, string $reason): ?CounselingRecord;
+
+    /**
+     * The trooper's one response: their fields beside the leader's, and on an LOR they appeal, when and why. Null when
+     * it is gone, not shared, or already answered.
+     *
+     * @param  array<string, mixed>  $trooperFields  the trooper's fields, as the counseling response names them
+     */
+    public function respond(CounselingRecord $record, CarbonImmutable $at, int $by, array $trooperFields, ?string $appealStatement): ?CounselingRecord;
+
+    /**
+     * The appeal authority's decision: when, by whom, the outcome and why, their rank, name and billet then, and for an
+     * amendment the leader's fields as amended, with the consequence as first written kept in `appeal_original`. Null
+     * when it is gone or its appeal is not pending.
+     *
+     * @param  array{rank: string, name: string, billet: string}  $authority
+     * @param  array<string, mixed>|null  $amended  the consequence fields as amended, or null when not amended
+     */
+    public function decideAppeal(CounselingRecord $record, CarbonImmutable $at, int $by, ?int $byAdmin, AppealOutcome $outcome, string $reason, array $authority, ?array $amended): ?CounselingRecord;
+
+    /**
+     * Mark an LOR overturned (S6, 2026-10-29): when, by whom (with the one acting as them, and the billet held, as for a
+     * record's issuer) and why. Null when the record is gone or already overturned. Nothing else on the record changes.
+     */
+    public function overturn(CounselingRecord $record, CarbonImmutable $at, int $by, ?int $byAdmin, ?int $asUnit, string $reason): ?CounselingRecord;
+
+    /**
+     * Delete the record, so the model handed back (and digested by the audit log) is the row as it was deleted. Null
+     * when it is already gone.
+     */
+    public function delete(CounselingRecord $record): ?CounselingRecord;
+
+    /**
+     * Store a record brought in by the counseling import (#565): shared and acknowledged on its date, with its source
+     * document, the key that keeps a re-run from duplicating it, and whether its fields still need someone to fill them in.
+     *
+     * @param  array<string, mixed>|null  $formData
+     */
+    public function createImported(
+        int $trooperId,
+        CounselingType $type,
+        CounselingKind $kind,
+        CarbonImmutable $counseledOn,
+        int $issuedBy,
+        ?int $issuerUnitId,
+        StoredDocument $document,
+        string $importKey,
+        bool $needsReview,
+        ?array $formData,
+    ): CounselingRecord;
+
+    /**
+     * Which of `$keys` (Drive file ids or SHA-256s) are already in the portal: an import used it, or a record keeps a
+     * source document with that SHA-256 (a PDF uploaded before #565 included).
+     *
+     * @param  list<string>  $keys
+     * @return list<string>
+     */
+    public function importedKeys(array $keys): array;
+
+    /**
+     * Fill in the fields of a record kept with a source document (an upload or an import), and clear its review flag.
+     * Null when it is gone.
+     *
+     * @param  array<string, mixed>  $formData
+     */
+    public function review(CounselingRecord $record, CounselingType $type, CounselingKind $kind, CarbonImmutable $counseledOn, array $formData): ?CounselingRecord;
 
     /** The record with its trooper loaded, or null. */
     public function find(int $id): ?CounselingRecord;
 
     /**
-     * A trooper's records, newest first (by date, then by id), each with its issuer, the Admin who filed it for them
-     * and the billet held loaded, and the same for whoever overturned it, so the page names them without a query per
-     * record.
+     * A trooper's records, drafts first, then newest first (by date, then by id), each with whoever started, responded
+     * to, decided and overturned it loaded, so the page names them without a query per record.
      *
      * @return Collection<int, CounselingRecord>
      */
     public function forTrooper(int $trooperId): Collection;
 
-    /** Correct the date and the reason. The type and the document never change. */
-    public function update(CounselingRecord $record, CarbonImmutable $counseledOn, string $reason): CounselingRecord;
-
     /**
-     * Mark an LOR overturned (S6, 2026-10-29): when, by whom (with the one acting as them, and the billet held, as on a
-     * filing) and why. Re-read under a lock in the caller's transaction, so two overturns at once cannot both land: null
-     * when the record is gone or already overturned. Nothing else on the record changes.
+     * The LORs whose appeal `$unitId`'s commander decides, appealed ones not yet decided first (by when asked), then the
+     * decided ones of the last `$decidedDays` days, each with its trooper and issuer loaded.
+     *
+     * @return Collection<int, CounselingRecord>
      */
-    public function overturn(CounselingRecord $record, CarbonImmutable $at, int $by, ?int $byAdmin, ?int $asUnit, string $reason): ?CounselingRecord;
+    public function appealsFor(int $unitId, int $decidedDays = 90): Collection;
 
-    /**
-     * Record the trooper's appeal (LOR) or comment or dispute (DCS): when, by whom and what they wrote. On an LOR made
-     * from the portal's form, the form's appeal answer becomes `do`. Re-read under a lock in the caller's transaction,
-     * so two at once cannot both land: null when the record is gone or already appealed.
-     */
-    public function appeal(CounselingRecord $record, CarbonImmutable $at, int $by, string $statement): ?CounselingRecord;
-
-    /**
-     * Delete the record, re-read under a lock in the caller's transaction so the model handed back (and digested by
-     * the audit log) is the row as it was deleted. Null when it is already gone.
-     */
-    public function delete(CounselingRecord $record): ?CounselingRecord;
-
-    /**
-     * Set where the record's Drive copy stands, with the Drive file id once uploaded. A record deleted in the meantime
-     * is left alone: null.
-     */
-    public function setDriveStatus(int $id, DriveUploadStatus $status, ?string $driveFileId = null): ?CounselingRecord;
+    /** How many appeals `$unitId`'s commander has to decide now: asked for, not decided, not yet lapsed. */
+    public function pendingAppealCount(int $unitId, CarbonImmutable $now): int;
 }

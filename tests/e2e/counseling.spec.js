@@ -1,9 +1,29 @@
 import { expect, test } from '@playwright/test';
 
-// #381: filing and seeing Developmental Counseling Statements and Letters of Reprimand on the trooper page. Against
-// CounselingSeeder: Lindqvist.P leads 1/F/1-7 and Sato.K its 1st Section; their rifleman Novak.E already has a DCS for a
-// missed section practice and an LOR for other conduct from 20 days ago. Google Drive is not configured here, so records
-// stay in the portal only.
+// #565: writing a Developmental Counseling Statement in the portal, and the official form filled in the browser.
+// Against CounselingSeeder: Lindqvist.P leads 1/F/1-7 and Sato.K its 1st Section; their rifleman Novak.E already has a
+// DCS for a missed section practice and an LOR for other conduct, written in the portal and shared 20 days ago. There
+// is no forum here, so no PM can be sent: the share step asks the leader to allow PMs and shares nothing.
+
+// The record page, its live form and the PDF filled in the browser (pdf-lib, a lazily loaded chunk) must load under the
+// enforced content security policy: any violation fails the test, as in content-security-policy.spec.js.
+test.beforeEach(async ({ page }, testInfo) => {
+    const violations = [];
+    testInfo.violations = violations;
+    await page.exposeFunction('__reportCspViolation', (violation) => violations.push(violation));
+    await page.addInitScript(() => {
+        document.addEventListener('securitypolicyviolation', (event) => {
+            window.__reportCspViolation(`${event.violatedDirective} blocked ${event.blockedURI || 'inline'}`);
+        });
+    });
+    page.on('console', (message) => {
+        if (message.type() === 'error' && /Content Security Policy/i.test(message.text())) violations.push(message.text());
+    });
+});
+
+test.afterEach(async ({}, testInfo) => {
+    expect(testInfo.violations).toEqual([]);
+});
 
 async function openNovak(page, leader) {
     await page.goto(`/__e2e/login/${leader}?to=/roster`);
@@ -14,55 +34,67 @@ async function openNovak(page, leader) {
     return page.getByTestId('counseling-panel');
 }
 
-test('a platoon leader files an LOR with its PDF, sees it listed and flagged, and downloads it', async ({ page }) => {
-    const panel = await openNovak(page, 'Lindqvist.P');
-
-    await expect(panel.getByTestId('counseling-record')).toHaveCount(2);
-    await expect(panel.locator('[data-testid="counseling-record"][data-type="dcs"]')).toContainText('Missed two section practices without notice.');
-    // The seeded LOR is 20 days old: no favorable action for 10 more days.
-    await expect(panel.getByTestId('counseling-warning-no-favorable-action')).toContainText('No favorable action until');
-
-    await panel.getByTestId('counseling-file-open').click();
-    await panel.getByTestId('counseling-type').selectOption('lor');
-    await panel.getByTestId('counseling-kind').selectOption('conduct');
-    await expect(panel.getByTestId('counseling-hint-lor-removal')).toHaveText('2nd LOR within 90 days: removal as SL or ASL is authorized.');
-    await panel.getByTestId('counseling-reason').fill('Left practice early without telling the section leader.');
-    await panel.getByTestId('counseling-document').setInputFiles({
-        name: 'novak-lor.pdf',
-        mimeType: 'application/pdf',
-        buffer: Buffer.from('%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n'),
-    });
-    await panel.getByTestId('counseling-submit').click();
-
-    await expect(page.getByText('Letter of Reprimand filed')).toBeVisible();
-    await expect(panel.getByTestId('counseling-record')).toHaveCount(3);
-    const filed = panel.getByTestId('counseling-record').filter({ hasText: 'Left practice early' });
-    await expect(filed.getByTestId('counseling-type-badge')).toContainText('LOR');
-    await expect(filed.getByTestId('counseling-issuer')).toHaveText('Filed by Lindqvist.P');
-    await expect(filed.getByTestId('counseling-drive')).toHaveText('Portal only');
-    await expect(filed.getByTestId('counseling-flag-lor-removal')).toBeVisible();
-    await expect(filed.getByTestId('counseling-kind-text')).toHaveText('Other conduct');
-
-    const href = await filed.getByTestId('counseling-download').getAttribute('href');
-    const download = await page.request.get(href);
-    expect(download.status()).toBe(200);
-    expect(download.headers()['content-type']).toBe('application/pdf');
-    expect(download.headers()['content-disposition']).toMatch(/^attachment; filename="LOR \d{4}-\d{2}-\d{2} Novak\.E\.pdf"$/);
-    expect((await download.body()).toString()).toContain('%PDF-1.4');
-});
-
-test('a section leader sees the trooper\'s DCS and LOR, and may file only a DCS', async ({ page }) => {
+test('a section leader writes a DCS draft step by step, saves it, and is asked to allow PMs before sharing', async ({ page }) => {
     const panel = await openNovak(page, 'Sato.K');
 
-    await expect(panel.locator('[data-testid="counseling-record"][data-type="dcs"]').first()).toContainText('Filed by Sato.K');
-    // The other test may file another LOR at the same time, so find the seeded one by its reason.
-    await expect(panel.getByTestId('counseling-record').filter({ hasText: 'Disrespect toward an NCO during practice.' })).toHaveAttribute('data-type', 'lor');
+    await expect(panel.locator('[data-testid="counseling-record"][data-type="lor"]').first()).toBeVisible();
 
-    await panel.getByTestId('counseling-file-open').click();
-    await expect(panel.getByTestId('counseling-type').locator('option')).toHaveText(['Developmental Counseling Statement (DCS)']);
-    await panel.getByTestId('counseling-kind').selectOption('missed_practice');
-    await expect(panel.getByTestId('counseling-hint-missed-lor')).toHaveText('Second miss within 30 days of the last: an LOR is called for.');
-    // The seeded LOR for other conduct is 20 days old: a DCS for other conduct today is inside its 30 days.
-    await panel.getByTestId('counseling-kind').selectOption('conduct');
-    await expect(panel.getByTestId('counseling-hint-dcs-after-lor')).toHaveText('Within 30 days of an LOR: the regulation calls for a repeat LOR, not a DCS, if it is for the same issue.');
+    await panel.getByTestId('counseling-start-open').click();
+    const dialog = page.getByTestId('counseling-start-dialog');
+    // A Section Leader may start a DCS only.
+    await expect(dialog.getByTestId('counseling-start-type-lor')).toHaveCount(0);
+    await dialog.getByTestId('counseling-start-kind').selectOption('missed_practice');
+    await dialog.getByTestId('counseling-start-submit').click();
+
+    await expect(page).toHaveURL(/\/counseling\/\d+$/);
+    const recordUrl = page.url();
+
+    // The type and kind are chosen, so the draft opens on 2 · What happened.
+    await page.getByTestId('draft-infraction').fill('Missed section practice on 10, 17 and 24 Oct without an LOA.');
+    await page.getByTestId('draft-regulation').fill('1/F/1-7 Platoon SOP, attendance.');
+    await page.getByTestId('step-continue').click();
+    await expect(page.getByTestId('draft-saved')).toBeVisible();
+
+    // 3 · Meeting invite: a DCS may skip it.
+    await page.getByTestId('step-continue').click();
+
+    // 4 · The meeting.
+    await page.getByTestId('draft-date').fill(new Date(Date.now() - 86_400_000).toISOString().slice(0, 10));
+    await page.getByTestId('draft-discussion').fill('Shifts changed; we went through the LOA process together.');
+    await page.getByTestId('draft-plan-authority').fill('Check in weekly before practice for four weeks.');
+    await page.getByTestId('draft-meeting-confirmed').check();
+    await page.getByTestId('draft-save').click();
+    await expect(page.getByTestId('draft-saved')).toBeVisible();
+
+    // The draft survives a reload, and the live form shows what was written.
+    await page.goto(recordUrl);
+    await expect(page.getByTestId('form-preview')).toContainText('Shifts changed; we went through the LOA process together.');
+
+    // 6 · Review and share: nothing missing, but no PM can go without the forum's permission.
+    // The draft reopens on its first step still to do; with everything filled in that is the share step itself.
+    if (await page.getByTestId('step-edit-share').isVisible()) {
+        await page.getByTestId('step-edit-share').click();
+    }
+    await expect(page.getByTestId('share-step')).toBeVisible();
+    await expect(page.getByTestId('share-blocked').locator('li')).toHaveCount(0);
+    await expect(page.getByTestId('pm-consent-link')).toBeVisible();
+    await expect(page.getByTestId('share-submit')).toBeDisabled();
+
+    // Still a draft: the trooper's milpac lists it first, to continue.
+    await page.getByTestId('back-to-trooper').click();
+    await expect(page.getByTestId('counseling-panel').getByTestId('counseling-record').first().getByTestId('counseling-continue')).toBeVisible();
+});
+
+test('a platoon leader downloads the seeded LOR as the official R-043, filled in the browser', async ({ page }) => {
+    const panel = await openNovak(page, 'Lindqvist.P');
+    const lor = panel.locator('[data-testid="counseling-record"][data-type="lor"]').first();
+
+    const [download] = await Promise.all([page.waitForEvent('download'), lor.getByTestId('counseling-download').click()]);
+
+    expect(download.suggestedFilename()).toMatch(/^LOR \d{4}-\d{2}-\d{2} Novak\.E\.pdf$/);
+    const chunks = [];
+    for await (const chunk of await download.createReadStream()) chunks.push(chunk);
+    const bytes = Buffer.concat(chunks);
+    expect(bytes.subarray(0, 5).toString()).toBe('%PDF-');
+    expect(bytes.length).toBeGreaterThan(10_000);
 });

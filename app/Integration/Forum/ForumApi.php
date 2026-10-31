@@ -11,6 +11,7 @@ use App\Integration\Forum\Requests\ExchangeCodeRequest;
 use App\Integration\Forum\Requests\FetchProfileRequest;
 use App\Integration\Forum\Requests\FetchThreadRequest;
 use App\Integration\Forum\Requests\ListForumThreadsRequest;
+use App\Integration\Forum\Requests\StartConversationRequest;
 use Carbon\CarbonImmutable;
 use JsonException;
 use Saloon\Exceptions\Request\FatalRequestException;
@@ -38,6 +39,12 @@ use TypeError;
  */
 class ForumApi
 {
+    /**
+     * The XenForo scope that lets the portal send a PM from the user's own account (#565). Not an env key: it is the
+     * forum's name for the permission, granted to the OAuth client in the 7cav.us admin.
+     */
+    public const CONVERSATION_SCOPE = 'conversation:write';
+
     /**
      * `api_key` and `loa_nodes` are only needed for reading leave threads: `loa_nodes` maps each forum
      * section id that holds them to the kind of leave posted there (`loa` or `eloa`).
@@ -167,11 +174,47 @@ class ForumApi
      */
     public function authorizeUrl(string $state): string
     {
+        return $this->authorizeUrlFor($state, $this->config['scopes']);
+    }
+
+    /**
+     * The authorize URL of the PM consent (#565): the sign-in scopes plus {@see CONVERSATION_SCOPE}, asked only of a
+     * user about to send a counseling PM, never at sign-in, so a trooper who never sends one never grants it.
+     */
+    public function conversationAuthorizeUrl(string $state): string
+    {
+        return $this->authorizeUrlFor($state, array_values(array_unique([...$this->config['scopes'], self::CONVERSATION_SCOPE])));
+    }
+
+    /**
+     * Send a PM from the user whose token this is: a forum conversation with `$recipientIds` (forum user ids). Answers
+     * the new conversation's id.
+     *
+     * @param  list<int>  $recipientIds
+     *
+     * @throws ForumRequestException when the forum refuses it (401 or 403: the token no longer serves), cannot be
+     *                               reached, or answers without a conversation id
+     */
+    public function startConversation(#[\SensitiveParameter] string $accessToken, array $recipientIds, string $title, string $message): int
+    {
+        $request = new StartConversationRequest($recipientIds, $title, $message);
+        $request->authenticate(new TokenAuthenticator($accessToken));
+
+        $id = $this->sendForJson($request, ForumRequestException::conversationFailed(...))['conversation']['conversation_id'] ?? null;
+
+        return is_int($id) ? $id : throw ForumRequestException::malformedConversation();
+    }
+
+    /**
+     * @param  list<string>  $scopes
+     */
+    private function authorizeUrlFor(string $state, array $scopes): string
+    {
         $query = http_build_query([
             'response_type' => 'code',
             'client_id' => $this->config['client_id'],
             'redirect_uri' => $this->config['redirect_uri'],
-            'scope' => implode(' ', $this->config['scopes']),
+            'scope' => implode(' ', $scopes),
             'state' => $state,
         ]);
 

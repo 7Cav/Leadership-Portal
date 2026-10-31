@@ -132,18 +132,16 @@ return [
     ],
 
     /*
-    | Google Drive — where a copy of every counseling document (DCS, LOR) goes (#381, AD-3). A service
-    | account's machine credential, read from env only (AD-23): its email and private key from the
-    | account's JSON key file, and the id of the folder (in a shared drive) it uploads into. Any of the
-    | three unset means documents stay in the portal only and the upload is skipped.
+    | Google service account — the machine credential the reports Google Sheet push signs in as (AD-3). Read
+    | from env only (AD-23): its email and private key from the account's JSON key file. The portal keeps no
+    | copy of anything on Google Drive (#565). Either unset means nothing is pushed.
     */
-    'google_drive' => [
-        'service_account_email' => env('GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL'),
-        'private_key' => env('GOOGLE_DRIVE_PRIVATE_KEY'),
-        'folder_id' => env('GOOGLE_DRIVE_FOLDER_ID'),
+    'google_service_account' => [
+        'service_account_email' => env('GOOGLE_SERVICE_ACCOUNT_EMAIL'),
+        'private_key' => env('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY'),
     ],
 
-    // The reports Google Sheet a sent weekly staff report is copied to, through the same service account. With no
+    // The reports Google Sheet a sent weekly staff report is copied to, through that service account. With no
     // spreadsheet id nothing is pushed.
     'google_sheets' => [
         'spreadsheet_id' => env('GOOGLE_SHEETS_REPORTS_SPREADSHEET_ID'),

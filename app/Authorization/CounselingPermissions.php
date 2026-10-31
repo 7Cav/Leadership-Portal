@@ -7,36 +7,46 @@ use App\Models\CounselingType;
 use Carbon\CarbonImmutable;
 
 /**
- * What one viewer may do with one trooper's counseling records (#381), worked out once by {@see CounselingAccess} so a
- * page listing many records asks the ScopeResolver once, not once per record. `$departed`: the trooper has left the Cav,
- * so nothing may be filed on them, corrected or deleted, by anyone; what could be seen still is.
+ * What one viewer may do with one trooper's counseling records (#381, #565), worked out once by {@see CounselingAccess}
+ * so a page listing many records asks the ScopeResolver once, not once per record. `$departed`: the trooper has left the
+ * Cav, so nothing may be started, shared, withdrawn or answered on them, by anyone; what could be seen still is.
  *
- * A DCS or LOR is **frozen** 72 hours after it was filed ({@see frozen()}). Until then the issuer's chain (and Admins)
- * may still correct or delete it (a typo, the wrong trooper, an upheld appeal), and the trooper may file one appeal on
- * an LOR, or one comment or dispute on a DCS ({@see appeals()}). From then on nobody corrects or deletes it, Admins
- * included, by flag or by billet. Only an LOR may then be overturned, by the Regimental Executive Officer
- * ({@see overturns()}), which keeps it on file; a DCS has no overturn. A frozen DCS still expires after 90 days.
+ * **Seeing a record** ({@see seesRecord()}):
+ *  - A **draft** (or invited) record: its issuer, their chain (the commanders of the unit it was started through) and
+ *    Admins. Never the trooper.
+ *  - A shared **DCS**: while **active** (30 days after it was shared) the trooper and their chain as before
+ *    ({@see $seesDcs}); while **inactive** (to 90 days) Platoon Leader and up and Admins ({@see $seesInactiveDcs}), not
+ *    the trooper and not their Section Leader or ASL; once **expired**, Admins only ({@see $seesExpired}).
+ *  - A shared **LOR**: everyone who can see the trooper, permanently ({@see $seesLor}).
  *
- * An **expired DCS** ({@see CounselingRecord::isExpired()}, 90 days after it was counseled) is seen by Admins only
- * ({@see $seesExpired}): to anyone else, the trooper themselves included, it is as if it did not exist. Leaders never
- * correct or delete it; Admins keep their rights over it.
+ * **Working on a draft** ({@see editsDraft()}): its issuer, their chain and Admins, never on themselves. **Withdrawing**
+ * a shared record back to draft ({@see withdraws()}): the same people, before it freezes and before an appeal.
+ * **Responding** ({@see responds()}): the trooper, signed in as themselves, once, before {@see CounselingRecord::respondBy()}.
+ * **Deciding an appeal** ({@see decidesAppeal()}): the commander of the record's appeal unit, while the appeal is
+ * pending. **Overturning** a frozen LOR ({@see overturns()}): the Regimental Executive Officer, as before.
  */
 final readonly class CounselingPermissions
 {
-    /** How long after it is filed a DCS or LOR may still be corrected, deleted or appealed: its appeal window. */
-    public const APPEAL_HOURS = CounselingRecord::APPEAL_HOURS;
+    /** How long after it is shared a DCS or LOR may still be withdrawn: then it freezes. */
+    public const LOCK_HOURS = CounselingRecord::LOCK_HOURS;
 
     /**
-     * @param  array<string, ?int>  $issuingUnits  per type value, the unit the viewer would file through (null: none)
+     * @param  array<string, ?int>  $issuingUnits  per type value, the unit the viewer would start a record through (null: none)
      * @param  list<int>  $writeScope  the viewer's write scope (AD-8), narrowed by an active view-as
-     * @param  bool  $flagAdmin  an Admin by the `users.is_admin` flag, as themselves: the only one who changes their own
+     * @param  bool  $flagAdmin  an Admin by the `users.is_admin` flag, as themselves: the only one who works on their own
      *                           records (an Admin by billet does not, 2026-10-29)
      * @param  bool  $regimentalXo  the person really signed in holds the Regimental Executive Officer billet, signed in as
      *                              themselves (nobody acting as anyone, no view-as preview): the one who may overturn a
      *                              frozen LOR
      * @param  bool  $seesExpired  an Admin reading as one: the only one who sees an expired DCS
      * @param  bool  $appealsOwn  the viewer is the trooper, signed in as themselves: nobody acting as anyone and no
-     *                            view-as preview. The only one who may appeal their records
+     *                            view-as preview. The only one who may respond to their records
+     * @param  bool  $seesInactiveDcs  Platoon Leader and up over the trooper, or an Admin reading as one: who sees a DCS
+     *                                 31 to 90 days after it was shared
+     * @param  bool  $readsDrafts  an Admin reading as one: sees every draft
+     * @param  ?int  $userId  the identity the request runs as: a draft's issuer always sees it
+     * @param  ?int  $leadsUnit  the unit the viewer commands (its lead billet), outside a view-as preview: the appeals
+     *                           of records whose appeal unit it is are theirs to decide
      */
     public function __construct(
         public bool $seesDcs,
@@ -52,21 +62,16 @@ final readonly class CounselingPermissions
         public bool $regimentalXo,
         public bool $seesExpired = false,
         public bool $appealsOwn = false,
+        public bool $seesInactiveDcs = false,
+        public bool $readsDrafts = false,
+        public ?int $userId = null,
+        public ?int $leadsUnit = null,
     ) {}
 
-    /**
-     * Whether `$record` is frozen: filed {@see APPEAL_HOURS} hours ago or more, a DCS or an LOR (exactly 72 hours after
-     * filing it is frozen). Judged from when it was filed (`created_at`), never from the date it carries, on the
-     * server's clock.
-     */
+    /** Whether `$record` is frozen ({@see CounselingRecord::isFrozen()}), on the server's clock. */
     public static function frozen(CounselingRecord $record, ?CarbonImmutable $now = null): bool
     {
-        $freezesAt = $record->freezesAt();
-        if ($freezesAt === null) {
-            return false;
-        }
-
-        return ($now ?? CarbonImmutable::now())->greaterThanOrEqualTo($freezesAt);
+        return $record->isFrozen($now);
     }
 
     public function sees(CounselingType $type): bool
@@ -74,10 +79,22 @@ final readonly class CounselingPermissions
         return $type === CounselingType::Dcs ? $this->seesDcs : $this->seesLor;
     }
 
-    /** Whether the viewer sees `$record`: its type, and an expired DCS only as an Admin. */
+    /** Whether the viewer sees `$record`: a draft as its issuer's chain, a shared DCS by its window, an LOR always. */
     public function seesRecord(CounselingRecord $record): bool
     {
-        return $this->sees($record->type) && ($this->seesExpired || ! $record->isExpired());
+        if ($record->isDraft()) {
+            return $this->seesLor && ! $this->self && ($this->readsDrafts || $this->inIssuersChain($record));
+        }
+
+        if ($record->type === CounselingType::Lor) {
+            return $this->seesLor;
+        }
+
+        return match ($record->dcsPhase()) {
+            'active' => $this->seesDcs,
+            'inactive' => $this->seesInactiveDcs,
+            default => $this->seesExpired,
+        };
     }
 
     public function files(CounselingType $type): bool
@@ -85,42 +102,74 @@ final readonly class CounselingPermissions
         return $type === CounselingType::Dcs ? $this->filesDcs : $this->filesLor;
     }
 
-    /** The unit a new record of `$type` is filed through: the lowest command of the viewer's that reaches the trooper. */
+    /** The unit a new record of `$type` is started through: the lowest command of the viewer's that reaches the trooper. */
     public function issuingUnit(CounselingType $type): ?int
     {
         return $this->issuingUnits[$type->value] ?? null;
     }
 
     /**
-     * Whether the viewer may correct or delete `$record`: they must see it, and be an Admin or command the unit it was
-     * filed through (that unit's subtree is in their write scope, so the issuer and the chain above them qualify).
-     * A leader must also still reach the trooper from above: one the trooper now commands, or who now shares the
-     * trooper's command, no longer changes what was filed before. Nobody changes the records of a departed trooper.
-     * Nobody changes their own, except an Admin by the flag: an Admin by billet holds it because of Cav's billet list,
-     * not because someone chose them, so their own records stay out of their reach like anyone's. Nobody changes a
-     * frozen record ({@see frozen()}) or an overturned LOR, Admins included. Only an Admin changes an expired DCS.
+     * Whether the viewer may save, invite on, share or delete the draft `$record`: they see it (never the trooper it is
+     * on, an Admin by flag included: a draft is not seen by its trooper), the trooper still serves, and they are an Admin,
+     * its issuer, or command the unit it was started through while still reaching the trooper from above. Inviting and
+     * sharing also need the right to start its type ({@see files()}), which the handlers check.
      */
-    public function changes(CounselingRecord $record): bool
+    public function editsDraft(CounselingRecord $record): bool
     {
-        if ($record->isOverturned() || self::frozen($record)) {
-            return false;
-        }
+        return $record->isDraft() && ! $record->isOverturned() && $this->worksOn($record);
+    }
 
-        if ($this->departed || ! $this->seesRecord($record) || $this->self && ! $this->flagAdmin) {
-            return false;
-        }
+    /**
+     * Whether the viewer may withdraw `$record` back to draft: shared, not frozen, the trooper has not asked to appeal,
+     * and the viewer could have worked on it as a draft.
+     */
+    public function withdraws(CounselingRecord $record): bool
+    {
+        return $record->isShared()
+            && ! $record->isOverturned()
+            && ! $record->isAppealed()
+            && ! $record->isFrozen()
+            && $this->worksOn($record);
+    }
 
-        if ($this->admin) {
-            return true;
-        }
+    /**
+     * Whether the viewer may respond to `$record`: they are the trooper, signed in as themselves, they see it, it is
+     * shared, not yet answered, not withdrawn or overturned, and its {@see CounselingRecord::respondBy()} has not passed.
+     */
+    public function responds(CounselingRecord $record, ?CarbonImmutable $now = null): bool
+    {
+        return $this->appealsOwn
+            && ! $this->departed
+            && $record->isShared()
+            && $this->seesRecord($record)
+            && ! $record->isResponded()
+            && ! $record->isOverturned()
+            && ($now ?? CarbonImmutable::now())->lessThan($record->respondBy());
+    }
 
-        if ($record->isExpired()) {
-            return false;
-        }
+    /**
+     * Whether the viewer may fill in the fields of `$record` kept with its source PDF (an upload from before #565, or an
+     * import, flagged for review or not): its issuer, their chain and Admins, on a trooper who still serves. The source
+     * document itself never changes, and the record is not locked by this: it only gains the fields its PDF carries.
+     */
+    public function reviews(CounselingRecord $record): bool
+    {
+        return $record->hasSourceDocument() && ! $record->isDraft() && ! $record->isOverturned() && $this->worksOn($record);
+    }
 
-        return $this->issuingUnit(CounselingType::Dcs) !== null
-            && $record->issuer_unit_id !== null
-            && in_array((int) $record->issuer_unit_id, $this->writeScope, true);
+    /**
+     * Whether the viewer is the appeal authority of `$record` and its appeal is still pending. Never the one who issued
+     * it: a commander who issued an LOR through a platoon they also lead does not hear its appeal.
+     */
+    public function decidesAppeal(CounselingRecord $record, ?CarbonImmutable $now = null): bool
+    {
+        return $this->leadsUnit !== null
+            && ! $this->self
+            && ($this->userId === null || (int) $record->issued_by !== $this->userId)
+            && $record->appeal_unit_id !== null
+            && (int) $record->appeal_unit_id === $this->leadsUnit
+            && $this->seesLor
+            && $record->isAppealPending($now);
     }
 
     /**
@@ -139,17 +188,30 @@ final readonly class CounselingPermissions
     }
 
     /**
-     * Whether the viewer may file their appeal (LOR) or comment or dispute (DCS) on `$record`: they are the trooper,
-     * signed in as themselves ({@see $appealsOwn}), they see the record, it is not frozen yet, not overturned, and has no
-     * appeal yet (one per record). Nothing is appealed on a trooper who has left the Cav, whose records are read-only.
+     * Whether the viewer may work on `$record` at all: they see it, the trooper serves and is not them (an Admin by flag
+     * excepted), and they are an Admin, its issuer, or in its issuer's chain.
      */
-    public function appeals(CounselingRecord $record): bool
+    private function worksOn(CounselingRecord $record): bool
     {
-        return $this->appealsOwn
-            && ! $this->departed
-            && $this->seesRecord($record)
-            && ! $record->isAppealed()
-            && ! $record->isOverturned()
-            && ! self::frozen($record);
+        if ($this->departed || ! $this->seesRecord($record) || $this->self && ! $this->flagAdmin) {
+            return false;
+        }
+
+        return $this->admin || $this->inIssuersChain($record);
+    }
+
+    /**
+     * The issuer, or a commander of the unit the record was started through who still reaches the trooper from above
+     * (that unit's subtree is in their write scope, so the issuer and the chain above them qualify).
+     */
+    private function inIssuersChain(CounselingRecord $record): bool
+    {
+        if ($this->userId !== null && (int) $record->issued_by === $this->userId) {
+            return true;
+        }
+
+        return $this->issuingUnit(CounselingType::Dcs) !== null
+            && $record->issuer_unit_id !== null
+            && in_array((int) $record->issuer_unit_id, $this->writeScope, true);
     }
 }

@@ -87,6 +87,17 @@ interface UserRepository
     public function withUsername(string $username): Collection;
 
     /**
+     * The users whose username is exactly each of `$usernames`, compared whole and ignoring case, keyed by the
+     * lower-cased username: how the counseling import (#565) names a record's issuer from a Last.F in one query. Never
+     * a prefix match. A username nobody has is absent; one that several accounts carry lists them all, so the caller
+     * can refuse to guess (`users.username` is not unique, {@see withUsername()}).
+     *
+     * @param  list<string>  $usernames
+     * @return array<string, list<int>> lower-cased username => user ids
+     */
+    public function idsByUsername(array $usernames): array;
+
+    /**
      * The earliest-created Admin, or null when there is none — the actor the console's demo
      * history command records when no `--as` user is named (#115).
      */

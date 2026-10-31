@@ -1,11 +1,12 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { PhChartLine, PhTray, PhUserCheck, PhWarning } from '@phosphor-icons/vue';
+import { PhChartLine, PhFileText, PhTray, PhUserCheck, PhWarning } from '@phosphor-icons/vue';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { forumDate, forumDateTime, weekLabel } from '@/lib/forumDate';
+import { timeLeft, zulu } from '@/lib/counseling';
 import EmptyState from '@/components/EmptyState.vue';
 import KpiTiles from '@/components/home/KpiTiles.vue';
 import StepLanes from '@/components/home/StepLanes.vue';
@@ -32,6 +33,9 @@ const props = defineProps({
     steps: { type: Array, default: () => [] },
     // The viewer's own staff report while it is due and not sent, `{ week, due, href }`, or null.
     staffReport: { type: Object, default: null },
+    // The DCSs and LORs shared with the viewer that wait for their answer (#565), soonest due first:
+    // `{ id, type, typeLabel, issuer, respondBy, href }`.
+    counseling: { type: Array, default: () => [] },
 });
 
 const page = usePage();
@@ -104,6 +108,13 @@ const countdown = computed(() => {
 
     return `${d}d ${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m left`;
 });
+
+// What is left to answer a counseling record, on the same ticking clock as the week bar.
+function counselingLeft(item) {
+    const left = timeLeft(item.respondBy, now.value);
+
+    return left ? `${left} left` : 'time is up';
+}
 
 </script>
 
@@ -195,6 +206,25 @@ const countdown = computed(() => {
             </p>
             <Button size="sm" variant="outline" as-child>
                 <Link :href="staffReport.href" data-testid="home-staff-report-link">Open staff report</Link>
+            </Button>
+        </div>
+
+        <!-- A DCS or LOR shared with the viewer, until they have answered it. -->
+        <div
+            v-for="item in counseling"
+            :key="item.id"
+            class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-warning/40 bg-warning/8 px-4 py-3 text-[13px]"
+            data-testid="home-counseling"
+        >
+            <PhFileText class="size-4 shrink-0 text-warning" aria-hidden="true" />
+            <p class="min-w-0 flex-1">
+                <span class="font-medium">{{ item.typeLabel }} from {{ item.issuer }}</span>
+                <template v-if="item.respondBy">
+                    · answer by {{ zulu(item.respondBy) }} <span class="text-muted-foreground" data-testid="home-counseling-left">({{ counselingLeft(item) }})</span>
+                </template>
+            </p>
+            <Button size="sm" variant="outline" as-child>
+                <Link :href="item.href" data-testid="home-counseling-link">Read and answer</Link>
             </Button>
         </div>
 

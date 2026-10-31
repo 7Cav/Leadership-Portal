@@ -398,6 +398,20 @@ class Eloquent implements TrooperRepository
         return Trooper::query()->where('cav_id', $cavId)->first(['status'])?->status;
     }
 
+    public function servingWithBillets(array $billets): Collection
+    {
+        if ($billets === []) {
+            return collect();
+        }
+
+        return Trooper::query()
+            ->whereIn('billet', $billets)
+            ->whereIn('status', TrooperStatus::servingValues())
+            ->orderBy('id')
+            ->get()
+            ->toBase();
+    }
+
     public function servingCavIds(array $cavIds): Collection
     {
         if ($cavIds === []) {

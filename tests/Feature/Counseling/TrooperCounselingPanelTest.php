@@ -5,20 +5,20 @@ use App\Authorization\ViewAsKind;
 use App\Authorization\ViewAsTarget;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\CounselingRecord;
-use App\Models\DriveUploadStatus;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
 use Illuminate\Support\Facades\Storage;
 
 require_once __DIR__.'/fixture.php';
 
-// #381: the trooper page lists the counseling records the viewer may see, and warns when the 90-day rules apply.
+// #381, #565: the trooper page lists the counseling records the viewer may see, drafts included, and warns when the
+// 90-day rules apply.
 
 beforeEach(function () {
     Storage::fake('counseling');
     $this->tree = counselingTree();
     $this->rifleman = $this->tree['rifleman'];
-    $this->record = fn (string $type, int $daysAgo, array $attributes = []) => CounselingRecord::factory()->create([
+    $this->record = fn (string $type, int $daysAgo, array $attributes = []) => CounselingRecord::factory()->sharedDaysAgo($daysAgo)->create([
         'trooper_id' => $this->rifleman->id,
         'type' => $type,
         'counseled_on' => now('UTC')->subDays($daysAgo)->toDateString(),
@@ -33,8 +33,8 @@ function counselingProps(string $who, mixed $test): array
     return $test->flushHeaders()->actingAs($test->tree['users'][$who])->get(route('troopers.show', $test->rifleman->id))->assertOk()->viewData('page')['props']['counseling'];
 }
 
-it('lists every record, newest first, with its issuer, document and Drive status, for a platoon leader', function () {
-    ($this->record)('dcs', 20, ['reason' => 'Missed practice.', 'drive_status' => DriveUploadStatus::Uploaded]);
+it('lists every record, newest first, with its issuer, document and what may be done on it, for a platoon leader', function () {
+    ($this->record)('dcs', 20, ['reason' => 'Missed practice.']);
     ($this->record)('lor', 5, ['reason' => 'Disrespect toward an NCO.', 'document_name' => 'lor.pdf', 'document_size' => 2048]);
 
     $props = counselingProps('pl', $this);
@@ -47,15 +47,16 @@ it('lists every record, newest first, with its issuer, document and Drive status
             'reason' => 'Disrespect toward an NCO.',
             'issuer' => 'Mercer.J',
             'document' => ['name' => 'lor.pdf', 'size' => 2048, 'demo' => false],
-            'driveStatus' => 'skipped',
+            'source' => 'upload',
+            'state' => 'acknowledged',
             'kind' => null,
             'kindLabel' => null,
             'kindAssumed' => false,
             'flags' => [],
-            'canChange' => true,
+            'can' => ['open' => true, 'continue' => false, 'respond' => false, 'overturn' => false],
         ])
         ->and($props['records'][1]['typeLabel'])->toBe('Developmental Counseling Statement')
-        ->and($props['records'][1]['driveStatus'])->toBe('uploaded')
+        ->and($props['records'][1]['dcsPhase'])->toBe('active')
         ->and($props['canFile'])->toBe(['dcs' => true, 'lor' => true])
         ->and($props['departed'])->toBeFalse();
 });
@@ -81,7 +82,7 @@ it('keeps a DCS out of the page entirely for someone who may only see LORs', fun
         ->and($props['records'][0]['flags'])->toBe([])
         ->and($props['forecast'])->toBe([])
         ->and($props['canFile'])->toBe(['dcs' => false, 'lor' => false])
-        ->and($props['records'][0]['canChange'])->toBeFalse();
+        ->and($props['records'][0]['can']['continue'])->toBeFalse();
 });
 
 it('shows the trooper\'s own Section Leader their DCSs, and lets them file a DCS but not an LOR', function () {
@@ -91,10 +92,24 @@ it('shows the trooper\'s own Section Leader their DCSs, and lets them file a DCS
     $props = counselingProps('sl', $this);
 
     expect(collect($props['records'])->pluck('type')->sort()->values()->all())->toBe(['dcs', 'lor'])
-        ->and($props['canFile'])->toBe(['dcs' => true, 'lor' => false])
-        // Their own DCS they may change; the platoon's LOR they may not.
-        ->and(collect($props['records'])->firstWhere('type', 'dcs')['canChange'])->toBeTrue()
-        ->and(collect($props['records'])->firstWhere('type', 'lor')['canChange'])->toBeFalse();
+        ->and($props['canFile'])->toBe(['dcs' => true, 'lor' => false]);
+});
+
+it('lists a draft first, to be continued by its issuer and their chain only', function () {
+    ($this->record)('dcs', 3);
+    $draft = CounselingRecord::factory()->draft()->create([
+        'trooper_id' => $this->rifleman->id, 'issued_by' => $this->tree['users']['sl']->id, 'issuer_unit_id' => $this->tree['units']['section']->id,
+    ]);
+
+    foreach (['sl', 'pl'] as $who) {
+        $records = counselingProps($who, $this)['records'];
+        expect($records[0]['id'])->toBe($draft->id)
+            ->and($records[0]['state'])->toBe('draft')
+            ->and($records[0]['can']['continue'])->toBeTrue();
+    }
+
+    // A staff grant over the company sees the trooper's LORs, never a draft.
+    expect(collect(counselingProps('grant', $this)['records'])->pluck('id'))->not->toContain($draft->id);
 });
 
 it('flags a DCS dated within 90 days of an earlier one, by their dates, and keeps the flag as today moves on', function () {
@@ -179,7 +194,7 @@ it('shows a departed trooper\'s records read-only: listed as before, nothing to 
 
         expect($props['departed'])->toBeTrue()
             ->and($props['records'])->toHaveCount(2)
-            ->and(collect($props['records'])->pluck('canChange')->unique()->all())->toBe([false])
+            ->and(collect($props['records'])->pluck('can.continue')->unique()->all())->toBe([false])
             ->and($props['canFile'])->toBe(['dcs' => false, 'lor' => false])
             ->and($props['forecast'])->toBe([]);
     }
@@ -193,7 +208,7 @@ it('offers no filing or changes during a view-as preview, while still showing wh
     $props = counselingProps('admin', $this);
 
     expect($props['records'])->toHaveCount(1)
-        ->and($props['records'][0]['canChange'])->toBeFalse()
+        ->and($props['records'][0]['can']['continue'])->toBeFalse()
         ->and($props['canFile'])->toBe(['dcs' => false, 'lor' => false]);
 });
 

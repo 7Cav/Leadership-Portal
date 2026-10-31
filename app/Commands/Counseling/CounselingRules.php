@@ -5,30 +5,26 @@ namespace App\Commands\Counseling;
 use Carbon\CarbonImmutable;
 
 /**
- * The checks every counseling write makes on what it is given (#381), whatever the form already checked: a date not in
- * the future, a reason, and for a document a real PDF of at most 10 MB, judged by its bytes, never by its name.
+ * The checks every counseling write makes on what it is given (#381, #565), whatever the form already checked: a date
+ * not in the future, a reason of bounded length, and for a source document a real PDF of at most 10 MB, judged by its
+ * bytes, never by its name.
  */
 final class CounselingRules
 {
+    /** The longest a withdrawal's reason may be. */
     public const REASON_MAX = 2000;
 
     public const DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
 
-    /**
-     * How long a filing counts as a repeat of an identical one (same trooper, type, date, reason and document): a
-     * double submit, refused so it neither stores a second copy nor counts twice toward the 90-day rules.
-     */
-    public const REPEAT_WINDOW_MINUTES = 10;
-
-    /** The earliest date a record may carry: older paperwork can be filed, nothing from before the portal's records. */
+    /** The earliest date a record may carry: older paperwork can be imported, nothing from before the portal's records. */
     public const EARLIEST = '2000-01-01';
 
     /**
-     * @return array{0: CarbonImmutable, 1: string} the date at the start of its day, and the trimmed reason
+     * The Date of Letter at the start of its day, neither in the future nor before {@see EARLIEST}.
      *
      * @throws InvalidCounselingRecordException
      */
-    public static function checked(CarbonImmutable $counseledOn, string $reason): array
+    public static function checkedDate(CarbonImmutable $counseledOn): CarbonImmutable
     {
         $day = $counseledOn->startOfDay();
 
@@ -40,17 +36,27 @@ final class CounselingRules
             throw InvalidCounselingRecordException::tooOld();
         }
 
-        $reason = trim($reason);
+        return $day;
+    }
+
+    /**
+     * A required reason, trimmed and no longer than `$max`.
+     *
+     * @throws InvalidCounselingRecordException
+     */
+    public static function checkedReason(?string $reason, int $max = self::REASON_MAX, string $field = 'reason'): string
+    {
+        $reason = trim((string) $reason);
 
         if ($reason === '') {
-            throw InvalidCounselingRecordException::noReason();
+            throw InvalidCounselingRecordException::reasonRequired($field);
         }
 
-        if (mb_strlen($reason) > self::REASON_MAX) {
-            throw InvalidCounselingRecordException::reasonTooLong();
+        if (mb_strlen($reason) > $max) {
+            throw new InvalidCounselingRecordException($field, "Keep the reason to {$max} characters.");
         }
 
-        return [$day, $reason];
+        return $reason;
     }
 
     /**
