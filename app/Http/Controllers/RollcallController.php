@@ -161,6 +161,7 @@ class RollcallController extends Controller
      * that section has not sent it: on the Saturday after a week ends, the leader lands on the week they still
      * have to finish, not on the new empty one. Once the report is sent, or the deadline passes, the bare URL
      * opens the running week. An explicit `?week` always wins, so "This week" still reaches the new week.
+     * `portal.rollcall_opens_reporting_week` turns this off for the browser tests, whose clock cannot be set.
      */
     public function show(Request $request, ?int $unit = null): Response|RedirectResponse
     {
@@ -210,7 +211,7 @@ class RollcallController extends Controller
 
         $reportingWeek = WeekOf::reporting(CarbonImmutable::now());
 
-        if ($request->query('week') === null && $reportingWeek->lessThan($currentWeek) && ! $this->reports->isSentFor($section->id, $reportingWeek)) {
+        if ($request->query('week') === null && config('portal.rollcall_opens_reporting_week') && $reportingWeek->lessThan($currentWeek) && ! $this->reports->isSentFor($section->id, $reportingWeek)) {
             return redirect()->route('rollcall.show', [...$request->query(), 'unit' => $section->id, 'week' => $reportingWeek->toDateString()]);
         }
 

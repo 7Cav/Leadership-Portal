@@ -691,6 +691,13 @@ describe('the week a bare URL opens while last week\'s report is due', function 
             ->assertOk()->assertInertia(fn ($page) => $page->where('week.date', '2026-10-10')->where('week.reporting', '2026-10-10'));
     });
 
+    it('opens the running week when the switch is off, as in the browser tests, whose clock cannot be set', function () {
+        config(['portal.rollcall_opens_reporting_week' => false]);
+
+        $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
+            ->assertOk()->assertInertia(fn ($page) => $page->where('week.date', '2026-10-10')->where('week.reporting', '2026-10-03'));
+    });
+
     it('keeps a named week on the landing redirect, the running one included', function () {
         $this->actingAs($this->leader)->get('/rollcall?week=2026-10-10')
             ->assertRedirect("/rollcall/{$this->section->id}?week=2026-10-10");
