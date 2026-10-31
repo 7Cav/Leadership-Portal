@@ -318,6 +318,42 @@ Text the user pastes to the forum or Discord follows the same rules and reads as
 no product voice. Start with the subject ("Section practice makeup: week of 03Oct26"), use designations and forum
 dates.
 
+### Changelog entries
+
+The changelog is read by every trooper, including new ones who do not know how the portal works inside. Each entry
+says what changed for the reader: what they can now do or see, and where. Not how it works.
+
+- One change per line. If a line needs "and" to join two unrelated changes, make it two entries.
+- At most 300 characters. Aim for under 25 words.
+- Present tense for what the portal does now: "Roll call shows the report deadline." New things start with the thing:
+  "New Roster page with ...", "Admins can ...", "Leaders can ...".
+- Fixes start with "Fixed" and name what the reader saw go wrong: "Fixed the weekly report losing an edit made while it
+  was saving." Not the cause in the code.
+- Security fixes say what is now safer, without how it could be abused: "Sign-in and access checks are stricter.",
+  "Counseling PDFs with hidden code inside are refused on upload." No exploit detail, no affected versions.
+- Use the on-screen names of pages and buttons, written as they appear: Roll call, Roster, Reports, Org structure,
+  Mark the rest missed. No bold in entries.
+- Plain everyday words. No internal terms: sync, API, endpoint, cache, scope, billet mapping, seed, CRCON (write "game
+  server data"). "Audit log" is fine, Admins see it.
+- Abbreviations: only the Cav-common ones (LOA, ELOA, DCS, LOR, SL, PL, CO, XO, HQ, SP, JSAM). Spell out the rest, such
+  as "Regimental XO" for RXO and "first and second in charge" for 1IC and 2IC.
+- "roll call" is two words. "make-up" is hyphenated. Zulu, not UTC, for times.
+- Same punctuation rules as the rest of the portal: no em dashes, no semicolons, no contractions, no exclamation marks.
+- No hype: no "powerful", "seamless", "exciting", "now even better".
+- Mark an entry `[major]` when it adds a new page or a new task a leader can do, or changes how a weekly task works
+  for most users. Fixes, wording and small display changes are never major.
+- Additional information under an entry is optional and written in Markdown. Use it for steps or detail that do not fit
+  the line, not to repeat it.
+
+| Bad | Good |
+| --- | --- |
+| "The portal keeps its own copy of the roster from the Cav site." (how it works) | "The roster updates from the Cav website on a regular schedule." |
+| "Troopers the roster could not place in a section are listed for leaders." | "Leaders see a list of troopers the portal could not place in a section." |
+| "Mark the rest missed button on the roll call practice step." (no verb) | "New Mark the rest missed button on the roll call practice step." |
+| "Past weeks are judged by that week's rules, and every trooper can open their own milpac page." (two changes) | "Past weeks are judged by the rules of that week." and "Every trooper can open their own milpac page." |
+| "An LOR locks 72 hours after filing, and only the RXO can overturn it." | "An LOR locks 72 hours after filing, and only the Regimental XO can overturn it." |
+| "Fixed edge cases with guests and game server marks." | "Fixed rare problems with guests and game server marks." |
+
 ## Glossary
 
 Counts are from string literals and template text in `resources/js` (JS) and `app` (server), October 2026, excluding

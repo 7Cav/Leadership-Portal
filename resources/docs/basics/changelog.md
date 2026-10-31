@@ -21,7 +21,7 @@ page: /changelog
 
 1. Choose **Add**, or **Add entry** on the blue "Changelog outdated" bar that shows after a new version goes live.
 2. Check the **Date**. It starts at today in Zulu.
-3. Write one change per row. Press Enter, or choose the plus at the end of a row, to add a row below it. To add several empty rows at once, set the number next to **Add 3 rows** and choose it. Remove a row with its bin.
+3. Write one change per row, in plain words that say what changed for the reader. The full rules are under "Changelog entries" in `docs/copywriting.md`. Press Enter, or choose the plus at the end of a row, to add a row below it. To add several empty rows at once, set the number next to **Add 3 rows** and choose it. Remove a row with its bin.
 4. Every change goes in the full changelog. Tick **Major change** under a row to also list it under **Major changes**.
 5. To say more about a change, tick **Add additional information** under its row and write it in Markdown. Raw HTML is removed.
 6. Choose the add button under the rows; it counts the entries, such as **Add 2 entries**. Empty rows are left out. The bar goes away for both editors.
