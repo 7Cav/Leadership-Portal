@@ -317,12 +317,83 @@ describe('Changelog page', () => {
 
         it('lets an Admin change the setting, and shows it to nobody else', async () => {
             mountPage({ technicalSetting: { enabled: false } });
-            await wrapper.get('[data-testid="changelog-technical-setting-toggle"]').trigger('click');
+            await wrapper.get('[data-testid="changelog-settings"]').trigger('click');
+            await flushPromises();
+            body('[data-testid="changelog-technical-setting-toggle"]').click();
+            await flushPromises();
             expect(routerPost).toHaveBeenCalledWith('/changelog/settings', { technical_enabled: true }, expect.any(Object));
 
             wrapper.unmount();
             mountPage();
-            expect(wrapper.find('[data-testid="changelog-technical-setting"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="changelog-settings"]').exists()).toBe(false);
+        });
+    });
+
+    describe('tags, filters and the count', () => {
+        const TAG_DAYS = [
+            {
+                date: '2026-10-30',
+                entries: [
+                    { id: 11, body: 'Security: Tighter session checks', major: true, technical: false, detailsHtml: null, details: null },
+                    { id: 12, body: 'Fixed: Roster sorting', major: false, technical: false, detailsHtml: null, details: null },
+                    { id: 13, body: 'Dependency updates', major: false, technical: true, detailsHtml: null, details: null },
+                ],
+            },
+            { date: '2026-10-24', entries: [{ id: 14, body: 'Added: Changelog page', major: true, technical: false, detailsHtml: null, details: null }] },
+        ];
+
+        it('marks Security entries in both columns and keeps their text', async () => {
+            mountPage({ days: TAG_DAYS });
+            await openFull();
+            expect(wrapper.get('[data-testid="changelog-security-11"]').text()).toBe('Security');
+            expect(wrapper.get('[data-testid="major-changelog-security-11"]').text()).toBe('Security');
+            expect(wrapper.get('[data-testid="changelog-entry-11"]').text()).toContain('Security: Tighter session checks');
+            expect(wrapper.find('[data-testid="changelog-security-12"]').exists()).toBe(false);
+        });
+
+        it('filters both columns by one chip and remembers it', async () => {
+            mountPage({ days: TAG_DAYS });
+            await openFull();
+            expect(wrapper.find('[data-testid="changelog-filter-technical"]').exists()).toBe(false);
+
+            await wrapper.get('[data-testid="changelog-filter-fixed"]').trigger('click');
+            await flushPromises();
+            expect(wrapper.find('[data-testid="changelog-entry-12"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="changelog-entry-11"]').exists()).toBe(false);
+            expect(wrapper.get('[data-testid="changelog-major-empty"]').text()).toBe('No major changes match this filter.');
+            expect(window.localStorage.getItem('changelog.filter')).toBe('fixed');
+
+            wrapper.unmount();
+            mountPage({ days: TAG_DAYS });
+            await wrapper.get('[data-testid="changelog-filter-added"]').trigger('click');
+            await flushPromises();
+            expect(wrapper.find('[data-testid="major-changelog-entry-14"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="major-changelog-entry-11"]').exists()).toBe(false);
+        });
+
+        it('offers a Technical chip once technical items show', async () => {
+            mountPage({ days: TAG_DAYS, isEditor: true });
+            await openFull();
+            await wrapper.get('[data-testid="changelog-filter-technical"]').trigger('click');
+            await flushPromises();
+            expect(wrapper.find('[data-testid="changelog-entry-13"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="changelog-entry-12"]').exists()).toBe(false);
+        });
+
+        it('starts on All when localStorage throws', () => {
+            vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+                throw new Error('blocked');
+            });
+            mountPage({ days: TAG_DAYS });
+            expect(wrapper.get('[data-testid="changelog-filter-all"]').attributes('data-state')).toBe('on');
+        });
+
+        it('counts the changes this viewer can see since the first date', () => {
+            mountPage({ days: TAG_DAYS });
+            expect(wrapper.get('[data-testid="changelog-stat"]').text()).toBe('3 changes recorded since 24OCT26');
+            wrapper.unmount();
+            mountPage({ days: TAG_DAYS, isEditor: true });
+            expect(wrapper.get('[data-testid="changelog-stat"]').text()).toBe('4 changes recorded since 24OCT26');
         });
     });
 

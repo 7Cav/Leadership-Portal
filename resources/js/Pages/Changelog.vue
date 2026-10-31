@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { PhCaretRight, PhClockCounterClockwise, PhPencilSimple, PhPlus, PhTrash, PhUploadSimple } from '@phosphor-icons/vue';
+import { PhCaretRight, PhClockCounterClockwise, PhGear, PhPencilSimple, PhPlus, PhTrash, PhUploadSimple } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -9,7 +9,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import EmptyState from '@/components/EmptyState.vue';
 import ReasonDialog from '@/components/ReasonDialog.vue';
 import { toast } from 'vue-sonner';
@@ -25,7 +27,7 @@ import { postJson } from '@/lib/postJson';
 // stripped.
 //
 // Technical entries (behind-the-scenes and security work) never show under Major changes. In the full changelog they
-// show, marked, only after the viewer ticks "Show technical and security items" (remembered in this browser), and an
+// show, marked, only after the viewer ticks "Show technical and security items" in the filter bar (remembered in this browser), and an
 // editor always sees them. The server sends them only while an Admin has made them available, or to an editor.
 const props = defineProps({
     // `[{ date, entries: [{ id, body, major, technical, detailsHtml, details }] }]`, newest date first; `details` (the Markdown) only for an editor.
@@ -70,11 +72,56 @@ const technicalShown = computed(() => props.isEditor || (props.technicalToggle &
 
 const keepDays = (keep) => props.days.map((day) => ({ date: day.date, entries: day.entries.filter(keep) })).filter((day) => day.entries.length > 0);
 
+// The patch-notes tag an entry's text starts with ("Fixed: ..."), or null.
+const KINDS = ['Added', 'Changed', 'Fixed', 'Removed', 'Security'];
+const kindOf = (entry) => KINDS.find((kind) => (entry.body ?? '').toLowerCase().startsWith(`${kind.toLowerCase()}:`)) ?? null;
+
+// The filter bar: one chip at a time, remembered in this browser. Technical only while technical items show.
+const FILTERS = ['all', 'major', ...KINDS.map((kind) => kind.toLowerCase()), 'technical'];
+function readFilter() {
+    try {
+        const value = typeof window !== 'undefined' ? window.localStorage.getItem('changelog.filter') : null;
+        return FILTERS.includes(value) ? value : 'all';
+    } catch {
+        return 'all';
+    }
+}
+const filter = ref(readFilter());
+watch(filter, (value) => {
+    try {
+        window.localStorage.setItem('changelog.filter', value);
+    } catch {
+        // Not remembered.
+    }
+});
+const filterChips = computed(() => [
+    { key: 'all', label: 'All' },
+    { key: 'major', label: 'Major' },
+    ...KINDS.map((kind) => ({ key: kind.toLowerCase(), label: kind })),
+    ...(technicalShown.value ? [{ key: 'technical', label: 'Technical' }] : []),
+]);
+// A remembered Technical filter falls back to All once technical items are hidden.
+const activeFilter = computed(() => (filter.value === 'technical' && !technicalShown.value ? 'all' : filter.value));
+function matches(entry) {
+    const key = activeFilter.value;
+    if (key === 'all') return true;
+    if (key === 'major') return !!entry.major;
+    if (key === 'technical') return !!entry.technical;
+    return kindOf(entry)?.toLowerCase() === key;
+}
+
+// Every entry this viewer may see: technical ones only when shown.
+const visible = (entry) => technicalShown.value || !entry.technical;
 // The major column: only major entries, never technical ones, days left empty dropped.
-const majorDays = computed(() => keepDays((entry) => entry.major && !entry.technical));
-// The full column: every entry, technical ones only when shown.
-const fullDays = computed(() => keepDays((entry) => technicalShown.value || !entry.technical));
+const majorDays = computed(() => keepDays((entry) => entry.major && !entry.technical && matches(entry)));
+// The full column: every visible entry that passes the filter.
+const fullDays = computed(() => keepDays((entry) => visible(entry) && matches(entry)));
 const entryCount = computed(() => fullDays.value.reduce((total, day) => total + day.entries.length, 0));
+
+// The statistic in the header: every entry this viewer may see, whatever the filter, and the first date.
+const recordedDays = computed(() => keepDays(visible));
+const recordedCount = computed(() => recordedDays.value.reduce((total, day) => total + day.entries.length, 0));
+const firstDate = computed(() => recordedDays.value[recordedDays.value.length - 1]?.date ?? null);
 
 // Whether the full changelog is open, remembered per viewer.
 const fullOpen = ref(readFlag('changelog.fullOpen'));
@@ -346,13 +393,39 @@ function runImport() {
 
     <div class="max-w-6xl space-y-5">
         <div class="flex flex-wrap items-start justify-between gap-3">
-            <h1 class="text-xl font-semibold tracking-tight">Changelog</h1>
-            <div v-if="isEditor" class="flex flex-wrap gap-2">
-                <Button size="sm" data-testid="changelog-add" @click="openAdd"><PhPlus aria-hidden="true" />Add</Button>
-                <Button size="sm" variant="outline" data-testid="changelog-import" @click="openImport"><PhUploadSimple aria-hidden="true" />Bulk import</Button>
-                <Button v-if="totalEntries > 0" size="sm" variant="outline" class="text-destructive" data-testid="changelog-delete-all" @click="deleteAllOpen = true">
-                    <PhTrash aria-hidden="true" />Delete all
-                </Button>
+            <div>
+                <h1 class="text-xl font-semibold tracking-tight">Changelog</h1>
+                <p v-if="recordedCount > 0" class="text-xs text-muted-foreground tabular-nums" data-testid="changelog-stat">
+                    {{ recordedCount === 1 ? '1 change' : `${recordedCount} changes` }} recorded since {{ forumDate(firstDate).toUpperCase() }}
+                </p>
+            </div>
+            <div v-if="isEditor || technicalSetting" class="flex flex-wrap gap-2">
+                <template v-if="isEditor">
+                    <Button size="sm" data-testid="changelog-add" @click="openAdd"><PhPlus aria-hidden="true" />Add</Button>
+                    <Button size="sm" variant="outline" data-testid="changelog-import" @click="openImport"><PhUploadSimple aria-hidden="true" />Bulk import</Button>
+                    <Button v-if="totalEntries > 0" size="sm" variant="outline" class="text-destructive" data-testid="changelog-delete-all" @click="deleteAllOpen = true">
+                        <PhTrash aria-hidden="true" />Delete all
+                    </Button>
+                </template>
+                <Popover v-if="technicalSetting">
+                    <PopoverTrigger as-child>
+                        <Button size="icon" variant="outline" class="size-8" aria-label="Changelog settings" title="Changelog settings" data-testid="changelog-settings">
+                            <PhGear aria-hidden="true" />
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" class="w-72 space-y-1 p-3" data-testid="changelog-technical-setting">
+                        <label class="flex items-center gap-2 text-[13px] font-medium">
+                            <Checkbox
+                                :model-value="technicalSetting.enabled"
+                                :disabled="settingSaving"
+                                data-testid="changelog-technical-setting-toggle"
+                                @update:model-value="(value) => setTechnicalEnabled(value === true)"
+                            />
+                            Make technical and security items available to everyone
+                        </label>
+                        <p class="pl-6 text-xs text-muted-foreground">When off, only the changelog editors see them.</p>
+                    </PopoverContent>
+                </Popover>
             </div>
         </div>
 
@@ -411,18 +484,17 @@ function runImport() {
             </template>
         </Card>
 
-        <Card v-if="technicalSetting" class="max-w-3xl gap-1 p-4" data-testid="changelog-technical-setting">
-            <label class="flex items-center gap-2 text-[13px] font-medium">
-                <Checkbox
-                    :model-value="technicalSetting.enabled"
-                    :disabled="settingSaving"
-                    data-testid="changelog-technical-setting-toggle"
-                    @update:model-value="(value) => setTechnicalEnabled(value === true)"
-                />
-                Make technical and security items available to everyone
+        <div v-if="days.length" class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2" data-testid="changelog-filters">
+            <div class="max-w-full overflow-x-auto">
+                <ToggleGroup type="single" variant="segment" :model-value="activeFilter" aria-label="Show changes" @update:model-value="(value) => (filter = value || 'all')">
+                    <ToggleGroupItem v-for="chip in filterChips" :key="chip.key" :value="chip.key" :data-testid="`changelog-filter-${chip.key}`">{{ chip.label }}</ToggleGroupItem>
+                </ToggleGroup>
+            </div>
+            <label v-if="technicalToggle" class="flex w-fit items-center gap-2 text-xs text-muted-foreground">
+                <Checkbox v-model="showTechnical" data-testid="changelog-technical-toggle" />
+                Show technical and security items
             </label>
-            <p class="pl-6 text-xs text-muted-foreground">When off, only the changelog editors see them.</p>
-        </Card>
+        </div>
 
         <div v-if="days.length" class="grid items-start gap-x-8 gap-y-6 lg:grid-cols-2" data-testid="changelog-columns">
             <section
@@ -447,13 +519,11 @@ function runImport() {
                         <span class="text-xs font-normal text-muted-foreground tabular-nums">{{ entryCount === 1 ? '1 entry' : `${entryCount} entries` }}</span>
                     </button>
                 </h2>
-                <label v-if="column.key === 'full' && technicalToggle" class="mt-1.5 flex w-fit items-center gap-2 text-xs text-muted-foreground">
-                    <Checkbox v-model="showTechnical" data-testid="changelog-technical-toggle" />
-                    Show technical and security items
-                </label>
-
                 <p v-if="column.key === 'major' && column.days.length === 0" class="mt-2 text-[13px] text-muted-foreground" data-testid="changelog-major-empty">
-                    No major changes yet. Every change is in the full changelog.
+                    {{ activeFilter === 'all' ? 'No major changes yet. Every change is in the full changelog.' : 'No major changes match this filter.' }}
+                </p>
+                <p v-else-if="column.key === 'full' && fullOpen && column.days.length === 0" class="mt-2 text-[13px] text-muted-foreground" data-testid="changelog-full-empty">
+                    No changes match this filter.
                 </p>
                 <div
                     v-else-if="column.key === 'major' || fullOpen"
@@ -485,6 +555,7 @@ function runImport() {
                                     </span>
                                     <span class="min-w-0 flex-1 break-words" data-testid="changelog-entry-body">{{ entry.body }}</span>
                                     <Badge v-if="column.key === 'full' && entry.major" variant="secondary" class="h-5 shrink-0 px-1.5 text-[11px]" :data-testid="`changelog-major-${entry.id}`">Major</Badge>
+                                    <Badge v-if="kindOf(entry) === 'Security'" variant="secondary" class="h-5 shrink-0 px-1.5 text-[11px]" :data-testid="`${column.prefix}changelog-security-${entry.id}`">Security</Badge>
                                     <Badge
                                         v-if="entry.technical"
                                         variant="outline"
