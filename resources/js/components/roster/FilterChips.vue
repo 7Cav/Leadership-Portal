@@ -31,8 +31,9 @@ function select(value) {
 </script>
 
 <template>
-    <div class="max-w-full overflow-x-auto">
-        <ToggleGroup type="single" variant="segment" :model-value="model" aria-label="Show troopers" @update:model-value="select">
+    <!-- On a phone the chips wrap to a second line rather than run off the card. -->
+    <div class="max-w-full">
+        <ToggleGroup type="single" variant="segment" class="flex-wrap" :model-value="model" aria-label="Show troopers" @update:model-value="select">
             <ToggleGroupItem v-for="chip in chips" :key="chip.key" :value="chip.key" :data-testid="`filter-${chip.key}`">
                 <component :is="chip.icon" v-if="chip.icon" :class="chip.tone" />
                 {{ chip.label }}
