@@ -159,7 +159,7 @@ describe('acting as', function () {
 
         $this->actingAs($admin)->post('/act-as', ['kind' => 'user', 'id' => $co->id])->assertRedirect('/home');
         $this->actingAs($admin)->get("/roster/{$this->company->id}")->assertInertia(fn (Assert $page) => $page->where('can.editGuidon', true));
-        $this->actingAs($admin)->get("/roster/{$this->battalion->id}")->assertInertia(fn (Assert $page) => $page->where('can.editGuidon', false));
+        $this->actingAs($admin)->get("/roster/{$this->platoon->id}")->assertInertia(fn (Assert $page) => $page->where('can.editGuidon', false));
         $this->actingAs($admin)->delete('/act-as');
 
         $this->actingAs($admin)->post('/act-as', ['kind' => 'unit', 'id' => $this->company->id])->assertRedirect('/home');
