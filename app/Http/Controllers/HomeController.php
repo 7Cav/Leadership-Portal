@@ -27,6 +27,7 @@ use App\Repositories\TrooperRepository;
 use App\Repositories\UnitGuidonRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
+use App\Rollcall\MissingGameIdentities;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use ErrorException;
@@ -73,6 +74,7 @@ class HomeController extends Controller
         private readonly StaffReportRepository $sentStaffReports,
         private readonly AutoExcused $autoExcused,
         private readonly UnitGuidonRepository $guidons,
+        private readonly MissingGameIdentities $missingIdentities,
     ) {}
 
     public function show(Request $request): Response
@@ -108,6 +110,10 @@ class HomeController extends Controller
             'attention' => $roots->isEmpty() ? null : $this->attentionProps($attendance, $chains, $scope, $weekStart),
             'steps' => $this->stepProps($scope, $weekStart, $reports, $sent),
             'staffReport' => $this->staffReportProps($request),
+            // Troopers in scope with no identity linked for the game their unit plays, by game (read-only). Leaders only
+            // (a synced billet, an acting lead or Admin; a preview shows what its target would see): a staff grant reads
+            // the scope but cannot link anyone.
+            'missingIdentities' => $this->scope->leads($request->user()) ? $this->missingIdentities->summaryFor($scope) : [],
             'units' => $chains->flatMap(function (ChainNode $chain, int $i) use ($attendance, $paths, $weekStart) {
                 $rows = $attendance[$i];
 

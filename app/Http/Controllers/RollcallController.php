@@ -70,6 +70,7 @@ use App\Repositories\UnitDesignationOrder;
 use App\Repositories\UnitGuidonRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
+use App\Rollcall\MissingGameIdentities;
 use App\Rollcall\RollcallGuests;
 use App\Rollcall\RollcallRoster;
 use App\Rollcall\SectionFireteams;
@@ -149,6 +150,7 @@ class RollcallController extends Controller
         private readonly UpcomingLeave $upcomingLeave,
         private readonly AutoExcused $autoExcused,
         private readonly UnitGuidonRepository $guidons,
+        private readonly MissingGameIdentities $missingIdentities,
     ) {}
 
     /**
@@ -801,6 +803,8 @@ class RollcallController extends Controller
         // The automatic Excused of a first week after a transfer or joining (2026-10-30): `recruit` or `transfer`, or null.
         // Only a default: the screen shows it on whichever of the two facts nobody recorded, and a leader's choice wins.
         $excused = $this->autoExcused->forTroopers($trooperIds, $weekStart);
+        // The game each trooper placed here has no identity linked for, so the capture cannot see them; read-only.
+        $missingGame = $this->missingIdentities->placedIn([$section->id]);
 
         return [
             'troopers' => array_map(fn (array $row) => [
@@ -811,6 +815,7 @@ class RollcallController extends Controller
                 'leaveFrom' => $leaveFrom[$row['id']] ?? null,
                 'excused' => $excused[$row['id']] ?? null,
                 'history' => $history[$row['id']],
+                'missingGame' => ($missingGame[$row['id']] ?? null)?->name,
             ], $week->troopers),
             'priorWeekMarked' => $week->priorWeekMarked,
             // Where the leave data comes from and how fresh it is (4.3, AD-20), shown with every LOA badge.

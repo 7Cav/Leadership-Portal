@@ -31,6 +31,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import EmptyState from '@/components/EmptyState.vue';
+import MissingIdentityNotice from '@/components/MissingIdentityNotice.vue';
 import FireteamPanel from '@/components/rollcall/FireteamPanel.vue';
 import GuestsPanel from '@/components/rollcall/GuestsPanel.vue';
 import AttendanceSourceLegend from '@/components/attendance/AttendanceSourceLegend.vue';
@@ -1080,6 +1081,8 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                 </ol>
             </nav>
         </div>
+
+        <MissingIdentityNotice :troopers="rows" />
 
         <div class="mt-4 grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18.5rem]">
             <section class="min-w-0" :aria-labelledby="`step-${step}-title`" @keydown="onCardKeydown">

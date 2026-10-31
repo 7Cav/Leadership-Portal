@@ -21,6 +21,7 @@ import { forumDate } from '@/lib/forumDate';
 import { vStickyHead } from '@/lib/stickyHead';
 import EmptyState from '@/components/EmptyState.vue';
 import Guidon from '@/components/Guidon.vue';
+import MissingIdentityIcon from '@/components/MissingIdentityIcon.vue';
 import NoValue from '@/components/NoValue.vue';
 import { useSlashClaim } from '@/composables/useSlashShortcut';
 import {
@@ -468,6 +469,7 @@ function clearAll() {
                                     <span class="nm font-medium">
                                         <template v-for="(part, i) in highlightParts(displayName(row.trooper), query)" :key="i"><mark v-if="part.hit" class="hl">{{ part.text }}</mark><template v-else>{{ part.text }}</template></template>
                                     </span>
+                                    <MissingIdentityIcon :game="row.trooper.missingGame ?? null" />
                                 </div>
                             </td>
                             <td>
