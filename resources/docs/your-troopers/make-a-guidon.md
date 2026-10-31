@@ -28,7 +28,7 @@ Each format shows as a small preview with your colors and text. Switching keeps 
 2. The text starts as the battalion and the 7 on the top half (2/7) and the company letter on the bottom (A). Change it if you need to: up to 6 letters, digits, ., /, - or spaces on each half.
 3. For a big number at the left, like the 7 on the wiki's Reserve guidon, fill in **Large character** with one or two letters or digits. It runs most of the height of the flag in the opposite color of each half, and the texts move just right of it, left aligned, in the opposite color too. On **Quartered** it fills the two left quarters and both texts move to the right quarters.
 4. The text is set in a tall, narrow face like the regiment's official guidons.
-5. The preview follows every change. Without a large character the text is black or white, whichever reads better on its half.
+5. The preview follows every change. Every text and the large character take the other color of the flag when it reads on their half, and black or white only when the two colors are too close for that (a solid guidon uses black or white).
 
 > [!good-to-know] When the two colors are too close to tell apart, the generator says so. Pick colors with more contrast. A solid guidon has one color, so it has no warning.
 
