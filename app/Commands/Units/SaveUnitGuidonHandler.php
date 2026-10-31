@@ -37,9 +37,9 @@ class SaveUnitGuidonHandler
     public const LARGE_PATTERN = '/^[A-Za-z0-9]{0,2}\z/';
 
     /** How the flag is split. A guidon saved before formats is `diagonal`. */
-    public const FORMATS = ['band', 'diagonal', 'horizontal', 'solid'];
+    public const FORMATS = ['diagonal', 'horizontal', 'quartered', 'solid'];
 
-    /** Where a text sits on its half in the top and bottom formats. */
+    /** Where a text sits on its half or quarter in every format but the diagonal. */
     public const ALIGNS = ['left', 'center'];
 
     /** The echelons that carry a guidon. */

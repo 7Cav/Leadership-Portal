@@ -16,6 +16,7 @@ import {
     cleanLarge,
     cleanText,
     defaultDesign,
+    formatOf,
     guidonDataUrl,
     guidonFileName,
     guidonPngDataUrl,
@@ -34,8 +35,9 @@ const props = defineProps({
 
 const emit = defineEmits(['saved']);
 
-// A saved design from before formats has no format, placements or large character: it is diagonal with none.
-const saved = props.unit.guidon ? { ...defaultDesign(props.unit), ...props.unit.guidon } : null;
+// A saved design from before formats has no format, placements or large character: it is diagonal with none. One saved
+// in a retired format opens in the format it draws as.
+const saved = props.unit.guidon ? { ...defaultDesign(props.unit), ...props.unit.guidon, format: formatOf(props.unit.guidon) } : null;
 const form = useForm({ ...(saved ?? defaultDesign(props.unit)) });
 
 const KEYS = ['format', 'primary', 'secondary', 'topLeft', 'bottomRight', 'topAlign', 'bottomAlign', 'large'];
@@ -43,7 +45,7 @@ const design = computed(() => Object.fromEntries(KEYS.map((key) => [key, form[ke
 const unchanged = computed(() => saved !== null && KEYS.every((key) => form[key] === saved[key]));
 const close = computed(() => pairTooClose(design.value));
 const name = computed(() => props.unit.callsign ?? props.unit.name);
-// The top and bottom formats place each text left or centered; the diagonal keeps its fixed spots.
+// The other formats place each text left or centered; the diagonal keeps its fixed spots.
 const placed = computed(() => form.format !== 'diagonal');
 
 // What each half is called in the format on screen. A format change keeps the colors and texts already entered; a
@@ -212,7 +214,7 @@ async function downloadPng() {
                 @input="setLarge"
             />
             <p id="guidon-large-hint" class="text-xs text-muted-foreground">
-                Optional. One or two letters or digits most of the height of the flag at the left, in the opposite color of each half. The texts move to its right and take the opposite color too. It fits best on the band format.
+                Optional. One or two letters or digits most of the height of the flag at the left, in the opposite color of each half. The texts move just right of it, left aligned, and take the opposite color too.
             </p>
             <p v-if="form.errors.large" class="text-xs text-destructive">{{ form.errors.large }}</p>
         </div>

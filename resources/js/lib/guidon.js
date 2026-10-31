@@ -1,7 +1,7 @@
-// A unit's guidon (#446): the flag, drawn as SVG from the saved design in one of FORMATS: a rectangle with a slanted
-// band across the top (the regiment's own 2/7 A guidon, and the format a large character fits best), or the swallowtail
-// split on the diagonal (the first format, and what every design saved without a format draws), split into a top and
-// a bottom half (the wiki's Regimental HQ and 3-7 HQ guidons), or one solid color. This is the one place the flag is drawn: the small
+// A unit's guidon (#446): the flag, drawn as SVG from the saved design in one of FORMATS, all on the swallowtail: split
+// on the diagonal (the first format, and what every design saved without a format draws), split into a top and a bottom
+// half (the wiki's Regimental HQ and 3-7 HQ guidons), quartered in the two colors like a checkerboard, or one solid
+// color. This is the one place the flag is drawn: the small
 // flag next to a unit, the generator's preview, and both downloads (the SVG itself, and the PNG a canvas makes from it)
 // all come from guidonSvg(). It only ever draws a design that passes the same rules the server checks (a known format,
 // two `#rrggbb` colors, two short texts of letters, digits, `.`, `/`, `-` and spaces, each placed left or centered), and
@@ -25,19 +25,21 @@ export const TEXTLESS_BELOW = 20;
 
 // The formats a guidon can take, in the order the generator offers them. A design with no format is diagonal.
 export const FORMATS = [
-    { value: 'band', label: 'Band' },
     { value: 'diagonal', label: 'Diagonal' },
     { value: 'horizontal', label: 'Top and bottom' },
+    { value: 'quartered', label: 'Quartered' },
     { value: 'solid', label: 'Solid' },
 ];
 export const DEFAULT_FORMAT = 'diagonal';
-// Where a text sits on its half, for the top and bottom formats. The diagonal format keeps its own fixed spots.
+// A format that was dropped, and the one a design saved in it draws as. The server no longer saves it.
+const RETIRED_FORMATS = { band: 'horizontal' };
+// Where a text sits on its half or quarter, for the top and bottom, quartered and solid formats. The diagonal format keeps its own fixed spots.
 export const ALIGNS = [
     { value: 'left', label: 'Left' },
     { value: 'center', label: 'Center' },
 ];
 export const DEFAULT_ALIGN = 'left';
-const FORMAT_VALUES = FORMATS.map((f) => f.value);
+const FORMAT_VALUES = [...FORMATS.map((f) => f.value), ...Object.keys(RETIRED_FORMATS)];
 const ALIGN_VALUES = ALIGNS.map((a) => a.value);
 const HEX = /^#[0-9a-f]{6}$/i;
 const TEXT = /^[A-Za-z0-9./\- ]*$/;
@@ -93,9 +95,11 @@ export function isDesign(design) {
     );
 }
 
-// The format a design draws in: diagonal for one saved before formats existed.
+// The format a design draws in: diagonal for one saved before formats existed, top and bottom for one saved as a band.
 export function formatOf(design) {
-    return design?.format ?? DEFAULT_FORMAT;
+    const format = design?.format ?? DEFAULT_FORMAT;
+
+    return RETIRED_FORMATS[format] ?? format;
 }
 
 // Whether the design shows two colors. A solid guidon shows one, so it has no pair to warn about.
@@ -143,6 +147,15 @@ export function contrastRatio(a, b) {
 // Black or white text, whichever reads better on the color.
 export function textColorOn(hex) {
     return contrastRatio(hex, '#ffffff') >= contrastRatio(hex, '#000000') ? '#ffffff' : '#000000';
+}
+
+// Below this contrast ratio the other color does not read as text on a color (WCAG's ratio for large text).
+export const MIN_OPPOSITE_CONTRAST = 3;
+
+// The color for a large character or a text beside it on `background`: the other color of the flag when it reads there,
+// otherwise black or white, whichever reads better.
+export function oppositeOn(background, other) {
+    return contrastRatio(background, other) >= MIN_OPPOSITE_CONTRAST ? other : textColorOn(background);
 }
 
 // Whether the two halves are too alike to tell apart.
@@ -206,10 +219,8 @@ function label(text, x, y, cap, maxWidth, fill, anchor = 'middle') {
     return `<g data-text="${escapeXml(text)}" data-cap="${Math.round(CAP_HEIGHT * scale)}" fill="${fill}" transform="translate(${round(left)} ${round(y + (CAP_HEIGHT * scale) / 2)}) scale(${Math.round(scale * 10000) / 10000})">${paths.join('')}</g>`;
 }
 
-// The flag's outline: the hoist on the left, the swallowtail cut in the fly on the right. The band format is a plain
-// rectangle.
+// The flag's outline: the hoist on the left, the swallowtail cut in the fly on the right.
 const OUTLINE = `0,0 ${WIDTH},0 ${WIDTH - NOTCH},${HEIGHT / 2} ${WIDTH},${HEIGHT} 0,${HEIGHT}`;
-const RECTANGLE = `0,0 ${WIDTH},0 ${WIDTH},${HEIGHT} 0,${HEIGHT}`;
 
 // The top and bottom formats: each text sits in the middle of its half's height, left near the hoist or centered on
 // the part of the half clear of the cut (the cut reaches x = WIDTH - NOTCH / 2 at a quarter of the height).
@@ -217,32 +228,47 @@ const HALF_LEFT = 24;
 const HALF_CLEAR = WIDTH - NOTCH / 2;
 const HALF_WIDTH = HALF_CLEAR - 2 * HALF_LEFT;
 
-// With a large character the texts move right of it (LARGE_RIGHT is where its two characters end).
+// The large character hugs the hoist (about 3% of the width in) and is about 72% of the flag's height, with the rest
+// split above and below it; two characters shrink to end by LARGE_RIGHT. The texts start LARGE_GAP (about 5% of the
+// width) after its actual glyphs, both at the same x and left aligned whatever their placement, like the ACD guidon: a
+// narrow 1 or 7 pulls them closer than a wide 2 or two characters.
+const LARGE_LEFT = 9;
 const LARGE_RIGHT = 148;
-// The large character is about 72% of the flag's height, with the rest split above and below it.
 const LARGE_CAP = Math.round(HEIGHT * 0.72);
-const LARGE_LEFT = HALF_LEFT / 2;
+const LARGE_GAP = 14;
 
-function halfLabel(text, y, align, fill, large) {
-    const left = large ? LARGE_RIGHT : HALF_LEFT;
-    const width = HALF_CLEAR - left - HALF_LEFT;
-
-    return align === 'center'
-        ? label(text, Math.round((left + HALF_CLEAR) / 2), y, 64, width, fill)
-        : label(text, left, y, 64, width, fill, 'start');
+// Where the large character ends on the right, as largeChar draws it at the hoist.
+function largeRight(text) {
+    return LARGE_LEFT + Math.min(textWidth(text) * (LARGE_CAP / CAP_HEIGHT), LARGE_RIGHT - LARGE_LEFT);
 }
 
-// Where the large character ends on the right, as largeChar draws it.
-function largeRight(text) {
-    return LARGE_LEFT + Math.min(textWidth(text) * (LARGE_CAP / CAP_HEIGHT), LARGE_RIGHT - HALF_LEFT);
+// Where the texts start beside a large character.
+function besideLarge(text) {
+    return Math.round(largeRight(text) + LARGE_GAP);
+}
+
+function halfLabel(text, y, align, fill, large) {
+    if (large) {
+        const left = besideLarge(large);
+
+        return label(text, left, y, 64, HALF_CLEAR - left - HALF_LEFT / 2, fill, 'start');
+    }
+
+    return align === 'center'
+        ? label(text, Math.round((HALF_LEFT + HALF_CLEAR) / 2), y, 64, HALF_CLEAR - 2 * HALF_LEFT, fill)
+        : label(text, HALF_LEFT, y, 64, HALF_CLEAR - 2 * HALF_LEFT, fill, 'start');
 }
 
 // The large character at the hoist, most of the height of the flag across both halves, like the wiki's Reserve guidon.
 // It takes the opposite color of each half it crosses: drawn once per half, clipped to that half, in the other color.
-function largeChar(text, halves) {
+// `place` puts it somewhere else: centered on `x` within `width`.
+function largeChar(text, halves, place = null) {
     if (!text) return [];
     // Two characters shrink to fit left of LARGE_RIGHT.
-    const glyph = (fill) => label(text, LARGE_LEFT, HEIGHT / 2, LARGE_CAP, LARGE_RIGHT - HALF_LEFT, fill, 'start');
+    const glyph = (fill) =>
+        place
+            ? label(text, place.x, HEIGHT / 2, LARGE_CAP, place.width, fill)
+            : label(text, LARGE_LEFT, HEIGHT / 2, LARGE_CAP, LARGE_RIGHT - LARGE_LEFT, fill, 'start');
 
     return halves.flatMap(({ points, fill }, i) => [
         `<clipPath id="guidon-half-${i}"><polygon points="${points}"/></clipPath>`,
@@ -267,18 +293,21 @@ function diagonal(design, primary, secondary) {
         ];
     }
 
-    // With a large character the texts take the other half's color too, as on the wiki's Reserve guidon. Each sits
-    // right of the large character with room to spare from the diagonal (x = WIDTH - y * WIDTH / HEIGHT): the top text
-    // in the corner above it (clear to x = 211 at its lowest), the bottom text above the cut's lower tail.
+    // With a large character the texts take the other half's color too, as on the wiki's Reserve guidon. Both start
+    // just right of it, the top text in the corner above the diagonal (x = WIDTH - y * WIDTH / HEIGHT, 208 at the
+    // text's lowest point, so it ends by 200), the bottom text below it and clear of the cut's lower tail (x = 232 at
+    // the text's top, so it ends by 224).
+    const left = besideLarge(design.large);
+
     return [
         `<polygon points="${topLeft}" fill="${primary}"/>`,
         `<polygon points="${bottomRight}" fill="${secondary}"/>`,
         ...largeChar(design.large, [
-            { points: topLeft, fill: secondary },
-            { points: bottomRight, fill: primary },
+            { points: topLeft, fill: oppositeOn(primary, secondary) },
+            { points: bottomRight, fill: oppositeOn(secondary, primary) },
         ]),
-        label(design.topLeft, 150, 44, 44, 80, secondary),
-        label(design.bottomRight, 162, 172, 48, 90, primary),
+        label(design.topLeft, left, 44, 44, 200 - left, oppositeOn(primary, secondary), 'start'),
+        label(design.bottomRight, left, 172, 48, 224 - left, oppositeOn(secondary, primary), 'start'),
     ];
 }
 
@@ -291,11 +320,11 @@ function horizontal(design, primary, secondary) {
         `<polygon points="${top}" fill="${primary}"/>`,
         `<polygon points="${bottom}" fill="${secondary}"/>`,
         ...largeChar(design.large, [
-            { points: top, fill: secondary },
-            { points: bottom, fill: primary },
+            { points: top, fill: oppositeOn(primary, secondary) },
+            { points: bottom, fill: oppositeOn(secondary, primary) },
         ]),
-        halfLabel(design.topLeft, HEIGHT / 4, design.topAlign, design.large ? secondary : textColorOn(primary), design.large),
-        halfLabel(design.bottomRight, (HEIGHT * 3) / 4, design.bottomAlign, design.large ? primary : textColorOn(secondary), design.large),
+        halfLabel(design.topLeft, HEIGHT / 4, design.topAlign, design.large ? oppositeOn(primary, secondary) : textColorOn(primary), design.large),
+        halfLabel(design.bottomRight, (HEIGHT * 3) / 4, design.bottomAlign, design.large ? oppositeOn(secondary, primary) : textColorOn(secondary), design.large),
     ];
 }
 
@@ -311,35 +340,66 @@ function solid(design, primary) {
     ];
 }
 
-// The regiment's own guidon: a rectangle with a band of the first color across the top half, from the hoist to a
-// slanted end that runs from the top right corner down to two thirds of the width at the middle; the rest is the
-// second color. The top text sits on the band, the bottom text below it, both right of the large character.
-const BAND_SLANT = Math.round(WIDTH / 3);
-const BAND = `0,0 ${WIDTH},0 ${WIDTH - BAND_SLANT},${HEIGHT / 2} 0,${HEIGHT / 2}`;
-const BAND_REST = `0,${HEIGHT / 2} ${WIDTH - BAND_SLANT},${HEIGHT / 2} ${WIDTH},0 ${WIDTH},${HEIGHT} 0,${HEIGHT}`;
+// Quartered: the swallowtail split across the middle (as the top and bottom format) and by an upright line at
+// QUARTER_SPLIT, the first color top left and bottom right, the second top right and bottom left; each right quarter
+// carries its tail. The line is where the four quarters have the same area: the left ones are QUARTER_SPLIT wide, the
+// right ones run from it to the fly at the edge and to the cut's point (WIDTH - NOTCH) at the middle, so
+// QUARTER_SPLIT * H = (2 * WIDTH - NOTCH - 2 * QUARTER_SPLIT) * H / 2 gives (2 * WIDTH - NOTCH) / 4 = 123. Splitting the
+// body before the tails at its middle (x = 96) would leave the right quarters half again as big as the left ones.
+export const QUARTER_SPLIT = (2 * WIDTH - NOTCH) / 4;
+const QUARTERS = {
+    topLeft: `0,0 ${QUARTER_SPLIT},0 ${QUARTER_SPLIT},${HEIGHT / 2} 0,${HEIGHT / 2}`,
+    topRight: `${QUARTER_SPLIT},0 ${WIDTH},0 ${WIDTH - NOTCH},${HEIGHT / 2} ${QUARTER_SPLIT},${HEIGHT / 2}`,
+    bottomLeft: `0,${HEIGHT / 2} ${QUARTER_SPLIT},${HEIGHT / 2} ${QUARTER_SPLIT},${HEIGHT} 0,${HEIGHT}`,
+    bottomRight: `${QUARTER_SPLIT},${HEIGHT / 2} ${WIDTH - NOTCH},${HEIGHT / 2} ${WIDTH},${HEIGHT} ${QUARTER_SPLIT},${HEIGHT}`,
+};
+// The quarter texts are about a quarter of the flag's height, 12 units in from the quarter's edges. On a right quarter
+// the cut leaves the text clear to x = 218 at its corner nearest the point, so the column ends at 210.
+const QUARTER_CAP = 56;
+const QUARTER_PAD = 12;
+const QUARTER_RIGHT_END = 210;
 
-function band(design, primary, secondary) {
-    const large = Boolean(design.large);
-    // The texts are about a third of the flag's height. Their column starts right of the large character (or near the
-    // hoist without one) and ends where the slant leaves 12px of the band at the top text's lowest point.
-    const left = (large ? largeRight(design.large) : 0) + HALF_LEFT;
-    const right = WIDTH - BAND_SLANT - 12 + (BAND_SLANT * (HEIGHT / 2 - 92)) / (HEIGHT / 2);
-    const column = (text, y, cap, align, fill) =>
-        align === 'center' ? label(text, (left + right) / 2, y, cap, right - left, fill) : label(text, left, y, cap, right - left, fill, 'start');
+function quarterLabel(text, y, align, fill, from, to) {
+    return align === 'center'
+        ? label(text, (from + to) / 2, y, QUARTER_CAP, to - from, fill)
+        : label(text, from, y, QUARTER_CAP, to - from, fill, 'start');
+}
 
+function quartered(design, primary, secondary) {
+    const right = [QUARTER_SPLIT + QUARTER_PAD, QUARTER_RIGHT_END];
+    const shapes = [
+        `<polygon points="${QUARTERS.topLeft}" fill="${primary}"/>`,
+        `<polygon points="${QUARTERS.topRight}" fill="${secondary}"/>`,
+        `<polygon points="${QUARTERS.bottomLeft}" fill="${secondary}"/>`,
+        `<polygon points="${QUARTERS.bottomRight}" fill="${primary}"/>`,
+    ];
+
+    // Without a large character the top text sits in the top left quarter and the bottom text in the bottom right
+    // one, both on the first color.
+    if (!design.large) {
+        return [
+            ...shapes,
+            quarterLabel(design.topLeft, HEIGHT / 4, design.topAlign, textColorOn(primary), QUARTER_PAD, QUARTER_SPLIT - QUARTER_PAD),
+            quarterLabel(design.bottomRight, (HEIGHT * 3) / 4, design.bottomAlign, textColorOn(primary), ...right),
+        ];
+    }
+
+    // The large character fills the left quarters, centered on them, in the opposite color of each; the top text
+    // moves right into the top right quarter, so both texts sit in the right column, each in its quarter's opposite,
+    // left aligned at the same x right after the split (a text can't cross into a quarter of the other color, so this
+    // is as close to the large character as they come here).
     return [
-        `<polygon points="${BAND}" fill="${primary}"/>`,
-        `<polygon points="${BAND_REST}" fill="${secondary}"/>`,
+        ...shapes,
         ...largeChar(design.large, [
-            { points: BAND, fill: secondary },
-            { points: BAND_REST, fill: primary },
-        ]),
-        column(design.topLeft, HEIGHT / 4, Math.round(HEIGHT * 0.35), design.topAlign, large ? secondary : textColorOn(primary)),
-        column(design.bottomRight, (HEIGHT * 3) / 4, Math.round(HEIGHT * 0.3), design.bottomAlign, large ? primary : textColorOn(secondary)),
+            { points: QUARTERS.topLeft, fill: oppositeOn(primary, secondary) },
+            { points: QUARTERS.bottomLeft, fill: oppositeOn(secondary, primary) },
+        ], { x: QUARTER_SPLIT / 2, width: QUARTER_SPLIT - 2 * QUARTER_PAD }),
+        quarterLabel(design.topLeft, HEIGHT / 4, 'left', oppositeOn(secondary, primary), ...right),
+        quarterLabel(design.bottomRight, (HEIGHT * 3) / 4, 'left', oppositeOn(primary, secondary), ...right),
     ];
 }
 
-const DRAW = { band, diagonal, horizontal, solid };
+const DRAW = { diagonal, horizontal, quartered, solid };
 
 // The flag as an SVG document, `width` pixels wide; `plain` leaves out the texts and the large character. Null for a
 // design that breaks the rules: nothing is drawn from it.
@@ -354,7 +414,7 @@ export function guidonSvg(design, { width = WIDTH, plain = false } = {}) {
         `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${WIDTH} ${HEIGHT}">`,
         ...DRAW[formatOf(design)](plain ? { ...design, topLeft: '', bottomRight: '', large: '' } : design, primary, secondary),
         // A faint edge, so a white half still shows against a white page.
-        `<polygon points="${formatOf(design) === 'band' ? RECTANGLE : OUTLINE}" fill="none" stroke="#000000" stroke-opacity="0.25" stroke-width="2" stroke-linejoin="round"/>`,
+        `<polygon points="${OUTLINE}" fill="none" stroke="#000000" stroke-opacity="0.25" stroke-width="2" stroke-linejoin="round"/>`,
         '</svg>',
     ].join('');
 }

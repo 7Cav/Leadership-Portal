@@ -84,14 +84,16 @@ Your scope's units and troopers, from the cached Cav roster.
   from what the sync records; nothing extra is asked of the forum. There is no leave sync button.
 - Guidon: a company, battalion or the regiment can have a guidon, the unit's flag. Its command (and the command
   above it, and Admins) opens "Edit guidon" on the unit's roster to pick a format, the colors (a set palette or any
-  custom color) and the text, with a live preview; nothing is saved until Save. Formats: band (a
-  rectangle with a band of the first color across the top half that slants back from the fly, the rest the second
-  color, like the regiment's own 2/7 A guidon; the texts sit on the band and below it, left or centered), diagonal (two colors split
+  custom color) and the text, with a live preview; nothing is saved until Save. Formats: diagonal (two colors split
   corner to corner, the text top left and bottom right), top and bottom (two colors split across the middle, like the
-  wiki's Regimental HQ and 3-7 HQ guidons, each text left or centered on its half) and solid (one color). An optional
+  wiki's Regimental HQ and 3-7 HQ guidons, each text left or centered on its half), quartered (four quarters like a
+  checkerboard, the first color top left and bottom right, the top text in the top left quarter and the bottom text in
+  the bottom right one, left or centered) and solid (one color). A guidon saved in the dropped band format draws as top
+  and bottom. An optional
   large character (one or two letters or digits, like the 7 on the wiki's Reserve guidon) runs about three quarters of
-  the flag's height at the hoist (it fits best on the band format) in the opposite color of each half, and the texts move right of it and take the opposite color
-  too. Without one, text is black or white, whichever reads better on its half. Switching format keeps the colors and
+  the flag's height at the hoist in the opposite color of each half, and the texts start just right of it, left aligned
+  at the same x, and take the opposite color too (on the quartered format it fills the left quarters and the texts
+  move to the right ones). Without one, text is black or white, whichever reads better on its half. Switching format keeps the colors and
   text. The text starts as the battalion and the 7 on the top left ("2/7") and the company letter on the bottom right
   ("A"). The generator warns when the two colors are too close in a two color format. Every guidon saved before
   formats is diagonal and keeps its colors, split and text spots. All guidon text is set in Oswald Medium, a tall,

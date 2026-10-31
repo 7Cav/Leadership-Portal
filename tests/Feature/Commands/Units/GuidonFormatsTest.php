@@ -12,8 +12,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 
-// Guidon formats: band (the regiment's own 2/7 A guidon), diagonal (what every guidon saved before formats draws),
-// top and bottom, and solid; each text left or centered; an optional large character at the hoist. And where the
+// Guidon formats: diagonal (what every guidon saved before formats draws), top and bottom, quartered and solid; each text left or centered; an optional large character at the hoist. And where the
 // saved guidon shows, without a query per row.
 
 beforeEach(function () {
@@ -53,12 +52,13 @@ describe('formats', function () {
         expect(UnitGuidon::query()->sole()->design())->toBe($design);
     });
 
-    it("saves the regiment's 2/7 A guidon on the band format with a large 2", function () {
-        $design = ['format' => 'band', 'primary' => '#1f2a44', 'secondary' => '#ffffff', 'topLeft' => '7', 'bottomRight' => 'A', 'topAlign' => 'left', 'bottomAlign' => 'left', 'large' => '2'];
+    it('saves a quartered guidon with a large character and reads it back the same', function () {
+        $design = ['format' => 'quartered', 'primary' => '#1f2a44', 'secondary' => '#ffffff', 'topLeft' => '7', 'bottomRight' => 'A', 'topAlign' => 'center', 'bottomAlign' => 'left', 'large' => '2'];
 
         putGuidon($this, $this->company->id, $design)->assertRedirect('/roster');
 
-        expect(UnitGuidon::query()->sole()->design())->toBe($design);
+        expect(UnitGuidon::query()->sole()->design())->toBe($design)
+            ->and(app(UnitGuidonRepository::class)->designsFor([$this->company])[$this->company->id])->toBe($design);
     });
 
     it('saves a solid guidon', function () {
@@ -97,7 +97,8 @@ describe('formats', function () {
 
         expect(UnitGuidon::query()->count())->toBe(0);
     })->with([
-        'format' => ['format', 'quartered'],
+        'format' => ['format', 'vertical'],
+        'dropped band format' => ['format', 'band'],
         'top placement' => ['topAlign', 'right'],
         'bottom placement' => ['bottomAlign', '<b>'],
         'large too long' => ['large', '777'],

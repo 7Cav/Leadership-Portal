@@ -85,7 +85,7 @@ describe('Order of battle (roster-s2)', () => {
 
     it('shows the small plain guidon on a platoon header, as decoration beside its name', () => {
         const { units, troopers } = roster();
-        const flag = { format: 'band', primary: '#1f2a44', secondary: '#ffffff', topLeft: '7', bottomRight: 'A', topAlign: 'left', bottomAlign: 'left', large: '2' };
+        const flag = { format: 'quartered', primary: '#1f2a44', secondary: '#ffffff', topLeft: '7', bottomRight: 'A', topAlign: 'left', bottomAlign: 'left', large: '2' };
         const company = { id: 9, type: 'company', name: 'Alpha Company', callsign: 'A/1-7', parentId: null, leader: null, kpis: units[0].kpis };
         const wrapper = factory({ units: [company, { ...units[0], headerGuidon: flag }, ...units.slice(1)], troopers });
         const img = wrapper.find('[data-testid="group-1"] [data-testid="guidon"]');

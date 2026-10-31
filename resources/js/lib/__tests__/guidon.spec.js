@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
     HEIGHT,
+    QUARTER_SPLIT,
     TEXTLESS_BELOW,
     WIDTH,
     cleanText,
     contrastRatio,
     defaultDesign,
     defaultText,
+    formatOf,
     guidonDataUrl,
     guidonFileName,
     guidonSvg,
@@ -208,7 +210,7 @@ describe('formats', () => {
         expect(texts(svg).map((g) => g.getAttribute('fill'))).toEqual(['#000000', '#000000']);
     });
 
-    it('draws the ACD guidon: a large 7 and both texts in the opposite color of each half, the texts right of the 7', () => {
+    it('draws the ACD guidon: a large 7 and both texts in black, as orange and white are too close for the other color to read, the texts right of the 7', () => {
         const svg = parse(guidonSvg(acd));
         const clips = svg.querySelectorAll('clipPath');
         const sevens = texts(svg, true);
@@ -216,58 +218,117 @@ describe('formats', () => {
 
         expect(clips).toHaveLength(2);
         expect(clips[0].querySelector('polygon').getAttribute('points')).toBe('0,0 300,0 0,216');
+        // Orange and white are under 3 to 1, so the other color would not read: black on both halves.
         expect(sevens.map((g) => [g.getAttribute('data-text'), g.getAttribute('fill')])).toEqual([
-            ['7', '#ffffff'],
-            ['7', '#f47a20'],
+            ['7', '#000000'],
+            ['7', '#000000'],
         ]);
         // About 72% of the flag's height.
         expect(Number(sevens[0].getAttribute('data-cap'))).toBe(156);
         expect(top.getAttribute('data-text')).toBe('ACD');
-        expect(top.getAttribute('fill')).toBe('#ffffff');
-        expect(origin(top).x).toBeGreaterThan(100);
-        // The top text's lowest point stays well inside the top left half: the diagonal is at x = 211 there.
+        expect(top.getAttribute('fill')).toBe('#000000');
+        // The 7 hugs the hoist; both texts start just right of it, at the same x, about a third of the way across.
+        expect(origin(sevens[0]).x).toBe(9);
+        expect(origin(top).x).toBe(103);
         expect(origin(top).y).toBeLessThanOrEqual(66);
-        expect(origin(top).x + 2 * (150 - origin(top).x)).toBeLessThanOrEqual(205);
         expect(bottom.getAttribute('data-text')).toBe('B');
-        expect(bottom.getAttribute('fill')).toBe('#f47a20');
-        expect(origin(bottom).x).toBeGreaterThan(110);
+        expect(bottom.getAttribute('fill')).toBe('#000000');
+        expect(origin(bottom).x).toBe(origin(top).x);
     });
 
-    it('moves the top and bottom texts right of a large character', () => {
-        const [top] = texts(parse(guidonSvg({ ...acd, format: 'horizontal' })));
+    it('starts the texts just right of the large character, left aligned at the same x whatever their placement', () => {
+        const centered = { ...acd, format: 'horizontal', topAlign: 'center', bottomAlign: 'center' };
+        const at = (large) => texts(parse(guidonSvg({ ...centered, large }))).map((g) => origin(g).x);
 
-        expect(origin(top).x).toBeGreaterThanOrEqual(148);
+        expect(at('7')).toEqual([103, 103]);
+        // Measured from the glyphs: a 1 pulls the texts closer, a 2 is wider, two characters further still.
+        expect(at('1')[0]).toBeLessThan(103);
+        expect(at('2')[0]).toBeGreaterThan(103);
+        expect(at('12')[0]).toBeGreaterThan(at('2')[0]);
     });
 
-    it("draws the regiment's 2/7 A guidon on the band format: a rectangle, a slanted navy band, a large 2", () => {
-        const regiment = { format: 'band', primary: '#1f2a44', secondary: '#ffffff', topLeft: '7', bottomRight: 'A', topAlign: 'left', bottomAlign: 'left', large: '2' };
-        const svg = parse(guidonSvg(regiment));
-        const [bandShape, rest, edge] = [...svg.querySelectorAll(':scope > polygon')];
-        const twos = texts(svg, true);
-        const [seven, letter] = texts(svg);
+    it('quarters the swallowtail like a checkerboard, the first color top left and bottom right', () => {
+        const svg = parse(guidonSvg({ ...design, format: 'quartered', topAlign: 'center', bottomAlign: 'center' }));
+        const [tl, tr, bl, br, edge] = [...svg.querySelectorAll(':scope > polygon')];
+        const [top, bottom] = texts(svg);
 
-        // A plain rectangle, no swallowtail; the band runs along the top edge to the fly and slants back to two
-        // thirds of the width at the middle.
-        expect(edge.getAttribute('points')).toBe('0,0 300,0 300,216 0,216');
-        expect(bandShape.getAttribute('points')).toBe('0,0 300,0 200,108 0,108');
-        expect(bandShape.getAttribute('fill')).toBe('#1f2a44');
-        expect(rest.getAttribute('fill')).toBe('#ffffff');
-        // The 2 is about 72% of the height, white on the band and navy below it.
-        expect(twos.map((g) => [g.getAttribute('data-text'), g.getAttribute('fill'), g.getAttribute('data-cap')])).toEqual([
-            ['2', '#ffffff', '156'],
-            ['2', '#1f2a44', '156'],
+        // Split across the middle and upright at x = 123, where the four quarters have the same area; the right
+        // quarters carry the tails.
+        expect(QUARTER_SPLIT).toBe(123);
+        expect([tl, tr, bl, br].map((p) => [p.getAttribute('points'), p.getAttribute('fill')])).toEqual([
+            ['0,0 123,0 123,108 0,108', '#1f2a44'],
+            ['123,0 300,0 192,108 123,108', '#ffffff'],
+            ['0,108 123,108 123,216 0,216', '#ffffff'],
+            ['123,108 192,108 300,216 123,216', '#1f2a44'],
         ]);
-        // The 7 on the band (about 35% of the height), the A below it in navy (about 30%), both right of the 2.
-        expect([seven.getAttribute('data-text'), seven.getAttribute('fill'), seven.getAttribute('data-cap')]).toEqual(['7', '#ffffff', '76']);
-        expect([letter.getAttribute('data-text'), letter.getAttribute('fill'), letter.getAttribute('data-cap')]).toEqual(['A', '#1f2a44', '65']);
-        expect(origin(seven).y).toBeLessThanOrEqual(92);
-        expect(origin(letter).y).toBeGreaterThan(108);
-        expect(origin(seven).x).toBeGreaterThan(100);
-        expect(origin(letter).x).toBeGreaterThan(100);
+        expect(edge.getAttribute('points')).toBe('0,0 300,0 192,108 300,216 0,216');
+        // The top text in the top left quarter, the bottom text in the bottom right one, both white on navy.
+        expect([top.getAttribute('data-text'), top.getAttribute('fill')]).toEqual(['2/7', '#ffffff']);
+        expect([bottom.getAttribute('data-text'), bottom.getAttribute('fill')]).toEqual(['A', '#ffffff']);
+        expect(origin(top).x).toBeGreaterThanOrEqual(12);
+        expect(origin(top).y).toBeLessThan(108);
+        expect(origin(bottom).x).toBeGreaterThan(123);
+        expect(origin(bottom).y).toBeGreaterThan(108);
+    });
+
+    it('reads each quarter text in black or white, whichever reads on the first color', () => {
+        const texts2 = texts(parse(guidonSvg({ ...design, format: 'quartered', primary: '#ffc72c', secondary: '#1f2a44' })));
+
+        expect(texts2.map((g) => g.getAttribute('fill'))).toEqual(['#000000', '#000000']);
+    });
+
+    it('puts a large character across the left quarters, the texts in the right ones, all in the opposite colors', () => {
+        const svg = parse(guidonSvg({ ...acd, primary: '#b22234', format: 'quartered' }));
+        const clips = [...svg.querySelectorAll('clipPath polygon')].map((p) => p.getAttribute('points'));
+        const sevens = texts(svg, true);
+        const [top, bottom] = texts(svg);
+
+        expect(clips).toEqual(['0,0 123,0 123,108 0,108', '0,108 123,108 123,216 0,216']);
+        expect(sevens.map((g) => [g.getAttribute('fill'), g.getAttribute('data-cap')])).toEqual([
+            ['#ffffff', '156'],
+            ['#b22234', '156'],
+        ]);
+        // Centered on the left quarters: the 7 is about 80 wide, so it starts about 20 in.
+        expect(origin(sevens[0]).x).toBeGreaterThan(15);
+        expect(origin(sevens[0]).x).toBeLessThan(30);
+        // Top right is white, so the top text is red; bottom right is red, so the bottom text is white.
+        expect([top.getAttribute('data-text'), top.getAttribute('fill')]).toEqual(['ACD', '#b22234']);
+        expect([bottom.getAttribute('data-text'), bottom.getAttribute('fill')]).toEqual(['B', '#ffffff']);
+        expect(origin(top).x).toBe(135);
+        expect(origin(bottom).x).toBe(135);
+    });
+
+    it('keeps black or white beside a large character when the other color would not read', () => {
+        // Blue over purple: about 1.6 to 1, so every element stays white, large character or not.
+        const blue = { ...design, primary: '#004cff', secondary: '#8000ff', topLeft: 'A', bottomRight: 'BC' };
+        for (const format of ['diagonal', 'horizontal', 'quartered']) {
+            const plainFills = texts(parse(guidonSvg({ ...blue, format }))).map((g) => g.getAttribute('fill'));
+            const svg = parse(guidonSvg({ ...blue, format, large: 'A' }));
+
+            expect(plainFills).toEqual(['#ffffff', '#ffffff']);
+            expect(texts(svg).map((g) => g.getAttribute('fill'))).toEqual(['#ffffff', '#ffffff']);
+            expect(texts(svg, true).map((g) => g.getAttribute('fill'))).toEqual(['#ffffff', '#ffffff']);
+        }
+    });
+
+    it('keeps the other color beside a large character when it reads: the ACD/C guidon, white on red and red on white', () => {
+        const acdc = { ...acd, primary: '#b22234', topLeft: 'ACD', bottomRight: 'C' };
+        const svg = parse(guidonSvg(acdc));
+
+        expect(texts(svg).map((g) => g.getAttribute('fill'))).toEqual(['#ffffff', '#b22234']);
+        expect(texts(svg, true).map((g) => g.getAttribute('fill'))).toEqual(['#ffffff', '#b22234']);
+    });
+
+    it('draws a design saved as a band, a dropped format, as top and bottom', () => {
+        const band = { ...acd, format: 'band' };
+
+        expect(isDesign(band)).toBe(true);
+        expect(guidonSvg(band)).toBe(guidonSvg({ ...acd, format: 'horizontal' }));
+        expect(formatOf(band)).toBe('horizontal');
     });
 
     it('refuses an unknown format, placement or large character', () => {
-        expect(guidonSvg({ ...design, format: 'quartered' })).toBeNull();
+        expect(guidonSvg({ ...design, format: 'vertical' })).toBeNull();
         expect(guidonSvg({ ...design, topAlign: 'right' })).toBeNull();
         expect(guidonSvg({ ...design, large: '777' })).toBeNull();
         expect(guidonSvg({ ...design, large: '<' })).toBeNull();
@@ -279,7 +340,7 @@ describe('formats', () => {
 
         expect(pairTooClose(pair)).toBe(true);
         expect(pairTooClose({ ...pair, format: 'horizontal' })).toBe(true);
-        expect(pairTooClose({ ...pair, format: 'band' })).toBe(true);
+        expect(pairTooClose({ ...pair, format: 'quartered' })).toBe(true);
         expect(pairTooClose({ ...pair, format: 'solid' })).toBe(false);
     });
 

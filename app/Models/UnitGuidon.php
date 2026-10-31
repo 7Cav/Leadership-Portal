@@ -8,11 +8,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Collection;
 
 /**
- * A unit's guidon (#446): the flag in one of four `format`s. `band` is a rectangle with a slanted band of
- * `primary_color` across the top half and `secondary_color` below (the regiment's own guidon); `diagonal` puts `primary_color` on the top
+ * A unit's guidon (#446): the flag in one of four `format`s. `diagonal` puts `primary_color` on the top
  * left with `top_left_text` and `secondary_color` on the bottom right with `bottom_right_text`; `horizontal` puts the
- * first color and text on the top half and the second on the bottom half; `solid` is the first color only. In the top
- * band and the top and bottom formats each text sits `left` or `center` (`top_align`, `bottom_align`). `large_text` is an optional one
+ * first color and text on the top half and the second on the bottom half; `quartered` puts the first color top left
+ * and bottom right and the second top right and bottom left; `solid` is the first color only. Off the diagonal each
+ * text sits `left` or `center` (`top_align`, `bottom_align`). A row left in the dropped `band` format draws as
+ * `horizontal`. `large_text` is an optional one
  * or two character mark at the hoist across both halves. UNIQUE on `unit_id`. Portal-owned
  * (AD-22): the Repository layer is its only writer, for the audited `SaveUnitGuidon` Command. The page draws the flag
  * from these fields (`resources/js/lib/guidon.js`); no image is stored.
