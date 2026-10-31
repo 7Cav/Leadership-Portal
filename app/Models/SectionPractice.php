@@ -37,6 +37,12 @@ class SectionPractice extends Model
             'is_demo' => 'boolean',
             'rollcall_posted_at' => 'immutable_datetime',
             'confirmed_at' => 'immutable_datetime',
+            // The window a capture read (#392), and a one-off move or cancellation of this week's slot: written only by
+            // the Repository layer, so not mass-assignable.
+            'window_start' => 'immutable_datetime',
+            'window_end' => 'immutable_datetime',
+            'slot_moved_to' => 'immutable_datetime',
+            'slot_cancelled' => 'boolean',
         ];
     }
 

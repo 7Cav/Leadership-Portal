@@ -113,9 +113,17 @@ interface SectionPracticeRepository
     /**
      * Stamp the practice with where a capture read from and when (7.5, AD-19): `server_ref`,
      * `captured_at` and `capture_source`. Re-stamping overwrites — a re-run is idempotent on the
-     * same row. The caller routes it through the audit envelope where an actor exists.
+     * same row. `window_start`/`window_end` keep the window the capture read (#392), so a later
+     * change of the section's slot never rewrites it. The caller routes it through the audit envelope
+     * where an actor exists.
      */
-    public function stampCapture(SectionPractice $practice, string $serverRef, \DateTimeInterface $capturedAt, string $captureSource): SectionPractice;
+    public function stampCapture(SectionPractice $practice, string $serverRef, \DateTimeInterface $capturedAt, string $captureSource, ?\DateTimeInterface $windowStart = null, ?\DateTimeInterface $windowEnd = null): SectionPractice;
+
+    /**
+     * Move this week's practice to `$movedTo` or cancel it (#392), or with neither put it back on the section's slot.
+     * The caller routes it through the audit envelope.
+     */
+    public function changeWeek(SectionPractice $practice, ?\DateTimeInterface $movedTo, bool $cancelled): SectionPractice;
 
     /**
      * Whether any practice, demo or real, has been recorded for `$unit` —

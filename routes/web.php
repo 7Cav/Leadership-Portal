@@ -12,6 +12,7 @@ use App\Http\Controllers\ReportRollupController;
 use App\Http\Controllers\RollcallController;
 use App\Http\Controllers\RollcallFireteamController;
 use App\Http\Controllers\RollcallGuestController;
+use App\Http\Controllers\RollcallPracticeSlotController;
 use App\Http\Controllers\RollcallTemplateController;
 use App\Http\Controllers\RosterController;
 use App\Http\Controllers\ScopeUnitsController;
@@ -176,6 +177,9 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::post('/rollcall/{unit}/guests', [RollcallGuestController::class, 'store'])->middleware('throttle:audited-writes')->name('rollcall.guests.store');
     Route::post('/rollcall/{unit}/guests/remove', [RollcallGuestController::class, 'destroy'])->middleware('throttle:audited-writes')->name('rollcall.guests.remove');
     // The section's pick of rollcall template (#375): an audited Command gated by the section's write scope.
+    // The section's practice slot and one week's move or cancellation (#392): audited Commands gated by write scope.
+    Route::post('/rollcall/{unit}/slot', [RollcallPracticeSlotController::class, 'slot'])->middleware('throttle:audited-writes')->name('rollcall.slot');
+    Route::post('/rollcall/{unit}/slot/week', [RollcallPracticeSlotController::class, 'week'])->middleware('throttle:audited-writes')->name('rollcall.slot.week');
     Route::post('/rollcall/{unit}/template', RollcallTemplateController::class)->middleware('throttle:audited-writes')->name('rollcall.template.pick');
 
     // Game identities (Story 7.2): link troopers in scope to their in-game identity, one per
