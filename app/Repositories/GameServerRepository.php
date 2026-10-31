@@ -47,7 +47,9 @@ interface GameServerRepository
      * Store what an interface listed: a new server is added unselected, a known one is renamed and no longer missing,
      * and a stored one the listing left out is flagged missing (never deselected).
      *
-     * @param  list<array{external_id: string, name: string}>  $listed
+     * A new server takes the game the listing names (`game_slug`), if the portal has it.
+     *
+     * @param  list<array{external_id: string, name: string, game_slug?: string|null}>  $listed
      * @return array{added: int, missing: int}
      */
     public function storeListing(TelemetryInterface $interface, array $listed): array;

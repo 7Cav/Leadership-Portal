@@ -4,9 +4,10 @@ namespace App\Integration\Crcon;
 
 use App\Integration\Crcon\Data\CrconPlayer;
 use App\Integration\Crcon\Data\CrconPresence;
+use App\Integration\Crcon\Requests\FetchConnectionInfoRequest;
+use App\Integration\Crcon\Requests\FetchConnectionLogsRequest;
 use App\Integration\Crcon\Requests\FetchPlayerProfileRequest;
 use App\Integration\Crcon\Requests\FetchPlayersHistoryRequest;
-use App\Integration\Crcon\Requests\FetchPublicInfoRequest;
 use App\Integration\ListedServer;
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
@@ -19,8 +20,13 @@ use Throwable;
  * The single door out to CRCON (AD-3). A CommandHandler (the 7.5 capture run) calls this; it
  * owns the connector and request so no HTTP client to CRCON exists anywhere else.
  *
+ * **One instance per game server.** The unit runs a CRCON per server (`CRCON_SERVERS`, else the one
+ * `CRCON_BASE_URL`). A server is listed as `crcon:<server number>`, and its presence comes from its own
+ * instance's CONNECTED and DISCONNECTED log lines, filtered to its server number: CRCON's player sessions
+ * carry no server in what the API returns, so they cannot tell the servers apart.
+ *
  * **Read-only by construction** (proposal §9.4): the request classes are a player-history query,
- * a player-profile read and the server's public info. Nothing here can kick, ban, message or otherwise change the game server, so presence
+ * a player-profile read, a connection-log query and the server's connection info. Nothing here can kick, ban, message or otherwise change the game server, so presence
  * is read and nothing is changed. The key reaches this class only via injected config (AD-23).
  *
  * **Every failure leaves through {@see CrconUnavailable}** — unreachable, timeout, HTTP error,
@@ -32,10 +38,27 @@ class CrconApi
     /** Safety valve on pagination so a server that never stops paging cannot loop forever. */
     private const MAX_PAGES = 50;
 
-    /** The id a CRCON instance's one server is stored under (#389). */
+    /**
+     * The id the single-instance setup stored its one server under (#389). Still read: it names the
+     * `CRCON_BASE_URL` instance (else the first one), so a selection made before multi-server support keeps capturing.
+     */
     public const SERVER_ID = 'crcon';
 
-    private ?CrconConnector $connector = null;
+    /** Prefix of a listed server's id; the server number follows. */
+    public const SERVER_ID_PREFIX = 'crcon:';
+
+    /** How far before the window connection logs are read, to find who was already on when it opened. */
+    private const LOOKBACK_HOURS = 12;
+
+    /** @var array<string, CrconConnector> by base URL */
+    private array $connectors = [];
+
+    /**
+     * Each instance's connection info, read once per run, by base URL.
+     *
+     * @var array<string, array{name: string, game: string|null, number: string}>
+     */
+    private array $connectionInfo = [];
 
     /**
      * Profile sessions already read in this run, by platform id; null when the profile could not be read.
@@ -55,15 +78,22 @@ class CrconApi
     /**
      * Who was on the server at any point in `[$start, $end]`, one entry per platform id.
      *
+     * With a `$serverId` (a stored server, #389) only that server's connection logs count. Without one it is the
+     * legacy env read of the first instance's player history, which cannot tell servers apart.
+     *
      * @throws CrconUnavailable when CRCON cannot be read for any reason
      */
-    public function fetchPresence(DateTimeInterface $start, DateTimeInterface $end): CrconPresence
+    public function fetchPresence(DateTimeInterface $start, DateTimeInterface $end, ?string $serverId = null): CrconPresence
     {
         $windowStart = DateTimeImmutable::createFromInterface($start)->setTimezone(new DateTimeZone('UTC'));
         $windowEnd = DateTimeImmutable::createFromInterface($end)->setTimezone(new DateTimeZone('UTC'));
 
         if ($windowEnd < $windowStart) {
             throw CrconUnavailable::malformed('the practice window ends before it starts');
+        }
+
+        if ($serverId !== null) {
+            return $this->fetchServerPresence($serverId, $windowStart, $windowEnd);
         }
 
         /** @var array<string, CrconPlayer> $byPlatformId */
@@ -118,25 +148,284 @@ class CrconApi
     }
 
     /**
-     * The one server this CRCON instance runs, by the name it gives itself (#389). Its id is always
-     * {@see self::SERVER_ID}: an instance is one server, and the URL that tells instances apart is a credential (AD-23).
+     * One server per configured instance, as `crcon:<server number>` with the name it gives itself and its game (#389).
+     * An instance that cannot be read is left out so the others still list; only when none can be read does this fail.
      *
      * @return list<ListedServer>
      *
-     * @throws CrconUnavailable when CRCON cannot be read for any reason
+     * @throws CrconUnavailable when no instance can be read
      */
     public function listServers(): array
     {
-        $result = $this->send(new FetchPublicInfoRequest);
+        $listed = [];
+        $failure = null;
 
-        // Newer CRCON versions nest the name (`name.name`); older ones give it as a string.
-        $name = is_array($result['name'] ?? null) ? ($result['name']['name'] ?? null) : ($result['name'] ?? null);
+        foreach ($this->instances() as $instance) {
+            try {
+                $info = $this->connectionInfo($instance);
+            } catch (CrconUnavailable $e) {
+                $failure ??= $e;
 
-        if (! is_string($name) || trim($name) === '') {
-            throw CrconUnavailable::malformed('no server `name` in the public info');
+                continue;
+            }
+
+            $listed[self::SERVER_ID_PREFIX.$info['number']] = new ListedServer(
+                self::SERVER_ID_PREFIX.$info['number'],
+                $info['name'],
+                match ($info['game']) {
+                    'hll' => 'hll',
+                    'hllv' => 'hll-vietnam',
+                    default => null,
+                },
+            );
         }
 
-        return [new ListedServer(self::SERVER_ID, trim($name))];
+        if ($listed === [] && $failure !== null) {
+            throw $failure;
+        }
+
+        return array_values($listed);
+    }
+
+    /**
+     * Who was on one server in the window, from its CONNECTED and DISCONNECTED log lines.
+     *
+     * Each player's lines are paired into stays: a connect opens one, the next disconnect closes it. A disconnect with
+     * no connect before it means they joined before the look-back, so the stay starts there; a connect never closed
+     * is still running at the window end. Anyone with a stay that touches the window was present.
+     */
+    private function fetchServerPresence(string $serverId, DateTimeImmutable $windowStart, DateTimeImmutable $windowEnd): CrconPresence
+    {
+        [$instance, $number] = $this->resolveServer($serverId);
+        $lookbackStart = $windowStart->modify('-'.self::LOOKBACK_HOURS.' hours');
+
+        /** @var array<string, array{key: string, time: DateTimeImmutable, connect: bool, id: string, name: string, seq: int}> $events */
+        $events = [];
+        $from = $lookbackStart;
+
+        for ($page = 1; $page <= self::MAX_PAGES; $page++) {
+            $rows = $this->send(new FetchConnectionLogsRequest($number, $from, $windowEnd), $instance);
+            $new = 0;
+            $last = null;
+
+            foreach ($rows as $row) {
+                if (! is_array($row)) {
+                    throw CrconUnavailable::malformed('a log line was not an object');
+                }
+
+                $event = $this->connectionEvent($row, count($events));
+
+                if ($event === null) {
+                    continue;
+                }
+
+                $last = $event['time'];
+
+                // Paging moves `from` to the last line read, so lines at that moment come again: keep each once.
+                if (isset($events[$event['key']])) {
+                    continue;
+                }
+
+                $events[$event['key']] = $event;
+                $new++;
+            }
+
+            if (count($rows) < FetchConnectionLogsRequest::PAGE_SIZE) {
+                return $this->presenceFromEvents(array_values($events), $lookbackStart, $windowStart, $windowEnd);
+            }
+
+            if ($new === 0 || $last === null) {
+                // A full page of lines already seen: more lines share one moment than a page holds.
+                throw CrconUnavailable::malformed('the connection log did not finish paging');
+            }
+
+            $from = $last;
+        }
+
+        throw CrconUnavailable::malformed('the connection log did not finish paging');
+    }
+
+    /**
+     * @param  array<int|string, mixed>  $row
+     * @return array{key: string, time: DateTimeImmutable, connect: bool, id: string, name: string, seq: int}|null
+     */
+    private function connectionEvent(array $row, int $seq): ?array
+    {
+        $type = $row['type'] ?? null;
+
+        if ($type !== 'CONNECTED' && $type !== 'DISCONNECTED') {
+            return null;
+        }
+
+        $time = $this->moment($row['event_time'] ?? null);
+        $id = $row['player1_id'] ?? null;
+        $id = is_int($id) ? (string) $id : $id;
+
+        if ($time === null || ! is_string($id) || trim($id) === '') {
+            // Skipping would silently under-report; a line without a time or player means the shape changed.
+            throw CrconUnavailable::malformed('a connection log line carried no usable `event_time` or `player1_id`');
+        }
+
+        $name = $row['player1_name'] ?? null;
+        $key = isset($row['id']) && is_scalar($row['id']) ? 'id:'.$row['id'] : $type.'|'.$time->format('U.u').'|'.$id;
+
+        return [
+            'key' => $key,
+            'time' => $time,
+            'connect' => $type === 'CONNECTED',
+            'id' => trim($id),
+            'name' => is_string($name) && trim($name) !== '' ? trim($name) : trim($id),
+            'seq' => $seq,
+        ];
+    }
+
+    /**
+     * @param  list<array{key: string, time: DateTimeImmutable, connect: bool, id: string, name: string, seq: int}>  $events
+     */
+    private function presenceFromEvents(array $events, DateTimeImmutable $lookbackStart, DateTimeImmutable $start, DateTimeImmutable $end): CrconPresence
+    {
+        usort($events, fn (array $a, array $b) => [$a['time'], $a['seq']] <=> [$b['time'], $b['seq']]);
+
+        /** @var array<string, DateTimeImmutable> $open */
+        $open = [];
+        /** @var array<string, CrconPlayer> $present */
+        $present = [];
+        $names = [];
+
+        foreach ($events as $event) {
+            $names[$event['id']] = $event['name'];
+
+            if ($event['connect']) {
+                // A second connect without a disconnect between them keeps the earlier one.
+                $open[$event['id']] ??= $event['time'];
+
+                continue;
+            }
+
+            $from = $open[$event['id']] ?? $lookbackStart;
+            unset($open[$event['id']]);
+
+            if ($from <= $end && $event['time'] >= $start) {
+                $present[$event['id']] ??= new CrconPlayer($names[$event['id']], $event['id']);
+            }
+        }
+
+        foreach ($open as $id => $from) {
+            if ($from <= $end) {
+                $present[$id] ??= new CrconPlayer($names[$id], $id);
+            }
+        }
+
+        return new CrconPresence(array_values($present), $start, $end, CarbonImmutable::now()->toDateTimeImmutable());
+    }
+
+    /**
+     * The instance and server number behind a stored server id. The legacy `crcon` id is the `CRCON_BASE_URL`
+     * instance, else the first one; `crcon:<n>` is the instance that says it runs server n.
+     *
+     * @return array{0: array{base_url: string, api_key: string}, 1: string}
+     */
+    private function resolveServer(string $serverId): array
+    {
+        $instances = $this->instances();
+
+        if ($serverId === self::SERVER_ID) {
+            $legacy = trim((string) ($this->config['base_url'] ?? ''));
+            $instance = $instances[0];
+
+            foreach ($instances as $candidate) {
+                if ($candidate['base_url'] === $legacy) {
+                    $instance = $candidate;
+                    break;
+                }
+            }
+
+            return [$instance, $this->connectionInfo($instance)['number']];
+        }
+
+        if (! str_starts_with($serverId, self::SERVER_ID_PREFIX)) {
+            throw CrconUnavailable::misconfigured("{$serverId} is not a CRCON server id");
+        }
+
+        $number = substr($serverId, strlen(self::SERVER_ID_PREFIX));
+        $failure = null;
+
+        foreach ($instances as $instance) {
+            try {
+                if ($this->connectionInfo($instance)['number'] === $number) {
+                    return [$instance, $number];
+                }
+            } catch (CrconUnavailable $e) {
+                $failure ??= $e;
+            }
+        }
+
+        // An instance that could not be read may be the one: report that, not that the server is gone.
+        throw $failure ?? CrconUnavailable::misconfigured("no instance in CRCON_SERVERS runs server {$number}");
+    }
+
+    /**
+     * @param  array{base_url: string, api_key: string}  $instance
+     * @return array{name: string, game: string|null, number: string}
+     */
+    private function connectionInfo(array $instance): array
+    {
+        if (isset($this->connectionInfo[$instance['base_url']])) {
+            return $this->connectionInfo[$instance['base_url']];
+        }
+
+        $result = $this->send(new FetchConnectionInfoRequest, $instance);
+
+        $name = $result['name'] ?? null;
+        $name = is_array($name) ? ($name['name'] ?? null) : $name;
+        $number = $result['server_number'] ?? null;
+        $number = is_int($number) ? (string) $number : $number;
+        $game = $result['game'] ?? null;
+
+        if (! is_string($name) || trim($name) === '') {
+            throw CrconUnavailable::malformed('no server `name` in the connection info');
+        }
+
+        if (! is_string($number) || trim($number) === '') {
+            throw CrconUnavailable::malformed('no `server_number` in the connection info');
+        }
+
+        return $this->connectionInfo[$instance['base_url']] = [
+            'name' => trim($name),
+            'game' => is_string($game) ? strtolower(trim($game)) : null,
+            'number' => trim($number),
+        ];
+    }
+
+    /**
+     * The configured instances: each `CRCON_SERVERS` entry (`url` or `url|key`), else `CRCON_BASE_URL`.
+     *
+     * @return non-empty-list<array{base_url: string, api_key: string}>
+     */
+    private function instances(): array
+    {
+        $sharedKey = trim((string) ($this->config['api_key'] ?? ''));
+        $servers = $this->config['servers'] ?? null;
+        $entries = is_array($servers) ? $servers : explode(',', (string) $servers);
+        $instances = [];
+
+        foreach ($entries as $entry) {
+            $parts = explode('|', (string) $entry, 2);
+            $url = trim($parts[0]);
+
+            if ($url === '') {
+                continue;
+            }
+
+            $key = trim($parts[1] ?? '');
+            $instances[] = ['base_url' => $url, 'api_key' => $key !== '' ? $key : $sharedKey];
+        }
+
+        if ($instances === []) {
+            $instances[] = ['base_url' => trim((string) ($this->config['base_url'] ?? '')), 'api_key' => $sharedKey];
+        }
+
+        return $instances;
     }
 
     /**
@@ -157,26 +446,27 @@ class CrconApi
     }
 
     /**
-     * Send one request and return the `result` of CRCON's envelope.
+     * Send one request to an instance (the first when none is named) and return the `result` of CRCON's envelope.
      *
+     * @param  array{base_url: string, api_key: string}|null  $instance
      * @return array<string, mixed>
      */
-    private function send(Request $request): array
+    private function send(Request $request, ?array $instance = null): array
     {
-        $apiKey = $this->config['api_key'] ?? null;
+        $instance ??= $this->instances()[0];
+        $apiKey = $instance['api_key'];
+        $baseUrl = $instance['base_url'];
 
-        if (! is_string($apiKey) || trim($apiKey) === '') {
+        if ($apiKey === '') {
             throw CrconUnavailable::misconfigured('CRCON_API_KEY is empty');
         }
 
-        $baseUrl = $this->config['base_url'] ?? null;
-
-        if (! is_string($baseUrl) || trim($baseUrl) === '') {
+        if ($baseUrl === '') {
             throw CrconUnavailable::misconfigured('CRCON_BASE_URL is empty');
         }
 
         try {
-            $response = $this->connector(trim($baseUrl), $apiKey)->send($request);
+            $response = $this->connector($baseUrl, $apiKey)->send($request);
         } catch (Throwable $e) {
             // Broad on purpose: transport errors and PSR-7 URI errors for a malformed base URL
             // must both leave as the typed failure, never as a raw exception.
@@ -356,6 +646,6 @@ class CrconApi
 
     private function connector(string $baseUrl, #[\SensitiveParameter] string $apiKey): CrconConnector
     {
-        return $this->connector ??= new CrconConnector($baseUrl, $apiKey);
+        return $this->connectors[$baseUrl] ??= new CrconConnector($baseUrl, $apiKey);
     }
 }

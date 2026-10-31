@@ -60,7 +60,9 @@ class Eloquent implements GameServerRepository
                 $known = $stored->get($server['external_id']);
 
                 if ($known === null) {
-                    GameServer::query()->create(['interface' => $interface, 'external_id' => $server['external_id'], 'name' => $name]);
+                    // The game the API names is only a starting point for a new server; an Admin's choice is never overwritten.
+                    $gameId = ($server['game_slug'] ?? null) === null ? null : Game::query()->where('slug', $server['game_slug'])->value('id');
+                    GameServer::query()->create(['interface' => $interface, 'external_id' => $server['external_id'], 'name' => $name, 'game_id' => $gameId]);
                     $added++;
                 } else {
                     $known->update(['name' => $name, 'missing_since' => null]);

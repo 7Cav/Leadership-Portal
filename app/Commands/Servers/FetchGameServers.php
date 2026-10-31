@@ -74,7 +74,7 @@ class FetchGameServers
             }
 
             $stored = $this->servers->storeListing($interface, array_map(
-                fn (ListedServer $server) => ['external_id' => $server->externalId, 'name' => $server->name],
+                fn (ListedServer $server) => ['external_id' => $server->externalId, 'name' => $server->name, 'game_slug' => $server->gameSlug],
                 $listed,
             ));
 
