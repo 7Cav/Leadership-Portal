@@ -104,7 +104,11 @@ return [
     | server, so an unset value is a misconfiguration the seam reports as such.
     */
     'crcon' => [
-        'base_url' => env('CRCON_BASE_URL'),
+        // One CRCON per game server. CRCON_SERVERS lists their base URLs, comma separated; an entry may carry its own
+        // key after a `|`. Without it, CRCON_BASE_URL is the one instance. `base_url` stays filled either way, so
+        // "is CRCON configured" keeps one answer.
+        'base_url' => env('CRCON_BASE_URL') ?: (trim(explode('|', explode(',', (string) env('CRCON_SERVERS', ''))[0])[0]) ?: null),
+        'servers' => env('CRCON_SERVERS'),
         'api_key' => env('CRCON_API_KEY'),
     ],
 
