@@ -218,6 +218,10 @@ async function scrollToNow() {
 }
 onMounted(scrollToNow);
 watch(win, scrollToNow);
+// The rows can arrive after the first paint (a deferred load, or the skeleton while navigating): open on the current
+// week again once they are in, since the table only gets its full width then.
+watch(() => props.loading, (busy) => busy || scrollToNow());
+watch(() => props.weeks.length, scrollToNow);
 
 function clearAll() {
     query.value = '';
@@ -549,7 +553,8 @@ function clearAll() {
     }
     .rm .sum-rc {
         right: 11rem;
-        box-shadow: -1px 0 0 var(--border);
+        /* The divider is drawn inside this column: drawn outside, it covered the current week's right outline. */
+        box-shadow: inset 1px 0 0 var(--border);
     }
 }
 .rm .tr-trooper {
