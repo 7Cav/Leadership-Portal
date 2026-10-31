@@ -231,7 +231,7 @@ their own plan unless they also command the company.
 | Org structure: set, change or clear a unit's overseer | Yes | No | No |
 | Staff grants: grant or revoke | Yes | No | No |
 | Games: add, edit, retire, reinstate or delete a game (a game in use can only be retired) | Yes | No | No |
-| Changelog: add (a date's batch), edit, delete (reason required) or bulk import entries, dismiss the "Changelog outdated" bar (only the usernames in `changelog_editors` in `config/portal.php`, signed in as themselves, never while acted as; reading it is open to everyone) | Editors only (11) | Editors only (11) | No |
+| Changelog: add (a date's batch), edit, delete (reason required) or bulk import entries, delete all entries and restore them within 72 hours, dismiss the "Changelog outdated" bar (only the usernames in `changelog_editors` in `config/portal.php`, signed in as themselves, never while acted as; reading it is open to everyone) | Editors only (11) | Editors only (11) | No |
 | Changelog: make technical and security items available to everyone, or to the changelog editors only (signed in as yourself, never while acting as someone or during View as) | Yes | No | No |
 | Demo data: generate or purge (only when `DEMO_TOOLS=true`) | Yes | No | No |
 | Whole-roster sync ("Sync now" on the roster) | Yes | No | No |

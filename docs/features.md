@@ -543,6 +543,13 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
   after the date on the heading is taken as the first entry). It previews the result with any errors, can skip entries
   whose date and text already exist, and saves them in one batch. Writes are audited as `changelog.created` (one per
   added batch), `changelog.updated`, `changelog.deleted`, `changelog.imported` and `changelog.outdated_dismissed`.
+- **Delete all** removes every entry after a confirm that states the count ("Delete all 265 entries? You can restore them
+  for 72 hours."). The entries are only marked deleted (`deleted_at`), so they leave the page, the sidebar dot and the
+  import's duplicate check at once. For 72 hours the editors see a bar such as "265 entries deleted on 31OCT26 18:20Z.
+  Restore until 03NOV26 18:20Z." with **Restore**, which brings every entry back as it was: same text, details, date,
+  flags and order. A second delete all inside the window joins the pending one, so one restore brings back both and the
+  72 hours start again. After 72 hours the entries count as gone, and `portal:purge-changelog` (hourly) removes the rows.
+  Deleting one entry still removes it at once. Audited as `changelog.deleted_all` and `changelog.restored`.
 - After each redeploy (a new asset build version) the editors see a bright blue "Changelog outdated" bar with "Add entry" and
   "Dismiss". Adding an entry, an import, or a dismiss clears it for both editors until the next deploy.
 

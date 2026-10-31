@@ -34,6 +34,14 @@ page: /changelog
 1. Point at the entry and choose the pencil, change it, and choose **Save changes**. Tick or clear **Major change** or **Technical** there too.
 2. To remove it, choose the bin, give a reason, and choose **Delete entry**.
 
+## Delete all entries
+
+1. Choose **Delete all**. The dialog says how many entries go, such as "Delete all 265 entries?".
+2. Choose **Delete all** in the dialog. Every entry leaves the page for everyone.
+3. For 72 hours a bar at the top says when they were deleted and until when you can bring them back. Choose **Restore** on it to bring every entry back as it was.
+
+> [!good-to-know] If you delete all again within the 72 hours, **Restore** brings back both sets and the 72 hours start again. After 72 hours the deleted entries are gone for good.
+
 ## Import many entries at once
 
 1. Choose **Bulk import** and paste Markdown like this:
