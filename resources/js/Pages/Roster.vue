@@ -184,6 +184,14 @@ onBeforeUnmount(() => {
     offFinish?.();
 });
 
+// Opening a unit from a row ("Show 1/1/A/1-7 only") lands on that unit's own roster; this is the way back
+// up to the unit above it, on the same tab. Only offered when the reader can open that unit.
+const parentCrumb = computed(() => {
+    const crumb = props.trail.length > 1 ? props.trail[props.trail.length - 2] : null;
+
+    return crumb?.inScope ? crumb : null;
+});
+
 function unitHref(id) {
     return `/roster/${id}?view=${view.value}`;
 }
@@ -332,6 +340,13 @@ function syncNow() {
                         </li>
                     </ol>
                 </nav>
+                <Link
+                    v-if="parentCrumb"
+                    :href="unitHref(parentCrumb.id)"
+                    class="mb-1 inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                    data-testid="roster-up"
+                    ><PhCaretRight class="size-3 rotate-180" aria-hidden="true" />Back to {{ parentCrumb.callsign ?? parentCrumb.name }}</Link
+                >
                 <h1
                     id="roster-title"
                     class="text-xl font-semibold tracking-tight sm:text-[22px]"
