@@ -186,12 +186,13 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::put('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'update'])->middleware('throttle:audited-writes')->name('game-identities.update');
     Route::delete('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'destroy'])->middleware('throttle:audited-writes')->name('game-identities.destroy');
 
-    // The changelog: open to everyone signed in; only the changelog editors write it, each write audited and on the
+    // The changelog: open to everyone signed in; only the changelog editors write it (an Admin changes its one setting), each write audited and on the
     // shared audited-writes throttle. The import preview writes nothing but shares the throttle, as every POST does.
     Route::get('/changelog', [ChangelogController::class, 'index'])->name('changelog.index');
     Route::post('/changelog', [ChangelogController::class, 'store'])->middleware('throttle:audited-writes')->name('changelog.store');
     Route::post('/changelog/import/preview', [ChangelogController::class, 'preview'])->middleware('throttle:audited-writes')->name('changelog.import.preview');
     Route::post('/changelog/import', [ChangelogController::class, 'import'])->middleware('throttle:audited-writes')->name('changelog.import');
+    Route::post('/changelog/settings', [ChangelogController::class, 'settings'])->middleware('throttle:audited-writes')->name('changelog.settings');
     Route::post('/changelog/outdated/dismiss', [ChangelogController::class, 'dismiss'])->middleware('throttle:audited-writes')->name('changelog.outdated.dismiss');
     Route::patch('/changelog/{entry}', [ChangelogController::class, 'update'])->middleware('throttle:audited-writes')->name('changelog.update');
     Route::delete('/changelog/{entry}', [ChangelogController::class, 'destroy'])->middleware('throttle:audited-writes')->name('changelog.destroy');

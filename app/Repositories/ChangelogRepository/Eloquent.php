@@ -12,9 +12,11 @@ use Illuminate\Support\Facades\DB;
 
 class Eloquent implements ChangelogRepository
 {
-    public function all(): Collection
+    public function all(bool $includeTechnical = true): Collection
     {
-        return ChangelogEntry::query()->orderByDesc('date')->orderByDesc('id')->get();
+        return ChangelogEntry::query()
+            ->when(! $includeTechnical, fn ($query) => $query->where('technical', false))
+            ->orderByDesc('date')->orderByDesc('id')->get();
     }
 
     public function find(int $id): ?ChangelogEntry
@@ -22,21 +24,22 @@ class Eloquent implements ChangelogRepository
         return ChangelogEntry::query()->find($id);
     }
 
-    public function create(string $date, string $body, ?string $details, int $userId, bool $major = false): ChangelogEntry
+    public function create(string $date, string $body, ?string $details, int $userId, bool $major = false, bool $technical = false): ChangelogEntry
     {
         return ChangelogEntry::query()->create([
             'date' => $date,
             'body' => $body,
             'details' => $details,
             'major' => $major,
+            'technical' => $technical,
             'created_by' => $userId,
             'updated_by' => $userId,
         ]);
     }
 
-    public function update(ChangelogEntry $entry, string $date, string $body, ?string $details, int $userId, bool $major = false): ChangelogEntry
+    public function update(ChangelogEntry $entry, string $date, string $body, ?string $details, int $userId, bool $major = false, bool $technical = false): ChangelogEntry
     {
-        $entry->fill(['date' => $date, 'body' => $body, 'details' => $details, 'major' => $major, 'updated_by' => $userId])->save();
+        $entry->fill(['date' => $date, 'body' => $body, 'details' => $details, 'major' => $major, 'technical' => $technical, 'updated_by' => $userId])->save();
 
         return $entry;
     }
@@ -60,9 +63,9 @@ class Eloquent implements ChangelogRepository
         return $date.'|'.mb_strtolower(trim($body));
     }
 
-    public function latestCreatedAt(): ?DateTimeInterface
+    public function latestCreatedAt(bool $includeTechnical = true): ?DateTimeInterface
     {
-        $latest = ChangelogEntry::query()->max('created_at');
+        $latest = ChangelogEntry::query()->when(! $includeTechnical, fn ($query) => $query->where('technical', false))->max('created_at');
 
         return $latest === null ? null : CarbonImmutable::parse($latest);
     }
@@ -93,6 +96,22 @@ class Eloquent implements ChangelogRepository
         $state = ChangelogState::query()->orderBy('id')->lockForUpdate()->first() ?? new ChangelogState;
         $state->acknowledged_deploy_id = $deployId;
         // Touched even when the id is unchanged, so the audit entry always points at a written row.
+        $state->updated_at = now();
+        $state->save();
+
+        return $state;
+    }
+
+    public function technicalEnabled(): bool
+    {
+        return (bool) ChangelogState::query()->orderBy('id')->value('technical_enabled');
+    }
+
+    public function setTechnicalEnabled(bool $enabled): ChangelogState
+    {
+        $state = ChangelogState::query()->orderBy('id')->lockForUpdate()->first() ?? new ChangelogState;
+        $state->technical_enabled = $enabled;
+        // Touched even when unchanged, so the audit entry always points at a written row.
         $state->updated_at = now();
         $state->save();
 

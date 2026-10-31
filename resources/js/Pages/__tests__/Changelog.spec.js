@@ -169,8 +169,8 @@ describe('Changelog page', () => {
             {
                 date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
                 entries: [
-                    { body: 'First', details: null, major: false },
-                    { body: 'Third', details: 'Some **detail**', major: true },
+                    { body: 'First', details: null, major: false, technical: false },
+                    { body: 'Third', details: 'Some **detail**', major: true, technical: false },
                 ],
             },
             expect.any(Object),
@@ -190,7 +190,7 @@ describe('Changelog page', () => {
         await flushPromises();
         body('[data-testid="changelog-edit-save"]').click();
         await flushPromises();
-        expect(formPost).toHaveBeenCalledWith('/changelog/3', { date: '2026-10-30', body: 'Newest change', details: 'More **here**', major: false }, expect.any(Object));
+        expect(formPost).toHaveBeenCalledWith('/changelog/3', { date: '2026-10-30', body: 'Newest change', details: 'More **here**', major: false, technical: false }, expect.any(Object));
     });
 
     it('previews an import grouped by date, marks the entries it would skip, and imports the rest', async () => {
@@ -200,6 +200,7 @@ describe('Changelog page', () => {
                 entries: [
                     { line: 2, date: '2026-10-01', body: 'Older change', details: null, duplicate: true },
                     { line: 3, date: '2026-10-01', body: 'Fresh', details: 'More', major: true, duplicate: false },
+                    { line: 4, date: '2026-10-01', body: 'Tests run faster', details: null, technical: true, duplicate: true },
                 ],
                 errors: [],
             },
@@ -216,6 +217,8 @@ describe('Changelog page', () => {
         expect(wrapper.find('[data-testid="preview-skipped-2"]').exists()).toBe(true);
         expect(wrapper.find('[data-testid="preview-details-3"]').exists()).toBe(true);
         expect(wrapper.find('[data-testid="preview-major-3"]').exists()).toBe(true);
+        expect(wrapper.get('[data-testid="preview-technical-4"]').text()).toBe('Technical');
+        expect(wrapper.find('[data-testid="preview-technical-3"]').exists()).toBe(false);
         expect(wrapper.get('[data-testid="changelog-import-save"]').text()).toBe('Import 1 entry');
 
         await wrapper.get('[data-testid="changelog-import-save"]').trigger('click');
@@ -233,5 +236,93 @@ describe('Changelog page', () => {
 
         expect(wrapper.get('[data-testid="changelog-import-errors"]').text()).toContain('Line 1');
         expect(wrapper.get('[data-testid="changelog-import-save"]').attributes('disabled')).toBeDefined();
+    });
+
+    describe('technical items', () => {
+        const TECH_DAYS = [
+            {
+                date: '2026-10-30',
+                entries: [
+                    { id: 7, body: 'Visible change', major: false, technical: false, detailsHtml: null, details: null },
+                    { id: 8, body: 'Dependency updates', major: false, technical: true, detailsHtml: null, details: null },
+                ],
+            },
+        ];
+
+        it('hides technical entries by default and shows them, marked, after the toggle, remembering the choice', async () => {
+            mountPage({ days: TECH_DAYS, technicalToggle: true });
+            await openFull();
+
+            expect(wrapper.find('[data-testid="changelog-entry-8"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="major-changelog-entry-8"]').exists()).toBe(false);
+            expect(wrapper.get('[data-testid="changelog-technical-toggle"]').attributes('data-state')).toBe('unchecked');
+
+            await wrapper.get('[data-testid="changelog-technical-toggle"]').trigger('click');
+            await flushPromises();
+
+            expect(wrapper.get('[data-testid="changelog-technical-8"]').text()).toBe('Technical');
+            expect(wrapper.find('[data-testid="changelog-technical-7"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="major-changelog-entry-8"]').exists()).toBe(false);
+            expect(window.localStorage.getItem('changelog.showTechnical')).toBe('1');
+
+            wrapper.unmount();
+            // The full changelog stays open too: both choices are remembered.
+            mountPage({ days: TECH_DAYS, technicalToggle: true });
+            expect(wrapper.find('[data-testid="changelog-entry-8"]').exists()).toBe(true);
+        });
+
+        it('shows no toggle and no technical entries when an Admin has not made them available', async () => {
+            window.localStorage.setItem('changelog.showTechnical', '1');
+            mountPage({ days: TECH_DAYS, technicalToggle: false });
+            await openFull();
+
+            expect(wrapper.find('[data-testid="changelog-technical-toggle"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="changelog-entry-8"]').exists()).toBe(false);
+        });
+
+        it('always shows technical entries to an editor, marked, without the toggle', async () => {
+            mountPage({ days: TECH_DAYS, isEditor: true });
+            await openFull();
+
+            expect(wrapper.find('[data-testid="changelog-technical-toggle"]').exists()).toBe(false);
+            expect(wrapper.get('[data-testid="changelog-technical-8"]').text()).toBe('Technical');
+        });
+
+        it('keeps Major and Technical exclusive on an add row and shows the security hint', async () => {
+            mountPage({ isEditor: true });
+            await wrapper.get('[data-testid="changelog-add"]').trigger('click');
+            await flushPromises();
+
+            body('[data-testid="changelog-row-major-0"]').click();
+            await flushPromises();
+            body('[data-testid="changelog-row-technical-0"]').click();
+            await flushPromises();
+
+            expect(body('[data-testid="changelog-row-major-0"]').getAttribute('data-state')).toBe('unchecked');
+            expect(body('[data-testid="changelog-row-technical-0"]').getAttribute('data-state')).toBe('checked');
+            expect(body('[data-testid="changelog-row-technical-hint-0"]').textContent).toContain('Say what was fixed, not how it could be abused.');
+
+            const row = body('[data-testid="changelog-row-body-0"]');
+            row.value = 'Security hardening';
+            row.dispatchEvent(new Event('input'));
+            await flushPromises();
+            body('[data-testid="changelog-add-save"]').click();
+            await flushPromises();
+            expect(formPost).toHaveBeenCalledWith(
+                '/changelog',
+                { date: expect.any(String), entries: [{ body: 'Security hardening', details: null, major: false, technical: true }] },
+                expect.any(Object),
+            );
+        });
+
+        it('lets an Admin change the setting, and shows it to nobody else', async () => {
+            mountPage({ technicalSetting: { enabled: false } });
+            await wrapper.get('[data-testid="changelog-technical-setting-toggle"]').trigger('click');
+            expect(routerPost).toHaveBeenCalledWith('/changelog/settings', { technical_enabled: true }, expect.any(Object));
+
+            wrapper.unmount();
+            mountPage();
+            expect(wrapper.find('[data-testid="changelog-technical-setting"]').exists()).toBe(false);
+        });
     });
 });

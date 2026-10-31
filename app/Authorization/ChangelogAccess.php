@@ -16,6 +16,10 @@ use Inertia\Inertia;
  * The deploy id is the asset build version Inertia uses (`HandleInertiaRequests::version()`, a hash of the Vite
  * manifest), so it changes with every redeploy that builds the front end. `portal.changelog_deploy_id` overrides it:
  * a string is used as the id, `false` means there is none. A null id never shows the bar.
+ *
+ * Technical entries (behind-the-scenes and security work) reach a viewer only while an Admin has made them available,
+ * except for an editor, who always gets them to manage them. Only an Admin, signed in as themselves and not previewing,
+ * changes that setting.
  */
 class ChangelogAccess
 {
@@ -36,6 +40,20 @@ class ChangelogAccess
     public function mayEdit(User $user): bool
     {
         return $this->isEditor($user)
+            && $this->real->get() === null
+            && $this->scope->activeViewAs($user) === null;
+    }
+
+    /** Whether `$user` is sent technical entries: an editor always, everyone else only while the Admin setting is on. */
+    public function seesTechnical(User $user): bool
+    {
+        return $this->mayEdit($user) || $this->changelog->technicalEnabled();
+    }
+
+    /** Whether `$user` may change the technical items setting: an Admin, signed in as themselves, not previewing. */
+    public function mayManageSettings(User $user): bool
+    {
+        return $this->scope->isAdmin($user)
             && $this->real->get() === null
             && $this->scope->activeViewAs($user) === null;
     }
@@ -67,10 +85,13 @@ class ChangelogAccess
         return $deployId !== null && $deployId !== $this->changelog->acknowledgedDeployId();
     }
 
-    /** Whether the sidebar shows the "new" dot: an entry written after `$user` last opened the changelog. */
+    /**
+     * Whether the sidebar shows the "new" dot: an entry written after `$user` last opened the changelog. Technical entries
+     * count only for an editor, since everyone else sees them only on request.
+     */
     public function hasUnseen(User $user): bool
     {
-        $latest = $this->changelog->latestCreatedAt();
+        $latest = $this->changelog->latestCreatedAt($this->mayEdit($user));
         if ($latest === null) {
             return false;
         }

@@ -17,9 +17,9 @@ it('reads each bullet under a date as one entry, with an indented block as its d
 
     expect($result['errors'])->toBe([])
         ->and($result['entries'])->toBe([
-            ['line' => 4, 'date' => '2026-10-30', 'body' => 'First change', 'details' => "More about it.\n\n- a nested list", 'major' => false],
-            ['line' => 8, 'date' => '2026-10-30', 'body' => 'Second change', 'details' => null, 'major' => false],
-            ['line' => 11, 'date' => '2026-10-29', 'body' => 'Older change', 'details' => null, 'major' => false],
+            ['line' => 4, 'date' => '2026-10-30', 'body' => 'First change', 'details' => "More about it.\n\n- a nested list", 'major' => false, 'technical' => false],
+            ['line' => 8, 'date' => '2026-10-30', 'body' => 'Second change', 'details' => null, 'major' => false, 'technical' => false],
+            ['line' => 11, 'date' => '2026-10-29', 'body' => 'Older change', 'details' => null, 'major' => false, 'technical' => false],
         ]);
 });
 
@@ -61,3 +61,20 @@ it('names the line of each problem', function (string $markdown, string $message
     'empty major' => ["## 2026-10-01\n- [major]", 'Line 2: the change has no text after [major]'],
     'nothing' => ['Just text', 'No entries found'],
 ]);
+
+it('flags a [technical] change in any case, drops the marker, and refuses [major] with [technical]', function () {
+    $result = parseChangelog("## 2026-10-30\n- [TECHNICAL] Dependency updates\n- [major] Big\n- Plain");
+
+    expect($result['errors'])->toBe([])
+        ->and(array_map(fn ($entry) => [$entry['body'], $entry['major'], $entry['technical']], $result['entries']))->toBe([
+            ['Dependency updates', false, true],
+            ['Big', true, false],
+            ['Plain', false, false],
+        ]);
+
+    $both = parseChangelog("## 2026-10-30\n- [major] [technical] Both");
+    expect($both['entries'])->toBe([])
+        ->and($both['errors'][0]['message'])->toBe('Line 2: a change cannot be both [major] and [technical].');
+
+    expect(parseChangelog("## 2026-10-30\n- [technical]")['errors'][0]['message'])->toBe('Line 2: the change has no text after [technical].');
+});

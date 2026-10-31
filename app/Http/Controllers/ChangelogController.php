@@ -6,6 +6,7 @@ use App\Authorization\ActAs;
 use App\Authorization\ChangelogAccess;
 use App\Authorization\ScopeResolver;
 use App\Commands\Changelog\ChangelogEntries;
+use App\Commands\Changelog\ChangelogSettings;
 use App\Docs\SafeMarkdown;
 use App\Models\ChangelogEntry;
 use App\Repositories\ChangelogRepository;
@@ -24,6 +25,9 @@ use InvalidArgumentException;
  *
  * Opening the page records when the viewer last saw it, for the sidebar's "new" dot. Not during a view-as preview, nor
  * while someone acts as the viewer: neither is the person themselves reading it.
+ *
+ * Technical entries are sent only to a viewer who may see them ({@see ChangelogAccess::seesTechnical()}): an editor
+ * always, everyone else only while an Admin has made them available. The filter is here, not in the page.
  */
 class ChangelogController extends Controller
 {
@@ -37,15 +41,17 @@ class ChangelogController extends Controller
     {
         $user = $request->user();
         $editor = $this->access->mayEdit($user);
+        $technicalEnabled = $this->changelog->technicalEnabled();
+        $mayManage = $this->access->mayManageSettings($user);
 
         if ($request->attributes->get(ActAs::ADMIN_ATTRIBUTE) === null && $this->scope->activeViewAs($user) === null) {
             $this->changelog->markSeen($user->id, now());
         }
 
         return Inertia::render('Changelog', [
-            // `[{ date, entries: [{ id, body, major, detailsHtml, details }] }]`, newest date first, each date's entries in the
-            // order they were written.
-            'days' => $this->changelog->all()
+            // `[{ date, entries: [{ id, body, major, technical, detailsHtml, details }] }]`, newest date first, each date's
+            // entries in the order they were written. Technical entries only for a viewer who may see them.
+            'days' => $this->changelog->all($this->access->seesTechnical($user))
                 ->groupBy(fn (ChangelogEntry $entry) => $entry->date->toDateString())
                 ->map(fn ($entries, string $date) => [
                     'date' => $date,
@@ -53,12 +59,17 @@ class ChangelogController extends Controller
                         'id' => $entry->id,
                         'body' => $entry->body,
                         'major' => (bool) $entry->major,
+                        'technical' => (bool) $entry->technical,
                         'detailsHtml' => $entry->details === null ? null : $markdown->toHtml($entry->details),
                         // The Markdown source only to an editor, for the edit form.
                         'details' => $editor ? $entry->details : null,
                     ])->values()->all(),
                 ])->values()->all(),
             'isEditor' => $editor,
+            // Whether a non-editor gets the "Show technical and security items" toggle. Editors always see them.
+            'technicalToggle' => ! $editor && $technicalEnabled,
+            // The Admin setting, sent only to someone who may change it.
+            'technicalSetting' => $mayManage ? ['enabled' => $technicalEnabled] : null,
         ]);
     }
 
@@ -71,11 +82,17 @@ class ChangelogController extends Controller
             'entries.*.body' => ['required', 'string', 'max:'.ChangelogEntry::MAX_BODY_LENGTH],
             'entries.*.details' => ['nullable', 'string', 'max:'.ChangelogEntry::MAX_DETAILS_LENGTH],
             'entries.*.major' => ['sometimes', 'boolean'],
+            'entries.*.technical' => ['sometimes', 'boolean'],
         ]);
 
         try {
             $command->add($request->user(), $data['date'], array_map(
-                fn (array $item) => ['body' => $item['body'], 'details' => $item['details'] ?? null, 'major' => (bool) ($item['major'] ?? false)],
+                fn (array $item) => [
+                    'body' => $item['body'],
+                    'details' => $item['details'] ?? null,
+                    'major' => (bool) ($item['major'] ?? false),
+                    'technical' => (bool) ($item['technical'] ?? false),
+                ],
                 $data['entries'],
             ));
         } catch (InvalidArgumentException $e) {
@@ -92,7 +109,7 @@ class ChangelogController extends Controller
         $data = $request->validate($this->rules());
 
         try {
-            $command->update($request->user(), $entry, $data['date'], $data['body'], $data['details'] ?? null, (bool) ($data['major'] ?? false));
+            $command->update($request->user(), $entry, $data['date'], $data['body'], $data['details'] ?? null, (bool) ($data['major'] ?? false), (bool) ($data['technical'] ?? false));
         } catch (InvalidArgumentException $e) {
             throw ValidationException::withMessages(['body' => $e->getMessage()]);
         }
@@ -145,6 +162,19 @@ class ChangelogController extends Controller
         return back();
     }
 
+    /** The Admin setting: whether technical entries are available to everyone. */
+    public function settings(Request $request, ChangelogSettings $command): RedirectResponse
+    {
+        if (! $this->access->mayManageSettings($request->user())) {
+            abort(403, 'Only an Admin, signed in as themselves, may change the changelog settings.');
+        }
+        $data = $request->validate(['technical_enabled' => ['required', 'boolean']]);
+
+        $command->setTechnicalEnabled($request->user(), (bool) $data['technical_enabled']);
+
+        return redirect()->route('changelog.index');
+    }
+
     private function authorizeEditor(Request $request): void
     {
         if (! $this->access->mayEdit($request->user())) {
@@ -160,6 +190,7 @@ class ChangelogController extends Controller
             'body' => ['required', 'string', 'max:'.ChangelogEntry::MAX_BODY_LENGTH],
             'details' => ['nullable', 'string', 'max:'.ChangelogEntry::MAX_DETAILS_LENGTH],
             'major' => ['sometimes', 'boolean'],
+            'technical' => ['sometimes', 'boolean'],
         ];
     }
 }

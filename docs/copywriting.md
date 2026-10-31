@@ -351,6 +351,10 @@ says what changed for the reader: what they can now do or see, and where. Not ho
 - "roll call" is two words. "make-up" is hyphenated. Zulu, not UTC, for times.
 - Same punctuation rules as the rest of the portal: no em dashes, no semicolons, no contractions, no exclamation marks.
 - No hype: no "powerful", "seamless", "exciting", "now even better".
+- Mark an entry `[technical]` when it is behind-the-scenes or security work the reader does not see: CI, tests,
+  dependency updates, refactors, infrastructure, security hardening. Technical entries are hidden unless the reader asks
+  for them. Never both `[major]` and `[technical]`. The security rule above applies in full: say what was fixed, not how
+  it could be abused.
 - Mark an entry `[major]` when it adds a new page or a new task a leader can do, or changes how a weekly task works
   for most users. Fixes, wording and small display changes are never major.
 - Additional information under an entry is optional and written in Markdown. Use it for steps or detail that do not fit

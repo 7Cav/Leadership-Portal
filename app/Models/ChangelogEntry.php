@@ -8,11 +8,12 @@ use Illuminate\Database\Eloquent\Model;
 /**
  * One changelog entry: one change on a (Zulu) date. `body` is the change as one line of plain text; `details` is optional
  * additional information in Markdown, rendered with raw HTML stripped before it reaches a page. `major` also lists it under "Major changes"; every
- * entry is in the full changelog. Written by a changelog
+ * entry is in the full changelog. `technical` marks behind-the-scenes or security work, never major, shown only when
+ * the viewer asks for it and an Admin made technical items available (the editors always see them). Written by a changelog
  * editor. Portal-owned (AD-22), written only by the audited `app/Commands/Changelog` Commands through
  * `ChangelogRepository`.
  */
-#[Fillable(['date', 'body', 'details', 'major', 'created_by', 'updated_by'])]
+#[Fillable(['date', 'body', 'details', 'major', 'technical', 'created_by', 'updated_by'])]
 class ChangelogEntry extends Model
 {
     /** Matches the `body` column. */
@@ -28,6 +29,7 @@ class ChangelogEntry extends Model
         return [
             'date' => 'immutable_date',
             'major' => 'boolean',
+            'technical' => 'boolean',
         ];
     }
 }

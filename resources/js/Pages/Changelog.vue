@@ -23,10 +23,18 @@ import { postJson } from '@/lib/postJson';
 // one with additional information has a chevron that opens it. A changelog editor also adds a date's batch of entries,
 // edits or deletes each entry, and bulk imports. Details arrive as HTML the server rendered from Markdown with raw HTML
 // stripped.
+//
+// Technical entries (behind-the-scenes and security work) never show under Major changes. In the full changelog they
+// show, marked, only after the viewer ticks "Show technical and security items" (remembered in this browser), and an
+// editor always sees them. The server sends them only while an Admin has made them available, or to an editor.
 const props = defineProps({
-    // `[{ date, entries: [{ id, body, major, detailsHtml, details }] }]`, newest date first; `details` (the Markdown) only for an editor.
+    // `[{ date, entries: [{ id, body, major, technical, detailsHtml, details }] }]`, newest date first; `details` (the Markdown) only for an editor.
     days: { type: Array, required: true },
     isEditor: { type: Boolean, required: true },
+    // Whether this viewer gets the toggle for technical entries: an Admin made them available, and they are not an editor.
+    technicalToggle: { type: Boolean, default: false },
+    // The Admin setting `{ enabled }`, only for an Admin who may change it.
+    technicalSetting: { type: Object, default: null },
 });
 
 const MAX_BODY = 300;
@@ -36,35 +44,65 @@ const MAX_BATCH = 50;
 // Today in Zulu: the dates are UTC days.
 const today = () => new Date().toISOString().slice(0, 10);
 
-// The major column: the same days with only their major entries, days left empty dropped.
-const majorDays = computed(() =>
-    props.days.map((day) => ({ date: day.date, entries: day.entries.filter((entry) => entry.major) })).filter((day) => day.entries.length > 0),
-);
-const entryCount = computed(() => props.days.reduce((total, day) => total + day.entries.length, 0));
-
-// Whether the full changelog is open, remembered per viewer in localStorage. Storage can be missing or throw (private
-// windows, blocked site data); the page then just starts collapsed.
-const FULL_OPEN_KEY = 'changelog.fullOpen';
-function readFullOpen() {
+// Per-viewer choices remembered in localStorage. Storage can be missing or throw (private windows, blocked site data);
+// the page then just starts with the choice off.
+function readFlag(key) {
     try {
-        return window.localStorage.getItem(FULL_OPEN_KEY) === '1';
+        return typeof window !== 'undefined' && window.localStorage.getItem(key) === '1';
     } catch {
         return false;
     }
 }
-const fullOpen = ref(typeof window !== 'undefined' && readFullOpen());
-watch(fullOpen, (value) => {
+function rememberFlag(key, value) {
     try {
-        window.localStorage.setItem(FULL_OPEN_KEY, value ? '1' : '0');
+        window.localStorage.setItem(key, value ? '1' : '0');
     } catch {
         // Not remembered; nothing else depends on it.
     }
-});
+}
+
+// Whether technical entries show in the full changelog: always for an editor, otherwise when the viewer asked for them.
+const showTechnical = ref(readFlag('changelog.showTechnical'));
+watch(showTechnical, (value) => rememberFlag('changelog.showTechnical', value));
+const technicalShown = computed(() => props.isEditor || (props.technicalToggle && showTechnical.value));
+
+const keepDays = (keep) => props.days.map((day) => ({ date: day.date, entries: day.entries.filter(keep) })).filter((day) => day.entries.length > 0);
+
+// The major column: only major entries, never technical ones, days left empty dropped.
+const majorDays = computed(() => keepDays((entry) => entry.major && !entry.technical));
+// The full column: every entry, technical ones only when shown.
+const fullDays = computed(() => keepDays((entry) => technicalShown.value || !entry.technical));
+const entryCount = computed(() => fullDays.value.reduce((total, day) => total + day.entries.length, 0));
+
+// Whether the full changelog is open, remembered per viewer.
+const fullOpen = ref(readFlag('changelog.fullOpen'));
+watch(fullOpen, (value) => rememberFlag('changelog.fullOpen', value));
+
+// The Admin setting: make technical entries available to everyone, or to the editors only.
+const settingSaving = ref(false);
+function setTechnicalEnabled(enabled) {
+    router.post(
+        '/changelog/settings',
+        { technical_enabled: enabled },
+        {
+            preserveScroll: true,
+            onStart: () => (settingSaving.value = true),
+            onHttpException: onHttpException('The setting was not saved', (message) => toast.error(message)),
+            onFinish: () => (settingSaving.value = false),
+        },
+    );
+}
+
+// Major and Technical exclude each other: ticking one clears the other.
+function setKind(target, kind, value) {
+    target[kind] = value === true;
+    if (target[kind]) target[kind === 'major' ? 'technical' : 'major'] = false;
+}
 
 // The two columns, rendered with the same list. `prefix` keeps ids and test ids apart, since a major entry is in both.
 const columns = computed(() => [
     { key: 'major', prefix: 'major-', days: majorDays.value },
-    { key: 'full', prefix: '', days: props.days },
+    { key: 'full', prefix: '', days: fullDays.value },
 ]);
 
 // Which entries have their details open, keyed by column prefix and id. All start collapsed.
@@ -78,7 +116,7 @@ function toggle(id) {
 
 // The Add dialog: one date and its rows. The outdated bar's "Add entry" opens it with `?add=1`.
 let nextKey = 1;
-const blankRow = () => ({ key: nextKey++, body: '', major: false, hasDetails: false, details: '' });
+const blankRow = () => ({ key: nextKey++, body: '', major: false, technical: false, hasDetails: false, details: '' });
 const addOpen = ref(props.isEditor && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('add'));
 const addForm = useForm({ date: today(), rows: [blankRow()] });
 const addCount = ref(3);
@@ -138,7 +176,7 @@ function submitAdd() {
             date: data.date,
             entries: sent.value.map((index) => {
                 const row = data.rows[index];
-                return { body: row.body, details: row.hasDetails && row.details.trim() !== '' ? row.details : null, major: row.major };
+                return { body: row.body, details: row.hasDetails && row.details.trim() !== '' ? row.details : null, major: row.major, technical: row.technical };
             }),
         }))
         .post('/changelog', {
@@ -150,7 +188,7 @@ function submitAdd() {
 
 // Edit one entry.
 const editing = ref(null);
-const editForm = useForm({ date: '', body: '', major: false, hasDetails: false, details: '' });
+const editForm = useForm({ date: '', body: '', major: false, technical: false, hasDetails: false, details: '' });
 
 function edit(date, entry) {
     importOpen.value = false;
@@ -158,6 +196,7 @@ function edit(date, entry) {
     editForm.date = date;
     editForm.body = entry.body;
     editForm.major = !!entry.major;
+    editForm.technical = !!entry.technical;
     editForm.details = entry.details ?? '';
     editForm.hasDetails = (entry.details ?? '') !== '';
     editing.value = entry;
@@ -165,7 +204,7 @@ function edit(date, entry) {
 
 function submitEdit() {
     editForm
-        .transform((data) => ({ date: data.date, body: data.body, details: data.hasDetails && data.details.trim() !== '' ? data.details : null, major: data.major }))
+        .transform((data) => ({ date: data.date, body: data.body, details: data.hasDetails && data.details.trim() !== '' ? data.details : null, major: data.major, technical: data.technical }))
         .patch(`/changelog/${editing.value.id}`, {
             preserveScroll: true,
             onSuccess: () => (editing.value = null),
@@ -278,7 +317,8 @@ function runImport() {
             <h2 class="text-[15px] font-semibold">Bulk import</h2>
             <p class="text-[13px] text-muted-foreground">
                 Start each date with a heading like "## 2026-10-29". Put each change under it on a line starting with "- ". Indent lines under a change
-                to add additional information. Start a change with "[major]" to also list it under Major changes.
+                to add additional information. Start a change with "[major]" to also list it under Major changes, or with "[technical]" to mark
+                behind-the-scenes or security work.
             </p>
             <Textarea v-model="markdown" rows="10" class="font-mono text-xs" aria-label="Markdown to import" data-testid="changelog-import-markdown" @input="preview = null" />
             <label class="flex items-center gap-2 text-[13px]">
@@ -309,12 +349,26 @@ function runImport() {
                                     <span v-if="entry.details" class="text-muted-foreground" :data-testid="`preview-details-${entry.line}`">(with additional information)</span>
                                 </span>
                                 <Badge v-if="entry.major" variant="secondary" :data-testid="`preview-major-${entry.line}`">Major</Badge>
+                                <Badge v-if="entry.technical" variant="outline" class="text-muted-foreground" :data-testid="`preview-technical-${entry.line}`">Technical</Badge>
                                 <Badge v-if="skipped(entry)" variant="outline" :data-testid="`preview-skipped-${entry.line}`">Skipped, already exists</Badge>
                             </li>
                         </ul>
                     </section>
                 </div>
             </template>
+        </Card>
+
+        <Card v-if="technicalSetting" class="max-w-3xl gap-1 p-4" data-testid="changelog-technical-setting">
+            <label class="flex items-center gap-2 text-[13px] font-medium">
+                <Checkbox
+                    :model-value="technicalSetting.enabled"
+                    :disabled="settingSaving"
+                    data-testid="changelog-technical-setting-toggle"
+                    @update:model-value="(value) => setTechnicalEnabled(value === true)"
+                />
+                Make technical and security items available to everyone
+            </label>
+            <p class="pl-6 text-xs text-muted-foreground">When off, only the changelog editors see them.</p>
         </Card>
 
         <div v-if="days.length" class="grid items-start gap-x-8 gap-y-6 lg:grid-cols-2" data-testid="changelog-columns">
@@ -340,6 +394,10 @@ function runImport() {
                         <span class="text-xs font-normal text-muted-foreground tabular-nums">{{ entryCount === 1 ? '1 entry' : `${entryCount} entries` }}</span>
                     </button>
                 </h2>
+                <label v-if="column.key === 'full' && technicalToggle" class="mt-1.5 flex w-fit items-center gap-2 text-xs text-muted-foreground">
+                    <Checkbox v-model="showTechnical" data-testid="changelog-technical-toggle" />
+                    Show technical and security items
+                </label>
 
                 <p v-if="column.key === 'major' && column.days.length === 0" class="mt-2 text-[13px] text-muted-foreground" data-testid="changelog-major-empty">
                     No major changes yet. Every change is in the full changelog.
@@ -374,6 +432,14 @@ function runImport() {
                                     </span>
                                     <span class="min-w-0 flex-1 break-words" data-testid="changelog-entry-body">{{ entry.body }}</span>
                                     <Badge v-if="column.key === 'full' && entry.major" variant="secondary" class="h-5 shrink-0 px-1.5 text-[11px]" :data-testid="`changelog-major-${entry.id}`">Major</Badge>
+                                    <Badge
+                                        v-if="entry.technical"
+                                        variant="outline"
+                                        class="h-5 shrink-0 px-1.5 text-[11px] text-muted-foreground"
+                                        :data-testid="`changelog-technical-${entry.id}`"
+                                    >
+                                        Technical
+                                    </Badge>
                                     <span v-if="isEditor" class="flex shrink-0 gap-0.5 sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
                                         <Button variant="ghost" size="icon" class="size-6" aria-label="Edit entry" :data-testid="`${column.prefix}changelog-edit-${entry.id}`" @click="edit(day.date, entry)">
                                             <PhPencilSimple class="size-3.5" />
@@ -412,7 +478,7 @@ function runImport() {
             <DialogContent class="max-h-[90dvh] overflow-y-auto sm:max-w-2xl" data-testid="changelog-add-dialog">
                 <DialogHeader>
                     <DialogTitle>Add entries</DialogTitle>
-                    <DialogDescription>One change per row. Press Enter in a row to add one below it. Every change goes in the full changelog; tick Major change to also list it under Major changes.</DialogDescription>
+                    <DialogDescription>One change per row. Press Enter in a row to add one below it. Every change goes in the full changelog; tick Major change to also list it under Major changes, or Technical for behind-the-scenes and security work.</DialogDescription>
                 </DialogHeader>
                 <form class="space-y-3" @submit.prevent="submitAdd">
                     <div class="space-y-1.5">
@@ -460,14 +526,19 @@ function runImport() {
                             </div>
                             <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
                                 <label class="flex items-center gap-2">
-                                    <Checkbox v-model="row.major" :data-testid="`changelog-row-major-${index}`" />
+                                    <Checkbox :model-value="row.major" :data-testid="`changelog-row-major-${index}`" @update:model-value="(value) => setKind(row, 'major', value)" />
                                     Major change
+                                </label>
+                                <label class="flex items-center gap-2">
+                                    <Checkbox :model-value="row.technical" :data-testid="`changelog-row-technical-${index}`" @update:model-value="(value) => setKind(row, 'technical', value)" />
+                                    Technical
                                 </label>
                                 <label class="flex items-center gap-2">
                                     <Checkbox v-model="row.hasDetails" :data-testid="`changelog-row-has-details-${index}`" />
                                     Add additional information
                                 </label>
                             </div>
+                            <p v-if="row.technical" class="text-xs text-muted-foreground" :data-testid="`changelog-row-technical-hint-${index}`">Say what was fixed, not how it could be abused.</p>
                             <Textarea
                                 v-if="row.hasDetails"
                                 v-model="row.details"
@@ -519,9 +590,14 @@ function runImport() {
                         <p v-if="editForm.errors.body" class="text-xs text-destructive">{{ editForm.errors.body }}</p>
                     </div>
                     <label class="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Checkbox v-model="editForm.major" data-testid="changelog-edit-major" />
+                        <Checkbox :model-value="editForm.major" data-testid="changelog-edit-major" @update:model-value="(value) => setKind(editForm, 'major', value)" />
                         Major change
                     </label>
+                    <label class="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Checkbox :model-value="editForm.technical" data-testid="changelog-edit-technical" @update:model-value="(value) => setKind(editForm, 'technical', value)" />
+                        Technical
+                    </label>
+                    <p v-if="editForm.technical" class="text-xs text-muted-foreground" data-testid="changelog-edit-technical-hint">Say what was fixed, not how it could be abused.</p>
                     <label class="flex items-center gap-2 text-xs text-muted-foreground">
                         <Checkbox v-model="editForm.hasDetails" data-testid="changelog-edit-has-details" />
                         Add additional information
