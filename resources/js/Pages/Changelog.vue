@@ -627,9 +627,11 @@ function runImport() {
                     <ol class="space-y-2" data-testid="changelog-rows">
                         <li v-for="(row, index) in addForm.rows" :key="row.key" class="space-y-1.5" :data-testid="`changelog-row-${index}`">
                             <div class="flex items-center gap-1.5">
-                                <NativeSelect v-model="row.tag" class="w-28" :aria-label="`Tag for change ${index + 1}`" :data-testid="`changelog-row-tag-${index}`">
-                                    <NativeSelectOption v-for="kind in KINDS" :key="kind" :value="kind">{{ kind }}</NativeSelectOption>
-                                </NativeSelect>
+                                <div class="w-28 shrink-0">
+                                    <NativeSelect v-model="row.tag" :aria-label="`Tag for change ${index + 1}`" :data-testid="`changelog-row-tag-${index}`">
+                                        <NativeSelectOption v-for="kind in KINDS" :key="kind" :value="kind">{{ kind }}</NativeSelectOption>
+                                    </NativeSelect>
+                                </div>
                                 <Input
                                     :ref="(el) => (el ? rowInputs.set(row.key, el.$el ?? el) : rowInputs.delete(row.key))"
                                     v-model="row.body"
@@ -728,9 +730,11 @@ function runImport() {
                     <div class="space-y-1.5">
                         <Label for="changelog-edit-body">Change</Label>
                         <div class="flex items-center gap-1.5">
-                            <NativeSelect v-model="editForm.tag" class="w-28" aria-label="Tag" data-testid="changelog-edit-tag">
-                                <NativeSelectOption v-for="kind in KINDS" :key="kind" :value="kind">{{ kind }}</NativeSelectOption>
-                            </NativeSelect>
+                            <div class="w-28 shrink-0">
+                                <NativeSelect v-model="editForm.tag" aria-label="Tag" data-testid="changelog-edit-tag">
+                                    <NativeSelectOption v-for="kind in KINDS" :key="kind" :value="kind">{{ kind }}</NativeSelectOption>
+                                </NativeSelect>
+                            </div>
                             <Input id="changelog-edit-body" v-model="editForm.body" class="flex-1" :maxlength="textRoom(editForm.tag)" data-testid="changelog-edit-body" :aria-invalid="!!editForm.errors.body" />
                         </div>
                         <p v-if="editForm.errors.body" class="text-xs text-destructive">{{ editForm.errors.body }}</p>
