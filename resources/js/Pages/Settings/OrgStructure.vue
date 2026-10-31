@@ -845,7 +845,7 @@ function confirmDelete() {
             <Card
                 ref="detailCard"
                 data-testid="detail-card"
-                class="min-w-0 gap-0 p-4 lg:sticky lg:top-[calc(var(--shell-top,3rem)+1rem)] lg:max-h-[calc(100dvh-var(--shell-top,3rem)-2rem)] lg:overflow-y-auto"
+                class="min-w-0 scroll-mt-[calc(var(--shell-top,3rem)+1rem)] gap-0 p-4 lg:sticky lg:top-[calc(var(--shell-top,3rem)+1rem)] lg:max-h-[calc(100dvh-var(--shell-top,3rem)-2rem)] lg:overflow-y-auto"
             >
                 <div v-if="selectedUnit" data-testid="detail-panel">
                     <h2 class="mb-3 flex items-center gap-2 text-[15px] font-semibold">

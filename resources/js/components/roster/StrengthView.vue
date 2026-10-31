@@ -105,8 +105,8 @@ const tabHref = (id) => `/roster/${id}?view=strength&range=${props.trends?.range
 
             <section v-if="children.length" aria-labelledby="strength-children">
                 <h2 id="strength-children" class="mb-2 text-[15px] font-semibold">Headcount by unit</h2>
-                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="strength-children">
-                    <Card v-for="child in children" :key="child.id" class="p-3" :data-unit="child.id">
+                <div class="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="strength-children">
+                    <Card v-for="child in children" :key="child.id" class="min-w-0 p-3" :data-unit="child.id">
                         <div class="mb-1 flex items-baseline justify-between gap-2 text-[13px]">
                             <Link :href="tabHref(child.id)" class="font-medium hover:underline">{{ child.designation }}</Link>
                             <span class="tabular-nums text-muted-foreground">{{ signed(change(child)) }}</span>
