@@ -46,6 +46,8 @@ import { forumDateTime, weekLabel, weekPhrase, weekTitle } from '@/lib/forumDate
 import WeekHeading from '@/components/week/WeekHeading.vue';
 import ForumPost from '@/components/rollcall/ForumPost.vue';
 import TemplatePick from '@/components/rollcall/TemplatePick.vue';
+import PracticeSlot from '@/components/rollcall/PracticeSlot.vue';
+import WarningBanner from '@/components/WarningBanner.vue';
 import { copyText } from '@/lib/clipboard';
 import { messageFor, unreachable, useRollcallAutosave, whenLeft } from '@/composables/useRollcallAutosave';
 import { takeHistoryRestore } from '@/lib/historyRestore';
@@ -104,6 +106,10 @@ const props = defineProps({
     // `{ source, syncedAt }` (AD-20).
     roster: { type: Object, default: null },
     practice: { type: Object, default: null },
+    // The section's weekly practice slot and this week's practice (#392), or null when it has none.
+    practiceSlot: { type: Object, default: null },
+    // True when the section plays a game and has troopers but no slot: the page warns at the top until one is set.
+    practiceSlotMissing: { type: Boolean, default: false },
     // `{ source, capturedAt }` once a capture run stamped this practice, else null (7.7). Drives the
     // capture banner and the confirm action (7.8).
     capture: { type: Object, default: null },
@@ -496,6 +502,18 @@ watch(
 );
 const pickingTemplate = ref(false);
 // Picking is not week data, so a sent week does not lock it; a preview and a read-only section do.
+// The practice slot (#392): the server's answer after a change replaces the prop until the next load brings it again.
+const slotOverride = ref(undefined);
+const currentSlot = computed(() => (slotOverride.value === undefined ? props.practiceSlot : slotOverride.value));
+watch(
+    () => props.practiceSlot,
+    () => (slotOverride.value = undefined),
+);
+const slotDisabled = computed(() => previewReason.value ?? lockedReason.value);
+const slotEditor = ref(null);
+// Gone as soon as a slot is saved here, without waiting for the next load.
+const slotMissing = computed(() => props.practiceSlotMissing && !currentSlot.value);
+
 const templatePickDisabled = computed(() => previewReason.value ?? (props.canWrite ? null : 'Only the section and its command can pick its template'));
 
 async function pickTemplate(id) {
@@ -945,6 +963,15 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                 <span class="inline-flex items-center gap-1.5">
                     <PhClock class="size-4" aria-hidden="true" />Signatures close {{ closesLabel }}
                 </span>
+                <PracticeSlot
+                    ref="slotEditor"
+                    :section-id="section.id"
+                    :week="week.date"
+                    :slot="currentSlot"
+                    :can-edit="canWrite"
+                    :disabled-reason="slotDisabled"
+                    @updated="(slot) => (slotOverride = slot)"
+                />
                 <span role="status" aria-live="polite" class="inline-flex items-center gap-1.5 text-foreground" data-testid="save-state">
                     <template v-if="saveLabel">
                         <PhCircleNotch v-if="autosave.state.value === 'saving'" class="size-4 animate-spin text-muted-foreground" aria-hidden="true" />
@@ -1083,6 +1110,24 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
         </div>
 
         <MissingIdentityNotice :troopers="rows" />
+        <!-- Not dismissible: it goes away once the section has a slot. -->
+        <WarningBanner v-if="slotMissing" class="mt-3" data-testid="slot-missing-banner">
+            <p class="font-semibold">This section has no practice slot set</p>
+            <p>Without a slot, its practices aren't captured automatically and make-ups aren't given from the game server.</p>
+            <template v-if="canWrite" #action>
+                <Button
+                    size="sm"
+                    variant="outline"
+                    class="w-full sm:w-auto"
+                    :disabled="Boolean(slotDisabled)"
+                    :title="slotDisabled ?? undefined"
+                    data-testid="slot-missing-set"
+                    @click="slotEditor?.startEditing()"
+                >
+                    Set the practice slot
+                </Button>
+            </template>
+        </WarningBanner>
 
         <div class="mt-4 grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18.5rem]">
             <section class="min-w-0" :aria-labelledby="`step-${step}-title`" @keydown="onCardKeydown">

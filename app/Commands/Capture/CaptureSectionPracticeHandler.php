@@ -2,12 +2,17 @@
 
 namespace App\Commands\Capture;
 
+use App\Commands\Attendance\MakeupMarkResult;
 use App\Commands\Attendance\MarkAttendanceHandler;
+use App\Commands\Practices\PracticeSchedule;
+use App\Commands\Practices\PresenceMinimum;
 use App\Integration\Crcon\Data\CrconPlayer;
 use App\Integration\Crcon\Data\CrconPresence;
 use App\Models\Game;
 use App\Models\SectionPractice;
 use App\Models\SyncRun;
+use App\Models\UnitType;
+use App\Repositories\CrossSectionSightingRepository;
 use App\Repositories\GameRepository;
 use App\Repositories\GameServerRepository;
 use App\Repositories\PracticeCapturePlayerRepository;
@@ -15,9 +20,13 @@ use App\Repositories\SectionPracticeRepository;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperGameIdentityRepository;
 use App\Repositories\TrooperRepository;
+use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\Audit\ActingFor;
 use App\Support\Audit\AuditEnvelope;
+use App\Support\Time\PracticeWindow;
+use Carbon\CarbonImmutable;
+use DateTimeInterface;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -36,9 +45,13 @@ use Throwable;
  * - A player linked to a trooper who is not on this practice's rollcall for its week is surfaced as
  *   **other-section**, and never credited (AD-14: a trooper is on one rollcall, their primary
  *   section's; for a week that has ended, the section they ended it in, `TrooperRepository::idsOnRollcall`).
- *   The capture does not give them a makeup on their own section's rollcall either, and records no `cross_section_sightings` row: until the portal has practice time slots, the capture
- *   window is the whole Cav week so far and the game servers are shared by every section, so being
- *   seen does not mean they were at this practice (decided 2026-10-23). Makeups come from a leader. A staff member
+ *   Of a practice read over its slot's hour (#558), one whose time on the server is known and at least the
+ *   presence minimum ({@see PresenceMinimum}) is a guest: a `cross_section_sightings` row for this practice, and an
+ *   automatic make-up on their own section's rollcall for the week ({@see MarkAttendanceHandler::preMarkMakeups()}),
+ *   unless their own section practises in the same window (shared slots are common), which makes it their own
+ *   practice, captured as such. A source that only knows who was seen (no minutes) and a capture of the whole week
+ *   (no slot) give no sighting and no make-up: being on a shared server some time does not mean they were at this
+ *   practice. A staff member
  *   (HQ staff or a staff department, on no rollcall) is surfaced the same way, and that stored row is what their milpac
  *   lists as seen on the game server (#448, `Milpac\StaffPracticeHistory`).
  * - A player linked to a trooper who has left (no longer serving) is **departed**: stored and listed on the rollcall as
@@ -51,9 +64,10 @@ use Throwable;
  *
  * The matched troopers are then pre-marked `present`/`auto` through the one attendance writer
  * ({@see MarkAttendanceHandler::preMark()}, 7.6): manual marks win, nothing is ever written as `loa`,
- * other-section and unmatched players get no row anywhere. Every run opens a `sync_runs` row
+ * unmatched players get no row anywhere. Over a slot's hour a matched trooper whose minutes are known and under the
+ * presence minimum is not pre-marked (#558); one from a source with no minutes is, as before. Every run opens a `sync_runs` row
  * (source `capture`) carrying `triggered_by` and the counts: `inserted` = players linked to a
- * trooper, `errored` = unmatched players (so unmatched ones read `partial`), and the summary text.
+ * trooper, `updated` = automatic make-ups given, `errored` = unmatched players (so unmatched ones read `partial`), and the summary text.
  * The stamp goes through the audit envelope when a user triggered the run; the audit log's actor is
  * a `users` FK, so a `'system'` run is covered by its `sync_runs` row (AD-16's carve-out for system
  * jobs). No authorization here: callers (scheduler, a later leader trigger) decide who may run it.
@@ -84,6 +98,10 @@ class CaptureSectionPracticeHandler
         private readonly GameRepository $games,
         private readonly GameServerRepository $servers,
         private readonly ActingFor $acting,
+        private readonly PracticeSchedule $schedule,
+        private readonly PresenceMinimum $minimum,
+        private readonly CrossSectionSightingRepository $sightings,
+        private readonly UnitRepository $units,
     ) {}
 
     /**
@@ -106,6 +124,62 @@ class CaptureSectionPracticeHandler
         }
     }
 
+    /**
+     * A dry run for the backfill (#558): read the practice's servers and work out who would be pre-marked present and
+     * who would get a make-up, writing nothing (no run, no stamp, no server read recorded, no sighting, no mark). The
+     * lists are before the attendance guards ({@see MarkAttendanceHandler}): a leader's mark, LOA, `present` and a
+     * locked or confirmed week still keep a trooper as they are in a real run. Null when a server could not be read or
+     * nothing is configured; an empty answer for a week whose report was sent. `$practice` stands in for a week with no
+     * practice row yet (unsaved), so a dry run creates none.
+     *
+     * @return array{present: list<int>, makeups: list<int>}|null
+     */
+    public function preview(CaptureSectionPractice $command, ?SectionPractice $practice = null): ?array
+    {
+        $practice ??= $this->practices->findById($command->sectionPracticeId)
+            ?? throw new InvalidArgumentException("Section practice {$command->sectionPracticeId} does not exist.");
+        $game = $this->games->find($command->gameId)
+            ?? throw new InvalidArgumentException("Game {$command->gameId} does not exist.");
+
+        if (! $this->sources->isConfigured($game)) {
+            return null;
+        }
+
+        if ($this->reports->isSentFor($practice->section_id, $practice->week_start)) {
+            return ['present' => [], 'makeups' => []];
+        }
+
+        $answers = [];
+        $reasons = [];
+
+        foreach ($this->sources->for($game) as $server) {
+            $answer = $this->read($server, $command, $practice->id, null, $reasons);
+
+            if ($answer !== null) {
+                $answers[] = $answer;
+            }
+        }
+
+        if ($reasons !== [] || $answers === []) {
+            return null;
+        }
+
+        $presence = $this->merge(array_column($answers, 'presence'));
+        $result = $this->resolve($presence, '', $game, $practice);
+        $slotted = $this->isSlotWindow($practice, $command);
+        $minimum = $this->minimum->forUnit($practice->section_id);
+        $attended = $slotted
+            ? array_filter($result->matched, fn (array $row) => $row['minutes'] === null || $row['minutes'] >= $minimum)
+            : $result->matched;
+        $present = array_values(array_unique(array_column($attended, 'trooperId')));
+        sort($present);
+
+        return [
+            'present' => $present,
+            'makeups' => $slotted ? $this->guestsOf($practice, $command, $result->otherSection, $minimum) : [],
+        ];
+    }
+
     private function run(CaptureSectionPractice $command): CaptureResult
     {
         $practice = $this->practices->findById($command->sectionPracticeId)
@@ -115,9 +189,13 @@ class CaptureSectionPracticeHandler
             ?? throw new InvalidArgumentException("Game {$command->gameId} does not exist.");
 
         // The window must fall inside the practice's own Cav week: a capture is bounded to the
-        // practice, never an arbitrary span stamped onto it.
-        if ($command->windowStart < $practice->week_start || $command->windowEnd > $practice->week_start->addWeek()
-            || $command->windowEnd < $command->windowStart) {
+        // practice, never an arbitrary span stamped onto it. A scheduled practice belongs to the week of its start, so
+        // its hour may run past the week's end (a Friday 2330Z slot, #393), but no further.
+        $weekEnd = $practice->week_start->addWeek();
+        $latestEnd = $weekEnd->max(CarbonImmutable::instance($command->windowStart)->addMinutes(PracticeWindow::MINUTES));
+
+        if ($command->windowStart < $practice->week_start || $command->windowStart > $weekEnd
+            || $command->windowEnd > $latestEnd || $command->windowEnd < $command->windowStart) {
             throw new InvalidArgumentException("The capture window is not within the week of section practice {$practice->id}.");
         }
 
@@ -176,15 +254,25 @@ class CaptureSectionPracticeHandler
             $result = $this->resolve($presence, $sourceName, $game, $practice);
             $this->persistUnresolved($practice->id, $game, $result);
 
+            // Over the slot's hour (#558) a trooper counts once on the server for the minimum; a whole-week read counts
+            // anyone seen, as before.
+            $slotted = $this->isSlotWindow($practice, $command);
+            $minimum = $this->minimum->forUnit($practice->section_id);
+            $attended = $slotted
+                ? array_values(array_filter($result->matched, fn (array $row) => $row['minutes'] === null || $row['minutes'] >= $minimum))
+                : $result->matched;
+
             // Pre-mark before stamping, so a captured practice implies its marks were written;
             // a failure here retries the whole run, and every write is idempotent.
-            $marks = $this->attendance->preMark($practice, array_column($result->matched, 'trooperId'), $command->triggeredBy);
+            $marks = $this->attendance->preMark($practice, array_column($attended, 'trooperId'), $command->triggeredBy);
 
             if ($marks->weekLocked) {
                 return $this->weekLocked($run, $practice);
             }
 
-            $stamp = fn () => $this->practices->stampCapture($practice, $serverRef, $presence->fetchedAt, $sourceName);
+            $makeups = $slotted ? $this->giveMakeups($practice, $command, $result->otherSection, $minimum) : new MakeupMarkResult;
+
+            $stamp = fn () => $this->practices->stampCapture($practice, $serverRef, $presence->fetchedAt, $sourceName, $command->windowStart, $command->windowEnd);
             is_int($command->triggeredBy)
                 ? $this->audit->record($command->triggeredBy, 'practice.captured', null, false, $stamp)
                 : $stamp();
@@ -192,7 +280,7 @@ class CaptureSectionPracticeHandler
             $this->syncRuns->complete(
                 $run,
                 inserted: $result->matchedCount(),
-                updated: 0,
+                updated: $makeups->marked,
                 inactivated: 0,
                 errored: $result->unmatchedCount(),
                 error: sprintf(
@@ -201,7 +289,7 @@ class CaptureSectionPracticeHandler
                     $marks->confirmed
                         ? 'practice is confirmed, no marks changed'
                         : sprintf('pre-marked %d, left %d untouched (manual/loa)', $marks->marked, $marks->keptManual),
-                ),
+                ).($slotted ? sprintf('; minimum %d min, make-ups %d given, %d kept, %d locked', $minimum, $makeups->marked, $makeups->kept, $makeups->locked) : ''),
             );
 
             return $result;
@@ -222,12 +310,13 @@ class CaptureSectionPracticeHandler
      * server recorded for the Servers page (#389). A source that is down while the fallback answers is logged, so it
      * does not go unnoticed (7.9). When none answers, its reasons are added to `$reasons` and null is returned. A
      * stored server none of whose sources has credentials cannot be read either; the legacy env server is never in
-     * that state here, since a game with no credentials at all is not captured.
+     * that state here, since a game with no credentials at all is not captured. A dry run ({@see preview()}) passes no
+     * `$runId` and records no read.
      *
      * @param  list<string>  $reasons
      * @return array{source: CaptureSource, presence: CrconPresence}|null
      */
-    private function read(CaptureServer $server, CaptureSectionPractice $command, int $practiceId, int $runId, array &$reasons): ?array
+    private function read(CaptureServer $server, CaptureSectionPractice $command, int $practiceId, ?int $runId, array &$reasons): ?array
     {
         // The legacy server's reasons stay as they always read ("crcon: unreachable"); a stored one's name the server.
         $prefix = $server->gameServerId === null ? '' : "{$server->label}: ";
@@ -236,7 +325,7 @@ class CaptureSectionPracticeHandler
         if ($sources === []) {
             $reasons[] = "{$prefix}credentials not set";
 
-            if ($server->gameServerId !== null) {
+            if ($server->gameServerId !== null && $runId !== null) {
                 $this->servers->recordRead($server->gameServerId, $runId, false, 'credentials not set');
             }
 
@@ -252,14 +341,14 @@ class CaptureSectionPracticeHandler
                 $failures[] = $prefix.$e->getMessage();
                 Log::warning('Capture source unavailable.', ['sectionPracticeId' => $practiceId, 'source' => $source->name, 'server' => $server->label, 'reason' => $e->getMessage()]);
 
-                if ($source->gameServerId !== null) {
+                if ($source->gameServerId !== null && $runId !== null) {
                     $this->servers->recordRead($source->gameServerId, $runId, false, $e->getMessage());
                 }
 
                 continue;
             }
 
-            if ($source->gameServerId !== null) {
+            if ($source->gameServerId !== null && $runId !== null) {
                 $this->servers->recordRead($source->gameServerId, $runId, true, null);
             }
 
@@ -268,7 +357,7 @@ class CaptureSectionPracticeHandler
             // a fallback (CRCON's BattleMetrics twin), it is not the ID the server itself reports, so it stays marked.
             if ($source === ($server->sources[0] ?? null)) {
                 $presence = new CrconPresence(
-                    array_map(fn (CrconPlayer $p) => $p->idSource === null ? $p : new CrconPlayer($p->playerName, $p->platformId), $presence->players),
+                    array_map(fn (CrconPlayer $p) => $p->idSource === null ? $p : $p->with(clearIdSource: true), $presence->players),
                     $presence->windowStart, $presence->windowEnd, $presence->fetchedAt,
                 );
             }
@@ -288,7 +377,8 @@ class CaptureSectionPracticeHandler
      * Two IDs that differ only in letter case are one player: the database compares IDs without case, so keeping both
      * would fail the whole run on the unique key. An Epic ID (32 hex characters, the only kind of ID whose case can
      * differ for the same account) is taken in lower case, the way CRCON reports it and the portal stores it; any other
-     * ID keeps the spelling first seen. A Steam ID is digits, so nothing changes for it.
+     * ID keeps the spelling first seen. A Steam ID is digits, so nothing changes for it. A player on two servers has
+     * their minutes added, capped at the window (#558); unknown minutes add nothing.
      *
      * @param  list<CrconPresence>  $presences
      */
@@ -297,10 +387,26 @@ class CaptureSectionPracticeHandler
         /** @var array<string, CrconPlayer> $byPlatformId */
         $byPlatformId = [];
 
+        $cap = self::windowMinutes($presences[0]->windowStart, $presences[0]->windowEnd);
+
         foreach ($presences as $presence) {
             foreach ($presence->players as $player) {
                 $id = preg_match('/^[0-9a-f]{32}$/i', $player->platformId) === 1 ? strtolower($player->platformId) : $player->platformId;
-                $byPlatformId[mb_strtolower($id)] ??= $id === $player->platformId ? $player : new CrconPlayer($player->playerName, $id, $player->idSource);
+                $key = mb_strtolower($id);
+                $seen = $byPlatformId[$key] ?? null;
+
+                if ($seen === null) {
+                    $byPlatformId[$key] = $id === $player->platformId ? $player : $player->with(platformId: $id);
+
+                    continue;
+                }
+
+                // On two servers in the window (#558): their minutes add up, never past the window itself.
+                $minutes = self::addMinutes($seen->minutes, $player->minutes, $cap);
+
+                if ($minutes !== $seen->minutes) {
+                    $byPlatformId[$key] = new CrconPlayer($seen->playerName, $seen->platformId, $seen->idSource, $minutes);
+                }
             }
         }
 
@@ -367,7 +473,7 @@ class CaptureSectionPracticeHandler
             if ($link === null) {
                 $unmatched[] = $player;
             } else {
-                $links[] = ['player' => $player, 'trooperId' => $link->trooper_id];
+                $links[] = ['player' => $player, 'trooperId' => $link->trooper_id, 'minutes' => $player->minutes];
             }
         }
 
@@ -379,6 +485,18 @@ class CaptureSectionPracticeHandler
         $matched = [];
         $otherSection = [];
         $departed = [];
+
+        // A trooper seen under two linked IDs counts once for the minimum (#558): their minutes add up, capped at the window.
+        $cap = self::windowMinutes($presence->windowStart, $presence->windowEnd);
+        $minutesOf = [];
+
+        foreach ($links as $link) {
+            $minutesOf[$link['trooperId']] = array_key_exists($link['trooperId'], $minutesOf)
+                ? self::addMinutes($minutesOf[$link['trooperId']], $link['minutes'], $cap)
+                : $link['minutes'];
+        }
+
+        $links = array_map(fn (array $link) => ['minutes' => $minutesOf[$link['trooperId']]] + $link, $links);
 
         foreach ($links as $link) {
             $trooper = $troopers->get($link['trooperId']);
@@ -395,5 +513,95 @@ class CaptureSectionPracticeHandler
         }
 
         return CaptureResult::captured($source, $matched, $otherSection, $unmatched, $departed);
+    }
+
+    /**
+     * Whether the run reads the practice's own scheduled hour (#558): the section has a slot placed in this week (or the
+     * week's move) and the run asks for exactly it. Only then do minutes count and make-ups follow; a "Try again" over the week so far does neither.
+     */
+    private function isSlotWindow(SectionPractice $practice, CaptureSectionPractice $command): bool
+    {
+        $window = $this->schedule->scheduledWindow($practice->section_id, $practice->week_start, $practice);
+
+        return $window !== null
+            && $window->start->getTimestamp() === $command->windowStart->getTimestamp()
+            && $window->end->getTimestamp() === $command->windowEnd->getTimestamp();
+    }
+
+    /**
+     * The automatic make-ups of a slotted practice (#558): each trooper from another section who was on the server for
+     * at least `$minimum` minutes, with known minutes, placed in a section of their own whose practice this week is not
+     * in the same window. Each gets a `cross_section_sightings` row for this practice (first sighting wins) and then a
+     * make-up through {@see MarkAttendanceHandler::preMarkMakeups()}, which keeps a leader's mark, `present`, LOA, a
+     * locked week and a confirmed practice as they are. Staff (on no section) get neither.
+     *
+     * @param  list<array{player: CrconPlayer, trooperId: int, minutes: int|null}>  $otherSection
+     */
+    private function giveMakeups(SectionPractice $host, CaptureSectionPractice $command, array $otherSection, int $minimum): MakeupMarkResult
+    {
+        $guests = $this->guestsOf($host, $command, $otherSection, $minimum);
+
+        if ($guests === []) {
+            return new MakeupMarkResult;
+        }
+
+        $this->sightings->record($host, $guests, $command->windowStart, $command->windowEnd);
+
+        return $this->attendance->preMarkMakeups($host, $guests, $command->triggeredBy);
+    }
+
+    /**
+     * Who of `$otherSection` was a guest at `$host` ({@see giveMakeups()}), in id order.
+     *
+     * @param  list<array{player: CrconPlayer, trooperId: int, minutes: int|null}>  $otherSection
+     * @return list<int>
+     */
+    private function guestsOf(SectionPractice $host, CaptureSectionPractice $command, array $otherSection, int $minimum): array
+    {
+        $ids = array_values(array_unique(array_column(
+            array_filter($otherSection, fn (array $row) => $row['minutes'] !== null && $row['minutes'] >= $minimum),
+            'trooperId',
+        )));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $guests = [];
+
+        foreach ($this->troopers->ownSectionsInWeek($ids, $host->week_start) as $trooperId => $sectionId) {
+            if ($sectionId === $host->section_id || $this->units->find($sectionId)?->type !== UnitType::Section) {
+                continue;
+            }
+
+            // Their own section practises in the same window (a shared slot): this was their own practice, not a make-up.
+            $own = $this->schedule->scheduledWindow($sectionId, $host->week_start);
+
+            if ($own !== null && $own->start->getTimestamp() < $command->windowEnd->getTimestamp()
+                && $own->end->getTimestamp() > $command->windowStart->getTimestamp()) {
+                continue;
+            }
+
+            $guests[] = $trooperId;
+        }
+
+        sort($guests);
+
+        return $guests;
+    }
+
+    private static function windowMinutes(DateTimeInterface $start, DateTimeInterface $end): int
+    {
+        return intdiv(max(0, $end->getTimestamp() - $start->getTimestamp()), 60);
+    }
+
+    /** Two known minute counts added and capped; an unknown one adds nothing, and two unknown stay unknown. */
+    private static function addMinutes(?int $a, ?int $b, int $cap): ?int
+    {
+        if ($a === null && $b === null) {
+            return null;
+        }
+
+        return min($cap, ($a ?? 0) + ($b ?? 0));
     }
 }

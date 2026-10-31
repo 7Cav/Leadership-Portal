@@ -23,6 +23,7 @@ import EmptyState from '@/components/EmptyState.vue';
 import Guidon from '@/components/Guidon.vue';
 import MissingIdentityIcon from '@/components/MissingIdentityIcon.vue';
 import NoValue from '@/components/NoValue.vue';
+import PracticeSlotMissingIcon from '@/components/PracticeSlotMissingIcon.vue';
 import { useSlashClaim } from '@/composables/useSlashShortcut';
 import {
     aggregateWeek,
@@ -423,6 +424,7 @@ function clearAll() {
                                     <span>
                                         <span class="block leading-tight font-semibold">
                                             <template v-for="(part, i) in highlightParts(row.unit.callsign ?? row.unit.name, query)" :key="i"><mark v-if="part.hit" class="hl">{{ part.text }}</mark><template v-else>{{ part.text }}</template></template>
+                                            <PracticeSlotMissingIcon :missing="row.unit.practiceSlotMissing ?? false" class="ml-1 align-[-2px]" />
                                         </span>
                                         <span class="mt-0.5 block text-xs leading-tight text-muted-foreground">
                                             {{ row.unit.name }}<template v-if="row.unit.leader">, {{ row.unit.leader.displayName }}</template>

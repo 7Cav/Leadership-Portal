@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffReportAccess;
+use App\Commands\Practices\PracticeSchedule;
+use App\Commands\Practices\SectionsWithoutSlot;
 use App\Kpi\AutoExcused;
 use App\Kpi\ChainNode;
 use App\Kpi\ChildReport;
@@ -75,6 +77,8 @@ class HomeController extends Controller
         private readonly AutoExcused $autoExcused,
         private readonly UnitGuidonRepository $guidons,
         private readonly MissingGameIdentities $missingIdentities,
+        private readonly PracticeSchedule $schedule,
+        private readonly SectionsWithoutSlot $sectionsWithoutSlot,
     ) {}
 
     public function show(Request $request): Response
@@ -96,6 +100,8 @@ class HomeController extends Controller
         $attendance = $roots->map(fn (Unit $root) => $this->kpis->trooperAttendance($root, $weekStart));
         $paths = $tree->mapWithKeys(fn (Unit $unit) => [$unit->id => $unit->path]);
 
+        $slots = $this->schedule->slotsOf($this->units->sectionsAmong($scope)->modelKeys());
+
         return Inertia::render('Home', [
             // The guidon of the unit in scope, for the header: its own or its nearest ancestor's. None for a scope of
             // several units, or a unit with no guidon above it.
@@ -114,11 +120,18 @@ class HomeController extends Controller
             // (a synced billet, an acting lead or Admin; a preview shows what its target would see): a staff grant reads
             // the scope but cannot link anyone.
             'missingIdentities' => $this->scope->leads($request->user()) ? $this->missingIdentities->summaryFor($scope) : [],
-            'units' => $chains->flatMap(function (ChainNode $chain, int $i) use ($attendance, $paths, $weekStart) {
+            // Sections in scope that play a game and have troopers but no practice slot (#392), so nothing is captured
+            // there. Leaders only (a synced billet, an acting lead or Admin): a staff grant reads but cannot set one.
+            'sectionsWithoutSlot' => $this->scope->leads($request->user()) ? $this->sectionsWithoutSlot->among($scope) : [],
+            'units' => $chains->flatMap(function (ChainNode $chain, int $i) use ($attendance, $paths, $weekStart, $slots) {
                 $rows = $attendance[$i];
 
                 return collect($this->subordinates($chain))
-                    ->map(fn (ChainNode $node) => $this->unitRow($node, $weekStart, $rows, $paths));
+                    ->map(fn (ChainNode $node) => [
+                        ...$this->unitRow($node, $weekStart, $rows, $paths),
+                        // A section's weekly practice slot (#392), shown under its name; null for other units or none set.
+                        'practiceSlot' => $slots[$node->unit->id] ?? null,
+                    ]);
             })
                 ->values()
                 ->all(),

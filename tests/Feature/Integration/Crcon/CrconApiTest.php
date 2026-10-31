@@ -276,6 +276,30 @@ it('reads sessions from the player profile when the history returns none', funct
     $mock->assertSent(fn (Request $request) => $request instanceof FetchPlayerProfileRequest);
 });
 
+it('gives each player the minutes their profile sessions spent in the window, and none on the span fallback (#558)', function () {
+    $ms = fn (string $t) => (new DateTimeImmutable($t, new DateTimeZone('UTC')))->getTimestamp() * 1000;
+
+    MockClient::global([
+        CRCON_URL => crconResult([
+            crconHistoryRow('1', 'Rejoin', '2026-10-01 10:00', '2026-10-10 23:00'),
+            ['player_id' => '2', 'names' => [['name' => 'Span']], 'first_seen_timestamp_ms' => $ms('2026-10-01 10:00'), 'last_seen_timestamp_ms' => $ms('2026-10-10 20:00')],
+        ]),
+        CRCON_PROFILE_URL => fn (PendingRequest $request) => $request->query()->get('player_id') === '1'
+            ? crconProfile([
+                // Joined before the window, dropped and back a minute later, still on at its end.
+                ['id' => 1, 'player_id' => '1', 'start' => '2026-10-10T18:30:00+00:00', 'end' => '2026-10-10T19:20:00+00:00'],
+                ['id' => 2, 'player_id' => '1', 'start' => '2026-10-10T19:21:00+00:00', 'end' => null],
+            ])
+            : crconProfile([]),
+    ]);
+
+    [$start, $end] = crconWindow();
+    $players = collect(crcon()->fetchPresence($start, $end)->players)->keyBy('platformId');
+
+    expect($players['1']->minutes)->toBe(119)
+        ->and($players['2']->minutes)->toBeNull();
+});
+
 it('falls back to the first/last-seen span for one player whose profile cannot be read', function () {
     MockClient::global([
         CRCON_URL => crconResult([

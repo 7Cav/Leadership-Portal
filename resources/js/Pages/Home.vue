@@ -15,6 +15,7 @@ import SubordinateUnits from '@/components/home/SubordinateUnits.vue';
 import NeedsAttention from '@/components/home/NeedsAttention.vue';
 import MissingIdentities from '@/components/home/MissingIdentities.vue';
 import Guidon from '@/components/Guidon.vue';
+import MissingPracticeSlots from '@/components/MissingPracticeSlots.vue';
 
 // The weekly-cycle home (Story 1.15, mockups/v2/shell-f.html) and the leader's dashboard (Stories
 // 5.9 to 5.11). The week bar's calendar comes from HomeController via WeekOf (AD-11); the step
@@ -40,6 +41,8 @@ const props = defineProps({
     staffReport: { type: Object, default: null },
     // Troopers under the viewer's lead with no identity for their unit's game, `[{ game, count, troopers }]`.
     missingIdentities: { type: Array, default: () => [] },
+    // Sections under the viewer's lead that play a game and have troopers but no practice slot, `[{ id, designation }]`.
+    sectionsWithoutSlot: { type: Array, default: () => [] },
 });
 
 const page = usePage();
@@ -119,6 +122,8 @@ const countdown = computed(() => {
     <div class="space-y-5">
         <!-- Not dismissible: it goes away once every trooper is linked. -->
         <MissingIdentities :groups="missingIdentities" />
+        <!-- Not dismissible: it goes away once every section has a slot. -->
+        <MissingPracticeSlots :sections="sectionsWithoutSlot" />
 
         <!--
           Degraded-mode notice (Story 1.7, AC #2): distinct from a login error, since a Cav outage

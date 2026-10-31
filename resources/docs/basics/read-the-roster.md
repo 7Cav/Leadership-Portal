@@ -26,6 +26,8 @@ checklist:
 4. Filter by name, rank or billet with the box above the list.
 5. **Headcount** under the unit's name and on each unit in the order of battle is its headcount: everyone serving placed in the unit or under it, HQ staff and staff departments included. New Recruits, ELOA and Reservists count only on their own group. RC and SP are counted over the troopers in sections only, so the headcount never changes them.
 
+6. A warning icon next to a section means it has no practice slot set (point at it to read why). When a unit you lead has such sections, a warning above the views lists them, each linking to its roll call where the slot is set.
+
 > [!good-to-know] A warning icon by a name means the trooper has no identity for their unit's game; the warning at the top of the page lists them all.
 
 ## See strength over time

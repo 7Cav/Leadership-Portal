@@ -12,7 +12,7 @@ import { percentLabel } from '@/lib/roster';
 // Achievement Medal is recommended by the commander of the unit that benefited; the portal never awards it, it only
 // marks the candidates. Every number comes from RosterController (own-section SP from the shared KPI service, which
 // leaves makeups out); the panel is read-only for every viewer, like the rest of the roster. Guests come from the host
-// leaders adding them on their rollcall: the game server records them again once practices have set times.
+// leaders adding them on their rollcall, and from the game server when a practice with a slot is captured (#558).
 
 // Shown with the own-section SP: why it can be lower than the trooper's SP elsewhere.
 const OWN_SP_NOTE = 'Practices of their own section they attended, out of those it held. Makeups are not counted.';

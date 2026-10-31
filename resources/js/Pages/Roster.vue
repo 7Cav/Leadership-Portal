@@ -41,11 +41,13 @@ import Guidon from "@/components/Guidon.vue";
 import LoaSyncNote from "@/components/LoaSyncNote.vue";
 import LoaSyncProblems from "@/components/LoaSyncProblems.vue";
 import MissingIdentityNotice from "@/components/MissingIdentityNotice.vue";
+import MissingPracticeSlots from "@/components/MissingPracticeSlots.vue";
 import MatrixView from "@/components/roster/MatrixView.vue";
 import OrbatView from "@/components/roster/OrbatView.vue";
 import StrengthView from "@/components/roster/StrengthView.vue";
 import GuidonGenerator from "@/components/roster/GuidonGenerator.vue";
 import PracticeGuestsPanel from "@/components/roster/PracticeGuestsPanel.vue";
+import PresenceMinimumPanel from "@/components/roster/PresenceMinimumPanel.vue";
 import TrooperSheet from "@/components/roster/TrooperSheet.vue";
 import { useNow } from "@/composables/useNow";
 import { useViewAs } from "@/composables/useViewAs";
@@ -63,6 +65,8 @@ const props = defineProps({
     trail: { type: Array, required: true },
     scopeOptions: { type: Array, required: true },
     weeks: { type: Array, required: true },
+    // The viewed unit's sections with no practice slot set, `[{ id, designation }]`; leaders only.
+    sectionsWithoutSlot: { type: Array, default: () => [] },
     currentWeek: { type: String, required: true },
     units: { type: Array, required: true },
     troopers: { type: Array, required: true },
@@ -77,6 +81,8 @@ const props = defineProps({
     // "Guests at our practices" for a section, platoon or company (JSAM evidence, 2026-10-23): `{ criteria, rows }`,
     // or null for a battalion or the regiment.
     guests: { type: Object, default: null },
+    // A battalion's practice presence minimum (#558): `{ minutes, isDefault, default, canEdit }`, null for other units.
+    presenceMinimum: { type: Object, default: null },
     // The Strength tab (`StrengthTrends`): `{ range, weeks, change, children }`, sent only while that tab is open.
     strengthTrends: { type: Object, default: null },
 });
@@ -546,6 +552,7 @@ function syncNow() {
 
         <template v-else>
             <MissingIdentityNotice :troopers="troopers" class="mb-3" />
+            <MissingPracticeSlots :sections="sectionsWithoutSlot" :own="false" class="mb-3" />
 
             <Tabs v-model="view">
                 <TabsList aria-label="Roster view">
@@ -610,6 +617,12 @@ function syncNow() {
                 :current-week="currentWeek"
                 :loading="navigating"
                 @open="openTrooperId = $event"
+            />
+
+            <PresenceMinimumPanel
+                v-if="presenceMinimum"
+                :minimum="presenceMinimum"
+                :unit-id="unit.id"
             />
 
             <PracticeGuestsPanel
