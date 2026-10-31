@@ -380,16 +380,10 @@ function clearAll() {
                             <td colspan="8">
                                 <div class="sticky left-2.5 inline-flex flex-nowrap items-center gap-7" :style="{ paddingLeft: `${Math.max(row.depth - 1, 0) * 1.25}rem` }">
                                     <div class="flex min-w-[17rem] items-center gap-2.5">
-                                        <span class="grid size-7 flex-none place-items-center rounded-md bg-foreground text-xs font-semibold text-background" aria-hidden="true">
-                                            {{ (row.unit.callsign ?? row.unit.name).charAt(0) }}
-                                        </span>
                                         <span>
                                             <span class="block text-[13px] leading-tight font-semibold">
                                                 {{ row.unit.name }} <span class="font-normal text-muted-foreground">{{ row.unit.callsign }}</span>
                                                 <span v-if="row.unit.label" class="ml-1 rounded-sm border border-border px-1 text-[10px] font-semibold text-muted-foreground" :data-testid="`label-${row.unit.id}`">{{ row.unit.label }}</span>
-                                            </span>
-                                            <span class="mt-0.5 block text-xs leading-tight text-muted-foreground">
-                                                {{ row.unit.leader ? `${row.unit.leader.displayName}${row.unit.leader.source === 'acting' ? ' (acting)' : ''}` : 'No leader on the roster' }}
                                             </span>
                                         </span>
                                     </div>
