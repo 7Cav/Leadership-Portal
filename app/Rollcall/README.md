@@ -56,15 +56,20 @@ the same writer as a leader's mark, and a leader's mark always wins. A trooper i
 primary section's (AD-14), and attending another section's practice is a makeup for their own section's practice that
 Cav week.
 
-The capture does not credit other-section troopers: it lists them on the review drawer as other-section and writes
-nothing for them, no makeup on their own rollcall and no `cross_section_sightings` row. Until the portal has practice
-time slots, the capture window is the whole Cav week so far and the game servers are shared by every section, so being
-seen on the server does not mean someone was at that practice (decided 2026-10-23). Makeups come from leaders: their
-own section's leader by hand, or a host leader adding them as a guest.
+The capture lists other-section troopers on the review drawer as other-section. Over a practice's slot hour (#558),
+one whose minutes on the server are known and at least the presence minimum (`PresenceMinimum`: the battalion's own,
+else `portal.presence_minimum_minutes`, 40) also gets a `cross_section_sightings` row (source `capture`) and an
+automatic makeup on their own rollcall, unless their own section's scheduled hour overlaps the host's (a shared slot
+makes it their own practice). The section's own troopers are pre-marked only with the minimum too. A capture of the
+whole Cav week so far (a section with no slot, or "Try again" without one) and a source with no per-player minutes
+(BattleMetrics, Nightwatch, CRCON's first/last-seen fallback) give no sighting and no makeup: the game servers are
+shared by every section, so being seen some time does not mean someone was at that practice. Makeups also come from
+leaders: their own section's leader by hand, or a host leader adding them as a guest. `portal:backfill-practice-captures`
+captures past practices of unlocked weeks again over their slot hour (`--dry-run` lists and writes nothing).
 
 `MarkAttendanceHandler::preMarkMakeups()` (a `makeup` with the `auto` source, shown with the auto source dot) is what
-a host leader's hand-added guest writes (see "Guests at our practices" below), and stays for the capture for when
-practice times exist, with these rules:
+a host leader's hand-added guest and a slotted capture write (see "Guests at our practices" below), with these rules (the
+rollcall names the practice behind an automatic makeup from the trooper's first guest sighting that week):
 
 - Only while a `cross_section_sightings` row of that trooper in that Cav week supports it, read under a lock.
 - Same Cav week only (`WeekOf`, Saturday to Friday): never an older or a later week.

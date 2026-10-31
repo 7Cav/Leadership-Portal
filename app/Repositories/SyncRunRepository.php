@@ -94,4 +94,7 @@ interface SyncRunRepository
      * tiebreaker.
      */
     public function latestForUnit(string $source, int $unitId): ?SyncRun;
+
+    /** Whether any run of `$source` exists for the practice, finished or not: a capture was attempted (#393). */
+    public function existsForPractice(string $source, int $sectionPracticeId): bool;
 }

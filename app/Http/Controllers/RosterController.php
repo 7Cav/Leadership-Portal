@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffPracticeAccess;
+use App\Commands\Practices\PracticeSchedule;
+use App\Commands\Practices\PresenceMinimum;
 use App\Commands\Units\SaveUnitGuidonHandler;
 use App\Kpi\AutoExcused;
 use App\Kpi\Headcount;
@@ -61,6 +63,7 @@ class RosterController extends Controller
     public const HISTORY_WEEKS = 20;
 
     public function __construct(
+        private readonly PracticeSchedule $schedule,
         private readonly ScopeResolver $scope,
         private readonly UnitRepository $units,
         private readonly TrooperRepository $troopers,
@@ -71,6 +74,7 @@ class RosterController extends Controller
         private readonly KpiService $kpis,
         private readonly LoaProvenance $loaProvenance,
         private readonly PracticeGuests $practiceGuests,
+        private readonly PresenceMinimum $presenceMinimum,
         private readonly UnitLeadRepository $leads,
         private readonly UnitActingLeadRepository $actingLeads,
         private readonly PlacementHistory $placementHistory,
@@ -123,6 +127,8 @@ class RosterController extends Controller
             'currentWeek' => $week->toDateString(),
             ...($selected ? $this->roster($selected, $week, $shown) : ['units' => [], 'troopers' => []]),
             'guests' => $selected ? $this->guestProps($selected, $week, $tree) : null,
+            // A battalion's practice presence minimum (#558), editable by its HQ staff and Admins.
+            'presenceMinimum' => $selected ? $this->presenceMinimum->props($user, $selected) : null,
             // The Strength tab: headcount and in roll call per Cav week. Read only when the tab is open (`?view=strength`);
             // the page asks for it with a partial reload when the tab is picked, so the other views never pay for it.
             'strengthTrends' => fn () => $this->strengthProps($request, $selected),
@@ -298,7 +304,10 @@ class RosterController extends Controller
         // The small flag on each company and platoon header: its own guidon or the nearest one above, read in one go.
         $headerGuidons = $this->guidons->designsFor($subtree, inherit: true);
 
-        $units = $subtree->map(function (Unit $u) use ($attendance, $sectionOf, $paths, $unitLeads, $headcounts, $headerGuidons) {
+        // Each section's weekly practice slot (#392), under its name on the section row.
+        $slots = $this->schedule->slotsOf($subtree->filter(fn (Unit $u) => $u->type === UnitType::Section)->pluck('id')->all());
+
+        $units = $subtree->map(function (Unit $u) use ($attendance, $sectionOf, $paths, $unitLeads, $headcounts, $headerGuidons, $slots) {
             // The unit's troopers are those whose section sits anywhere under it.
             $within = $attendance->filter(function (TrooperAttendance $row) use ($sectionOf, $paths, $u) {
                 $section = $sectionOf->get($row->trooperId);
@@ -312,6 +321,7 @@ class RosterController extends Controller
                 'leader' => ($lead = $unitLeads->get($u->id)) ? [...$this->person($lead->trooper), 'source' => $lead->source] : null,
                 'kpis' => [...$this->kpiProps($this->kpis->sum($within)), 'strength' => $headcounts->get($u->id, 0)],
                 'headerGuidon' => $headerGuidons[$u->id] ?? null,
+                'practiceSlot' => $slots[$u->id] ?? null,
             ];
         })->values()->all();
 

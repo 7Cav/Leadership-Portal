@@ -13,8 +13,8 @@ use Illuminate\Support\Collection;
  * Sole DB access for `cross_section_sightings` (AD-2): every time a linked trooper attended a practice of a section
  * that is not their own, kept as the Joint Service Achievement Medal evidence. Two writers, one per source: the audited
  * guest Commands ({@see recordManual()} and {@see removeManual()}, what the host section's leader said) and the capture
- * ({@see record()}, what the game server saw). The capture stopped recording sightings until practice time slots
- * exist, since its window is the whole Cav week (2026-10-23), so for now only the guest Commands write. Not a cache: a
+ * ({@see record()}, what the game server saw). The capture records a sighting only over a practice's slot hour, for a
+ * trooper on the server for the presence minimum (#558); a capture of the whole Cav week records none. Not a cache: a
  * capture re-run never replaces or removes what an earlier run recorded, and a capture sighting is never removed by
  * hand.
  *
@@ -102,6 +102,16 @@ interface CrossSectionSightingRepository
      * automatic makeup on their own rollcall once one entry is removed.
      */
     public function existsForTrooperInWeek(int $trooperId, CarbonInterface $weekStart): bool;
+
+    /**
+     * The first guest sighting (capture or manual, never staff) of each of `$trooperIds` in this Cav week, with the host
+     * practice's section loaded, keyed by trooper id: what the rollcall names as the practice behind an automatic
+     * makeup (#558). One query.
+     *
+     * @param  list<int>  $trooperIds
+     * @return Collection<int, CrossSectionSighting>
+     */
+    public function firstGuestInWeek(array $trooperIds, CarbonInterface $weekStart): Collection;
 
     /**
      * Which of `$trooperIds` are still recorded as a guest at any host practice of this Cav week, from either guest source

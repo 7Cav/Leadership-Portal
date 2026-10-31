@@ -3,9 +3,13 @@
 namespace App\Rollcall;
 
 use App\Models\Attendance;
+use App\Models\AttendanceSource;
+use App\Models\AttendanceStatus;
+use App\Models\CrossSectionSighting;
 use App\Models\Trooper;
 use App\Models\Unit;
 use App\Repositories\AttendanceRepository;
+use App\Repositories\CrossSectionSightingRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\SectionWeekRoster;
 use App\Repositories\TrooperRepository;
@@ -27,6 +31,7 @@ final class RollcallRoster
         private readonly SectionPracticeRepository $practices,
         private readonly AttendanceRepository $attendance,
         private readonly SectionFireteams $fireteams,
+        private readonly CrossSectionSightingRepository $sightings,
     ) {}
 
     /**
@@ -94,6 +99,7 @@ final class RollcallRoster
         $roster = $this->troopers->onRollcall($section, $weekStart);
         $placed = $roster->troopers;
         $roles = $this->fireteams->roles($section, $placed);
+        $guests = $this->sightings->firstGuestInWeek($placed->pluck('id')->all(), $weekStart);
 
         $troopers = $placed->map(fn (Trooper $trooper) => [
             'id' => $trooper->id,
@@ -109,6 +115,8 @@ final class RollcallRoster
             'rollcall' => $marks->get($trooper->id)?->rollcall->value ?? 'unsigned',
             'status' => $marks->get($trooper->id)?->status?->value,
             'source' => $marks->get($trooper->id)?->source?->value,
+            // An automatic make-up names the practice that earned it, and whether the game server saw them there (#558).
+            'makeupFrom' => $this->makeupFrom($marks->get($trooper->id), $guests),
             'priorStatus' => $prior->get($trooper->id)?->status->value,
             // The Cav join date, so a week before it reads "not in the unit yet" as on the roster matrix.
             'joined' => $trooper->tis?->toDateString(),
@@ -123,6 +131,27 @@ final class RollcallRoster
         ])->sortBy(fn (array $row) => mb_strtolower($row['name'] ?? "~{$row['cavId']}"))->values()->all();
 
         return new RollcallRosterWeek($practice, $marks, $troopers, $prior->isNotEmpty());
+    }
+
+    /**
+     * Where an automatic make-up came from (#558): the host practice of the trooper's first guest sighting that week, and
+     * whether the game server saw them there or a host leader added them. Null for any other mark.
+     *
+     * @return array{section: string, fromServer: bool}|null
+     */
+    private function makeupFrom(?Attendance $mark, Collection $guests): ?array
+    {
+        if ($mark?->status !== AttendanceStatus::Makeup || $mark->source !== AttendanceSource::Auto) {
+            return null;
+        }
+
+        $sighting = $guests->get($mark->trooper_id);
+        $section = $sighting?->practice?->section;
+
+        return $section === null ? null : [
+            'section' => $section->callsign ?? $section->name,
+            'fromServer' => $sighting->source === CrossSectionSighting::SOURCE_CAPTURE,
+        ];
     }
 
     private function placementNote(Unit $section, Trooper $trooper, SectionWeekRoster $roster): ?string

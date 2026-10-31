@@ -226,4 +226,22 @@ class Eloquent implements CrossSectionSightingRepository
                 lastWeek: CarbonImmutable::parse($row->last_week, 'UTC'),
             )]);
     }
+
+    public function firstGuestInWeek(array $trooperIds, CarbonInterface $weekStart): Collection
+    {
+        if ($trooperIds === []) {
+            return collect();
+        }
+
+        return CrossSectionSighting::query()
+            ->with('practice.section')
+            ->whereIn('trooper_id', $trooperIds)
+            ->where('week_start', $weekStart)
+            ->whereIn('source', CrossSectionSighting::GUEST_SOURCES)
+            ->orderBy('id')
+            ->get()
+            ->unique('trooper_id')
+            ->keyBy('trooper_id')
+            ->toBase();
+    }
 }

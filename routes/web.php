@@ -12,8 +12,10 @@ use App\Http\Controllers\ReportRollupController;
 use App\Http\Controllers\RollcallController;
 use App\Http\Controllers\RollcallFireteamController;
 use App\Http\Controllers\RollcallGuestController;
+use App\Http\Controllers\RollcallPracticeSlotController;
 use App\Http\Controllers\RollcallTemplateController;
 use App\Http\Controllers\RosterController;
+use App\Http\Controllers\RosterPresenceMinimumController;
 use App\Http\Controllers\ScopeUnitsController;
 use App\Http\Controllers\Settings\ActivityLogController;
 use App\Http\Controllers\Settings\AuditLogController;
@@ -110,6 +112,8 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // The old strength trends address: redirects to the roster with the Strength tab open.
     Route::get('/roster/{unit}/strength', [StrengthTrendsController::class, 'show'])->name('roster.strength');
     Route::get('/roster/{unit?}', [RosterController::class, 'index'])->name('roster.index');
+    // A battalion's practice presence minimum (#558): an audited Command for its HQ staff and Admins.
+    Route::post('/roster/{unit}/presence-minimum', [RosterPresenceMinimumController::class, 'update'])->middleware('throttle:audited-writes')->name('roster.presence-minimum');
     // The shell's trooper search (JSON): troopers in the viewer's scope by username, for a jump to their milpac. It
     // offers only troopers the milpac below would open (ScopeResolver::canSee's rule), throttled per user.
     Route::get('/troopers/search', TrooperSearchController::class)->middleware('throttle:trooper-search')->name('troopers.search');
@@ -176,6 +180,9 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::post('/rollcall/{unit}/guests', [RollcallGuestController::class, 'store'])->middleware('throttle:audited-writes')->name('rollcall.guests.store');
     Route::post('/rollcall/{unit}/guests/remove', [RollcallGuestController::class, 'destroy'])->middleware('throttle:audited-writes')->name('rollcall.guests.remove');
     // The section's pick of rollcall template (#375): an audited Command gated by the section's write scope.
+    // The section's practice slot and one week's move or cancellation (#392): audited Commands gated by write scope.
+    Route::post('/rollcall/{unit}/slot', [RollcallPracticeSlotController::class, 'slot'])->middleware('throttle:audited-writes')->name('rollcall.slot');
+    Route::post('/rollcall/{unit}/slot/week', [RollcallPracticeSlotController::class, 'week'])->middleware('throttle:audited-writes')->name('rollcall.slot.week');
     Route::post('/rollcall/{unit}/template', RollcallTemplateController::class)->middleware('throttle:audited-writes')->name('rollcall.template.pick');
 
     // Game identities (Story 7.2): link troopers in scope to their in-game identity, one per

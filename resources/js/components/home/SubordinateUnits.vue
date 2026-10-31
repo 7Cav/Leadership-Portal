@@ -1,4 +1,5 @@
 <script setup>
+import { slotLabel } from '@/lib/practiceSlot';
 import { computed, ref } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import { PhCaretDown, PhCaretRight, PhCaretUp, PhCaretUpDown, PhUsersThree } from '@phosphor-icons/vue';
@@ -122,6 +123,9 @@ const own = computed(() => props.units.length === 1 && props.units[0].type === '
                                 {{ row.unit.designation }}
                             </Link>
                             <span class="block text-xs text-muted-foreground">{{ row.unit.name }}</span>
+                            <span v-if="row.unit.practiceSlot" class="block text-xs text-muted-foreground" :data-testid="`practice-slot-${row.unit.id}`">
+                                Practice {{ slotLabel(row.unit.practiceSlot) }}
+                            </span>
                             <Link :href="`/roster/${row.unit.id}?view=strength`" class="text-xs text-primary hover:underline" :data-testid="`strength-link-${row.unit.id}`" :aria-label="`${row.unit.designation} strength trends`">Strength</Link>
                         </TableCell>
                         <!-- A sent snapshot that cannot be read: no numbers, never a plausible zero. -->

@@ -59,6 +59,13 @@ const autoExcused = computed(() =>
 );
 // Asked for a make-up on the roll call and none recorded yet.
 const owes = computed(() => owesMakeup(props.trooper));
+// An automatic make-up names the practice that earned it (#558): seen there on the game server, or added by its leader.
+const makeupFrom = computed(() => {
+    const from = props.trooper.makeupFrom;
+    if (!from || props.kind !== 'practice' || value.value !== 'makeup' || props.trooper.status !== 'makeup' || props.trooper.source !== 'auto') return null;
+
+    return `Make-up at ${from.section}, ${from.fromServer ? 'seen on the game server' : 'added by its leader'}`;
+});
 const valueLabel = computed(() => (props.kind === 'signature' ? signatureLabel(value.value) : practiceLabel(value.value)));
 const name = computed(() => fullName(props.trooper));
 // On a week that has ended: moved out or departed since, or joined partway through it.
@@ -161,6 +168,7 @@ const TONE = {
                             <Badge v-if="note" variant="outline" :title="note.title" data-testid="placement-note">{{ note.label }}</Badge>
                             <LoaBadge v-if="cover" :cover="cover" :sync="loaSync" />
                             <Badge v-if="autoExcused" variant="warning" :title="autoExcused" data-testid="auto-excused">Excused, automatic</Badge>
+                            <Badge v-if="makeupFrom" variant="outline" data-testid="makeup-from">{{ makeupFrom }}</Badge>
                             <Badge v-if="owes" variant="outline" title="Make-up requested on the roll call, none recorded yet" data-testid="owes-makeup">Owes a make-up</Badge>
                             <Badge v-if="leaveFrom" variant="outline" title="Leave starting next Cav week, from LOA records" data-testid="leave-from">Leave from {{ leaveFrom }}</Badge>
                             <template v-if="locked">

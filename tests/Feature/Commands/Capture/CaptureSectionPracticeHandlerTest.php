@@ -766,3 +766,23 @@ it('still captures and pre-marks a week whose report is a demo, a draft, or abse
     'a draft' => [fn (Unit $section, $week) => WeeklyReport::factory()->create(['unit_id' => $section->id, 'week_start' => $week])],
     'no report' => [fn () => null],
 ]);
+
+it('takes a practice hour that runs past the end of its week, stores the window, and refuses anything longer (#393)', function () {
+    $friday = CarbonImmutable::parse('2026-10-09 23:30:00', 'UTC')->toDateTimeImmutable();
+    $saturday = CarbonImmutable::parse('2026-10-10 00:30:00', 'UTC')->toDateTimeImmutable();
+
+    expect(fn () => app(CaptureSectionPracticeHandler::class)->handle(
+        new CaptureSectionPractice($this->practice->id, game('hll')->id, $friday, $saturday->modify('+1 minute')),
+    ))->toThrow(InvalidArgumentException::class);
+
+    runCaptureWindow($this, $friday, $saturday);
+
+    expect($this->practice->fresh()->window_start->toIso8601ZuluString())->toBe('2026-10-09T23:30:00Z')
+        ->and($this->practice->fresh()->window_end->toIso8601ZuluString())->toBe('2026-10-10T00:30:00Z');
+});
+
+function runCaptureWindow(object $test, DateTimeImmutable $start, DateTimeImmutable $end): void
+{
+    app()->instance(CaptureSources::class, new CaptureSources(['crcon' => [answeringSource('crcon', [])]]));
+    app(CaptureSectionPracticeHandler::class)->handle(new CaptureSectionPractice($test->practice->id, game('hll')->id, $start, $end));
+}

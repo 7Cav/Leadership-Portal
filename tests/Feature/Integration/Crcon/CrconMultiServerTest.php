@@ -147,6 +147,35 @@ it('pairs connects and disconnects into stays that must touch the window', funct
     expect($ids)->toBe(['early', 'late', 'rejoin', 'stayed']);
 });
 
+it('sums the stays of each player inside the window into minutes, a reconnect counting once (#558)', function () {
+    MockClient::global([
+        ...fiveInfos(),
+        'two.test/api/get_historical_logs' => crconEnvelope([
+            // Joined before the look-back, left half an hour into the window.
+            crconLine(3, 'DISCONNECTED', '2026-10-10T19:30:00', 'early'),
+            // Joined before the window and never left: the whole window.
+            crconLine(4, 'CONNECTED', '2026-10-10T18:00:00', 'stayed'),
+            // Ten minutes, a gap, then on until the end.
+            crconLine(5, 'CONNECTED', '2026-10-10T20:00:00', 'rejoin'),
+            crconLine(6, 'DISCONNECTED', '2026-10-10T20:10:00', 'rejoin'),
+            crconLine(7, 'CONNECTED', '2026-10-10T20:20:00', 'rejoin'),
+            // Dropped and back the same minute: one stay.
+            crconLine(10, 'CONNECTED', '2026-10-10T19:10:00', 'blip'),
+            crconLine(11, 'DISCONNECTED', '2026-10-10T19:40:00', 'blip'),
+            crconLine(12, 'CONNECTED', '2026-10-10T19:40:00', 'blip'),
+            crconLine(13, 'DISCONNECTED', '2026-10-10T19:55:00', 'blip'),
+            // Joined at the very end.
+            crconLine(8, 'CONNECTED', '2026-10-10T21:00:00', 'late'),
+        ]),
+    ]);
+
+    [$start, $end] = multiWindow();
+    $minutes = collect(multiCrcon()->fetchPresence($start, $end, 'crcon:2')->players)->mapWithKeys(fn ($p) => [$p->platformId => $p->minutes])->all();
+
+    ksort($minutes);
+    expect($minutes)->toBe(['blip' => 45, 'early' => 30, 'late' => 0, 'rejoin' => 50, 'stayed' => 120]);
+});
+
 it('pages through a full log by moving the start to the last line, keeping each line once', function () {
     $calls = 0;
     MockClient::global([

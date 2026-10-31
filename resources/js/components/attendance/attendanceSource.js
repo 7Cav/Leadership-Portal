@@ -13,8 +13,8 @@ export const SOURCES = {
 };
 
 // Which provenance a row shows. LOA wins (it is derived, not marked), then a hand-marked makeup (from
-// `status`), then the stored `source`. An automatic makeup (`source = auto`, not written by the capture
-// until practice time slots exist) reads as auto: the status buttons already say makeup, and "marked by hand"
+// `status`), then the stored `source`. An automatic makeup (`source = auto`, from a capture of
+// another section's practice or a host leader's guest) reads as auto: the status buttons already say makeup, and "marked by hand"
 // would be wrong. A row with a status but no source cannot be attributed, so it reads as manual only
 // when the source says so.
 export function provenanceOf({ status, source }) {

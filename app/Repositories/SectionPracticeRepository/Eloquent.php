@@ -147,12 +147,24 @@ class Eloquent implements SectionPracticeRepository
         return SectionPractice::query()->whereKey($id)->lockForUpdate()->first();
     }
 
-    public function stampCapture(SectionPractice $practice, string $serverRef, \DateTimeInterface $capturedAt, string $captureSource): SectionPractice
+    public function stampCapture(SectionPractice $practice, string $serverRef, \DateTimeInterface $capturedAt, string $captureSource, ?\DateTimeInterface $windowStart = null, ?\DateTimeInterface $windowEnd = null): SectionPractice
     {
         $practice->forceFill([
             'server_ref' => $serverRef,
             'captured_at' => $capturedAt,
             'capture_source' => $captureSource,
+            'window_start' => $windowStart,
+            'window_end' => $windowEnd,
+        ])->save();
+
+        return $practice;
+    }
+
+    public function changeWeek(SectionPractice $practice, ?\DateTimeInterface $movedTo, bool $cancelled): SectionPractice
+    {
+        $practice->forceFill([
+            'slot_moved_to' => $cancelled ? null : $movedTo,
+            'slot_cancelled' => $cancelled,
         ])->save();
 
         return $practice;
@@ -175,6 +187,9 @@ class Eloquent implements SectionPracticeRepository
             ->whereNull('captured_at')
             ->whereNull('rollcall_posted_at')
             ->whereNull('confirmed_at')
+            // A week whose practice was moved or cancelled keeps that (#392).
+            ->whereNull('slot_moved_to')
+            ->where('slot_cancelled', false)
             ->whereNotExists($nothingIn('attendance'))
             ->whereNotExists($nothingIn('cross_section_sightings'))
             ->whereNotExists($nothingIn('practice_capture_players'))
