@@ -8,9 +8,11 @@ use App\Commands\Demo\PurgeDemoHistoryHandler;
 use App\Commands\Users\SetAdminFlag;
 use App\Jobs\SyncLoasJob;
 use App\Jobs\SyncRosterJob;
+use App\Models\ChangelogEntry;
 use App\Models\PageVisit;
 use App\Models\Trooper;
 use App\Models\User;
+use App\Repositories\ChangelogRepository;
 use App\Repositories\PageVisitRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
@@ -67,6 +69,18 @@ Artisan::command('portal:prune-page-visits', function (PageVisitRepository $visi
 })->purpose('Delete activity-log page visits older than '.PageVisit::RETENTION_DAYS.' days');
 
 Schedule::command('portal:prune-page-visits')->dailyAt('04:15');
+
+// Changelog entries a delete all removed can be restored for 72 hours. After that the page already treats them as gone;
+// this removes the rows. Hourly, so none stay much past the window.
+Artisan::command('portal:purge-changelog', function (ChangelogRepository $changelog) {
+    $purged = $changelog->purgeDeleted(now());
+
+    $this->info("Removed {$purged} deleted changelog ".($purged === 1 ? 'entry' : 'entries').' past the '.ChangelogEntry::RESTORE_HOURS.' hour restore window.');
+
+    return 0;
+})->purpose('Remove changelog entries deleted more than '.ChangelogEntry::RESTORE_HOURS.' hours ago');
+
+Schedule::command('portal:purge-changelog')->hourlyAt(40);
 
 // Bootstrap or remove an Admin without SQL (story 2.9). The user must already exist — i.e. have
 // signed in once via 7Cav SSO. Audited through `SetAdminFlag` (AD-16); see its docblock for why

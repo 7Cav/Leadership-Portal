@@ -194,6 +194,8 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::post('/changelog/import', [ChangelogController::class, 'import'])->middleware('throttle:audited-writes')->name('changelog.import');
     Route::post('/changelog/settings', [ChangelogController::class, 'settings'])->middleware('throttle:audited-writes')->name('changelog.settings');
     Route::post('/changelog/outdated/dismiss', [ChangelogController::class, 'dismiss'])->middleware('throttle:audited-writes')->name('changelog.outdated.dismiss');
+    Route::post('/changelog/delete-all', [ChangelogController::class, 'destroyAll'])->middleware('throttle:audited-writes')->name('changelog.destroy-all');
+    Route::post('/changelog/restore', [ChangelogController::class, 'restore'])->middleware('throttle:audited-writes')->name('changelog.restore');
     Route::patch('/changelog/{entry}', [ChangelogController::class, 'update'])->middleware('throttle:audited-writes')->name('changelog.update');
     Route::delete('/changelog/{entry}', [ChangelogController::class, 'destroy'])->middleware('throttle:audited-writes')->name('changelog.destroy');
 

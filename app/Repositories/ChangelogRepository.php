@@ -28,7 +28,35 @@ interface ChangelogRepository
 
     public function update(ChangelogEntry $entry, string $date, string $body, ?string $details, int $userId, bool $major = false, bool $technical = false): ChangelogEntry;
 
+    /** Remove one entry for good. */
     public function delete(ChangelogEntry $entry): ChangelogEntry;
+
+    /**
+     * Delete every entry, restorable until `$at` plus {@see ChangelogEntry::RESTORE_HOURS} hours. Entries an earlier delete
+     * all removed that can still be restored join this one, so one restore brings back both. Returns every entry a
+     * restore would now bring back, oldest first.
+     *
+     * @return Collection<int, ChangelogEntry>
+     */
+    public function deleteAll(DateTimeInterface $at): Collection;
+
+    /**
+     * The entries a restore would bring back on `$now`: deleted by a delete all less than
+     * {@see ChangelogEntry::RESTORE_HOURS} hours ago. Oldest first.
+     *
+     * @return Collection<int, ChangelogEntry>
+     */
+    public function restorable(DateTimeInterface $now): Collection;
+
+    /**
+     * Bring back every restorable entry as it was. Returns them, oldest first.
+     *
+     * @return Collection<int, ChangelogEntry>
+     */
+    public function restore(DateTimeInterface $now): Collection;
+
+    /** Remove for good every entry a delete all removed more than {@see ChangelogEntry::RESTORE_HOURS} hours before `$now`. Returns how many. */
+    public function purgeDeleted(DateTimeInterface $now): int;
 
     /**
      * The `date|lowercased text` keys of every entry, to tell an imported entry that already exists.
