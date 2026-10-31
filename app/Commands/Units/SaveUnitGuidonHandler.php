@@ -79,7 +79,7 @@ class SaveUnitGuidonHandler
             'topAlign' => self::oneOf($command->topAlign, self::ALIGNS, 'top text placement'),
             'bottomAlign' => self::oneOf($command->bottomAlign, self::ALIGNS, 'bottom text placement'),
             'large' => preg_match(self::LARGE_PATTERN, $command->largeText) === 1
-                ? $command->largeText
+                ? strtoupper($command->largeText)
                 : throw InvalidGuidonException::badField('large character'),
         ];
 
@@ -117,8 +117,9 @@ class SaveUnitGuidonHandler
     {
         $value = trim($value);
 
+        // Guidon text is capitals only, whatever was sent.
         return mb_strlen($value) <= self::MAX_TEXT && preg_match(self::TEXT_PATTERN, $value) === 1
-            ? $value
+            ? strtoupper($value)
             : throw InvalidGuidonException::badField($field);
     }
 }

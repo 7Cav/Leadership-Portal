@@ -72,7 +72,7 @@ describe('GuidonGenerator', () => {
 
         await wrapper.find('[data-testid="guidon-topLeft"]').setValue('<b>"x"</b>&more');
 
-        expect(wrapper.find('[data-testid="guidon-topLeft"]').element.value).toBe('bx/bmo');
+        expect(wrapper.find('[data-testid="guidon-topLeft"]').element.value).toBe('BX/BMO');
         expect(preview(wrapper)).not.toContain('<b>');
     });
 
@@ -150,7 +150,7 @@ describe('Guidon', () => {
         await wrapper.find('[data-testid="guidon-bottomRight"]').setValue('B');
         await wrapper.find('[data-testid="guidon-large"]').setValue('7!x');
 
-        expect(wrapper.find('[data-testid="guidon-large"]').element.value).toBe('7x');
+        expect(wrapper.find('[data-testid="guidon-large"]').element.value).toBe('7X');
         await wrapper.find('[data-testid="guidon-large"]').setValue('7');
         await wrapper.find('form').trigger('submit');
 

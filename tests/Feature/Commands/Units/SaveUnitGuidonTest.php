@@ -227,6 +227,15 @@ describe('validation', function () {
 
         expect(UnitGuidon::query()->sole()->bottom_right_text)->toBe('');
     });
+
+    it('stores text and the large character in capitals, whatever case was sent', function () {
+        $admin = User::factory()->admin()->serving()->create();
+
+        saveGuidon($this, $admin, $this->battalion->id, ['topLeft' => 'dev', 'bottomRight' => 'com', 'large' => 'a2'])->assertRedirect();
+
+        $guidon = UnitGuidon::query()->sole();
+        expect([$guidon->top_left_text, $guidon->bottom_right_text, $guidon->large_text])->toBe(['DEV', 'COM', 'A2']);
+    });
 });
 
 describe('the audit trail', function () {
