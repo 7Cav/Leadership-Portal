@@ -201,7 +201,8 @@ On the same page:
 - Make-ups from the game server: a trooper from another section who was on the server for at least the presence
   minimum during a practice's slot hour is recorded as a guest there ("seen on the game server") and gets an automatic
   Make-up complete on their own section's roll call for that week. Their own row then says which practice it came from.
-  It is never given when their own section practises in the same window (a shared slot: that was their own practice),
+  It is never given when their own section practises in the same window on the server they were seen on (a shared
+  slot: that was their own practice); time on a server their own practice does not read still counts. Nor is it given
   from a capture of the week so far, from a source without minutes, to a trooper on leave, one who left, staff on no
   roll call or an unlinked player, or into a week whose own report was sent (the sighting is still recorded there). A
   leader's mark, Attended and LOA stay as they are; an empty row or an automatic Not attended becomes the make-up. A
@@ -700,7 +701,7 @@ cannot add one of its own troopers of that week as a guest.
   or confirmed it. It is taken back from the section it was written to, even if the guest has moved section since.
 - The game server gives the same automatic makeup when a capture of another section's practice, over its slot hour,
   saw them on the server for at least the presence minimum (40 minutes unless their battalion set its own), and their
-  own section does not practise in the same window. The host practice lists them as a guest seen on the game server,
+  own section does not practise in the same window on that server. The host practice lists them as a guest seen on the game server,
   which no leader can remove. Their own roll call row says which practice the makeup came from and whether the server
   saw them or a host leader added them.
 - A makeup counts for the trooper's SP. An automatic makeup alone does not make their own section's practice "held".
