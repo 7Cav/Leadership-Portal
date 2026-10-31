@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { PhCaretUpDown, PhCheck } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
+import Guidon from '@/components/Guidon.vue';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -37,6 +38,8 @@ const { isMobile, setOpenMobile } = useSidebar();
 const tops = computed(() => page.props.scopeTop ?? []);
 const label = computed(() => scopeLabel(tops.value));
 const scopeName = computed(() => (tops.value.length === 1 ? tops.value[0].name : tops.value.length ? `${tops.value.length} units` : 'Leadership Portal'));
+// The crest spot shows the one top unit's guidon; the list shows each unit's own (decorative, its name is beside it).
+const crestGuidon = computed(() => (tops.value.length === 1 ? (tops.value[0].guidon ?? null) : null));
 const currentId = computed(() => currentUnitId(page.props));
 
 const menuOpen = ref(false);
@@ -87,7 +90,12 @@ function closeOnMobile() {
                     <DropdownMenu v-model:open="menuOpen">
                         <DropdownMenuTrigger as-child>
                             <SidebarMenuButton size="lg" data-testid="scope-switcher" :aria-label="`Scope: ${scopeName}`">
-                                <img src="/assets/cav-shield.png" alt="" class="size-8 shrink-0 object-contain" />
+                                <!-- The unit's guidon in the crest spot (or the nearest one above it), sized to fit its 32px square;
+                                     the regiment's shield for a scope of several units or no guidon. -->
+                                <span v-if="crestGuidon" class="flex size-8 shrink-0 items-center justify-center" data-testid="scope-switcher-guidon">
+                                    <Guidon :design="crestGuidon" :height="23" :alt="`Guidon of ${tops[0].designation}`" />
+                                </span>
+                                <img v-else src="/assets/cav-shield.png" alt="" class="size-8 shrink-0 object-contain" />
                                 <span class="grid min-w-0 flex-1 leading-tight">
                                     <span class="truncate text-[13px] font-semibold" data-testid="scope-switcher-label">{{ label }}</span>
                                     <span class="truncate text-xs text-muted-foreground">{{ scopeName }}</span>
@@ -113,6 +121,7 @@ function closeOnMobile() {
                                     :data-unit="unit.id"
                                     @select="open(unit)"
                                 >
+                                    <Guidon :design="unit.guidon" :height="12" />
                                     <span class="font-medium">{{ unit.designation }}</span>
                                     <span v-if="unit.name !== unit.designation" class="truncate text-muted-foreground">{{ unit.name }}</span>
                                     <PhCheck v-if="unit.id === currentId" class="ml-auto size-4" aria-label="Unit on screen" />

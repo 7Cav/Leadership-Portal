@@ -128,4 +128,39 @@ describe('the unit switcher', () => {
 
         expect(menu().querySelector('[role="alert"]').textContent).toContain('Your units could not be loaded.');
     });
+
+    describe('guidons', () => {
+        const GUIDON = { format: 'diagonal', primary: '#f47a20', secondary: '#ffffff', topLeft: 'ACD', bottomRight: 'B', topAlign: 'left', bottomAlign: 'left', large: '7' };
+
+        it('shows the one top\'s guidon in the crest spot, named since the unit name is not its alt', () => {
+            wrapper = mountLayout({ scopeTop: [{ ...SECTION_LEADER_TOP[0], guidon: GUIDON }] });
+
+            const crest = wrapper.find('[data-testid="scope-switcher-guidon"] img');
+            expect(crest.attributes('alt')).toBe('Guidon of 1/1/A/1-7');
+            expect(crest.attributes('height')).toBe('23');
+            expect(wrapper.find('img[src="/assets/cav-shield.png"]').exists()).toBe(false);
+        });
+
+        it('keeps the shield for a top with no guidon, or several tops', () => {
+            wrapper = mountLayout({ scopeTop: [{ ...SECTION_LEADER_TOP[0], guidon: GUIDON }, { id: 9, designation: 'E/2-7', name: 'Echo Company', guidon: GUIDON }] });
+
+            expect(wrapper.find('[data-testid="scope-switcher-guidon"]').exists()).toBe(false);
+            expect(wrapper.find('img[src="/assets/cav-shield.png"]').exists()).toBe(true);
+        });
+
+        it('shows each listed unit\'s own guidon, decorative beside its name', async () => {
+            respondWith({ units: [{ ...COMPANY_UNITS[0], guidon: GUIDON }, ...COMPANY_UNITS.slice(1)] });
+            wrapper = mountLayout({ scopeTop: [{ id: 3, designation: 'A/1-7', name: 'Alpha Company' }] });
+
+            await openSwitcher(wrapper);
+
+            const flags = menu().querySelectorAll('[data-unit] [data-testid="guidon"]');
+            expect(flags).toHaveLength(1);
+            expect(flags[0].closest('[data-unit]').getAttribute('data-unit')).toBe('3');
+            expect(flags[0].getAttribute('alt')).toBe('');
+            expect(flags[0].getAttribute('height')).toBe('12');
+            // Too small for text: the colors and split only.
+            expect(decodeURIComponent(flags[0].getAttribute('src'))).not.toContain('data-text');
+        });
+    });
 });

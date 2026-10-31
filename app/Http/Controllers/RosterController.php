@@ -295,7 +295,10 @@ class RosterController extends Controller
             $placed->filter(fn (Trooper $t) => $t->status->isServing())->countBy('primary_section_id'),
         );
 
-        $units = $subtree->map(function (Unit $u) use ($attendance, $sectionOf, $paths, $unitLeads, $headcounts) {
+        // The small flag on each company and platoon header: its own guidon or the nearest one above, read in one go.
+        $headerGuidons = $this->guidons->designsFor($subtree, inherit: true);
+
+        $units = $subtree->map(function (Unit $u) use ($attendance, $sectionOf, $paths, $unitLeads, $headcounts, $headerGuidons) {
             // The unit's troopers are those whose section sits anywhere under it.
             $within = $attendance->filter(function (TrooperAttendance $row) use ($sectionOf, $paths, $u) {
                 $section = $sectionOf->get($row->trooperId);
@@ -308,6 +311,7 @@ class RosterController extends Controller
                 'parentId' => $u->parent_id,
                 'leader' => ($lead = $unitLeads->get($u->id)) ? [...$this->person($lead->trooper), 'source' => $lead->source] : null,
                 'kpis' => [...$this->kpiProps($this->kpis->sum($within)), 'strength' => $headcounts->get($u->id, 0)],
+                'headerGuidon' => $headerGuidons[$u->id] ?? null,
             ];
         })->values()->all();
 

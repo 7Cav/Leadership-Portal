@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { PhCaretLeft, PhCaretRight, PhUserCheck } from '@phosphor-icons/vue';
 import EmptyState from '@/components/EmptyState.vue';
+import Guidon from '@/components/Guidon.vue';
 import StaffHqHealth from '@/components/reports/StaffHqHealth.vue';
 import StaffReportDiscrepancy from '@/components/reports/StaffReportDiscrepancy.vue';
 import StaffReportPresence from '@/components/reports/StaffReportPresence.vue';
@@ -130,7 +131,7 @@ function openRow(event, row) {
         </Card>
 
         <Card v-for="group in shown" :key="group.id" class="gap-0 py-0 text-[13px]" :data-testid="`staff-reports-hq-${group.id}`">
-            <h2 class="border-b px-4 py-2.5 text-sm font-semibold">{{ group.label }} HQ</h2>
+            <h2 class="flex items-center gap-2 border-b px-4 py-2.5 text-sm font-semibold"><Guidon :design="group.guidon" :height="12" />{{ group.label }} HQ</h2>
             <table class="w-full">
                 <thead class="hidden text-left text-xs text-muted-foreground sm:table-header-group">
                     <tr>

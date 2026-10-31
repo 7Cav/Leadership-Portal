@@ -174,5 +174,14 @@ describe('StaffReports', () => {
 
         expect(page.find('[data-testid="row-sheet"]').exists()).toBe(false);
     });
-});
 
+    it('shows each HQ\'s guidon beside its name, decorative, and nothing for an HQ with none', () => {
+        const page = mount(StaffReports, { props: { week: WEEK, groups: [{ id: 4, label: '1/A/1-7', guidon: { format: 'diagonal', primary: '#f47a20', secondary: '#ffffff', topLeft: 'ACD', bottomRight: 'B', topAlign: 'left', bottomAlign: 'left', large: '7' }, rows: [row()] }, { id: 5, label: '2/A/1-7', guidon: null, rows: [row({ trooperId: 2 })] }] } });
+
+        const flags = page.findAll('[data-testid="guidon"]');
+        expect(flags).toHaveLength(1);
+        expect(flags[0].attributes('alt')).toBe('');
+        expect(flags[0].attributes('height')).toBe('12');
+        expect(decodeURIComponent(flags[0].attributes('src'))).not.toContain('data-text');
+    });
+});

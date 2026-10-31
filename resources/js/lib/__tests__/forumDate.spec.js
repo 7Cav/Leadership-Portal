@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { forumDate, forumDateTime, HAIR_SPACE, weekEnding, weekLabel, weekTick, weekTitle, zuluTime } from '../forumDate';
+import { forumDate, forumDateTime, HAIR_SPACE, weekEnding, weekLabel, weekStartTick, weekTick, weekTitle, zuluTime } from '../forumDate';
 
 describe('forumDate', () => {
     it('formats an ISO timestamp as day + 3-letter month + 2-digit year', () => {
@@ -76,5 +76,10 @@ describe('weekTitle, weekEnding and weekTick', () => {
     it('gives a chart tick with the month once, or twice when the week spans two months', () => {
         expect(weekTick('2026-10-17')).toBe('17 to 23OCT');
         expect(weekTick('2026-10-31')).toBe('31OCT to 06NOV');
+    });
+
+    it('gives the start date alone for a narrow spot', () => {
+        expect(weekStartTick('2026-10-31')).toBe('31OCT');
+        expect(weekStartTick('2026-09-12')).toBe('12SEP');
     });
 });

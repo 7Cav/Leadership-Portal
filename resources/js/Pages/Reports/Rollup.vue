@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import EmptyState from '@/components/EmptyState.vue';
+import Guidon from '@/components/Guidon.vue';
 import NoValue from '@/components/NoValue.vue';
 import { copyText } from '@/lib/clipboard';
 import { weekLabel, weekPhrase } from '@/lib/forumDate';
@@ -36,6 +37,9 @@ const props = defineProps({
     week: { type: Object, required: true },
     // The unit in the URL (`/reports/{unit}`), or null for the viewer's whole scope.
     scopeUnitId: { type: Number, default: null },
+    // The guidon of the one unit the chain starts from (or the nearest one above it) and its designation; null for none.
+    guidon: { type: Object, default: null },
+    guidonUnit: { type: String, default: null },
     // The chain, one tree per top unit of the scope (ReportRollupController::present).
     roots: { type: Array, required: true },
 });
@@ -200,7 +204,9 @@ function pct(ratio) {
         <!-- Page header: whose reports, which week, when they are due. -->
         <div class="flex flex-wrap items-end gap-x-6 gap-y-3">
             <div class="min-w-0">
-                <p class="text-xs text-muted-foreground">{{ scopeName ? `${scopeName} weekly reports` : 'Weekly reports' }}</p>
+                <p class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Guidon :design="guidon" :height="16" :alt="scopeName ? '' : `Guidon of ${guidonUnit}`" />{{ scopeName ? `${scopeName} weekly reports` : 'Weekly reports' }}
+                </p>
                 <h1 class="text-xl font-semibold tracking-tight sm:text-[22px]"><WeekHeading :week="week.start" /></h1>
             </div>
             <div class="flex items-center gap-1 text-muted-foreground">

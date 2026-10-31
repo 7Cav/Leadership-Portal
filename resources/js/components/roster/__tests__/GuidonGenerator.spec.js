@@ -112,8 +112,56 @@ describe('GuidonGenerator', () => {
 
 describe('Guidon', () => {
     it('shows the flag as an image, and nothing for a unit with no guidon or a bad design', () => {
-        expect(mount(Guidon, { props: { design: saved } }).find('img').attributes('src')).toBe(guidonDataUrl(saved));
+        expect(mount(Guidon, { props: { design: saved, height: 32 } }).find('img').attributes('src')).toBe(guidonDataUrl(saved));
         expect(mount(Guidon, { props: { design: null } }).find('img').exists()).toBe(false);
         expect(mount(Guidon, { props: { design: { ...saved, primary: 'javascript:x' } } }).find('img').exists()).toBe(false);
+    });
+
+    it('switches format from the previews, keeping the colors and text, and offers placement only off the diagonal', async () => {
+        const wrapper = factory();
+        await wrapper.find('[data-testid="guidon-topLeft"]').setValue('U.S.');
+
+        expect(wrapper.find('[data-testid="guidon-topAlign-center"]').exists()).toBe(false);
+
+        await wrapper.find('[data-testid="guidon-format-horizontal"]').trigger('click');
+        await wrapper.find('[data-testid="guidon-topAlign-center"]').trigger('click');
+
+        expect(wrapper.find('[data-testid="guidon-format-horizontal"]').attributes('aria-checked')).toBe('true');
+        expect(preview(wrapper)).toBe(
+            guidonSvg({ format: 'horizontal', primary: '#1f2a44', secondary: '#ffffff', topLeft: 'U.S.', bottomRight: 'A', topAlign: 'center', bottomAlign: 'left', large: '' }),
+        );
+    });
+
+    it('hides the second color and the pair warning for a solid guidon', async () => {
+        const wrapper = factory({ ...company, guidon: { ...saved, primary: '#777777', secondary: '#787878' } });
+
+        expect(wrapper.find('[data-testid="guidon-too-close"]').exists()).toBe(true);
+
+        await wrapper.find('[data-testid="guidon-format-solid"]').trigger('click');
+
+        expect(wrapper.find('[data-testid="guidon-too-close"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="guidon-secondary-custom"]').exists()).toBe(false);
+    });
+
+    it('makes the ACD guidon with a large character and saves it', async () => {
+        const wrapper = factory();
+        await wrapper.find('[data-testid="guidon-primary-custom"]').setValue('#f47a20');
+        await wrapper.find('[data-testid="guidon-topLeft"]').setValue('ACD');
+        await wrapper.find('[data-testid="guidon-bottomRight"]').setValue('B');
+        await wrapper.find('[data-testid="guidon-large"]').setValue('7!x');
+
+        expect(wrapper.find('[data-testid="guidon-large"]').element.value).toBe('7x');
+        await wrapper.find('[data-testid="guidon-large"]').setValue('7');
+        await wrapper.find('form').trigger('submit');
+
+        const acd = { format: 'diagonal', primary: '#f47a20', secondary: '#ffffff', topLeft: 'ACD', bottomRight: 'B', topAlign: 'left', bottomAlign: 'left', large: '7' };
+        expect(preview(wrapper)).toBe(guidonSvg(acd));
+        expect(put).toHaveBeenCalledWith('/units/5/guidon', expect.objectContaining(acd), expect.anything());
+    });
+
+    it('treats a guidon saved before formats as unchanged until something changes', () => {
+        const wrapper = factory({ ...company, guidon: saved });
+
+        expect(wrapper.find('[data-testid="guidon-save"]').attributes('disabled')).toBeDefined();
     });
 });

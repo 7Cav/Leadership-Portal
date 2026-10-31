@@ -8,6 +8,7 @@ use App\Authorization\ScopeResolver;
 use App\Authorization\StaffReportAccess;
 use App\Kpi\Headcount;
 use App\Repositories\AdminBilletRepository;
+use App\Repositories\UnitGuidonRepository;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -29,6 +30,7 @@ class HandleInertiaRequests extends Middleware
         private readonly AdminBilletRepository $adminBillets,
         private readonly StaffReportAccess $staffReports,
         private readonly ChangelogAccess $changelog,
+        private readonly UnitGuidonRepository $guidons,
     ) {}
 
     /**
@@ -109,7 +111,20 @@ class HandleInertiaRequests extends Middleware
             // The top unit(s) of the viewer's scope as this request sees it (view as and act as included), which the
             // sidebar's unit switcher and the breadcrumb start from (#426). The switcher's full list is read only when
             // it opens (`/scope/units`).
-            'scopeTop' => fn () => $request->user() ? $this->headcount->scopeLabelTops($this->scope->topUnits($request->user())) : [],
+            // Each top carries the guidon the switcher shows in the crest spot: its own, or its nearest ancestor's (a
+            // section leader sees their company's), read in one query.
+            'scopeTop' => function () use ($request) {
+                if ($request->user() === null) {
+                    return [];
+                }
+                $tops = $this->scope->topUnits($request->user());
+                $guidons = $this->guidons->designsFor($tops, inherit: true);
+
+                return array_map(
+                    fn (array $top) => [...$top, 'guidon' => $guidons[$top['id']] ?? null],
+                    $this->headcount->scopeLabelTops($tops),
+                );
+            },
             // The 7cav.us forum's address, for links that open a forum page (the makeup PM opens the forum's own
             // "start conversation" form). The portal never writes to the forum; these are plain links.
             'forum' => [

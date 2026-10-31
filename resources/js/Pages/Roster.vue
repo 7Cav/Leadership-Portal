@@ -631,7 +631,7 @@ function syncNow() {
         <DialogContent class="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
             <DialogTitle>Guidon of {{ unit.callsign ?? unit.name }}</DialogTitle>
             <DialogDescription>
-                Pick the two colors and the text, then save. The saved guidon
+                Pick a format, the colors and the text, then save. The saved guidon
                 shows next to the unit in the portal.
             </DialogDescription>
             <GuidonGenerator :unit="unit" @saved="guidonOpen = false" />

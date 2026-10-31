@@ -20,6 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { forumDate } from '@/lib/forumDate';
 import { vStickyHead } from '@/lib/stickyHead';
 import EmptyState from '@/components/EmptyState.vue';
+import Guidon from '@/components/Guidon.vue';
 import NoValue from '@/components/NoValue.vue';
 import { useSlashClaim } from '@/composables/useSlashShortcut';
 import {
@@ -41,7 +42,7 @@ import {
     sourceLabel,
     SP_STATES,
     weekCell,
-    weekTick,
+    weekStartTick,
     weekLabel,
     writeOrbatSort,
 } from '@/lib/roster';
@@ -338,8 +339,9 @@ function clearAll() {
                         </th>
                         <th>
                             <span class="block">Last 8 weeks</span>
-                            <span class="mt-0.5 flex w-[104px] justify-between text-[10px] font-normal tabular-nums">
-                                <span>{{ weekTick(stripWeeks[0]) }}</span><span>{{ weekTick(stripWeeks[STRIP - 1]) }}</span>
+                            <!-- The first and last week's start dates only: their full ranges would run together in the strip's width. -->
+                            <span class="mt-0.5 flex w-[104px] justify-between gap-2 text-[10px] font-normal tabular-nums" data-testid="strip-ends">
+                                <span>{{ weekStartTick(stripWeeks[0]) }}</span><span>{{ weekStartTick(stripWeeks[STRIP - 1]) }}</span>
                             </span>
                         </th>
                         <th v-for="key in ['rc', 'sp']" :key="key" class="text-right" :aria-sort="ariaSort(key)" :data-testid="`th-${key}`">
@@ -381,6 +383,8 @@ function clearAll() {
                             <td colspan="8">
                                 <div class="sticky left-2.5 inline-flex flex-nowrap items-center gap-7" :style="{ paddingLeft: `${Math.max(row.depth - 1, 0) * 1.25}rem` }">
                                     <div class="flex min-w-[17rem] items-center gap-2.5">
+                                        <!-- The company's or platoon's guidon, or the nearest one above; the name beside it says whose. -->
+                                        <Guidon v-if="['company', 'platoon'].includes(row.unit.type)" :design="row.unit.headerGuidon" :height="12" />
                                         <span>
                                             <span class="block text-[13px] leading-tight font-semibold">
                                                 {{ row.unit.name }} <span class="font-normal text-muted-foreground">{{ row.unit.callsign }}</span>
