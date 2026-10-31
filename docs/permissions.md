@@ -232,6 +232,7 @@ their own plan unless they also command the company.
 | Staff grants: grant or revoke | Yes | No | No |
 | Games: add, edit, retire, reinstate or delete a game (a game in use can only be retired) | Yes | No | No |
 | Changelog: add (a date's batch), edit, delete (reason required) or bulk import entries, dismiss the "Changelog outdated" bar (only the usernames in `changelog_editors` in `config/portal.php`, signed in as themselves, never while acted as; reading it is open to everyone) | Editors only (11) | Editors only (11) | No |
+| Changelog: make technical and security items available to everyone, or to the changelog editors only (signed in as yourself, never while acting as someone or during View as) | Yes | No | No |
 | Demo data: generate or purge (only when `DEMO_TOOLS=true`) | Yes | No | No |
 | Whole-roster sync ("Sync now" on the roster) | Yes | No | No |
 | Manual LOA sync (route only, no button in the UI; during a running sync it queues one follow-up) | Yes | No | No |
@@ -240,7 +241,9 @@ their own plan unless they also command the company.
 (10) Only for a line unit below the regiment whose commanding billet (CO, PL or SL) no serving trooper holds, and never
 yourself: another Admin assigns an Admin. A unit with only its XO, PSG or ASL serving still takes one.
 
-(11) Being an Admin gives nothing here: only the changelog editors write the changelog, whatever their billet.
+(11) Being an Admin gives nothing here: only the changelog editors write the changelog, whatever their billet. The
+one changelog setting, whether technical entries are sent to everyone, is the other way round: Admins only, and an
+editor who is not an Admin cannot change it. The editors always see technical entries.
 
 ### Game identities and syncs
 

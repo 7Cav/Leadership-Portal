@@ -520,15 +520,26 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
   major. Full changelog lists every entry, major ones included with a Major badge, and starts collapsed unless the
   viewer opened it before; that choice is remembered in the viewer's browser only (localStorage), and the page works
   without it.
+- Technical entries are behind-the-scenes and security work (CI, tests, dependency updates, refactors, infrastructure,
+  security hardening). An entry is never both major and technical. They never show under Major changes. Whether anyone
+  but the editors gets them is an Admin setting on the changelog page, **Make technical and security items available to
+  everyone**, off by default and stored on the changelog's state row; changing it is audited as
+  `changelog.technical_setting_changed`. While it is off, the server does not send technical entries to anyone but the
+  editors. While it is on, the full changelog has a **Show technical and security items** tickbox, off by default and
+  remembered in the viewer's browser (localStorage); ticked, technical entries show inline with a muted Technical badge.
+  The editors always see them, marked, with no tickbox. Technical entries do not light the sidebar dot for anyone but
+  the editors.
 - The sidebar shows a dot on Changelog while an entry was written after the viewer last opened the page. Opening it
   clears the dot, but not during a view-as preview or while someone acts as the viewer.
 - Only the changelog editors (`changelog_editors` in `config/portal.php`, matched without case), signed in as
   themselves, write it. **Add** takes one date (today in Zulu by default) and up to 50 rows at once, each with an
-  **Major change** tickbox (off, so the entry is full changelog only) and an optional **Add additional information**
+  **Major change** tickbox (off, so the entry is full changelog only), a **Technical** tickbox (ticking one clears the
+  other; a technical row shows the hint "Say what was fixed, not how it could be abused.") and an optional **Add additional information**
   tickbox; Enter in a row adds a row below it. Each entry can be edited or
   deleted on its own (delete asks to confirm, with a reason). Bulk import takes pasted Markdown: a `## YYYY-MM-DD`
   heading per date, a `- ` bullet per entry, and an indented block under a bullet as its additional information. A bullet that starts with `[major]` (any case) is
-  flagged major and the marker is dropped (text
+  flagged major, and one that starts with `[technical]` (any case) is flagged technical, the marker dropped; both on
+  one bullet is a line error (text
   after the date on the heading is taken as the first entry). It previews the result with any errors, can skip entries
   whose date and text already exist, and saves them in one batch. Writes are audited as `changelog.created` (one per
   added batch), `changelog.updated`, `changelog.deleted`, `changelog.imported` and `changelog.outdated_dismissed`.
