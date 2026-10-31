@@ -466,7 +466,7 @@ function runImport() {
                 </ul>
                 <div v-if="previewDays.length" class="space-y-3 rounded-md border border-border p-3 text-[13px]" data-testid="changelog-import-entries">
                     <section v-for="day in previewDays" :key="day.date">
-                        <h3 class="text-xs font-semibold text-muted-foreground tabular-nums">{{ forumDate(day.date) }}</h3>
+                        <h3 class="text-xs font-semibold text-muted-foreground tabular-nums">{{ forumDate(day.date).toUpperCase() }}</h3>
                         <ul class="mt-1 space-y-0.5">
                             <li v-for="entry in day.entries" :key="entry.line" class="flex items-baseline gap-2" :data-testid="`preview-entry-${entry.line}`">
                                 <span class="size-1.5 shrink-0 translate-y-[-2px] rounded-full bg-muted-foreground/60" aria-hidden="true" />
@@ -533,7 +533,7 @@ function runImport() {
                 >
                     <section v-for="day in column.days" :key="day.date" :data-testid="`${column.prefix}changelog-day-${day.date}`">
                         <h3 class="border-b border-border pb-1 text-[13px] font-semibold tabular-nums">
-                            <time :datetime="day.date">{{ forumDate(day.date) }}</time>
+                            <time :datetime="day.date">{{ forumDate(day.date).toUpperCase() }}</time>
                         </h3>
                         <ul class="mt-1.5 space-y-0.5">
                             <li v-for="entry in day.entries" :key="entry.id" class="group" :data-testid="`${column.prefix}changelog-entry-${entry.id}`">

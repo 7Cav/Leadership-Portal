@@ -513,7 +513,7 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
 ## Changelog
 
 - `/changelog`, under Help in the sidebar, for everyone signed in: what changed in the portal, written by hand, never
-  pulled from git. Dates (Zulu days, shown as forum dates like 30Oct26) are listed newest first, each with its entries
+  pulled from git. Dates (Zulu days, shown as forum dates with a capital month like 30OCT26) are listed newest first, each with its entries
   as a compact list. An entry is one line of text (up to 300 characters). One with additional information (Markdown, up
   to 2000 characters, shown with any raw HTML stripped) has a chevron that opens it; it starts closed.
 - The page has two columns, stacked on a phone with Major changes first. Major changes lists only the entries flagged

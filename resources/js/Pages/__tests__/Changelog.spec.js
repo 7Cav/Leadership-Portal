@@ -98,7 +98,7 @@ describe('Changelog page', () => {
         mountPage();
         await openFull();
 
-        expect(wrapper.findAll('[data-testid^="changelog-day-"] h3').map((h) => h.text())).toEqual(['30Oct26', '01Oct26']);
+        expect(wrapper.findAll('[data-testid^="changelog-day-"] h3').map((h) => h.text())).toEqual(['30OCT26', '01OCT26']);
         expect(wrapper.get('[data-testid="changelog-day-2026-10-30"]').findAll('[data-testid="changelog-entry-body"]').map((e) => e.text())).toEqual([
             'Newest change',
             'Second on the day',
@@ -213,7 +213,7 @@ describe('Changelog page', () => {
         await flushPromises();
 
         expect(postJson).toHaveBeenCalledWith('/changelog/import/preview', { markdown: expect.stringContaining('Fresh') });
-        expect(wrapper.get('[data-testid="changelog-import-entries"] h3').text()).toBe('01Oct26');
+        expect(wrapper.get('[data-testid="changelog-import-entries"] h3').text()).toBe('01OCT26');
         expect(wrapper.find('[data-testid="preview-skipped-2"]').exists()).toBe(true);
         expect(wrapper.find('[data-testid="preview-details-3"]').exists()).toBe(true);
         expect(wrapper.find('[data-testid="preview-major-3"]').exists()).toBe(true);
