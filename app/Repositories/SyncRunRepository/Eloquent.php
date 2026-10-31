@@ -123,4 +123,9 @@ class Eloquent implements SyncRunRepository
             ->orderByDesc('id')
             ->first();
     }
+
+    public function existsForPractice(string $source, int $sectionPracticeId): bool
+    {
+        return SyncRun::query()->where('source', $source)->where('section_practice_id', $sectionPracticeId)->exists();
+    }
 }

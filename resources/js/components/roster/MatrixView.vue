@@ -1,4 +1,5 @@
 <script setup>
+import { slotLabel } from '@/lib/practiceSlot';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import { PhArrowSquareIn, PhArrowsOutLineVertical, PhArrowsInLineVertical, PhCaretDown, PhCaretRight, PhCaretUpDown, PhLockSimple, PhMagnifyingGlass, PhSortAscending, PhWarning } from '@phosphor-icons/vue';
@@ -350,6 +351,9 @@ function clearAll() {
                                         </span>
                                         <span class="block truncate pl-5 text-xs text-muted-foreground">
                                             <template v-if="row.unit.leader">{{ row.unit.leader.displayName }}, </template>{{ row.members.length }} troopers
+                                        </span>
+                                        <span v-if="row.unit.practiceSlot" class="block truncate pl-5 text-xs text-muted-foreground" :data-testid="`matrix-slot-${row.unit.id}`">
+                                            Practice {{ slotLabel(row.unit.practiceSlot) }}
                                         </span>
                                     </button>
                                     <span v-else class="nm-btn" data-nav :data-r="row.r" data-c="0" :tabindex="tabFor(row.r, 0)">

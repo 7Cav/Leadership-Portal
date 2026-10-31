@@ -169,6 +169,14 @@ On the same page:
   will not send until the leader answers "Made it up" or "Did not" for each. "Made it up" records Make-up complete
   (an audited mark, in the sender's name) before the numbers freeze; "Did not" leaves the mark. The answers are frozen
   with the report and shown on it as "Make-ups checked at send".
+- Practice slot: the header shows the section's weekly practice slot ("Practice Thu 02 00Z") with the viewer's own
+  time beside it as a hint. A section practice is always one hour, so the slot is a weekday and a start time in Zulu,
+  placed in the Cav week of its start (a Wednesday 2359Z practice ends on Thursday, a Friday 2330Z one still belongs
+  to the week it starts in). Sections can share a slot. The section's leaders, the command above them and Admins set,
+  change or remove it, and can move or cancel one week's practice without changing the slot; a week already captured,
+  or whose report was sent, cannot be moved. Every change is in the audit log. A captured practice keeps the window
+  it was read for, so changing the slot later does not rewrite it. A section without a slot works as before. The slot
+  is also shown under the section on the roster matrix and on Home's unit table.
 - Capture review: when game-server data was captured for the practice, marks it made show their source, and the leader
   can confirm the practice ("Confirmed by ..."). Editing a mark by hand afterwards clears the confirmation.
   On a CRCON server selected on the Servers page, a player counts as present when they were connected to that server
@@ -186,7 +194,14 @@ On the same page:
   another kind; change that on the Game identities page if they really changed platform.
 - Telemetry banner: says when the section's game (the game it plays, else the one most of it has linked) has no capture source set up (or no training server selected), or
   when the last capture failed, naming the feeds tried. A capture that broke on an error inside the portal says so
-  instead of blaming a feed. "Try again" queues a new capture for the week so far.
+  instead of blaming a feed. "Try again" queues a new capture of the practice's hour when the section has a practice
+  slot, and of the week so far when it has none.
+- Automatic capture: every ten minutes the portal looks for section practices that ended this Cav week and queues a
+  capture of each, reading only that practice's hour from the game's training servers. It needs a practice slot, a game
+  set on the section or a unit above it, and a training server the portal can read; a section missing any of these, a
+  cancelled week and a week whose report was sent are skipped. A practice is captured once: a capture that failed is
+  not tried again by itself, and "Try again" is there for it. Operators can run `php artisan portal:capture-practices
+  --dry-run` to see what would be captured and why other sections are skipped.
 - Guests: add a serving trooper from another section who attended this practice, or remove one you added. See "JSAM
   guests" and "Makeups". Staff who said they attended (a staff practice entry, from their staff report or their milpac)
   are listed there too: "Staff guest" when the section is under the platoon or company HQ they were on when the week

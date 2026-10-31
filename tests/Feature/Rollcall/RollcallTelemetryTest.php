@@ -6,6 +6,7 @@ use App\Models\AuditLogEntry;
 use App\Models\Game;
 use App\Models\GameServer;
 use App\Models\SectionPractice;
+use App\Models\SectionPracticeSlot;
 use App\Models\SyncRun;
 use App\Models\SyncRunStatus;
 use App\Models\TelemetryInterface;
@@ -434,4 +435,15 @@ it('runs the queued retry through to a visible failure on the next page load', f
     $run = SyncRun::query()->where('source', 'capture')->whereKeyNot($earlier->id)->sole();
     expect($run->status)->toBe(SyncRunStatus::Failure)->and($run->triggered_by)->toBe((string) $this->leader->id);
     telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry.state', 'failed')->where('capture', null));
+});
+
+it('reads the section practice window on a retry when the section has a practice slot (#393)', function () {
+    Queue::fake();
+    captureRun($this, SyncRunStatus::Failure);
+    SectionPracticeSlot::query()->create(['section_id' => $this->section->id, 'weekday' => 3, 'start_minute' => 1439]); // Wed 2359Z
+
+    tryAgain($this)->assertStatus(202);
+
+    Queue::assertPushed(CaptureSectionPracticeJob::class, fn (CaptureSectionPracticeJob $job) => $job->command->windowStart->format('c') === '2026-10-07T23:59:00+00:00'
+        && $job->command->windowEnd->format('c') === '2026-10-08T00:59:00+00:00');
 });
