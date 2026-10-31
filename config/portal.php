@@ -107,6 +107,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Practice presence minimum
+    |--------------------------------------------------------------------------
+    |
+    | How many minutes a trooper must be on a practice's server inside its one-hour window to count as
+    | attending it (#558): present at their own section's practice, or a make-up at another section's.
+    | A late joiner can still count, so it is under the hour. Battalion HQ staff can set their own
+    | battalion's minimum on its roster page; a battalion without one uses this.
+    |
+    */
+
+    'presence_minimum_minutes' => 40,
+
+    /*
+    |--------------------------------------------------------------------------
     | Joint Service Achievement Medal candidates
     |--------------------------------------------------------------------------
     |
