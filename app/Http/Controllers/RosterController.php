@@ -6,6 +6,7 @@ use App\Authorization\ScopeResolver;
 use App\Authorization\StaffPracticeAccess;
 use App\Commands\Practices\PracticeSchedule;
 use App\Commands\Practices\PresenceMinimum;
+use App\Commands\Practices\SectionsWithoutSlot;
 use App\Commands\Units\SaveUnitGuidonHandler;
 use App\Kpi\AutoExcused;
 use App\Kpi\Headcount;
@@ -64,6 +65,7 @@ class RosterController extends Controller
 
     public function __construct(
         private readonly PracticeSchedule $schedule,
+        private readonly SectionsWithoutSlot $sectionsWithoutSlot,
         private readonly ScopeResolver $scope,
         private readonly UnitRepository $units,
         private readonly TrooperRepository $troopers,
@@ -119,13 +121,21 @@ class RosterController extends Controller
         // The guidon generator (#446) is a write too: a company or above that the viewer commands, never in a preview.
         $editsGuidon = $syncsUnit && in_array($selected->type, SaveUnitGuidonHandler::TYPES, true);
 
+        $roster = $selected ? $this->roster($selected, $week, $shown) : ['units' => [], 'troopers' => []];
+        $missingSlots = $selected !== null && $this->scope->leads($user)
+            ? $this->sectionsWithoutSlot->among(array_column($roster['units'], 'id'))
+            : [];
+
         return Inertia::render('Roster', [
             'unit' => $selected ? $this->unitSummary($selected) : null,
             'trail' => $selected ? $this->trail($selected, $tree, $scope) : [],
             'scopeOptions' => $this->scopeOptions($shown, $scope),
             'weeks' => $this->weeks($week),
             'currentWeek' => $week->toDateString(),
-            ...($selected ? $this->roster($selected, $week, $shown) : ['units' => [], 'troopers' => []]),
+            ...$this->withSlotWarnings($roster, $missingSlots),
+            // The viewed unit's sections that play a game and have troopers but no practice slot (#392), for the banner;
+            // each such section row also carries `practiceSlotMissing`. Leaders only, like Home.
+            'sectionsWithoutSlot' => $missingSlots,
             'guests' => $selected ? $this->guestProps($selected, $week, $tree) : null,
             // A battalion's practice presence minimum (#558), editable by its HQ staff and Admins.
             'presenceMinimum' => $selected ? $this->presenceMinimum->props($user, $selected) : null,
@@ -270,6 +280,21 @@ class RosterController extends Controller
         }
 
         return $top;
+    }
+
+    /**
+     * Marks each unit row in `$roster` with `practiceSlotMissing` (#392): true for a section in `$missing`.
+     *
+     * @param  array{units: list<array<string, mixed>>, troopers: list<array<string, mixed>>}  $roster
+     * @param  list<array{id: int, designation: string}>  $missing
+     * @return array{units: list<array<string, mixed>>, troopers: list<array<string, mixed>>}
+     */
+    private function withSlotWarnings(array $roster, array $missing): array
+    {
+        $ids = array_flip(array_column($missing, 'id'));
+        $roster['units'] = array_map(fn (array $row) => [...$row, 'practiceSlotMissing' => isset($ids[$row['id']])], $roster['units']);
+
+        return $roster;
     }
 
     /**

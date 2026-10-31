@@ -14,6 +14,7 @@ import StepMatrix from '@/components/home/StepMatrix.vue';
 import SubordinateUnits from '@/components/home/SubordinateUnits.vue';
 import NeedsAttention from '@/components/home/NeedsAttention.vue';
 import Guidon from '@/components/Guidon.vue';
+import MissingPracticeSlots from '@/components/MissingPracticeSlots.vue';
 
 // The weekly-cycle home (Story 1.15, mockups/v2/shell-f.html) and the leader's dashboard (Stories
 // 5.9 to 5.11). The week bar's calendar comes from HomeController via WeekOf (AD-11); the step
@@ -37,6 +38,8 @@ const props = defineProps({
     steps: { type: Array, default: () => [] },
     // The viewer's own staff report while it is due and not sent, `{ week, due, href }`, or null.
     staffReport: { type: Object, default: null },
+    // Sections under the viewer's lead that play a game and have troopers but no practice slot, `[{ id, designation }]`.
+    sectionsWithoutSlot: { type: Array, default: () => [] },
 });
 
 const page = usePage();
@@ -114,6 +117,9 @@ const countdown = computed(() => {
     <Head title="Home · 7Cav Leadership Portal" />
 
     <div class="space-y-5">
+        <!-- Not dismissible: it goes away once every section has a slot. -->
+        <MissingPracticeSlots :sections="sectionsWithoutSlot" />
+
         <!--
           Degraded-mode notice (Story 1.7, AC #2): distinct from a login error, since a Cav outage
           never breaks the login itself. No dismiss control: it stays until enrichment succeeds on

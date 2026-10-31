@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import EmptyState from '@/components/EmptyState.vue';
 import NoValue from '@/components/NoValue.vue';
+import PracticeSlotMissingIcon from '@/components/PracticeSlotMissingIcon.vue';
 import {
     aggregateWeek,
     displayName,
@@ -348,6 +349,7 @@ function clearAll() {
                                         <span class="flex items-center gap-1.5">
                                             <component :is="row.open ? PhCaretDown : PhCaretRight" class="size-3.5 text-muted-foreground" aria-hidden="true" />
                                             <span class="font-medium">{{ row.unit.callsign ?? row.unit.name }}</span>
+                                            <PracticeSlotMissingIcon :missing="row.unit.practiceSlotMissing ?? false" />
                                         </span>
                                         <span class="block truncate pl-5 text-xs text-muted-foreground">
                                             <template v-if="row.unit.leader">{{ row.unit.leader.displayName }}, </template>{{ row.members.length }} troopers
