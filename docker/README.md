@@ -30,6 +30,9 @@ Fill in `.env`:
   Keep it; a new key signs everyone out.
 - `DB_PASSWORD` and `DB_ROOT_PASSWORD`: long random strings (`openssl rand -hex 24`).
 - The SSO, forum, roster API and game-server keys, as for any install.
+- Hell Let Loose presence: `CRCON_SERVERS` lists the base URL of each CRCON (one per game server), comma
+  separated, and `CRCON_API_KEY` is the key they share. An instance with its own key takes it after a `|`
+  (`https://t1-hll.example.org/|other-key`). With `CRCON_SERVERS` empty, `CRCON_BASE_URL` is the only instance.
 
 Then start it and finish the first-run steps from the main README:
 

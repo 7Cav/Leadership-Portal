@@ -121,18 +121,24 @@ describe('Nightwatch', function () {
 describe('CRCON', function () {
     $api = fn () => new CrconApi(['base_url' => 'https://crcon.test', 'api_key' => 'k']);
 
-    it('lists its one server by the name it gives itself', function (mixed $name) use ($api) {
-        MockClient::global(['crcon.test/api/get_public_info' => MockResponse::make(['result' => ['name' => $name], 'failed' => false, 'error' => null])]);
+    it('lists its server by the name, number and game it gives itself', function (mixed $name) use ($api) {
+        MockClient::global(['crcon.test/api/get_connection_info' => MockResponse::make(['result' => ['name' => $name, 'game' => 'hll', 'server_number' => 2], 'failed' => false, 'error' => null])]);
 
-        expect(listed($api()->listServers()))->toBe([[CrconApi::SERVER_ID, '7Cav HLL Training']]);
+        $listed = $api()->listServers();
+
+        expect(listed($listed))->toBe([['crcon:2', '7Cav HLL Training']])
+            ->and($listed[0]->gameSlug)->toBe('hll');
     })->with([
         'nested' => [['name' => '7Cav HLL Training', 'short_name' => '7Cav']],
         'string' => ['7Cav HLL Training '],
     ]);
 
-    it('refuses public info without a name', function () use ($api) {
-        MockClient::global(['crcon.test/api/get_public_info' => MockResponse::make(['result' => ['name' => ['short_name' => 'x']], 'failed' => false, 'error' => null])]);
+    it('refuses connection info without a name or server number', function (array $result) use ($api) {
+        MockClient::global(['crcon.test/api/get_connection_info' => MockResponse::make(['result' => $result, 'failed' => false, 'error' => null])]);
 
         expect(fn () => $api()->listServers())->toThrow(fn (CrconUnavailable $e) => expect($e->reason)->toBe(CrconFailureReason::Malformed));
-    });
+    })->with([
+        'no name' => [['name' => ['short_name' => 'x'], 'server_number' => 1]],
+        'no number' => [['name' => 'x']],
+    ]);
 });

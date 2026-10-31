@@ -71,9 +71,9 @@ final class CaptureSources
                 TelemetryInterface::Crcon => new CaptureSource(
                     'crcon',
                     (string) (parse_url((string) ($crconConfig['base_url'] ?? ''), PHP_URL_HOST) ?: 'crcon'),
-                    function (DateTimeImmutable $start, DateTimeImmutable $end) use ($crcon) {
+                    function (DateTimeImmutable $start, DateTimeImmutable $end) use ($crcon, $serverId) {
                         try {
-                            return $crcon->fetchPresence($start, $end);
+                            return $crcon->fetchPresence($start, $end, $serverId);
                         } catch (CrconUnavailable $e) {
                             throw new CaptureSourceUnavailable("crcon: {$e->reason->value}", previous: $e);
                         }

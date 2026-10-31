@@ -88,7 +88,7 @@ it('never sends a credential to the page', function () {
 it('fetches every interface with credentials, stores what each listed, and reports the ones it could not ask', function () {
     $gone = GameServer::factory()->trainingFor(game('arma')->id)->create(['external_id' => '99']);
     MockClient::global([
-        'crcon.test/api/get_public_info' => MockResponse::make(['result' => ['name' => '7Cav HLL'], 'failed' => false, 'error' => null]),
+        'crcon.test/api/get_connection_info' => MockResponse::make(['result' => ['name' => '7Cav HLL', 'game' => 'hll', 'server_number' => 2], 'failed' => false, 'error' => null]),
         'bm.test/servers*' => MockResponse::make(['data' => [['type' => 'server', 'id' => '11', 'attributes' => ['name' => 'Arma Training']]], 'links' => []]),
     ]);
 
@@ -99,7 +99,7 @@ it('fetches every interface with credentials, stores what each listed, and repor
             ['interface' => 'nightwatch', 'status' => 'not_configured'],
         ]);
 
-    expect(GameServer::query()->where('interface', 'crcon')->sole()->name)->toBe('7Cav HLL')
+    expect(GameServer::query()->where('interface', 'crcon')->sole())->name->toBe('7Cav HLL')->external_id->toBe('crcon:2')->game_id->toBe(game('hll')->id)
         ->and(GameServer::query()->where('external_id', '11')->sole()->selected)->toBeFalse()
         ->and($gone->fresh()->missing_since)->not->toBeNull()
         ->and($gone->fresh()->selected)->toBeTrue();
@@ -215,7 +215,7 @@ it('refuses a server as its own fallback, a fallback that is gone, and one that 
 it('leaves the stored servers of an interface without credentials untouched', function () {
     $stored = GameServer::factory()->trainingFor(game('wardogs')->id)->create(['interface' => TelemetryInterface::Nightwatch]);
     MockClient::global([
-        'crcon.test/api/get_public_info' => MockResponse::make(['result' => ['name' => '7Cav HLL'], 'failed' => false, 'error' => null]),
+        'crcon.test/api/get_connection_info' => MockResponse::make(['result' => ['name' => '7Cav HLL', 'game' => 'hll', 'server_number' => 2], 'failed' => false, 'error' => null]),
         'bm.test/servers*' => MockResponse::make(['data' => [['type' => 'server', 'id' => '11', 'attributes' => ['name' => 'x']]], 'links' => []]),
     ]);
 
@@ -230,7 +230,7 @@ it('reports an empty or shapeless listing while servers are stored, flagging non
     app()->forgetInstance(TelemetryCredentials::class);
     $stored = GameServer::factory()->trainingFor(game('wardogs')->id)->create(['interface' => TelemetryInterface::Nightwatch]);
     MockClient::global([
-        'crcon.test/*' => MockResponse::make(['result' => ['name' => '7Cav HLL'], 'failed' => false, 'error' => null]),
+        'crcon.test/*' => MockResponse::make(['result' => ['name' => '7Cav HLL', 'game' => 'hll', 'server_number' => 2], 'failed' => false, 'error' => null]),
         'bm.test/*' => MockResponse::make(['data' => [], 'links' => []]),
         'nw.test/*' => MockResponse::make($body),
     ]);
