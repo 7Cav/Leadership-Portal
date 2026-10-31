@@ -81,7 +81,8 @@ Your scope's units and troopers, from the cached Cav roster.
   battalion and the 7 on the top left ("2/7") and the company letter on the bottom right ("A"). Text is black or white,
   whichever reads better, and the generator warns when the two colors are too close. It downloads as SVG or as a
   300 pixel wide PNG for the wiki. A saved guidon shows next to the unit on the roster, in the unit picker and on Org
-  structure; it sits beside the wiki's own art and replaces nothing. Each save is audited.
+  structure; it sits beside the wiki's own art and replaces nothing. Each save is audited. An Admin acting as
+  someone who may save it gets the button and the save too, recorded as the Admin acting for them; view as hides it.
 
 Related pages reached from the roster:
 

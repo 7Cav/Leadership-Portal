@@ -152,6 +152,30 @@ describe('acting as', function () {
         expect($entry->actor_id)->toBe($admin->id)
             ->and($entry->on_behalf_of_unit_id)->toBe($this->company->id);
     });
+
+    it('offers the generator to an Admin acting as someone who may save, and only on what they may save', function () {
+        $co = User::factory()->commanding($this->company)->create();
+        $admin = User::factory()->admin()->create(['cav_id' => Trooper::factory()->create()->cav_id]);
+
+        $this->actingAs($admin)->post('/act-as', ['kind' => 'user', 'id' => $co->id])->assertRedirect('/home');
+        $this->actingAs($admin)->get("/roster/{$this->company->id}")->assertInertia(fn (Assert $page) => $page->where('can.editGuidon', true));
+        $this->actingAs($admin)->get("/roster/{$this->battalion->id}")->assertInertia(fn (Assert $page) => $page->where('can.editGuidon', false));
+        $this->actingAs($admin)->delete('/act-as');
+
+        $this->actingAs($admin)->post('/act-as', ['kind' => 'unit', 'id' => $this->company->id])->assertRedirect('/home');
+        $this->actingAs($admin)->get("/roster/{$this->company->id}")->assertInertia(fn (Assert $page) => $page->where('can.editGuidon', true));
+    });
+
+    it('still hides the generator and refuses a save when an Admin acting as the commander opens view as', function () {
+        $co = User::factory()->commanding($this->company)->create();
+        $admin = User::factory()->admin()->create(['cav_id' => Trooper::factory()->create()->cav_id]);
+        $this->actingAs($admin)->post('/act-as', ['kind' => 'user', 'id' => $co->id])->assertRedirect('/home');
+        $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->company->id])->assertSessionHasNoErrors();
+
+        $this->actingAs($admin)->get("/roster/{$this->company->id}")->assertInertia(fn (Assert $page) => $page->where('can.editGuidon', false));
+        saveGuidon($this, $admin, $this->company->id)->assertForbidden();
+        expect(UnitGuidon::query()->count())->toBe(0);
+    });
 });
 
 describe('validation', function () {
