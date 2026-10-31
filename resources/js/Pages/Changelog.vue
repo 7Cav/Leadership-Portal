@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import EmptyState from '@/components/EmptyState.vue';
 import ReasonDialog from '@/components/ReasonDialog.vue';
 import { toast } from 'vue-sonner';
-import { forumDate } from '@/lib/forumDate';
+import { forumDate, forumDateTime } from '@/lib/forumDate';
 import { onHttpException } from '@/lib/httpError';
 import { postJson } from '@/lib/postJson';
 
@@ -35,6 +35,8 @@ const props = defineProps({
     technicalToggle: { type: Boolean, default: false },
     // The Admin setting `{ enabled }`, only for an Admin who may change it.
     technicalSetting: { type: Object, default: null },
+    // While a delete all can be restored, `{ count, deletedAt, restoreUntil }` (UTC), only for an editor.
+    pendingRestore: { type: Object, default: null },
 });
 
 const MAX_BODY = 300;
@@ -89,6 +91,44 @@ function setTechnicalEnabled(enabled) {
             onStart: () => (settingSaving.value = true),
             onHttpException: onHttpException('The setting was not saved', (message) => toast.error(message)),
             onFinish: () => (settingSaving.value = false),
+        },
+    );
+}
+
+// Delete all: every entry, after a confirm that names the count. Editors get every entry, technical ones included, so
+// the count is the whole changelog. It can be restored for 72 hours from the bar the server then sends.
+const totalEntries = computed(() => props.days.reduce((total, day) => total + day.entries.length, 0));
+const entriesLabel = (count) => (count === 1 ? '1 entry' : `${count} entries`);
+const deleteAllOpen = ref(false);
+const deletingAll = ref(false);
+function deleteAll() {
+    router.post(
+        '/changelog/delete-all',
+        {},
+        {
+            preserveScroll: true,
+            onStart: () => (deletingAll.value = true),
+            onSuccess: () => (deleteAllOpen.value = false),
+            onError: (errors) => toast.error(Object.values(errors)[0] ?? 'Nothing was deleted. Try again.'),
+            onHttpException: onHttpException('Nothing was deleted', (message) => toast.error(message)),
+            onFinish: () => (deletingAll.value = false),
+        },
+    );
+}
+
+// `31OCT26 18:20Z`, the portal's Zulu stamp.
+const zulu = (value) => `${forumDateTime(value).toUpperCase()}Z`;
+const restoring = ref(false);
+function restoreAll() {
+    router.post(
+        '/changelog/restore',
+        {},
+        {
+            preserveScroll: true,
+            onStart: () => (restoring.value = true),
+            onError: (errors) => toast.error(Object.values(errors)[0] ?? 'Nothing was restored. Try again.'),
+            onHttpException: onHttpException('Nothing was restored', (message) => toast.error(message)),
+            onFinish: () => (restoring.value = false),
         },
     );
 }
@@ -310,8 +350,21 @@ function runImport() {
             <div v-if="isEditor" class="flex flex-wrap gap-2">
                 <Button size="sm" data-testid="changelog-add" @click="openAdd"><PhPlus aria-hidden="true" />Add</Button>
                 <Button size="sm" variant="outline" data-testid="changelog-import" @click="openImport"><PhUploadSimple aria-hidden="true" />Bulk import</Button>
+                <Button v-if="totalEntries > 0" size="sm" variant="outline" class="text-destructive" data-testid="changelog-delete-all" @click="deleteAllOpen = true">
+                    <PhTrash aria-hidden="true" />Delete all
+                </Button>
             </div>
         </div>
+
+        <Card v-if="isEditor && pendingRestore" class="max-w-3xl flex-row flex-wrap items-center justify-between gap-3 p-3" role="status" data-testid="changelog-restore-bar">
+            <p class="flex items-center gap-2 text-[13px]">
+                <PhClockCounterClockwise class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span data-testid="changelog-restore-text">
+                    {{ entriesLabel(pendingRestore.count) }} deleted on {{ zulu(pendingRestore.deletedAt) }}. Restore until {{ zulu(pendingRestore.restoreUntil) }}.
+                </span>
+            </p>
+            <Button size="sm" variant="outline" :disabled="restoring" data-testid="changelog-restore" @click="restoreAll">Restore</Button>
+        </Card>
 
         <Card v-if="isEditor && importOpen" class="max-w-3xl gap-3 p-4" data-testid="changelog-import-panel">
             <h2 class="text-[15px] font-semibold">Bulk import</h2>
@@ -617,6 +670,21 @@ function runImport() {
                         <Button type="submit" size="sm" :disabled="editForm.processing" data-testid="changelog-edit-save">Save changes</Button>
                     </DialogFooter>
                 </form>
+            </DialogContent>
+        </Dialog>
+
+        <Dialog v-if="isEditor" :open="deleteAllOpen" @update:open="(value) => !deletingAll && (deleteAllOpen = value)">
+            <DialogContent class="sm:max-w-md" data-testid="changelog-delete-all-dialog">
+                <DialogHeader>
+                    <DialogTitle>Delete all {{ entriesLabel(totalEntries) }}?</DialogTitle>
+                    <DialogDescription>You can restore them for 72 hours.</DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                    <Button type="button" variant="ghost" size="sm" :disabled="deletingAll" @click="deleteAllOpen = false">Cancel</Button>
+                    <Button type="button" variant="destructive" size="sm" :disabled="deletingAll" data-testid="changelog-delete-all-confirm" @click="deleteAll">
+                        Delete all
+                    </Button>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
 

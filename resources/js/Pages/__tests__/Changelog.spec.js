@@ -324,4 +324,43 @@ describe('Changelog page', () => {
             expect(wrapper.find('[data-testid="changelog-technical-setting"]').exists()).toBe(false);
         });
     });
+
+    describe('delete all and restore', () => {
+        it('confirms with the count before deleting every entry, for editors only', async () => {
+            mountPage();
+            expect(wrapper.find('[data-testid="changelog-delete-all"]').exists()).toBe(false);
+            wrapper.unmount();
+
+            mountPage({ isEditor: true });
+            await wrapper.get('[data-testid="changelog-delete-all"]').trigger('click');
+            await flushPromises();
+
+            const dialog = body('[data-testid="changelog-delete-all-dialog"]');
+            expect(dialog.textContent).toContain('Delete all 3 entries?');
+            expect(dialog.textContent).toContain('You can restore them for 72 hours.');
+            expect(routerPost).not.toHaveBeenCalled();
+
+            body('[data-testid="changelog-delete-all-confirm"]').click();
+            await flushPromises();
+            expect(routerPost).toHaveBeenCalledWith('/changelog/delete-all', {}, expect.any(Object));
+        });
+
+        it('hides Delete all with no entries', () => {
+            mountPage({ isEditor: true, days: [] });
+            expect(wrapper.find('[data-testid="changelog-delete-all"]').exists()).toBe(false);
+        });
+
+        it('shows the restore bar with Zulu stamps and restores on click', async () => {
+            mountPage({ isEditor: true, days: [], pendingRestore: { count: 265, deletedAt: '2026-10-31T18:20:00Z', restoreUntil: '2026-11-03T18:20:00Z' } });
+
+            expect(wrapper.get('[data-testid="changelog-restore-text"]').text()).toBe('265 entries deleted on 31OCT26 18:20Z. Restore until 03NOV26 18:20Z.');
+            await wrapper.get('[data-testid="changelog-restore"]').trigger('click');
+            expect(routerPost).toHaveBeenCalledWith('/changelog/restore', {}, expect.any(Object));
+        });
+
+        it('shows no restore bar without a pending restore', () => {
+            mountPage({ isEditor: true });
+            expect(wrapper.find('[data-testid="changelog-restore-bar"]').exists()).toBe(false);
+        });
+    });
 });
