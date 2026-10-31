@@ -2,15 +2,13 @@
 
 namespace App\Integration\GoogleSheets;
 
-use App\Integration\GoogleDrive\GoogleDriveApi;
 use App\Integration\GoogleSheets\Requests\AppendRowRequest;
 use Throwable;
 
 /**
  * The single door out to the reports Google Sheet (AD-3): it appends a weekly staff report's row to one tab of the
- * spreadsheet the env names, and does nothing else. It signs in as the same service account as the counseling Drive
- * copy ({@see GoogleDriveApi}, which asks for the Sheets scope too), so the sheet must be shared with that account's
- * email as an editor.
+ * spreadsheet the env names, and does nothing else. It signs in as the portal's Google service account
+ * ({@see GoogleServiceAccount}), so the sheet must be shared with that account's email as an editor.
  *
  * AD-23: the spreadsheet id and tab names come from env through config, injected by the composition root.
  */
@@ -24,13 +22,13 @@ class GoogleSheetsApi implements SheetsClient
      * @param  array{spreadsheet_id?: string|null, staff_tab?: string|null, battalion_tab?: string|null}|null  $config
      */
     public function __construct(
-        private readonly GoogleDriveApi $auth,
+        private readonly GoogleServiceAccount $auth,
         private readonly ?array $config = [],
     ) {}
 
     public function isConfigured(): bool
     {
-        return $this->spreadsheetId() !== '' && $this->auth->hasServiceAccount();
+        return $this->spreadsheetId() !== '' && $this->auth->isConfigured();
     }
 
     public function staffTab(): string
@@ -46,7 +44,7 @@ class GoogleSheetsApi implements SheetsClient
     public function append(string $tab, array $row): void
     {
         if (! $this->isConfigured()) {
-            throw GoogleSheetsUnavailable::misconfigured('GOOGLE_SHEETS_REPORTS_SPREADSHEET_ID, GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL and GOOGLE_DRIVE_PRIVATE_KEY must all be set');
+            throw GoogleSheetsUnavailable::misconfigured('GOOGLE_SHEETS_REPORTS_SPREADSHEET_ID, GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY must all be set');
         }
 
         try {

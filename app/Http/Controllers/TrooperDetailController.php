@@ -3,10 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Authorization\CounselingAccess;
-use App\Authorization\CounselingPermissions;
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffPracticeAccess;
-use App\Commands\Counseling\CounselingFormParties;
 use App\Commands\StaffPractices\RecordStaffPracticeHandler;
 use App\Kpi\AttendanceHistory;
 use App\Kpi\Headcount;
@@ -14,6 +12,7 @@ use App\Kpi\KpiService;
 use App\Milpac\CounselingHistory;
 use App\Milpac\StaffPracticeHistory;
 use App\Milpac\TrooperMilpac;
+use App\Models\CounselingKind;
 use App\Models\CounselingRecord;
 use App\Models\CounselingType;
 use App\Models\Trooper;
@@ -54,7 +53,6 @@ class TrooperDetailController extends Controller
         private readonly StaffPracticeAccess $staffAccess,
         private readonly StaffPracticeHistory $staffHistory,
         private readonly Headcount $headcount,
-        private readonly CounselingFormParties $formParties,
     ) {}
 
     /**
@@ -83,7 +81,8 @@ class TrooperDetailController extends Controller
     }
 
     /**
-     * The DCSs and LORs this viewer may see (#381), with what they may do: file either type, and change each record.
+     * The DCSs and LORs this viewer may see (#381, #565), drafts included, with what they may do: start either type, and
+     * open, continue, answer or overturn each record.
      * During a view-as preview nothing is offered, since every write is refused then (AD-9), and nothing on a trooper
      * who has left the Cav, whose records are read-only.
      *
@@ -98,16 +97,18 @@ class TrooperDetailController extends Controller
         return [
             ...$this->counselingHistory->for(
                 $trooper,
-                $permissions->seesDcs,
-                $permissions->seesLor,
-                fn (CounselingRecord $record) => $writable && $permissions->changes($record),
+                $permissions->seesDcs || $permissions->seesLor,
+                fn (CounselingRecord $record) => $permissions->seesRecord($record),
+                // Platoon Leader and up keep counting a DCS past its 90 days for the records dated within its windows.
+                fn (CounselingRecord $record) => $permissions->seesRecord($record) || ($record->isExpired() && $permissions->seesInactiveDcs),
+                fn (CounselingRecord $record) => [
+                    'open' => true,
+                    'continue' => $writable && $permissions->editsDraft($record),
+                    'respond' => $writable && $permissions->responds($record),
+                    // A frozen LOR is overturned by the Regimental Executive Officer only.
+                    'overturn' => $writable && $permissions->overturns($record),
+                ],
                 $files,
-                // A frozen LOR (72 hours after filing) is overturned by the Regimental Executive Officer only.
-                fn (CounselingRecord $record) => $writable && $permissions->overturns($record),
-                fn (CounselingRecord $record) => CounselingPermissions::frozen($record),
-                $permissions->seesExpired,
-                // Within those 72 hours the trooper, signed in as themselves, may appeal (or comment on a DCS).
-                fn (CounselingRecord $record) => $writable && $permissions->appeals($record),
             ),
             // Left the Cav: the records are read-only for everyone, and the panel says so.
             'departed' => $permissions->departed,
@@ -120,9 +121,7 @@ class TrooperDetailController extends Controller
                 CounselingType::Dcs->value => $writable && $permissions->filesDcs,
                 CounselingType::Lor->value => $writable && $permissions->filesLor,
             ],
-            // Section 1 of the portal's form, shown read-only to a viewer who may file: the PDF is rendered from the
-            // same roster rows, never from what the browser sends back.
-            'formParties' => $files !== [] ? $this->formParties->for($trooper, $user) : null,
+            'kinds' => collect(CounselingKind::cases())->map(fn (CounselingKind $kind) => ['value' => $kind->value, 'label' => $kind->label()])->all(),
         ];
     }
 

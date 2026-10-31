@@ -286,49 +286,55 @@ through the identity they act as.
 
 | Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| File a Developmental Counseling Statement (DCS) | All | All | Own | Own | Own | Own | Own | Own | No | No | No |
-| File a Letter of Reprimand (LOR) | All | All | No (5) | Own | Own | Own | If acting lead of a platoon or above | No | No | No | No |
-| See a DCS and download its document | All | All | Own | Own | Own | Own | Own | Own section | Their own (8) | Their own (8) | Target (6) |
-| See an LOR and download its document | All | All | Own | Own | Own | Own | Own | Own | Their own (8) | Read | Target |
-| Correct the date or reason, or delete (reason required) | All (9) | The issuer's chain (7) | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | No | No | No |
-| Appeal (LOR) or comment or dispute (DCS) within 72 hours (statement required) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | No |
+| Start a Developmental Counseling Statement (DCS) | All | All | Own | Own | Own | Own | Own | Own | No | No | No |
+| Start a Letter of Reprimand (LOR) | All | All | No (5) | Own | Own | Own | If acting lead of a platoon or above | No | No | No | No |
+| See a draft; save, invite on, share or delete it | All | The issuer's chain (7) | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | No | No | No |
+| See an active DCS (30 days after shared) and download it | All | All | Own | Own | Own | Own | Own | Own section | Their own (8) | Their own (8) | Target (6) |
+| See an inactive DCS (31 to 90 days) and download it | All | All | Own | Own | Own | Own | If acting lead of a platoon or above | No | No | No | Target (6) |
+| See an LOR and download it | All | All | Own | Own | Own | Own | Own | Own | Their own (8) | Read | Target |
+| Withdraw a shared record back to draft (reason required) | All (9) | The issuer's chain (7) | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | No | No | No |
+| Fill in a record kept with its source PDF (Review) | All | The issuer's chain (7) | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | No | No | No |
+| Respond to their own shared record (LOR: appeal or not) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | No |
+| Decide an LOR appeal (reason required) | No (12) | The commander one level above the issuing unit (12) | No | (12) | (12) | No | No | No | No | No | No |
 | Overturn a frozen LOR (reason required) | No (10) | The RXO only (10) | No | No | No | No | No | No | No | No | No |
 
-(5) An LOR needs command from platoon level up on the line. A portfolio officer files a DCS on their staff; an LOR on
+(5) An LOR needs command from platoon level up on the line. A portfolio officer starts a DCS on their staff; an LOR on
 staff comes from regiment command or an Admin.
 (6) An Admin's preview of another Admin shows every DCS in the previewed scope. Any other preview (a unit, a leader,
 a grant holder) shows a DCS only where the Admin's own command (a billet or an acting lead) reaches the trooper, not
-every DCS.
-(7) The leaders who command the unit the record was filed through: the issuer, anyone sharing that billet's unit, and
-everyone above, as long as they still counsel the trooper by the rules above. A record an Admin filed (no unit) is the
-Admins' alone.
-(8) Every trooper, in every column, sees their own DCSs and LORs on their own milpac page and downloads their documents
-(decided 2026-10-28), signed in as themselves (not while acting as or viewing as anyone). It is read only: nobody files
-on, corrects or deletes their own records, except that an Admin by the `is_admin` flag still corrects and deletes as an
-Admin. An Admin by billet does not (2026-10-29).
-(9) Not a frozen record: 72 hours after a DCS or LOR is filed nobody corrects or deletes it, Admins by flag or by
-billet included. A DCS has no overturn.
-(11) Only the trooper the record is on, signed in as themselves, within the 72 hours after it was filed, once per
-record, and not once they have left the Cav. Nobody files it for them: not their chain, not an Admin, and not anyone
-through act as or a view-as preview. Whoever sees the record sees the statement.
+every DCS. A preview never shows a draft but to an Admin previewed as an Admin, and changes nothing.
+(7) The issuer, and the leaders who command the unit the record was started through: anyone sharing that billet's
+unit, and everyone above, as long as they still counsel the trooper by the rules above. A record an Admin started (no
+unit) is its issuer's and the Admins' alone. The trooper never sees a draft.
+(8) Every trooper, in every column, sees their own shared DCSs (while active) and LORs on their own milpac page and
+downloads them (decided 2026-10-28), signed in as themselves (not while acting as or viewing as anyone). Nobody starts,
+withdraws or deletes their own records, except that an Admin by the `is_admin` flag still works on them as an Admin.
+An Admin by billet does not (2026-10-29).
+(9) Only before it locks (72 hours after it is shared) and before the trooper asks to appeal. Once locked nobody
+withdraws it, Admins by flag or by billet included. Only a draft is deleted. A DCS has no overturn.
+(11) Only the trooper the record is on, signed in as themselves, once, by its deadline: an LOR within 24 hours of the
+After-Action PM, a DCS until it locks. Nobody answers for them: not their chain, not an Admin, and not anyone through
+act as or a view-as preview. Not once they have left the Cav.
+(12) Only the serving commander (lead billet) of the unit one level above the unit the LOR was issued through, while the
+appeal is pending (72 hours from the trooper's request), never in a view-as preview and never on their own record.
+The decision is final and locks the LOR.
 (10) Only the serving holder of the Regimental Executive Officer billet (the org import maps it to the regiment)
 overturns a frozen LOR, signed in as themselves: never one filed on themselves, never in a view-as preview, and never
 through act as (S6, 2026-10-29: "only the RXO for now"). An Admin acting as the RXO, the RCO acting as the RXO under the
 command team rule, and the RXO while acting as someone else are all refused. The overturned LOR stays on file, is marked so, and counts
 toward no flag.
 
-A DCS expires 90 days after the date it was counseled (from day 91). An expired DCS is seen by Admins only, marked
-expired, and its document downloads for them only: leaders and the trooper get the same 404 as for a record that does
-not exist. Leaders cannot correct or delete it; Admins keep their rights. It is never deleted. An LOR never expires.
+A DCS expires 91 days after it was shared. An expired DCS is seen by Admins only, and its document downloads for them
+only: leaders and the trooper get the same 404 as for a record that does not exist. It is never deleted. An LOR never
+expires.
 
-A trooper who has left the Cav (no longer serving) has read-only counseling: nobody may file a DCS or LOR on them, or
-correct or delete one, Admins included, and the panel says so. Whoever could see their records still sees and downloads
-them. If they serve again, the rules above apply again. The RXO may still overturn a frozen LOR of theirs: that corrects
-the record and adds nothing to it.
+A trooper who has left the Cav (no longer serving) has read-only counseling: nobody may start, share, withdraw or answer
+a DCS or LOR, Admins included, and the panel says so. Whoever could see their records still sees and downloads them. If
+they serve again, the rules above apply again. The RXO may still overturn a frozen LOR of theirs: that corrects the
+record and adds nothing to it.
 
-Filing from the portal's form, and its preview, follow exactly the filing rules above: whoever may file the type may
-generate it, nobody else (a 403, or a 404 for a trooper they cannot see), never in a view-as preview. Section 1 of the
-form is read from the roster, never taken from the request.
+Section 1 of the form is read from milpac, never taken from the request: live on a draft, snapshotted when shared.
+The counseling import (Settings > Counseling import, and `php artisan counseling:import`) is for Admins only.
 
 A record the viewer may not see is left out of the page entirely, and its download answers 404 like a record that does
 not exist, also on a departed trooper. The flags and the filing form's forecast are worked out from the records the
@@ -464,7 +470,7 @@ only sign out has none, since it ends the session and signing back in is limited
 | Write gates | Each handler under `app/Commands/*` checks `writeScope()` (attendance, capture, guests, game identities, reports, a section's template pick) or `commandsUnit()` (fireteams, company policy, platoon topic, guidon, training plans, the review on the owning company in `TrainingPlanRules`, company and section templates through `Commands/Templates/TemplateAuthority`) |
 | Staff practices | `app/Authorization/StaffPracticeAccess.php` on `commandsUnit()`; checked in each `app/Commands/StaffPractices` handler |
 | Staff report | `app/Authorization/StaffReportAccess.php` (`maySend()` on `isOwnTrooper()`, `mayRead()` on `resolve()` of the unit above the HQ); checked in `SendStaffReportHandler` and `StaffReportController` |
-| Counseling (DCS, LOR) | `app/Authorization/CounselingAccess.php` on `ScopeResolver::commandingUnitsOver()`, `writeScope()` and `canSee()`; the 72-hour freeze, who overturns and who appeals in `CounselingPermissions::frozen()`, `overturns()` and `appeals()`; checked again in each `app/Commands/Counseling` handler and on the download |
+| Counseling (DCS, LOR) | `app/Authorization/CounselingAccess.php` on `ScopeResolver::commandingUnitsOver()`, `writeScope()` and `canSee()`; drafts, the DCS windows, the lock and who withdraws, responds, decides an appeal and overturns in `CounselingPermissions` (`seesRecord()`, `editsDraft()`, `withdraws()`, `responds()`, `decidesAppeal()`, `overturns()`, `reviews()`); checked again in each `app/Commands/Counseling` handler and on the download |
 | Week floor | `app/Support/Time/WeekOf.php` (`floor()`, `isBeforeFloor()`), `config/portal.php` |
 | Rate limiters | `app/Providers/AppServiceProvider.php`, unit sync cooldown in `UnitRosterSyncController` |
 

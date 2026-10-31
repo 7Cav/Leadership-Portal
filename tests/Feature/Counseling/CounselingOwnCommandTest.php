@@ -59,15 +59,13 @@ describe('a trooper who commands a unit above their own placement', function () 
         $this->actingAs($sl)->get(route('counseling.document', $this->dcs->id))->assertNotFound();
     });
 
-    it('keeps their Section Leader from changing or deleting a DCS filed before', function () {
+    it('keeps their Section Leader from withdrawing or deleting a DCS shared before', function () {
         $sl = $this->tree['users']['sl'];
 
-        $this->actingAs($sl)->patch(route('counseling.update', $this->dcs->id), [
-            'counseled_on' => now()->subDays(4)->toDateString(), 'reason' => 'Changed.', 'audit_reason' => 'x',
-        ])->assertNotFound();
-        $this->actingAs($sl)->delete(route('counseling.destroy', $this->dcs->id), ['audit_reason' => 'x'])->assertNotFound();
+        $this->actingAs($sl)->withSession(counselingPmSession())->post(route('counseling.withdraw', $this->dcs->id), ['reason' => 'x'])->assertNotFound();
+        $this->actingAs($sl)->delete(route('counseling.destroy', $this->dcs->id))->assertNotFound();
 
-        expect($this->dcs->fresh()->reason)->toBe('Private counseling text.');
+        expect($this->dcs->fresh()->isShared())->toBeTrue();
     });
 
     it('leaves it to the echelon above their command', function () {
@@ -76,7 +74,8 @@ describe('a trooper who commands a unit above their own placement', function () 
         $this->actingAs($co)->post(route('counseling.store', $this->rifleman->id), ($this->file)(['type' => 'lor']))->assertRedirect();
         expect(CounselingRecord::query()->count())->toBe(2)
             ->and(collect(ownCommandPage($this, $co, $this->rifleman)['records'])->pluck('id')->all())->toContain($this->dcs->id);
-        $this->actingAs($co)->delete(route('counseling.destroy', $this->dcs->id), ['audit_reason' => 'Filed by mistake.'])->assertRedirect();
+        counselingFakeForum();
+        $this->actingAs($co)->withSession(counselingPmSession())->post(route('counseling.withdraw', $this->dcs->id), ['reason' => 'Filed by mistake.'])->assertSessionHasNoErrors();
     });
 });
 
@@ -121,7 +120,7 @@ describe('acting as someone', function () {
             ->and($props['canFile'])->toBe(['dcs' => false, 'lor' => false]);
 
         $this->actingAs($this->admin)->get(route('counseling.document', $this->dcs->id))->assertNotFound();
-        $this->actingAs($this->admin)->delete(route('counseling.destroy', $this->dcs->id), ['audit_reason' => 'x'])->assertNotFound();
+        $this->actingAs($this->admin)->withSession(counselingPmSession())->post(route('counseling.withdraw', $this->dcs->id), ['reason' => 'x'])->assertNotFound();
         expect($this->dcs->fresh())->not->toBeNull();
 
         // The person acted as keeps their reach over everyone else.

@@ -2,6 +2,7 @@ import {
     PhBookOpenText,
     PhClockCounterClockwise,
     PhClipboardText,
+    PhFileArrowDown,
     PhFileCode,
     PhFileText,
     PhFlask,
@@ -12,6 +13,7 @@ import {
     PhJoystick,
     PhKey,
     PhListMagnifyingGlass,
+    PhScales,
     PhTreeStructure,
     PhUserCheck,
     PhUsersThree,
@@ -37,6 +39,9 @@ export const NAV_GROUPS = [
             { label: 'Staff report', href: '/staff-report', icon: PhUserCheck, feature: 'staffReports', featureValue: 'own' },
             { label: 'Staff reports', href: '/staff-reports', icon: PhUserCheck, feature: 'staffReports', featureValue: 'overview' },
             { label: 'Game identities', href: '/game-identities', icon: PhGameController },
+            // `show` names a shared prop that must be true for the item to appear: here only a commander who hears LOR
+            // appeals from the units under theirs (#565), with the number waiting for them.
+            { label: 'Appeals', href: '/counseling/appeals', icon: PhScales, show: 'counselingAppeals', count: 'counselingAppealsPending', countLabel: 'waiting for your decision' },
         ],
     },
     {
@@ -67,6 +72,8 @@ export const NAV_GROUPS = [
             { label: 'Templates', href: '/settings/templates', icon: PhFileCode, allow: 'canManageTemplates' },
             { label: 'Games', href: '/settings/games', icon: PhJoystick },
             { label: 'Servers', href: '/settings/servers', icon: PhHardDrives },
+            // Bringing older DCSs and LORs in from Drive links or PDFs (#565). Admins only.
+            { label: 'Counseling import', href: '/settings/counseling-import', icon: PhFileArrowDown },
             { label: 'Audit log', href: '/settings/audit-log', icon: PhListMagnifyingGlass },
             { label: 'Activity log', href: '/settings/activity-log', icon: PhFootprints },
             // Only while DEMO_TOOLS is on (#115): `feature` names the shared `features` flag it needs.
@@ -83,6 +90,7 @@ export function visibleGroups(isAdmin, features = {}, props = {}) {
         ...group,
         items: group.items
             .filter((item) => isAdmin || !group.adminOnly || (item.allow && props[item.allow] === true))
+            .filter((item) => !item.show || props[item.show] === true)
             .filter((item) => !item.feature || features[item.feature] === (item.featureValue ?? true)),
     })).filter((group) => group.items.length);
 }
@@ -99,12 +107,15 @@ const CHILD_PAGES = [
     { prefix: '/readiness/', parent: '/roster' },
     // A guide sits under Docs, and names itself as the last crumb.
     { prefix: '/docs/', parent: '/docs' },
+    // A DCS or LOR (#565) is reached from the trooper's milpac, so it reads as a child of the roster too; the appeals
+    // queue is its own item.
+    { prefix: '/counseling/', parent: '/roster', except: ['/counseling/appeals'] },
 ];
 
 function childOf(url, href) {
     const path = pathOf(url);
 
-    return CHILD_PAGES.some((child) => child.parent === href && path.startsWith(child.prefix));
+    return CHILD_PAGES.some((child) => child.parent === href && path.startsWith(child.prefix) && !(child.except ?? []).includes(path));
 }
 
 // Active when the page is the item itself or sits beneath it (`/settings/audit-log?page=2`).

@@ -158,7 +158,7 @@ function closeOnMobile() {
                                         class="ml-auto group-data-[collapsible=icon]:hidden"
                                         :data-testid="`nav-count-${item.label}`"
                                     >
-                                        {{ page.props[item.count] }}<span class="sr-only"> waiting for an Admin</span>
+                                        {{ page.props[item.count] }}<span class="sr-only">{{ ' ' + (item.countLabel ?? 'waiting for an Admin') }}</span>
                                     </Badge>
                                 </Link>
                             </SidebarMenuButton>

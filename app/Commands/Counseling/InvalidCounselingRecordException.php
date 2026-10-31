@@ -40,9 +40,26 @@ class InvalidCounselingRecordException extends RuntimeException
         return new self('reason', 'Keep the reason for overturning to '.OverturnCounselingRecordHandler::REASON_MAX.' characters.');
     }
 
-    public static function appealStatementTooLong(): self
+    public static function reasonRequired(string $field = 'reason'): self
     {
-        return new self('statement', 'Keep your statement to '.AppealCounselingRecordHandler::STATEMENT_MAX.' characters.');
+        return new self($field, 'Give a reason.');
+    }
+
+    public static function decisionReasonTooLong(): self
+    {
+        return new self('reason', 'Keep the reason to '.DecideCounselingAppealHandler::REASON_MAX.' characters.');
+    }
+
+    /** The meeting invite needs three Zulu windows, each short. */
+    public static function meetingWindows(): self
+    {
+        return new self('windows', 'Give three times you can meet, in Zulu, each in '.SendCounselingInviteHandler::WINDOW_MAX.' characters or fewer.');
+    }
+
+    /** No serving commander one level above the issuing unit, so there is nobody to send the appeal to. */
+    public static function noAppealAuthority(): self
+    {
+        return new self('appeal', 'There is no commander one level above the issuing unit to hear an appeal. Ask S1.');
     }
 
     public static function notPdf(): self

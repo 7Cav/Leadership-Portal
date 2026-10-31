@@ -316,77 +316,72 @@ game's default kind when it fits none.
 
 ### Counseling (DCS and LOR)
 
-On a trooper's milpac page, the Counseling panel holds their Developmental Counseling Statements (DCS) and Letters of
-Reprimand (LOR), newest first. Who may file and see which is in [permissions.md](permissions.md#counseling-dcs-and-lor).
-A trooper sees their own records on their own page and downloads them, read only: nobody files on, corrects or deletes
-their own (an Admin by the flag excepted). Acting as someone never shows their records through this: only what the
-acting identity's command shows.
+A leader writes a Developmental Counseling Statement (DCS) or Letter of Reprimand (LOR) in the portal, field by field,
+following the wiki procedure end to end (#565). On a trooper's milpac page the Counseling panel holds their records,
+drafts first, then newest first. Who may start and see which is in [permissions.md](permissions.md#counseling-dcs-and-lor);
+who may start one is unchanged from #381. A trooper sees their own shared records on their own page, never a draft,
+and never starts, withdraws or deletes their own (an Admin by the flag excepted). Acting as someone never shows their
+records through this: only what the acting identity's command shows.
 
-- File a record: the type, what it is for (a missed section practice or roll call, or other conduct), the date it was
-  given, the reason and the signed document, a PDF of 10 MB or less. What it is for is required, and stays as filed
-  like the type; a record filed before the portal asked has none and is ruled as other conduct. Instead of uploading,
-  the leader can fill in the regiment's form in the portal (7CAV-R-042 for a DCS, 7CAV-R-043 for an LOR): section 1
-  (date, and the rank, name and billet of the trooper and the issuer) comes from the roster, read only; section 2 asks
-  for the infraction, the regulation, the notes of discussion and the authority's plan of action (the trooper's and
-  other plan columns and the comments are optional); an LOR also asks for at least one recommended consequence (a
-  removal names its position), any special punishments and whether the trooper wishes to appeal. The appeal outcome
-  stays blank, for the appeal authority later. **Preview** shows the page the PDF is made from. The portal renders
-  an A4 PDF on the server (dompdf, nothing loaded from anywhere, every field printed as text; a long answer runs
-  over several pages as several rows, with the table header repeated), then files
-  it exactly as an upload: the same checks, storage, Drive copy and `counseling.filed` audit entry, with the reason
-  "Generated in the portal." The form is kept on the record (`form_data`), and the list says the record was made
-  from it. A repeat is judged on the form, since two renders of one form differ byte for byte. The file
-  is checked by its content and must also end in `.pdf`; a PDF with a password, without its end marker, or with
-  scripts, automatic actions, attachments, embedded media or XML forms is refused, with a plain reason and the advice to
-  print it to a new PDF (web links are fine). It is kept on the portal's private disk under a name the portal makes up. It downloads only from the record,
-  for someone who may see it, named after the record (`LOR 2026-10-20 Novak.E.pdf`). Filing the same record again
-  (same type, date, reason and document) within 10 minutes is refused as already filed, so a double click never
-  counts twice.
-- Google Drive: when the service account is set up (see [operations.md](operations.md#env-keys-that-matter)), a queued
-  job copies the document to the 7Cav Google Drive folder and retries on failure. Each record shows "Drive copy
-  pending", "Copied to Drive", "Drive copy failed" or "Portal only" (Drive not set up; the record is kept anyway).
+- **Draft**: **New DCS or LOR** asks for the type and what it is for (a missed section practice or roll call, or other
+  conduct) and opens the record as a case file at `/counseling/{id}`: the steps beside the regiment's form
+  (7CAV-R-042 for a DCS, 7CAV-R-043 for an LOR) filled in live; on a phone one step at a time. The leader fills in the
+  form's fields: the evidenced infraction and previous instances, the regulation, order or SOP, the notes of
+  discussion, the plan of action (authority, misc) and comments (authority, misc), and on an LOR the four recommended
+  consequences (a removal names its position) and special punishments. A draft saves from any step (**Save draft**,
+  and **Continue**), shows when it was last saved, and warns about unsaved changes. It is seen only by its issuer,
+  their chain and Admins, and deleted freely (`counseling.draft_deleted`). Section 1 (rank, Last.F and billet of the
+  trooper and the authority) comes from milpac, live while a draft.
+- **Meeting invite**: three Zulu windows; the wiki's "Meeting: …" PM goes to the trooper from the leader's own forum
+  account, and the record shows the 72-hour meeting window. Required before an LOR is shared; a DCS may skip it.
+- **Share**: blocked, saying what is missing, until the infraction and regulation, the notes of discussion, the
+  leader's plan, the Date of Letter and the meeting confirmation are in (and on an LOR a consequence and the invite).
+  Sharing locks the leader's part, snapshots Section 1 and the Date of Letter, and sends the wiki's "After-Action: …"
+  PM with a link to the record. An LOR is also sent to the S1 1IC and 2IC (`config/counseling.php`) and the oversight
+  officer of the trooper's battalion, and the unit whose commander would hear an appeal is fixed (one level above the
+  issuing unit).
+- **PMs**: every PM goes from the acting user's own forum account (leader, trooper, appeal authority). The portal asks
+  for the forum's `conversation:write` scope only when someone is about to send one, checks the token is theirs, and
+  keeps it encrypted in their session only. A PM the forum does not send leaves the record unchanged, with the reason.
+- **Withdraw**: before it locks and before an appeal, the issuer's chain or an Admin takes a shared record back to
+  draft with a reason (`counseling.withdrawn`); the trooper is told by PM, and their answer, if any, is dropped.
+- **The trooper's answer**: on Home (with a countdown) and on their own page, the trooper fills in their plan of action
+  and comments and, on an LOR, DO or DO NOT wish to appeal, with a reason to appeal; once (`counseling.responded`).
+  An LOR is answered within 24 hours of the After-Action PM, a DCS until it locks; without an answer the record shows
+  No response and stands.
+- **Appeal**: DO appeal sends a PM from the trooper to the commander one level above and queues the LOR on their
+  **Appeals** page (sidebar badge, 72-hour due time). They record HAVE AMENDED (the consequence edited) or HAVE NOT
+  AMENDED, with a required reason; their rank, name and billet are snapshotted; the decision is final, locks the LOR,
+  and goes by PM to the trooper, the issuer and S1 (`counseling.appeal_decided`). The consequence as first written
+  stays in the record (`appeal_original`). An appeal not decided in 72 hours lapses and the letter stands.
+- **Lock**: a record locks 72 hours after it is shared, an LOR also when its appeal is decided, and never while an
+  appeal is pending. Then nobody withdraws it, Admins included; only the Regimental Executive Officer, signed in as
+  themselves, overturns a locked LOR, with a reason (`counseling.overturned`). An overturned LOR stays on file, muted,
+  and no longer counts toward any flag, the no favorable action notice or the forecast.
+- **Windows**: a DCS is active for 30 days after it is shared (the trooper and the chain see it), inactive from day 31
+  to day 90 (Platoon Leader and up and Admins; still counts), and expired from day 91 (Admins only; no longer counts;
+  kept for good). Worked out on every read, no job. An LOR stays visible permanently.
+- **Document**: `GET /counseling/{id}/document` checks access and audits the download (`counseling.downloaded`, with
+  the SHA-256 of what was served). A record written in the portal answers the form's field values as JSON, and the
+  browser fills them into the checked-in template (`resources/counseling/`) with pdf-lib and saves the PDF; the server
+  keeps no generated file, so there is nothing to purge. A record kept with a source PDF (filed before #565, or
+  imported) downloads that file, always as an attachment, `application/pdf`, `no-store`.
+- **Records from before**: every record filed before #565 keeps its uploaded PDF as its source document and counts as
+  shared and acknowledged when it was filed. Its fields can be filled in with **Review**. Admins import older records
+  from Drive links or PDFs on Settings > Counseling import, or with `php artisan counseling:import`.
 - The regulations' rules, measured between records by their dates as the 7Cav wiki does: each record is weighed
   against the ones dated before it, and a record that crossed a threshold shows the flag it earned, which stays with
   it as time passes. Other conduct: a repeat within 90 days of a DCS (an LOR is next if it was for the same issue), and
   an LOR within 30 days of another (the one repeat LOR, an Article 15, if it was for the same issue); a DCS within 30
-  days of an LOR is flagged too, since the regulation calls for that repeat LOR instead if it is for the same issue
-  (the filing form warns before one is filed in that window). Missed section
-  practice or roll call: a second miss within 30 days of the last (an LOR is called for; from 31 days, another DCS), a
-  miss within 60 days of an LOR (a second LOR), and a second LOR within 60 days of the first (an Article 15, company
-  then battalion). LORs on any matter: a 2nd within 90 days (removal as SL or ASL is authorized) and a 3rd (an Article
-  15). "Within" includes the last day, and records on the same date count in the order they were filed. For 30 days
-  after an LOR the panel shows "No favorable action until" the date. The filing form says what flags the new record
-  would earn, from its date and what it is for, against the records dated before it. Flags are worked out from the
-  records the viewer sees.
-- A trooper who has left the Cav: their records are read-only for everyone, Admins included. Nothing can be filed,
-  corrected or deleted, and the panel says why; whoever saw the records still sees and downloads them. If the trooper
-  serves again, the records can be changed again.
-- Correct or delete: the date and reason can be corrected, never the type or the document; a record can be deleted
-  with its document. Both need a reason and are audited, as is filing. A copy already on Google Drive stays there.
-- A DCS or LOR is frozen 72 hours after it is filed. Until then the issuer's chain (and Admins) can correct or
-  delete it as above, and the record shows "Can be corrected until <date>Z" to them. From then on nobody corrects or
-  deletes it, Admins included: the record carries a "Frozen <date>Z" badge and the server refuses with "This LOR was
-  filed more than 72 hours ago, so it can no longer be changed. The Regimental Executive Officer can overturn it." (on
-  a DCS: "This DCS was filed more than 72 hours ago, so it can no longer be changed."). The 72 hours run from when it
-  was filed, not the date it carries. Only an LOR can be overturned; a frozen DCS still expires after 90 days.
-- Appeal: within those 72 hours the trooper, on their own milpac page and signed in as themselves (never through act
-  as or view as), may file one statement per record (required, up to 2000 characters): **Appeal** on an LOR,
-  **Comment or dispute** on a DCS, which the regiment's DCS form says is not subject to appeal. They see "Appeal until
-  <date>Z" (or "Comment or dispute until"). It is stored on the record with the time and who filed it, audited as
-  `counseling.appealed` with the statement as the reason, and shown to whoever sees the record, flagged "Appeal filed"
-  (or "Comment or dispute filed"). On an LOR made from the portal's form, the form's appeal answer becomes "do wish to
-  appeal". The stored PDF is not made again.
-- Overturn: the Regimental Executive Officer, signed in as themselves (never through act as), may overturn a frozen
-  LOR, with a reason (audited as `counseling.overturned`). It is never deleted: it stays in the list, muted, with "Overturned on <date> by <name>:
-  <reason>", its document still downloads for whoever could see it, and it no longer counts toward any flag, the no
-  favorable action notice or the filing form's forecast. A departed trooper's LOR can be overturned too.
-- A DCS expires 90 days after the date it was counseled (`counseled_on`): day 90 is still active, from day 91 it has
-  expired. It is worked out from the date on every read (`CounselingRecord::isExpired()`), with no job. It is never
-  deleted: the row, its PDF and its Google Drive copy stay. Leaders and the trooper no longer see it, its document
-  included; Admins see it marked "Expired" with the date, read only on the page, and download its PDF. Leaders cannot
-  correct or delete it; Admins keep their rights. Every rule window is 90 days or shorter, so it never counts toward
-  a record dated today; it still counts for a record dated within its window (the repeat DCS within 90 days, the
-  second miss within 30), so those flags stay. An LOR never expires.
+  days of an LOR is flagged too. Missed section practice or roll call: a second miss within 30 days of the last (an LOR
+  is called for; from 31 days, another DCS), a miss within 60 days of an LOR (a second LOR), and a second LOR within 60
+  days of the first (an Article 15, company then battalion). LORs on any matter: a 2nd within 90 days (removal as SL or
+  ASL is authorized) and a 3rd (an Article 15). "Within" includes the last day. For 30 days after an LOR the panel
+  shows "No favorable action until" the date. The start form says what flags a new record would earn today. Flags are
+  worked out from the records the viewer may count, so they never give a record away; a draft counts once shared.
+- A trooper who has left the Cav: their records are read-only for everyone, Admins included; whoever saw the records
+  still sees and downloads them. If the trooper serves again, the records can be worked on again.
+- Google Drive is no longer used. Copies made before #565 stay on the Drive.
 
 ### Staff practices
 
@@ -557,7 +552,6 @@ All run on the queue; a queue worker must be running. Times are UTC.
 | --- | --- | --- | --- |
 | Roster sync | Hourly on the hour; Admin "Sync now"; leader unit sync | Reads the Cav roster, updates troopers (rank, billet, status), places each trooper by billet, marks leavers departed. A unit sync only writes that unit's troopers. | `CAV_API_KEY`, `CAV_API_BASE_URL` |
 | LOA sync | Hourly at :15 (new threads), daily at 03:30 (full re-read of recent leave) | Reads LOA and ELOA threads from the configured forum sections. ELOA start and end dates come from the linked PAF thread. Posts it cannot read are stored as "needs review", never guessed, and so is a post whose tagged forum account and typed username name different troopers. First run reads a year back, newest first, a share each hourly run (40 pages a section, ten minutes in all), carrying on next run where it stopped; until it is done, the leave note on the pages says how far back it has got. A thread that fails to read is kept and read again by id next run, so the rest moves on. A manual sync asked for while one of the same kind is queued or running queues one follow-up run after it, and the page says so in a notice. When the daily full read finishes cleanly, a stored leave whose thread is gone (deleted, hidden or moved out of the leave sections) stops counting; the row is kept and counts again if the thread comes back. Before that, each such thread is asked for by id, so one the listing missed while it paged keeps counting, and an unclear answer withdraws nothing that run. | `SEVENCAV_FORUM_API_KEY`, `SEVENCAV_FORUM_LOA_NODES`, `SEVENCAV_FORUM_PAF_NODE`, `LOA_SYNC_REQUEST_DELAY_MS`. Skipped while the key or sections are unset. |
-| Counseling document copy | When a DCS or LOR is filed with Google Drive set up | Copies the document to the 7Cav Google Drive folder. Tried up to 5 times, with pauses of 1, 5, 15 and 60 minutes; the record shows the outcome. | `GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_DRIVE_PRIVATE_KEY`, `GOOGLE_DRIVE_FOLDER_ID`. Skipped (record kept, "Portal only") while any is unset. |
 | Practice capture | When a leader clicks "Try again" on the roll call. That button only shows after a failed capture, and nothing in the code schedules a first capture. | Reads who was on the game server during the Cav week so far, pre-marks linked troopers in the section as Attended (a leader's mark always wins), lists unmatched players. | Each game's telemetry interface, picked on the Games page. CRCON (`CRCON_BASE_URL`, `CRCON_API_KEY`) falls back to BattleMetrics; BattleMetrics (`BATTLEMETRICS_API_KEY`, `BATTLEMETRICS_SERVER_ID`); Nightwatch (`NIGHTWATCH_API_KEY`, `NIGHTWATCH_SERVER_IDS`). A game reads the training servers an Admin selected for it on the Servers page. With none selected, Hell Let Loose (WW2) on CRCON, Arma Reforger on BattleMetrics and WARDOGS on Nightwatch read the server set in env; any other game, or one of those switched to another interface, reads nothing until a server is selected, and its roll call says so. A game with no keys, or interface "none", shows "not configured". |
 
 The capture does not record other sections' troopers as guests or makeups for now: without set practice times the
@@ -640,5 +634,5 @@ the sum of its direct children's sent reports.
 | Training plans | `app/Commands/TrainingPlans/`, `TrainingPlanController`, `resources/js/Pages/Reports/TrainingPlan.vue`, `resources/js/lib/trainingPlan.js` |
 | Staff practices | `app/Commands/StaffPractices/`, `app/Authorization/StaffPracticeAccess.php`, `app/Milpac/StaffPracticeHistory.php`, `resources/js/components/milpac/StaffPracticesPanel.vue` (stored in `cross_section_sightings` with source `staff`) |
 | Staff report | `app/Commands/StaffReports/`, `app/Authorization/StaffReportAccess.php`, `app/Milpac/StaffReportWeek.php`, `StaffReportController`, `resources/js/Pages/StaffReport.vue`, `resources/js/components/reports/StaffReportsPanel.vue` (`staff_reports`; the practices picked are `cross_section_sightings` rows with source `staff`) |
-| Counseling | `app/Commands/Counseling/`, `app/Authorization/CounselingAccess.php`, `app/Milpac/CounselingHistory.php`, `app/Milpac/CounselingStanding.php`, `app/Integration/GoogleDrive/`, `app/Jobs/UploadCounselingDocumentJob.php`, `resources/js/components/milpac/CounselingPanel.vue` |
+| Counseling | `app/Commands/Counseling/`, `app/Authorization/CounselingAccess.php`, `app/Milpac/CounselingHistory.php`, `app/Milpac/CounselingStanding.php`, `app/Milpac/CounselingRecordView.php`, `app/Integration/Forum/` (PMs), `resources/js/Pages/Counseling/`, `resources/js/lib/counselingPdf.js`, `resources/js/components/milpac/CounselingPanel.vue` |
 | Units with no troopers | `app/Kpi/Headcount.php` (`withoutEmptyLineUnits` for the roster and Home, `reportingLineUnits` for the report chain) |

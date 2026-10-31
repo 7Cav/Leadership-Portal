@@ -93,45 +93,43 @@ Names only. Every key is documented in `.env.example` and `.env.production.examp
 | Cav roster API | `CAV_API_KEY`, `CAV_API_BASE_URL`, `CAV_API_SWEEP_BUDGET_SECONDS` |
 | Leave (LOA) sync | `SEVENCAV_FORUM_API_KEY`, `SEVENCAV_FORUM_LOA_NODES`, `SEVENCAV_FORUM_PAF_NODE`, `LOA_SYNC_REQUEST_DELAY_MS` |
 | Practice capture | `CRCON_BASE_URL`, `CRCON_API_KEY`, `BATTLEMETRICS_BASE_URL`, `BATTLEMETRICS_API_KEY`, `BATTLEMETRICS_SERVER_ID`, `NIGHTWATCH_BASE_URL`, `NIGHTWATCH_API_KEY`, `NIGHTWATCH_SERVER_IDS` |
-| Counseling documents to Google Drive | `GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_DRIVE_PRIVATE_KEY`, `GOOGLE_DRIVE_FOLDER_ID` (see below) |
-| Weekly staff reports to Google Sheets | `GOOGLE_SHEETS_REPORTS_SPREADSHEET_ID`, `GOOGLE_SHEETS_STAFF_TAB`, `GOOGLE_SHEETS_BATTALION_TAB` (see below), plus the Drive service account's email and key |
+| Weekly staff reports to Google Sheets | `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`, `GOOGLE_SHEETS_REPORTS_SPREADSHEET_ID`, `GOOGLE_SHEETS_STAFF_TAB`, `GOOGLE_SHEETS_BATTALION_TAB` (see below) |
 | Portal rules | `PORTAL_WEEK_FLOOR_WEEKS` (default 20), `JSAM_MIN_VISITS` (3), `JSAM_MIN_OWN_SP_PERCENT` (75), `JSAM_WINDOW_WEEKS` (12) |
 | Demo | `DEMO_TOOLS` (keep false in production) |
 
 Which of these a game uses is set per game on Settings > Games. A game whose interface has no keys set (or is set to
 none) shows "not configured" on the roll call instead of failing.
 
-## Counseling documents and Google Drive
+## Counseling records
 
-DCS and LOR documents are PDFs kept on the private `counseling` disk, `storage/app/counseling` (inside the `storage`
-volume in Docker, outside `public/`). Back that folder up with the database: a record without its file downloads as
-not found. The portal never serves the folder directly; a document leaves only through its record's download route. Without Docker,
-set PHP `upload_max_filesize` and `post_max_size` to at least 11M so a 10 MB PDF can be uploaded (the Docker image allows
-100M).
+DCSs and LORs are written in the portal (#565) and live in the database. The official form (7CAV-R-042, 7CAV-R-043) is
+filled in the viewer's browser when they ask for it, so the server keeps no generated PDFs. What the server does keep
+are **source documents**: the PDFs uploaded before #565 and the ones brought in by the counseling import. They are on
+the private `counseling` disk, `storage/app/counseling` (inside the `storage` volume in Docker, outside `public/`), and
+are never purged. Back that folder up with the database: a record without its source file downloads as not found. The
+portal never serves the folder directly; a document leaves only through its record's download route.
 
-To copy each new document to the 7Cav Google Drive as well:
+The portal sends the wiki's counseling PMs (meeting invite, After-Action, withdrawal, appeal) from the acting leader's
+own forum account. That needs the forum OAuth client to allow the `conversation:write` scope (7cav.us admin, OAuth2
+clients). The portal asks a leader for it the first time they send, keeps the forum's token in their session only
+(encrypted, never the database), and asks again when it expires. Without the scope on the client, sending fails with
+the forum's reason and the record stays as it was.
 
-1. In Google Cloud, create a service account (no roles needed) and a JSON key for it.
-2. Put the folder in a shared drive and add the service account's email to the shared drive (or the folder) as
-   Content manager. A service account has no storage of its own, so a folder in someone's My Drive does not work.
-3. Set `GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL` to the key's `client_email`, `GOOGLE_DRIVE_PRIVATE_KEY` to its
-   `private_key` on one line (line breaks written as `\n`, as in the JSON), and `GOOGLE_DRIVE_FOLDER_ID` to the last
-   part of the folder's URL. Then `docker compose up -d` (or `php artisan config:cache`).
+LOR copies go by PM to the troopers holding the `S1 1IC` and `S1 2IC` billets and to the oversight officer of the
+trooper's battalion (Settings > Org structure). The S1 billet titles are in `config/counseling.php`.
 
-The copy runs on the queue (`UploadCounselingDocumentJob`), up to 5 tries. With any of the three keys unset nothing is
-sent and records show "Portal only". A record that shows "Drive copy failed" after the last try needs its document
-uploaded by hand; the queue worker's log names the record id and why, never the key. The portal only uploads: it
-cannot read, share or delete anything on the Drive, so deleting a record in the portal leaves the Drive copy.
+Google Drive is no longer used. Copies made before #565 stay on the Drive; the portal no longer reads or writes them.
 
 ## Weekly staff reports and Google Sheets
 
 Each sent staff report can be appended as one row to the regiment's reports spreadsheet ("2026 Cav Report Master"),
-the sheet the Weekly Staff Report and Weekly Battalion Report forms fed. It uses the same service account as the
-counseling Drive copy.
+the sheet the Weekly Staff Report and Weekly Battalion Report forms fed. It signs in as a Google service account.
 
-1. Set up the service account as in the Drive section above. `GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL` and
-   `GOOGLE_DRIVE_PRIVATE_KEY` are needed; the Drive folder is not. The Google Sheets API must be enabled in the
-   service account's Google Cloud project.
+1. In Google Cloud, create a service account (no roles needed) and a JSON key for it, and enable the Google Sheets API
+   in its project. Set `GOOGLE_SERVICE_ACCOUNT_EMAIL` to the key's `client_email` and
+   `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` to its `private_key` on one line (line breaks written as `\n`, as in the
+   JSON). Before #565 these were `GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL` and `GOOGLE_DRIVE_PRIVATE_KEY`: rename them
+   when upgrading, and drop `GOOGLE_DRIVE_FOLDER_ID`.
 2. Open the spreadsheet, choose Share, and add the service account's email (the key's `client_email`) as an Editor.
 3. Set `GOOGLE_SHEETS_REPORTS_SPREADSHEET_ID` to the long id in the sheet's URL, between `/d/` and `/edit`. The tab
    names default to `Weekly Staff Report 2O26` and `Weekly Battalion Report 2O26` (with the letter O, as the tabs are

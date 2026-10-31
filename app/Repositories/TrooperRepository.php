@@ -250,6 +250,15 @@ interface TrooperRepository
     public function servingCavIds(array $cavIds): Collection;
 
     /**
+     * The serving troopers whose billet is exactly one of `$billets` (the S1 1IC and 2IC an LOR is copied to, #565), in
+     * trooper id order. One query.
+     *
+     * @param  list<string>  $billets
+     * @return Collection<int, Trooper>
+     */
+    public function servingWithBillets(array $billets): Collection;
+
+    /**
      * The troopers whose username is exactly each of `$usernames`, compared whole and ignoring case, keyed
      * by the lower-cased username. Never a prefix match: `Perry.J` and `Perry.JW` are different people.
      * A username with no trooper is simply absent, and one with more than one (which the Cav does not

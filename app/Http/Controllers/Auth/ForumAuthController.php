@@ -8,11 +8,14 @@ use App\Commands\ActAs\StopActingAs;
 use App\Commands\Auth\Admission;
 use App\Commands\Auth\AdmitServingMember;
 use App\Commands\Auth\BeginForumLogin;
+use App\Commands\Auth\BeginForumPmConsent;
 use App\Commands\Auth\CavEnrichmentException;
 use App\Commands\Auth\CompleteForumLogin;
+use App\Commands\Auth\CompleteForumPmConsent;
 use App\Commands\Auth\EnrichCavProfile;
 use App\Commands\Auth\ForumLoginException;
 use App\Commands\ViewAs\ExitViewAs;
+use App\Http\Controllers\Concerns\ReadsForumPmGrant;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use DateTimeInterface;
@@ -31,8 +34,15 @@ use Throwable;
  */
 class ForumAuthController extends Controller
 {
+    use ReadsForumPmGrant;
+
     /** The session key holding the single-use OAuth CSRF `state` nonce. */
     private const STATE_KEY = 'forum_oauth_state';
+
+    /** The PM consent's own single-use `state` nonce (#565), and where to go back to after it. */
+    private const PM_STATE_KEY = 'forum_pm_state';
+
+    private const PM_RETURN_KEY = 'forum_pm_return';
 
     /** The session key holding this login's Cav roster snapshot (Story 1.6). */
     private const CAV_PROFILE_KEY = 'cav_profile';
@@ -84,8 +94,13 @@ class ForumAuthController extends Controller
      * session starts only for an Admin or a user linked to a serving trooper
      * ({@see AdmitServingMember}); everyone else goes back to the login screen with the reason.
      */
-    public function callback(Request $request, CompleteForumLogin $command, EnrichCavProfile $enrich, AdmitServingMember $admit, ServingSession $serving): RedirectResponse
+    public function callback(Request $request, CompleteForumLogin $command, EnrichCavProfile $enrich, AdmitServingMember $admit, ServingSession $serving, CompleteForumPmConsent $pmConsent): RedirectResponse
     {
+        // The same registered redirect URI completes the PM consent of a signed-in user (#565).
+        if ($request->session()->has(self::PM_STATE_KEY)) {
+            return $this->pmCallback($request, $pmConsent);
+        }
+
         $expectedState = $request->session()->pull(self::STATE_KEY);
         $providedState = $request->query('state');
 
@@ -295,5 +310,62 @@ class ForumAuthController extends Controller
     private function backToLogin(string $message): RedirectResponse
     {
         return redirect()->route('login')->with('error', $message);
+    }
+
+    /**
+     * Ask the forum to let the portal send PMs from the signed-in user's account (#565): mint state, remember where to
+     * come back to (a path on this site only), and send the browser to the forum's authorize screen.
+     */
+    public function pmConsent(Request $request, BeginForumPmConsent $command): RedirectResponse
+    {
+        $result = $command->handle();
+        $return = (string) $request->query('return', '');
+
+        $request->session()->put(self::PM_STATE_KEY, $result->state);
+        $request->session()->put(self::PM_RETURN_KEY, preg_match('#^/(?![/\\\\])#', $return) === 1 ? $return : route('home', absolute: false));
+
+        return redirect()->away($result->authorizeUrl);
+    }
+
+    /**
+     * The PM consent's callback: the same checks as sign-in (state, a code, no error), then the token is checked to be
+     * the signed-in user's and kept, encrypted, in their session only ({@see ReadsForumPmGrant}). Every failure goes
+     * back where the user came from with the reason; nothing is sent from here.
+     */
+    private function pmCallback(Request $request, CompleteForumPmConsent $command): RedirectResponse
+    {
+        $expectedState = $request->session()->pull(self::PM_STATE_KEY);
+        $return = (string) $request->session()->pull(self::PM_RETURN_KEY, route('home', absolute: false));
+        $providedState = $request->query('state');
+        $user = $request->user();
+
+        if ($user === null) {
+            return redirect()->route('login');
+        }
+
+        $back = redirect()->to($return);
+
+        if ($request->filled('error')) {
+            return $back->with('error', 'The forum did not allow the portal to send PMs for you.');
+        }
+
+        if (! is_string($expectedState) || ! is_string($providedState) || ! hash_equals($expectedState, $providedState)
+            || ! is_string($request->query('code')) || $request->query('code') === '') {
+            Log::warning('Forum PM consent callback rejected: state or code missing or mismatched.');
+
+            return $back->with('error', 'The forum permission could not be verified. Try again.');
+        }
+
+        try {
+            $grant = $command->handle($user, (string) $request->query('code'));
+        } catch (ForumLoginException $e) {
+            report($e);
+
+            return $back->with('error', $e->getMessage());
+        }
+
+        $this->storePmGrant($request, $grant);
+
+        return $back->with('status', 'The portal can now send PMs from your forum account.');
     }
 }

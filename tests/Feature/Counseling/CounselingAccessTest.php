@@ -141,16 +141,16 @@ it('hides a Section Leader\'s DCSs from their own ASL, and shows them to the Sec
         ->and($own->seesLor)->toBeTrue()
         ->and($own->filesDcs)->toBeFalse()
         ->and($own->filesLor)->toBeFalse()
-        ->and($own->changes($record))->toBeFalse()
+        ->and($own->withdraws($record))->toBeFalse()
         ->and(counselingFor($this->users['pl'], $sl)->seesDcs)->toBeTrue();
 });
 
-it('lets only the issuer\'s chain of command or an Admin change a record', function () {
+it('lets only the issuer\'s chain of command or an Admin withdraw a record', function () {
     $bySection = CounselingRecord::factory()->create(['trooper_id' => $this->rifleman->id, 'issuer_unit_id' => $this->section1->id]);
     $byPlatoon = CounselingRecord::factory()->lor()->create(['trooper_id' => $this->rifleman->id, 'issuer_unit_id' => $this->platoon->id]);
     $byAdmin = CounselingRecord::factory()->create(['trooper_id' => $this->rifleman->id, 'issuer_unit_id' => null]);
 
-    $changes = fn (string $who, CounselingRecord $record) => counselingFor($this->users[$who], $this->rifleman)->changes($record);
+    $changes = fn (string $who, CounselingRecord $record) => counselingFor($this->users[$who], $this->rifleman)->withdraws($record);
 
     expect($changes('sl1', $bySection))->toBeTrue()
         ->and($changes('asl1', $bySection))->toBeTrue()
@@ -199,15 +199,15 @@ it('gives nobody inside a trooper\'s own command a say over their counseling', f
         expect($permissions->filesDcs)->toBeFalse("{$below} files a DCS")
             ->and($permissions->filesLor)->toBeFalse("{$below} files an LOR")
             ->and($permissions->seesDcs)->toBeFalse("{$below} sees a DCS")
-            ->and($permissions->changes($bySection))->toBeFalse("{$below} changes the DCS")
-            ->and($permissions->changes($byPlatoon))->toBeFalse("{$below} changes the LOR");
+            ->and($permissions->withdraws($bySection))->toBeFalse("{$below} changes the DCS")
+            ->and($permissions->withdraws($byPlatoon))->toBeFalse("{$below} changes the LOR");
     }
 
     $co = counselingFor($this->users['co'], $this->rifleman);
     expect($co->filesLor)->toBeTrue()
         ->and($co->seesDcs)->toBeTrue()
         ->and($co->issuingUnit(CounselingType::Lor))->toBe($this->company->id)
-        ->and($co->changes($bySection))->toBeTrue();
+        ->and($co->withdraws($bySection))->toBeTrue();
 });
 
 it('counts a billet the same way: a Platoon Leader placed in a section is not counseled by its Section Leader', function () {
@@ -230,7 +230,7 @@ it('treats the person really signed in as themselves while they act as someone e
         ->and($permissions->filesDcs)->toBeFalse()
         ->and($permissions->filesLor)->toBeFalse()
         ->and($permissions->seesDcs)->toBeFalse()
-        ->and($permissions->changes($record))->toBeFalse()
+        ->and($permissions->withdraws($record))->toBeFalse()
         // Everyone else is judged as the PL.
         ->and(counselingFor($this->users['pl'], $this->rifleman)->filesLor)->toBeTrue();
 

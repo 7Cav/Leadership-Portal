@@ -34,7 +34,8 @@ const props = defineProps({
     transfers: { type: Array, default: () => [] },
     // `Kpi\AttendanceHistory`: the last 20 Cav weeks, oldest first, each with the section they were in that week.
     attendance: { type: Array, default: () => [] },
-    // `Milpac/CounselingHistory`: the DCSs and LORs this viewer may see, with what they may do (#381).
+    // `Milpac/CounselingHistory`: the DCSs and LORs this viewer may see, drafts included, with what they may do on each,
+    // the types they may start (`canFile`) and what a record may be for (`kinds`) (#381, #565).
     counseling: { type: Object, default: null },
     // The section practices a staff member attended (#448), with what this viewer may do; null for someone not on a staff.
     staffPractices: { type: Object, default: null },

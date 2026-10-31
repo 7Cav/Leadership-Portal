@@ -22,9 +22,14 @@ class GoogleSheetsUnavailable extends RuntimeException
         return new self('The reports Google Sheet could not be reached ('.class_basename($previous).').', 0, $previous);
     }
 
-    public static function httpError(int $status): self
+    public static function httpError(int $status, string $step = 'row append'): self
     {
-        return new self("Google Sheets answered HTTP {$status} to the row append.");
+        return new self("Google Sheets answered HTTP {$status} to the {$step}.");
+    }
+
+    public static function malformed(string $why): self
+    {
+        return new self("Google answered in a shape the portal cannot read: {$why}.");
     }
 
     public static function refused(string $why): self

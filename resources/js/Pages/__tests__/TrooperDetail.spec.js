@@ -164,7 +164,7 @@ describe('TrooperDetail', () => {
 
     describe('page structure', () => {
         it('splits the panels into a profile column and a record column', () => {
-            const counseling = { records: [], counts: { dcs: 0, lor: 0 }, warnings: [], windowDays: 90, sees: { dcs: true, lor: true }, canFile: { dcs: false, lor: false } };
+            const counseling = { records: [], warnings: [], forecast: {}, departed: false, sees: { dcs: true, lor: true }, canFile: { dcs: false, lor: false }, kinds: [] };
             const wrapper = page({ counseling, attendance: [{ week: '2026-10-26', section: null, rollcall: null, status: null, source: null, held: false, loa: false }] });
             const profile = wrapper.get('[data-testid="column-profile"]');
             const record = wrapper.get('[data-testid="column-record"]');
@@ -498,7 +498,7 @@ describe('TrooperDetail', () => {
 
     describe('counseling (#381)', () => {
         it('shows the counseling panel when the server sent one, and none otherwise', () => {
-            const counseling = { records: [], counts: { dcs: 0, lor: 0 }, warnings: [], windowDays: 90, sees: { dcs: true, lor: true }, canFile: { dcs: false, lor: false } };
+            const counseling = { records: [], warnings: [], forecast: {}, departed: false, sees: { dcs: true, lor: true }, canFile: { dcs: false, lor: false }, kinds: [] };
 
             expect(page({ counseling }).find('[data-testid="counseling-panel"]').exists()).toBe(true);
             expect(page().find('[data-testid="counseling-panel"]').exists()).toBe(false);

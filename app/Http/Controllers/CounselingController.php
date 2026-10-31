@@ -5,75 +5,74 @@ namespace App\Http\Controllers;
 use App\Authorization\CounselingAccess;
 use App\Authorization\CounselingPermissions;
 use App\Authorization\ScopeResolver;
-use App\Commands\Counseling\AppealCounselingRecord;
-use App\Commands\Counseling\AppealCounselingRecordHandler;
-use App\Commands\Counseling\CorrectCounselingRecord;
-use App\Commands\Counseling\CorrectCounselingRecordHandler;
+use App\Commands\Counseling\CounselingDocument;
 use App\Commands\Counseling\CounselingForbiddenException;
 use App\Commands\Counseling\CounselingForm;
 use App\Commands\Counseling\CounselingFormParties;
-use App\Commands\Counseling\CounselingFormPdf;
+use App\Commands\Counseling\CounselingMessenger;
+use App\Commands\Counseling\CounselingNotReadyException;
+use App\Commands\Counseling\CounselingPmException;
 use App\Commands\Counseling\CounselingRecordNotFoundException;
+use App\Commands\Counseling\CounselingResponse;
 use App\Commands\Counseling\CounselingRules;
-use App\Commands\Counseling\DeleteCounselingRecord;
-use App\Commands\Counseling\DeleteCounselingRecordHandler;
-use App\Commands\Counseling\FileCounselingRecord;
-use App\Commands\Counseling\FileCounselingRecordHandler;
+use App\Commands\Counseling\DecideCounselingAppeal;
+use App\Commands\Counseling\DecideCounselingAppealHandler;
+use App\Commands\Counseling\DeleteCounselingDraft;
+use App\Commands\Counseling\DeleteCounselingDraftHandler;
 use App\Commands\Counseling\InvalidCounselingRecordException;
 use App\Commands\Counseling\OverturnCounselingRecord;
 use App\Commands\Counseling\OverturnCounselingRecordHandler;
-use App\Commands\Counseling\UploadCounselingDocument;
-use App\Jobs\UploadCounselingDocumentJob;
+use App\Commands\Counseling\RespondToCounselingRecord;
+use App\Commands\Counseling\RespondToCounselingRecordHandler;
+use App\Commands\Counseling\SaveCounselingDraft;
+use App\Commands\Counseling\SaveCounselingDraftHandler;
+use App\Commands\Counseling\SendCounselingInvite;
+use App\Commands\Counseling\SendCounselingInviteHandler;
+use App\Commands\Counseling\ServeCounselingDocument;
+use App\Commands\Counseling\ServeCounselingDocumentHandler;
+use App\Commands\Counseling\ShareCounselingRecord;
+use App\Commands\Counseling\ShareCounselingRecordHandler;
+use App\Commands\Counseling\StartCounselingRecord;
+use App\Commands\Counseling\StartCounselingRecordHandler;
+use App\Commands\Counseling\WithdrawCounselingRecord;
+use App\Commands\Counseling\WithdrawCounselingRecordHandler;
+use App\Http\Controllers\Concerns\ReadsForumPmGrant;
+use App\Milpac\CounselingRecordView;
+use App\Models\AppealOutcome;
 use App\Models\CounselingKind;
+use App\Models\CounselingRecord;
 use App\Models\CounselingType;
-use App\Models\DriveUploadStatus;
 use App\Models\Trooper;
 use App\Repositories\CounselingDocuments;
 use App\Repositories\CounselingRecordRepository;
 use App\Repositories\TrooperRepository;
 use Carbon\CarbonImmutable;
 use Closure;
-use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
+use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Developmental Counseling Statements and Letters of Reprimand on a trooper (#381): file one with its signed PDF,
- * correct its date or reason, delete it, overturn a frozen LOR (S6, 2026-10-29), and download its document. The trooper page lists them
- * (`TrooperDetailController`, `Milpac\CounselingHistory`).
+ * Developmental Counseling Statements and Letters of Reprimand written in the portal (#381, #565): start a draft on a
+ * trooper, open a record, save the draft from any step, delete it, send the meeting invite, share it, withdraw it, the
+ * trooper's response, the appeal decision, the RXO's overturn, and the document. The trooper page lists the records
+ * (`TrooperDetailController`, `Milpac\CounselingHistory`); the appeals queue is `CounselingAppealsController`.
  *
  * Orchestration only. Every write is an audited Command whose handler decides, through `CounselingAccess` (AD-8), who
- * may file which type and who may change a record; a refusal there is a 403. A trooper or record the viewer cannot see
- * answers 404, exactly like one that does not exist, on every route here, the download included. The form's own checks
- * (a known type, a date, a reason, a PDF of at most 10 MB by its content) run first; the handler checks them again.
- *
- * A trooper who has left the Cav has read-only counseling: filing, correcting and deleting are refused here (403)
- * before the form is read, and again in each handler; the download still works for whoever sees the record. So are
- * correcting and deleting a DCS or LOR filed 72 hours ago or more, Admins included: only an LOR may then be overturned,
- * by the Regimental Executive Officer, which keeps it on file. Within those 72 hours the trooper may file one appeal on
- * an LOR, or one comment or dispute on a DCS, signed in as themselves.
- *
- * Instead of uploading, the leader may fill in the regiment's form in the portal (`source=form`): the portal renders
- * the PDF ({@see CounselingFormPdf}) and files it through the same handler, so it takes the upload's path from there.
- * `preview` shows that document before filing.
- *
- * Once a record is saved with Google Drive configured, its upload is queued (AD-23). Queuing never undoes the filing:
- * a queue that cannot take the job is reported, and the record shows its upload as pending.
+ * may take the step; a refusal there is a 403. A trooper or record the viewer cannot see answers 404, exactly like one
+ * that does not exist, on every route here, the document included. A step that sends a PM hands the handler the user's
+ * PM grant from the session ({@see ReadsForumPmGrant}); a step refused for want of one comes back as a `pm_consent`
+ * error, which the page turns into "Allow PMs", and a PM the forum did not take comes back as a `pm` error, the record
+ * unchanged.
  */
 class CounselingController extends Controller
 {
-    /** How the document comes: an uploaded signed PDF, or made by the portal from its form. */
-    public const SOURCE_UPLOAD = 'upload';
-
-    public const SOURCE_FORM = 'form';
-
-    /** What the download of a seeded demo document answers. */
-    public const DEMO_DOCUMENT = 'This file is a demo file and will not be downloaded. You can generate a real one with the form.';
+    use ReadsForumPmGrant;
 
     public function __construct(
         private readonly ScopeResolver $scope,
@@ -81,76 +80,82 @@ class CounselingController extends Controller
         private readonly CounselingRecordRepository $records,
     ) {}
 
-    public function store(Request $request, int $trooper, FileCounselingRecordHandler $handler, Dispatcher $bus): RedirectResponse
+    /** Start a draft and open it. */
+    public function store(Request $request, int $trooper, StartCounselingRecordHandler $handler): RedirectResponse
     {
         $found = $this->troopers->find($trooper);
         abort_unless($found !== null && $this->scope->canSee($request->user(), $found), 404);
         $this->refuseDeparted($found);
 
-        $generated = $request->input('source') === self::SOURCE_FORM;
-        $type = CounselingType::tryFrom((string) $request->input('type'));
-
         $data = $request->validate([
-            'source' => ['nullable', Rule::in([self::SOURCE_UPLOAD, self::SOURCE_FORM])],
             'type' => ['required', Rule::enum(CounselingType::class)],
             'kind' => ['required', Rule::enum(CounselingKind::class)],
-            'counseled_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:today', 'after_or_equal:'.CounselingRules::EARLIEST],
-            'reason' => ['required', 'string', 'max:'.CounselingRules::REASON_MAX],
-            // `mimetypes` sniffs the file's content (finfo), not its name or the type the browser sent.
-            ...($generated
-                ? CounselingForm::rules($type)
-                : ['document' => ['required', 'file', 'max:'.(CounselingRules::DOCUMENT_MAX_BYTES / 1024), 'extensions:pdf', 'mimetypes:application/pdf']]),
         ], [
             'kind.required' => 'Choose what the record is for.',
             'kind.enum' => 'Choose what the record is for.',
-            'document.required' => 'Attach the signed document as a PDF.',
-            'document.extensions' => 'Attach the signed document as a PDF.',
-            'document.mimetypes' => 'Attach the signed document as a PDF.',
-            'document.max' => 'The document must be 10 MB or smaller.',
-            'counseled_on.before_or_equal' => 'The date cannot be in the future.',
-            'reason.required' => 'Give the reason for the record.',
-            'reason.max' => 'Keep the reason to :max characters.',
-            'counseled_on.after_or_equal' => 'The date is too far back.',
-            ...CounselingForm::messages(),
         ]);
 
-        $record = $this->handle(fn () => $handler->handle($request->user(), new FileCounselingRecord(
+        $record = $this->handle($request, fn () => $handler->handle($request->user(), new StartCounselingRecord(
             trooperId: $found->id,
             type: CounselingType::from($data['type']),
             kind: CounselingKind::from($data['kind']),
-            counseledOn: CarbonImmutable::createFromFormat('Y-m-d', $data['counseled_on'], 'UTC'),
-            reason: $data['reason'],
-            documentPath: $generated ? '' : $request->file('document')->getRealPath(),
-            documentName: $generated ? '' : (string) $request->file('document')->getClientOriginalName(),
-            form: $generated ? CounselingForm::fromInput($data['form'], CounselingType::from($data['type'])) : null,
         )));
 
-        if ($record->drive_status === DriveUploadStatus::Pending) {
-            // Sent here, inside `rescue`: `Job::dispatch()` returns a PendingDispatch that only sends when it is destroyed,
-            // after `rescue` has returned, so a queue that throws would have failed the request after all.
-            rescue(fn () => $bus->dispatch(new UploadCounselingDocumentJob(new UploadCounselingDocument($record->id))));
-        }
-
-        return redirect()->route('troopers.show', $found->id);
+        return redirect()->route('counseling.show', $record->id);
     }
 
     /**
-     * The document the portal would generate from the form, as the HTML page the PDF is rendered from, for the preview
-     * before filing. Asked of the same checks as filing: a trooper the viewer cannot see is a 404, a departed one or a
-     * type the viewer may not file is a 403, and a view-as preview is refused like every write. Nothing is stored.
+     * One record, for whoever sees it: the leader's case file while it is a draft, the record and the trooper's response
+     * once shared, the appeal and its decision. What the viewer may do on it is decided here once, through
+     * `CounselingAccess`; nothing is offered during a view-as preview, since every write is refused then (AD-9).
      */
-    public function preview(Request $request, int $trooper, CounselingAccess $access, CounselingFormParties $parties, CounselingFormPdf $pdf): JsonResponse
+    public function show(Request $request, int $counseling, CounselingAccess $access, CounselingFormParties $parties, CounselingMessenger $messenger): Response
     {
-        $found = $this->troopers->find($trooper);
-        abort_unless($found !== null && $this->scope->canSee($request->user(), $found), 404);
-        $this->refuseDeparted($found);
-        abort_if($this->scope->activeViewAs($request->user()) !== null, 403);
+        $record = $this->records->find($counseling);
+        abort_unless($record !== null, 404);
+        $permissions = $access->for($request->user(), $record->trooper);
+        abort_unless($permissions->seesRecord($record), 404);
 
-        $type = CounselingType::tryFrom((string) $request->input('type'));
+        $writable = $this->scope->activeViewAs($request->user()) === null;
+        $section1 = $parties->forRecord($record);
+        // Who would hear an appeal, named on the trooper's choice.
+        $authority = $messenger->commanderOf($record->appeal_unit_id === null ? null : (int) $record->appeal_unit_id);
+
+        return Inertia::render('Counseling/Record', [
+            'record' => CounselingRecordView::of($record),
+            'trooper' => CounselingRecordView::trooper($record->trooper),
+            'section1' => $section1,
+            // The form's fields for the preview; a record kept with its source PDF shows that file instead.
+            'document' => $record->hasSourceDocument() ? null : CounselingDocument::for($record, $section1),
+            'missing' => $record->isDraft() ? SaveCounselingDraftHandler::missing($record) : [],
+            'appealAuthority' => $authority === null ? null : trim(($authority->rank_short ?? '').' '.$authority->username),
+            'can' => $this->can($permissions, $record, $writable),
+            'pm' => [
+                'allowed' => $this->pmGrant($request) !== null,
+                'consentUrl' => route('auth.forum-pm', ['return' => route('counseling.show', $record->id, absolute: false)]),
+            ],
+            'limits' => [
+                'long' => CounselingForm::LONG_MAX,
+                'plan' => CounselingForm::PLAN_MAX,
+                'short' => CounselingForm::SHORT_MAX,
+                'comment' => CounselingForm::COMMENT_MAX,
+                'reason' => CounselingRules::REASON_MAX,
+                'window' => SendCounselingInviteHandler::WINDOW_MAX,
+            ],
+            'kinds' => collect(CounselingKind::cases())->map(fn (CounselingKind $kind) => ['value' => $kind->value, 'label' => $kind->label()])->all(),
+            'status' => $request->session()->get('status'),
+        ]);
+    }
+
+    /** Save the draft as it stands, from any step. */
+    public function update(Request $request, int $counseling, SaveCounselingDraftHandler $handler): RedirectResponse
+    {
         $data = $request->validate([
             'type' => ['required', Rule::enum(CounselingType::class)],
-            'counseled_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:today', 'after_or_equal:'.CounselingRules::EARLIEST],
-            ...CounselingForm::rules($type),
+            'kind' => ['required', Rule::enum(CounselingKind::class)],
+            'counseled_on' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today', 'after_or_equal:'.CounselingRules::EARLIEST],
+            'meeting_confirmed' => ['boolean'],
+            ...CounselingForm::rules(),
         ], [
             'counseled_on.before_or_equal' => 'The date cannot be in the future.',
             'counseled_on.after_or_equal' => 'The date is too far back.',
@@ -158,57 +163,100 @@ class CounselingController extends Controller
         ]);
 
         $type = CounselingType::from($data['type']);
-        if (! $access->for($request->user(), $found)->files($type)) {
-            throw CounselingForbiddenException::file($type);
-        }
 
-        $form = CounselingForm::fromInput($data['form'], $type);
-        $this->handle(fn () => $form->check($type));
-
-        return response()->json([
-            'html' => $pdf->html($type, CarbonImmutable::createFromFormat('Y-m-d', $data['counseled_on'], 'UTC'), $parties->for($found, $request->user()), $form),
-        ]);
-    }
-
-    public function update(Request $request, int $counseling, CorrectCounselingRecordHandler $handler, CounselingAccess $access): RedirectResponse
-    {
-        $this->refuseReadOnlyRecord($request, $counseling, $access);
-
-        $data = $request->validate([
-            'counseled_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:today', 'after_or_equal:'.CounselingRules::EARLIEST],
-            'reason' => ['required', 'string', 'max:'.CounselingRules::REASON_MAX],
-            'audit_reason' => ['required', 'string', 'max:500'],
-        ], [
-            'counseled_on.before_or_equal' => 'The date cannot be in the future.',
-            'counseled_on.after_or_equal' => 'The date is too far back.',
-            'reason.required' => 'Give the reason for the record.',
-            'reason.max' => 'Keep the reason to :max characters.',
-            'audit_reason.required' => 'Say why the record is corrected.',
-            'audit_reason.max' => 'Keep the reason for the correction to :max characters.',
-        ]);
-
-        $record = $this->handle(fn () => $handler->handle($request->user(), new CorrectCounselingRecord(
+        $this->handle($request, fn () => $handler->handle($request->user(), new SaveCounselingDraft(
             recordId: $counseling,
-            counseledOn: CarbonImmutable::createFromFormat('Y-m-d', $data['counseled_on'], 'UTC'),
-            reason: $data['reason'],
-            auditReason: $data['audit_reason'],
+            type: $type,
+            kind: CounselingKind::from($data['kind']),
+            counseledOn: filled($data['counseled_on'] ?? null) ? CarbonImmutable::createFromFormat('Y-m-d', $data['counseled_on'], 'UTC') : null,
+            form: CounselingForm::fromInput($data['form'] ?? [], $type),
+            meetingConfirmed: (bool) ($data['meeting_confirmed'] ?? false),
         )));
 
+        return back()->with('status', 'Draft saved.');
+    }
+
+    /** Delete a draft. */
+    public function destroy(Request $request, int $counseling, DeleteCounselingDraftHandler $handler): RedirectResponse
+    {
+        $record = $this->handle($request, fn () => $handler->handle($request->user(), new DeleteCounselingDraft($counseling)));
+
         return redirect()->route('troopers.show', $record->trooper_id);
     }
 
-    public function destroy(Request $request, int $counseling, DeleteCounselingRecordHandler $handler, CounselingAccess $access): RedirectResponse
+    public function invite(Request $request, int $counseling, SendCounselingInviteHandler $handler): RedirectResponse
     {
-        $this->refuseReadOnlyRecord($request, $counseling, $access);
-
-        $data = $request->validate(['audit_reason' => ['required', 'string', 'max:500']], [
-            'audit_reason.required' => 'Say why the record is deleted.',
-            'audit_reason.max' => 'Keep the reason for deleting to :max characters.',
+        $data = $request->validate([
+            'windows' => ['required', 'array', 'size:3'],
+            'windows.*' => ['required', 'string', 'max:'.SendCounselingInviteHandler::WINDOW_MAX],
+        ], [
+            'windows.*' => 'Give three times you can meet, in Zulu.',
+            'windows.*.required' => 'Give three times you can meet, in Zulu.',
+            'windows.*.max' => 'Keep each time to :max characters.',
         ]);
 
-        $record = $this->handle(fn () => $handler->handle($request->user(), new DeleteCounselingRecord($counseling, $data['audit_reason'])));
+        $this->handle($request, fn () => $handler->handle($request->user(), new SendCounselingInvite($counseling, array_values($data['windows']), $this->pmGrant($request))));
 
-        return redirect()->route('troopers.show', $record->trooper_id);
+        return back()->with('status', 'Meeting invite sent.');
+    }
+
+    public function share(Request $request, int $counseling, ShareCounselingRecordHandler $handler): RedirectResponse
+    {
+        $this->handle($request, fn () => $handler->handle($request->user(), new ShareCounselingRecord($counseling, $this->pmGrant($request))));
+
+        return back()->with('status', 'Shared with the trooper.');
+    }
+
+    public function withdraw(Request $request, int $counseling, WithdrawCounselingRecordHandler $handler): RedirectResponse
+    {
+        $data = $request->validate(['reason' => ['required', 'string', 'max:'.CounselingRules::REASON_MAX]], [
+            'reason.required' => 'Say why the record is withdrawn.',
+            'reason.max' => 'Keep the reason to :max characters.',
+        ]);
+
+        $this->handle($request, fn () => $handler->handle($request->user(), new WithdrawCounselingRecord($counseling, $data['reason'], $this->pmGrant($request))));
+
+        return back()->with('status', 'Withdrawn back to draft.');
+    }
+
+    public function respond(Request $request, int $counseling, RespondToCounselingRecordHandler $handler): RedirectResponse
+    {
+        $type = $this->records->find($counseling)?->type;
+        $data = $request->validate(CounselingResponse::rules($type), CounselingResponse::messages());
+
+        $this->handle($request, fn () => $handler->handle($request->user(), new RespondToCounselingRecord(
+            $counseling,
+            CounselingResponse::fromInput($data, $type ?? CounselingType::Dcs),
+            $this->pmGrant($request),
+        )));
+
+        return back()->with('status', 'Response submitted.');
+    }
+
+    public function decide(Request $request, int $counseling, DecideCounselingAppealHandler $handler): RedirectResponse
+    {
+        $data = $request->validate([
+            'outcome' => ['required', Rule::enum(AppealOutcome::class)],
+            'reason' => ['required', 'string', 'max:'.DecideCounselingAppealHandler::REASON_MAX],
+            ...CounselingForm::rules(),
+        ], [
+            'outcome.required' => 'Choose your decision.',
+            'reason.required' => 'Give the reason for your decision.',
+            'reason.max' => 'Keep the reason to :max characters.',
+            ...CounselingForm::messages(),
+        ]);
+
+        $outcome = AppealOutcome::from($data['outcome']);
+
+        $this->handle($request, fn () => $handler->handle($request->user(), new DecideCounselingAppeal(
+            recordId: $counseling,
+            outcome: $outcome,
+            reason: $data['reason'],
+            amended: $outcome === AppealOutcome::Amended ? CounselingForm::fromInput($data['form'] ?? [], CounselingType::Lor) : null,
+            pm: $this->pmGrant($request),
+        )));
+
+        return back()->with('status', 'Decision recorded.');
     }
 
     /**
@@ -221,44 +269,53 @@ class CounselingController extends Controller
             'reason.max' => 'Keep the reason for overturning to :max characters.',
         ]);
 
-        $record = $this->handle(fn () => $handler->handle($request->user(), new OverturnCounselingRecord($counseling, $data['reason'])));
+        $this->handle($request, fn () => $handler->handle($request->user(), new OverturnCounselingRecord($counseling, $data['reason'])));
 
-        return redirect()->route('troopers.show', $record->trooper_id);
+        return back();
     }
 
     /**
-     * The trooper's appeal (LOR) or comment or dispute (DCS), with the statement shown on the record. Who may, and
-     * when, is the handler's to decide.
+     * The record's document, only for someone who sees the record, audited every time. A record kept with its source
+     * PDF downloads that file, always as an attachment. Every other record answers the official form's fields as JSON,
+     * which the page fills into the regiment's template in the browser and saves; nothing is generated or kept here.
      */
-    public function appeal(Request $request, int $counseling, AppealCounselingRecordHandler $handler): RedirectResponse
+    public function document(Request $request, int $counseling, ServeCounselingDocumentHandler $handler, CounselingDocuments $documents): StreamedResponse|JsonResponse
     {
-        $data = $request->validate(['statement' => ['required', 'string', 'max:'.AppealCounselingRecordHandler::STATEMENT_MAX]], [
-            'statement.required' => 'Write your statement.',
-            'statement.max' => 'Keep your statement to :max characters.',
-        ]);
+        $served = $this->handle($request, fn () => $handler->handle($request->user(), new ServeCounselingDocument($counseling)));
 
-        $record = $this->handle(fn () => $handler->handle($request->user(), new AppealCounselingRecord($counseling, $data['statement'])));
-
-        return redirect()->route('troopers.show', $record->trooper_id);
-    }
-
-    /**
-     * The record's document, only for someone who may see the record: anyone else gets the same 404 as for a record
-     * that does not exist. Served as an attachment named after the record, never after the uploaded file. A seeded demo
-     * record has no file: it answers 404 with a short note (the page says so before asking).
-     */
-    public function document(Request $request, int $counseling, CounselingAccess $access, CounselingDocuments $documents): StreamedResponse|Response
-    {
-        $record = $this->records->find($counseling);
-        abort_unless($record !== null && $access->for($request->user(), $record->trooper)->seesRecord($record), 404);
-
-        if (CounselingDocuments::isDemo($record->document_path)) {
-            return response(self::DEMO_DOCUMENT, 404, ['Content-Type' => 'text/plain; charset=UTF-8']);
+        if ($served->isSourceDocument()) {
+            return $documents->download((string) $served->path, $served->record->fileName($served->record->trooper));
         }
 
-        abort_unless($documents->exists($record->document_path), 404);
+        return response()->json($served->form, 200, [
+            'Cache-Control' => 'no-store, private',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
 
-        return $documents->download($record->document_path, $record->fileName($record->trooper));
+    /**
+     * What the viewer may do on this record, for the page. Nothing during a view-as preview.
+     *
+     * @return array<string, bool>
+     */
+    private function can(CounselingPermissions $permissions, CounselingRecord $record, bool $writable): array
+    {
+        $draft = $writable && $permissions->editsDraft($record);
+
+        return [
+            'edit' => $draft,
+            'delete' => $draft,
+            'invite' => $draft && $record->invited_at === null,
+            'share' => $draft,
+            'withdraw' => $writable && $permissions->withdraws($record),
+            'respond' => $writable && $permissions->responds($record),
+            'decide' => $writable && $permissions->decidesAppeal($record),
+            'overturn' => $writable && $permissions->overturns($record),
+            // Fill in the fields of a record kept with its source PDF (`counseling.review`).
+            'review' => $writable && $permissions->reviews($record),
+            // Changing the type to an LOR needs the right to file one.
+            'fileLor' => $writable && $permissions->filesLor,
+        ];
     }
 
     /**
@@ -275,38 +332,17 @@ class CounselingController extends Controller
     }
 
     /**
-     * The same for a correction or a delete, once the record is known to be one the viewer sees, and for a record past
-     * its appeal window or an overturned LOR: a record they do not see, or that does not exist, answers 404 as before, so the
-     * refusal gives nothing away.
-     *
-     * @throws CounselingForbiddenException
-     */
-    private function refuseReadOnlyRecord(Request $request, int $counseling, CounselingAccess $access): void
-    {
-        $record = $this->records->find($counseling);
-        abort_unless($record !== null && $access->for($request->user(), $record->trooper)->seesRecord($record), 404);
-
-        $this->refuseDeparted($record->trooper);
-
-        if ($record->isOverturned()) {
-            throw CounselingForbiddenException::overturned();
-        }
-
-        if (CounselingPermissions::frozen($record)) {
-            throw CounselingForbiddenException::frozen($record->type);
-        }
-    }
-
-    /**
-     * Run a counseling Command, turning its refusals into answers: not found is a 404, a bad field a validation error
-     * on that field. A 403 (`CounselingForbiddenException`) propagates as one.
+     * Run a counseling Command, turning its refusals into answers: not found is a 404, a bad field a validation error on
+     * that field, a draft not ready to share a validation error per missing field, and a PM that could not go a `pm` or
+     * `pm_consent` error (forgetting a grant the forum no longer takes). A 403 (`CounselingForbiddenException`)
+     * propagates as one.
      *
      * @template T
      *
      * @param  Closure(): T  $command
      * @return T
      */
-    private function handle(Closure $command): mixed
+    private function handle(Request $request, Closure $command): mixed
     {
         try {
             return $command();
@@ -314,6 +350,14 @@ class CounselingController extends Controller
             abort(404);
         } catch (InvalidCounselingRecordException $e) {
             throw ValidationException::withMessages([$e->field => $e->getMessage()]);
+        } catch (CounselingNotReadyException $e) {
+            throw ValidationException::withMessages($e->missing);
+        } catch (CounselingPmException $e) {
+            if ($e->needsConsent) {
+                $this->forgetPmGrant($request);
+            }
+
+            throw ValidationException::withMessages([$e->needsConsent ? 'pm_consent' : 'pm' => $e->getMessage()]);
         }
     }
 }

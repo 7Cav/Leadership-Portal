@@ -154,6 +154,25 @@ describe('Home page', () => {
         });
     });
 
+    describe('counseling waiting for the viewer (#565)', () => {
+        it('shows one card per record, with the countdown to answer and a link to it', () => {
+            const counseling = [
+                { id: 42, type: 'lor', typeLabel: 'Letter of Reprimand', issuer: 'Varga.T', respondBy: '2026-10-09T14:00:00Z', href: '/counseling/42' },
+                { id: 43, type: 'dcs', typeLabel: 'Developmental Counseling Statement', issuer: 'Pereira.M', respondBy: '2026-10-08T16:00:00Z', href: '/counseling/43' },
+            ];
+            const cards = mount(Home, { props: { week: WEEK, counseling } }).findAll('[data-testid="home-counseling"]');
+
+            expect(cards).toHaveLength(2);
+            expect(cards[0].text()).toContain('Letter of Reprimand from Varga.T · answer by 9 Oct 1400Z (21 h 39 min left)');
+            expect(cards[0].find('[data-testid="home-counseling-link"]').attributes('href')).toBe('/counseling/42');
+            expect(cards[1].find('[data-testid="home-counseling-left"]').text()).toBe('(time is up)');
+        });
+
+        it('shows none when nothing waits', () => {
+            expect(factory().find('[data-testid="home-counseling"]').exists()).toBe(false);
+        });
+    });
+
     describe('degraded roster enrichment', () => {
         it('shows no warning when enrichment succeeded or never ran degraded (AC #2)', () => {
             expect(factory(null).find('[role="alert"]').exists()).toBe(false);

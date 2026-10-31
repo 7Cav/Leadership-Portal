@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Authorization\CounselingAccess;
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffReportAccess;
 use App\Kpi\AutoExcused;
@@ -16,11 +17,14 @@ use App\Kpi\UnitKpis;
 use App\Loa\LoaCover;
 use App\Loa\LoaCoverage;
 use App\Loa\LoaProvenance;
+use App\Milpac\CounselingRecordView;
 use App\Milpac\RosterProvenance;
+use App\Models\CounselingRecord;
 use App\Models\Unit;
 use App\Models\WeeklyReport;
 use App\Models\WeeklyReportStatus;
 use App\Repositories\AttendanceRepository;
+use App\Repositories\CounselingRecordRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\StaffReportRepository;
 use App\Repositories\TrooperRepository;
@@ -71,6 +75,8 @@ class HomeController extends Controller
         private readonly StaffReportAccess $staffReports,
         private readonly StaffReportRepository $sentStaffReports,
         private readonly AutoExcused $autoExcused,
+        private readonly CounselingAccess $counselingAccess,
+        private readonly CounselingRecordRepository $counselingRecords,
     ) {}
 
     public function show(Request $request): Response
@@ -102,6 +108,7 @@ class HomeController extends Controller
             'attention' => $roots->isEmpty() ? null : $this->attentionProps($attendance, $chains, $scope, $weekStart),
             'steps' => $this->stepProps($scope, $weekStart, $reports, $sent),
             'staffReport' => $this->staffReportProps($request),
+            'counseling' => $this->counselingProps($request),
             'units' => $chains->flatMap(function (ChainNode $chain, int $i) use ($attendance, $paths, $weekStart) {
                 $rows = $attendance[$i];
 
@@ -140,6 +147,41 @@ class HomeController extends Controller
             'due' => WeekOf::reportDue($weekStart)->toIso8601String(),
             'href' => route('staff-report.show', ['trooper' => $trooper->id, 'week' => $weekStart->toDateString()]),
         ];
+    }
+
+    /**
+     * The DCSs and LORs shared with the viewer that wait for their response (#565), soonest due first, each with its
+     * deadline for Home's countdown. Only the trooper themselves, signed in as themselves, may respond
+     * ({@see CounselingAccess}), so nobody else ever sees one here.
+     *
+     * @return list<array{id: int, type: string, typeLabel: string, issuer: string, respondBy: ?string, href: string}>
+     */
+    private function counselingProps(Request $request): array
+    {
+        $user = $request->user();
+        $trooper = $user->cav_id === null ? null : $this->troopers->byCavId([(int) $user->cav_id])->first();
+        if ($trooper === null) {
+            return [];
+        }
+
+        $permissions = $this->counselingAccess->for($user, $trooper);
+        if (! $permissions->appealsOwn) {
+            return [];
+        }
+
+        return $this->counselingRecords->forTrooper($trooper->id)
+            ->filter(fn (CounselingRecord $record) => $permissions->responds($record))
+            ->sortBy(fn (CounselingRecord $record) => $record->respondBy())
+            ->map(fn (CounselingRecord $record) => [
+                'id' => $record->id,
+                'type' => $record->type->value,
+                'typeLabel' => $record->type->label(),
+                'issuer' => CounselingRecordView::actor($record->issuedBy, $record->issuedByAdmin, $record->issuedAsUnit),
+                'respondBy' => $record->respondBy()?->utc()->format('Y-m-d\TH:i:s\Z'),
+                'href' => route('counseling.show', $record->id),
+            ])
+            ->values()
+            ->all();
     }
 
     /**

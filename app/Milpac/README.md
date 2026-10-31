@@ -78,12 +78,14 @@ whatever link led there, and view-as narrows it (AD-9). The milpac's quick actio
 platoon; that link is convenience, this gate is the boundary. Reads are constant in the number of troopers and
 courses.
 
-## Counseling (#381)
+## Counseling (#381, #565)
 
-`CounselingHistory::for($trooper, $seesDcs, $seesLor, $changes, $files)` returns the milpac's `counseling` prop: the
-DCSs and LORs the viewer may see, newest first (`{id, type, typeLabel, kind, kindLabel, kindAssumed, date, reason,
-issuer, document: {name, size}, driveStatus, flags, canChange}`), the `warnings` banner (no favorable action, for 30
-days after the latest LOR) and, for each type in `$files` and each kind, the `forecast` the filing form reads.
+`CounselingHistory::for($trooper, $readsAny, $sees, $counts, $can, $files)` returns the milpac's `counseling` prop: the
+DCSs and LORs the viewer may see, drafts first, then newest first (each `CounselingRecordView::of()`, plus
+`kindAssumed`, `document` for a source PDF, `flags` and `can`), the `warnings` banner (no favorable action, for 30 days
+after the latest LOR) and, for each type in `$files` and each kind, the `forecast` the start form reads.
+`CounselingRecordView` is one record as the pages show it: where it stands in the wiki procedure (`state`) and every
+deadline that runs on it, worked out from the record on the read, never stored.
 
 `CounselingStanding` holds the rules (2026-10-28, after the 7Cav wiki), pure and unit-tested: each record is weighed
 against the records dated before it, on the ladder it is for (`CounselingKind`: a missed section practice or rollcall,

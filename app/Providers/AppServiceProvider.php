@@ -8,7 +8,7 @@ use App\Integration\BattleMetrics\BattleMetricsApi;
 use App\Integration\Cav\CavApi;
 use App\Integration\Crcon\CrconApi;
 use App\Integration\Forum\ForumApi;
-use App\Integration\GoogleDrive\GoogleDriveApi;
+use App\Integration\GoogleSheets\GoogleServiceAccount;
 use App\Integration\GoogleSheets\GoogleSheetsApi;
 use App\Integration\GoogleSheets\SheetsClient;
 use App\Integration\Nightwatch\NightwatchApi;
@@ -71,13 +71,12 @@ class AppServiceProvider extends ServiceProvider
         // The Nightwatch WARDOGS presence seam (AD-3, Story 7.10). Key and server ids come from config (env only, AD-23).
         $this->app->singleton(NightwatchApi::class, fn () => new NightwatchApi(config('services.nightwatch')));
 
-        // The Google Drive seam for counseling documents (AD-3, #381). The service account's email, key and the folder
-        // id come from config (env only, AD-23).
-        $this->app->singleton(GoogleDriveApi::class, fn () => new GoogleDriveApi(config('services.google_drive')));
-
-        // The reports Google Sheet the weekly staff reports are copied to, signed in as the same service account. The
-        // spreadsheet id and tab names come from config (env only, AD-23).
-        $this->app->singleton(SheetsClient::class, fn ($app) => new GoogleSheetsApi($app->make(GoogleDriveApi::class), config('services.google_sheets')));
+        // The reports Google Sheet the weekly staff reports are copied to, signed in as the portal's Google service
+        // account. The account's email and key, the spreadsheet id and the tab names come from config (env only, AD-23).
+        $this->app->singleton(SheetsClient::class, fn () => new GoogleSheetsApi(
+            new GoogleServiceAccount(config('services.google_service_account')),
+            config('services.google_sheets'),
+        ));
 
         // Repository contracts (AD-2), each with exactly one implementation registered today,
         // bound by convention — see RepositoryServiceBinder.

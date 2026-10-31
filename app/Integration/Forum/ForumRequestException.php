@@ -60,6 +60,20 @@ class ForumRequestException extends RuntimeException
         return $exception;
     }
 
+    /** A PM (a forum conversation) the forum would not start (#565): 401/403 mean the user's token no longer serves. */
+    public static function conversationFailed(int $status, ?string $code = null): self
+    {
+        $exception = new self("The forum did not send the PM (HTTP {$status}".($code === null ? '' : ", {$code}").').');
+        $exception->httpStatus = $status;
+
+        return $exception;
+    }
+
+    public static function malformedConversation(): self
+    {
+        return new self('The forum answered the PM without a conversation id.');
+    }
+
     public static function threadFetchFailed(int $status, ?string $code = null): self
     {
         $exception = new self("Forum thread fetch failed (HTTP {$status}".($code === null ? '' : ", {$code}").').');

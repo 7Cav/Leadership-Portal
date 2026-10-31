@@ -10,8 +10,10 @@ use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Sole access to the counseling documents on disk (#381), the file half of `counseling_records` as
- * {@see CounselingRecordRepository} is the row half. The `counseling` disk is private (`storage/app/counseling`, outside
+ * Sole access to the counseling source documents on disk (#381, #565): the PDFs uploaded before records were written in
+ * the portal, and the ones the counseling import brings in. Kept permanently, never purged; the portal keeps no file it
+ * generated. The file half of `counseling_records` as {@see CounselingRecordRepository} is the row half. The `counseling`
+ * disk is private (`storage/app/counseling`, outside
  * both `public/` and the `local` disk the framework can serve), so a document leaves only through the authorized
  * download route, which re-checks who may see the record before asking for {@see download()}.
  *
@@ -42,10 +44,12 @@ class CounselingDocuments
         return new StoredDocument($path, $name, $size, $sha256);
     }
 
-    /** The document's bytes, for the Drive upload. */
-    public function contents(string $path): string
+    /** The SHA-256 of the document as it is on disk now, for the download's audit entry; null when it is missing. */
+    public function sha256(string $path): ?string
     {
-        return $this->disk()->get($this->checked($path)) ?? throw new RuntimeException('The counseling document is missing.');
+        $full = $this->disk()->path($this->checked($path));
+
+        return is_file($full) ? (hash_file('sha256', $full) ?: null) : null;
     }
 
     /** Whether the document is there. A path this class could not have made never is. */

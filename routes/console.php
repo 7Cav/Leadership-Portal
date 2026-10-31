@@ -1,6 +1,12 @@
 <?php
 
 use App\Authorization\ScopeResolver;
+use App\Commands\Counseling\ImportCounselingRecords;
+use App\Commands\Counseling\ImportCounselingRecordsHandler;
+use App\Commands\Counseling\ImportCsv;
+use App\Commands\Counseling\ImportRefusedException;
+use App\Commands\Counseling\ImportRowResult;
+use App\Commands\Counseling\ImportStaging;
 use App\Commands\Demo\GenerateDemoHistory;
 use App\Commands\Demo\GenerateDemoHistoryHandler;
 use App\Commands\Demo\PurgeDemoHistory;
@@ -218,3 +224,100 @@ Artisan::command('portal:demo-history {unit : A unit designation (A/1-7) or id}
 
     return 0;
 })->purpose('Generate (or with --purge, remove) demo attendance history for a unit\'s real troopers');
+
+// The counseling import (#565) from the server, for an Admin with shell access: the same handler as Settings →
+// Counseling import, so a row is judged alike. `{csv}` is the template filled in; `--files` the directory its `file`
+// column names PDFs in. The console reads no form fields, so every row it stores is flagged for review, and a Last.F
+// several troopers share is skipped (there is no picker). The console has no portal identity, so the audited actor is
+// the `--as` Admin or, by default, the earliest Admin, as for the demo history; each record's audit entry says it ran
+// from the console. Drive downloads go to a scratch batch that is deleted when the command ends.
+Artisan::command('counseling:import {csv : The filled-in import template}
+    {--files= : The directory holding the PDFs the file column names}
+    {--dry-run : Say what each row would become; store nothing}
+    {--as= : Username of the Admin to record as the actor (default: the earliest Admin)}', function (
+    UserRepository $users,
+    ScopeResolver $scope,
+    ImportStaging $staging,
+    ImportCounselingRecordsHandler $handler,
+) {
+    $csvPath = (string) $this->argument('csv');
+
+    if (! is_file($csvPath) || ! is_readable($csvPath)) {
+        $this->error("Cannot read {$csvPath}.");
+
+        return 1;
+    }
+
+    $dir = $this->option('files');
+    if ($dir !== null && ! is_dir((string) $dir)) {
+        $this->error("--files: {$dir} is not a directory.");
+
+        return 1;
+    }
+
+    $as = $this->option('as');
+    $actors = $as === null ? collect([$users->firstAdmin()])->filter() : $users->withUsername((string) $as);
+    $actor = $actors->count() === 1 ? $actors->first() : null;
+
+    if ($actor === null || ! $scope->isAdmin($actor)) {
+        $this->error($as === null
+            ? 'There is no Admin to record as the actor. Run php artisan portal:admin <username> first.'
+            : "'{$as}' is not exactly one Admin user.");
+
+        return 1;
+    }
+
+    try {
+        $rows = ImportCsv::parse((string) file_get_contents($csvPath));
+    } catch (ImportRefusedException $e) {
+        $this->error($e->getMessage());
+
+        return 1;
+    }
+
+    // The PDFs in --files, by lower-cased name, as the file column is matched. Only files directly in it.
+    $files = [];
+    foreach ($dir === null ? [] : (scandir((string) $dir) ?: []) as $name) {
+        $path = rtrim((string) $dir, '/').'/'.$name;
+        if (is_file($path) && str_ends_with(strtolower($name), '.pdf')) {
+            $files[ImportCounselingRecordsHandler::fileKey($name)] = realpath($path);
+        }
+    }
+
+    $dryRun = (bool) $this->option('dry-run');
+    $this->line(($dryRun ? 'Dry run, recording nothing' : 'Importing').", as {$actor->username}".($as === null ? ' (the earliest Admin; pass --as to choose).' : '.'));
+
+    $batch = $staging->scratch();
+
+    try {
+        $report = $handler->handle($actor, new ImportCounselingRecords(
+            rows: $rows,
+            files: $files,
+            fields: [],
+            downloadDir: $staging->downloadDir($batch),
+            dryRun: $dryRun,
+            viaConsole: true,
+        ));
+    } finally {
+        $staging->delete($batch);
+    }
+
+    $this->table(['Line', 'Source', 'Result', 'Type', 'Trooper', 'Issuer', 'Date', 'Why'], array_map(fn (ImportRowResult $row) => [
+        $row->line,
+        $row->label,
+        match ($row->outcome) {
+            ImportRowResult::IMPORT => $dryRun ? 'import' : 'imported',
+            ImportRowResult::REVIEW => 'needs review',
+            default => 'skipped',
+        },
+        $row->type?->short() ?? '',
+        $row->trooperName ?? '',
+        $row->issuerName ?? '',
+        $row->counseledOn?->toDateString() ?? '',
+        implode(' ', array_filter([$row->reason, ...$row->notes])),
+    ], $report->rows));
+
+    $this->info($report->summary());
+
+    return 0;
+})->purpose('Import older DCSs and LORs from a CSV of Drive links and PDFs (Admins; --dry-run to check first)');

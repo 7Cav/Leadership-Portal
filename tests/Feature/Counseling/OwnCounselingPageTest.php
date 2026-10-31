@@ -35,25 +35,17 @@ it('opens a trooper\'s own milpac with their DCSs and LORs, read-only, and no wa
         ->and($props['actions'])->toBe([])
         ->and($props['makeup'])->toBeNull()
         ->and(collect($props['counseling']['records'])->pluck('id')->all())->toEqualCanonicalizing([$this->dcs->id, $this->lor->id])
-        ->and(collect($props['counseling']['records'])->pluck('canChange')->unique()->values()->all())->toBe([false])
+        ->and(collect($props['counseling']['records'])->pluck('can.continue')->unique()->values()->all())->toBe([false])
         ->and($props['counseling']['sees'])->toBe(['dcs' => true, 'lor' => true])
         ->and($props['counseling']['canFile'])->toBe(['dcs' => false, 'lor' => false]);
 
     $this->actingAs($this->self)->get(route('counseling.document', $this->dcs->id))->assertOk();
 });
 
-it('never lets a trooper file on, correct or delete their own records', function () {
-    $this->actingAs($this->self)->post(route('counseling.store', $this->rifleman->id), [
-        'type' => 'dcs',
-        'kind' => 'conduct',
-        'counseled_on' => now()->subDays(3)->toDateString(),
-        'reason' => 'Filed on myself.',
-        'document' => counselingPdf(),
-    ])->assertNotFound();
-    $this->actingAs($this->self)->patch(route('counseling.update', $this->dcs->id), [
-        'counseled_on' => now()->subDays(4)->toDateString(), 'reason' => 'Changed.', 'audit_reason' => 'x',
-    ])->assertForbidden();
-    $this->actingAs($this->self)->delete(route('counseling.destroy', $this->lor->id), ['audit_reason' => 'x'])->assertForbidden();
+it('never lets a trooper start, withdraw or delete their own records', function () {
+    $this->actingAs($this->self)->post(route('counseling.store', $this->rifleman->id), ['type' => 'dcs', 'kind' => 'conduct'])->assertNotFound();
+    $this->actingAs($this->self)->withSession(counselingPmSession())->post(route('counseling.withdraw', $this->dcs->id), ['reason' => 'x'])->assertForbidden();
+    $this->actingAs($this->self)->delete(route('counseling.destroy', $this->lor->id))->assertForbidden();
 
     expect(CounselingRecord::query()->count())->toBe(2)
         ->and($this->dcs->fresh()->reason)->toBe($this->dcs->reason);

@@ -18,6 +18,8 @@ use App\Repositories\UnitRepository;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Storage;
+
+require_once __DIR__.'/../Counseling/fixture.php';
 use Inertia\Testing\AssertableInertia as Assert;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
@@ -634,29 +636,27 @@ describe('their own counseling records', function () {
         Storage::fake('counseling');
     });
 
-    it('never lets a billet Admin correct or delete their own records', function () {
+    it('never lets a billet Admin withdraw or delete their own records', function () {
+        counselingFakeForum();
         $lor = CounselingRecord::factory()->lor()->create(['trooper_id' => $this->chiefTrooper->id, 'issuer_unit_id' => null, 'reason' => 'As filed.']);
-        $props = $this->actingAs($this->chief)->get(route('troopers.show', $this->chiefTrooper->id))->assertOk()->viewData('page')['props'];
+        $draft = CounselingRecord::factory()->lor()->draft()->create(['trooper_id' => $this->chiefTrooper->id, 'issuer_unit_id' => null]);
 
-        expect(rhqaIsAdmin($this->chief))->toBeTrue()
-            ->and(collect($props['counseling']['records'])->firstWhere('id', $lor->id)['canChange'])->toBeFalse();
-        $this->actingAs($this->chief)->patch(route('counseling.update', $lor->id), [
-            'counseled_on' => now()->subDays(4)->toDateString(), 'reason' => 'Changed.', 'audit_reason' => 'Mine.',
-        ])->assertForbidden();
-        $this->actingAs($this->chief)->delete(route('counseling.destroy', $lor->id), ['audit_reason' => 'Mine.'])->assertForbidden();
+        expect(rhqaIsAdmin($this->chief))->toBeTrue();
+        $this->actingAs($this->chief)->withSession(counselingPmSession())->post(route('counseling.withdraw', $lor->id), ['reason' => 'Mine.'])->assertForbidden();
+        $this->actingAs($this->chief)->delete(route('counseling.destroy', $draft->id))->assertNotFound();
 
-        expect($lor->fresh()?->reason)->toBe('As filed.');
+        expect($lor->fresh()->isShared())->toBeTrue()->and($draft->fresh())->not->toBeNull();
         // Another Admin still may.
-        expect(collect($this->actingAs($this->admin)->get(route('troopers.show', $this->chiefTrooper->id))->viewData('page')['props']['counseling']['records'])
-            ->firstWhere('id', $lor->id)['canChange'])->toBeTrue();
+        expect($this->actingAs($this->admin)->get(route('counseling.show', $lor->id))->viewData('page')['props']['can']['withdraw'])->toBeTrue();
     });
 
-    it('still lets a flag Admin change their own records', function () {
+    it('still lets a flag Admin work on their own records', function () {
+        counselingFakeForum();
         $mine = Trooper::query()->where('cav_id', $this->admin->cav_id)->sole();
         $lor = CounselingRecord::factory()->lor()->create(['trooper_id' => $mine->id, 'issuer_unit_id' => null]);
 
-        $this->actingAs($this->admin)->delete(route('counseling.destroy', $lor->id), ['audit_reason' => 'Filed in error.'])->assertRedirect();
+        $this->actingAs($this->admin)->withSession(counselingPmSession())->post(route('counseling.withdraw', $lor->id), ['reason' => 'Filed in error.'])->assertSessionHasNoErrors();
 
-        expect(CounselingRecord::query()->whereKey($lor->id)->exists())->toBeFalse();
+        expect($lor->fresh()->isDraft())->toBeTrue();
     });
 });
