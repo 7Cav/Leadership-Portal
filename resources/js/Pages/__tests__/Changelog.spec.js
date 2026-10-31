@@ -305,6 +305,7 @@ describe('Changelog page', () => {
             const row = body('[data-testid="changelog-row-body-0"]');
             row.value = 'Security hardening';
             row.dispatchEvent(new Event('input'));
+            await flushPromises();
             body('[data-testid="changelog-add-save"]').click();
             await flushPromises();
             expect(formPost).toHaveBeenCalledWith(
