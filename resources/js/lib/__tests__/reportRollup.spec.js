@@ -86,7 +86,7 @@ describe('reportRollup helpers', () => {
         const week = { weekStart: '2026-10-03T00:00:00+00:00', reportDue: '2026-10-10T23:59:00+00:00', origin: 'https://portal.test' };
 
         expect(reminderText(unit, { ...week, now: Date.parse('2026-10-08T12:00:00Z') })).toBe(
-            'Reminder: the 2nd Section (2/1/A/1-7) weekly report for the week of 03Oct26 is due Sat 10Oct26 23:59Z. '
+            'Reminder: the 2nd Section (2/1/A/1-7) weekly report for the week ending 09Oct26 is due Sat 10Oct26 23:59Z. '
                 + 'Send it from the Leadership Portal: https://portal.test/reports/5/2026-10-03',
         );
         expect(reminderText(unit, { ...week, now: Date.parse('2026-10-11T00:00:00Z') })).toContain('was due Sat 10Oct26 23:59Z and is overdue');

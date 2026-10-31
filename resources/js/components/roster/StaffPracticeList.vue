@@ -18,7 +18,7 @@ defineEmits(['remove']);
     <ul class="space-y-1.5" data-testid="staff-practices">
         <li v-for="entry in entries" :key="staffPracticeKey(entry)" class="flex items-start gap-2 text-[13px]" data-testid="staff-practice" :data-source="entry.source">
             <span class="min-w-0 flex-1">
-                <span class="font-medium tabular-nums">Week of {{ weekLabel(entry.week) }}</span>, {{ entry.section ?? 'a section no longer in the portal' }}
+                <span class="font-medium tabular-nums">Week Ending {{ weekLabel(entry.week) }}</span>, {{ entry.section ?? 'a section no longer in the portal' }}
                 <span class="block text-[11px] text-muted-foreground" data-testid="staff-practice-source">{{ staffPracticeSource(entry) }}</span>
             </span>
             <Button
@@ -30,7 +30,7 @@ defineEmits(['remove']);
                 data-testid="staff-practice-remove"
                 @click="$emit('remove', entry)"
             >
-                <PhTrash aria-hidden="true" />Remove<span class="sr-only"> the week of {{ weekLabel(entry.week) }} at {{ entry.section }}</span>
+                <PhTrash aria-hidden="true" />Remove<span class="sr-only"> the week ending {{ weekLabel(entry.week) }} at {{ entry.section }}</span>
             </Button>
         </li>
     </ul>

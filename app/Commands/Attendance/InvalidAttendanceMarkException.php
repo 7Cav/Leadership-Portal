@@ -2,6 +2,7 @@
 
 namespace App\Commands\Attendance;
 
+use App\Support\Time\WeekLabel;
 use Carbon\CarbonInterface;
 use RuntimeException;
 
@@ -65,7 +66,7 @@ class InvalidAttendanceMarkException extends RuntimeException
     /** The week is older than `WeekOf::floor()`, too far back to write. */
     public static function weekBeforeFloor(CarbonInterface $weekStart): self
     {
-        return new self("The week of {$weekStart->format('dMy')} is too far back to change.");
+        return new self('The week ending '.WeekLabel::ending($weekStart).' is too far back to change.');
     }
 
     /**

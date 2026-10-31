@@ -190,8 +190,8 @@ describe('ordering and matching', () => {
 });
 
 describe('labels', () => {
-    it('formats a week in the forum convention', () => {
-        expect(weekLabel('2026-10-03')).toBe('03Oct26');
+    it('names a week by its end date, the Friday, in the forum convention (#568)', () => {
+        expect(weekLabel('2026-10-24')).toBe('30Oct26');
     });
 
     it('names the source of a mark', () => {

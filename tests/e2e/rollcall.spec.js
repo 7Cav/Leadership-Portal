@@ -11,7 +11,7 @@ test('a section leader lands on their section\'s rollcall', async ({ page }) => 
     await page.goto('/__e2e/login/Vasquez.R?to=/rollcall');
 
     await expect(page).toHaveURL(/\/rollcall\/\d+$/);
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('Roll call, week of');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Roll call, week ending');
     await expect(page.getByText('2/1/A/1-7 weekly cycle')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Signatures' })).toBeVisible();
 

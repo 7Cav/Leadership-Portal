@@ -12,4 +12,6 @@ selection, the practice-row writer, attendance bucketing, the KPI window).
 
 **May depend on:** nothing in `app/` — it is a pure function over Carbon, below the layer graph.
 Display formatting (forum convention `30May26`) is a frontend concern
-(`resources/js/lib/forumDate.js`), not this layer's.
+(`resources/js/lib/forumDate.js`), not this layer's — with one exception: `WeekLabel::ending()` gives the label a user
+reads for a week in server-side text (refusals, audit log labels, the staff report Sheet row), its end date `30Oct26` (#568), so that text and the
+UI name a week the same way. It derives the week through `WeekOf::start()` and never keys anything.

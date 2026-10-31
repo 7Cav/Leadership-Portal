@@ -6,6 +6,7 @@ use App\Models\StaffReport;
 use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
+use App\Support\Time\WeekLabel;
 use Illuminate\Support\Collection;
 
 /**
@@ -121,7 +122,7 @@ final class StaffReportSheetRow
     /** The Friday the Cav week ends on, as the forum writes a date: `09Jan26`. */
     private static function weekEnding(StaffReport $report): string
     {
-        return $report->week_start->addDays(6)->format('dMy');
+        return WeekLabel::ending($report->week_start);
     }
 
     private static function practiceType(StaffReport $report): string

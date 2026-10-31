@@ -8,7 +8,7 @@ import EmptyState from '@/components/EmptyState.vue';
 import { copyText } from '@/lib/clipboard';
 import LoaSyncNote from '@/components/LoaSyncNote.vue';
 import TimeAgo from '@/components/TimeAgo.vue';
-import { forumDate } from '@/lib/forumDate';
+import { weekLabel } from '@/lib/forumDate';
 import { baselineText, formatKpi, KPIS, stamp, timeOf, unitLabel } from '@/lib/report';
 import { excusedReason, practiceOf, signatureOf } from '@/lib/rollcall';
 import { reportSummary } from '@/lib/reportSummary';
@@ -116,7 +116,7 @@ const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id ===
         <div class="flex items-start gap-3 px-5 pt-4 pb-3.5">
             <div class="min-w-0 flex-1">
                 <p class="flex items-center gap-1.5 text-xs text-muted-foreground"><PhEye aria-hidden="true" />Preview, as {{ audience }} see it</p>
-                <h2 id="preview-title" class="mt-1 text-base font-semibold">{{ unitLabel(unit) }}, week of {{ forumDate(week.start) }}</h2>
+                <h2 id="preview-title" class="mt-1 text-base font-semibold">{{ unitLabel(unit) }}, week ending {{ weekLabel(week.start) }}</h2>
                 <p v-if="unit.isLeaf" class="mt-0.5 text-[13px]">
                     <template v-if="content.trainingSubject?.trim()">Trained: {{ content.trainingSubject.trim() }}</template>
                     <span v-else class="text-muted-foreground italic">Training subject missing</span>

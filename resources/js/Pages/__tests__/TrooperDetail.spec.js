@@ -147,7 +147,7 @@ describe('TrooperDetail', () => {
             expect(wrapper.get('[data-testid="transfers"]').text()).toBe('Moved from 2/1/A/1-7 to 1/1/E/2-7, 30Sep26');
             expect(rows).toHaveLength(20);
             expect(rows[0].text()).toContain('This week');
-            expect(rows[2].text()).toContain('19Sep26');
+            expect(rows[2].text()).toContain('25Sep26');
             expect(rows[2].get('[data-testid="attendance-section"]').text()).toBe('2/1/A/1-7');
             expect(rows[2].text()).toContain('Will attend');
             expect(rows[2].text()).toContain('Attended');
@@ -483,7 +483,7 @@ describe('TrooperDetail', () => {
             const wrapper = page({ actions, makeup: { username: 'Milkovic.D', missedWeeks: ['2026-10-03'] } });
             const link = wrapper.get('[data-testid="action-makeup-pm"]');
 
-            expect(link.attributes('href')).toBe('https://7cav.us/conversations/add?to=Milkovic.D&title=Section%20practice%20makeup%3A%20week%20of%2003Oct26');
+            expect(link.attributes('href')).toBe('https://7cav.us/conversations/add?to=Milkovic.D&title=Section%20practice%20makeup%3A%20week%20ending%2009Oct26');
             expect(link.attributes('target')).toBe('_blank');
             expect(link.attributes('rel')).toBe('noopener noreferrer');
             expect(link.text()).toContain('Send makeup PM');

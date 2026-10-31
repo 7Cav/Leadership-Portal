@@ -11,6 +11,7 @@ use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\UnitRepository;
+use Carbon\CarbonImmutable;
 
 // Story 6.8: every way into a trooper's data goes through the one ScopeResolver gate, so the milpac, the readiness
 // matrix and the quick-action links can never disagree about who may look.
@@ -27,6 +28,10 @@ function gateTrooper(Unit $section, array $attributes = []): Trooper
 }
 
 beforeEach(function () {
+    // A Thursday, so a roll call link is followed into the running week: on a Saturday, before the report deadline,
+    // it would redirect to the week whose report is still due.
+    $this->travelTo(CarbonImmutable::parse('2026-10-08 12:00:00', 'UTC'));
+
     $units = app(UnitRepository::class);
 
     $regiment = $units->create(UnitType::Regiment, '7th Cavalry Regiment', '7CAV', null);

@@ -106,7 +106,7 @@ describe('Rollcall page', () => {
         vi.setSystemTime(new Date('2026-10-08T16:50:00Z'));
         const wrapper = factory();
 
-        expect(wrapper.find('h1').text()).toBe('Roll call, week of 03Oct26');
+        expect(wrapper.find('h1').text()).toBe('Roll call, week ending 09Oct26');
         expect(wrapper.find('[data-testid="roster-provenance"]').text()).toBe('Roster from milpac, synced 08Oct26 09:14Z (7 h ago)');
         expect(wrapper.find('[data-testid="roster-provenance"] time').attributes('datetime')).toBe('2026-10-08T09:14:00.000Z');
         expect(wrapper.text()).toContain('Signatures close Fri 09Oct26 23:59Z');
@@ -317,9 +317,9 @@ describe('Rollcall page', () => {
 
             expect(previous.find('[data-testid="earlier-weeks-flag"]').exists()).toBe(true);
             expect(previous.attributes('aria-label')).toBe(
-                'Previous week. 2 earlier weeks need work: 19Sep26 (3 not marked, not posted), 12Sep26 (not posted)',
+                'Previous week. 2 earlier weeks need work: 25Sep26 (3 not marked, not posted), 18Sep26 (not posted)',
             );
-            expect(previous.attributes('title')).toBe('2 earlier weeks need work: 19Sep26 (3 not marked, not posted), 12Sep26 (not posted)');
+            expect(previous.attributes('title')).toBe('2 earlier weeks need work: 25Sep26 (3 not marked, not posted), 18Sep26 (not posted)');
         });
 
         it('flags the arrow on the side the unfinished weeks are, from a past week', () => {
@@ -337,7 +337,7 @@ describe('Rollcall page', () => {
                 week: { ...WEEK, isCurrent: false, date: '2026-09-12', start: '2026-09-12T00:00:00+00:00', previous: '2026-09-05', next: '2026-09-19' },
             });
             expect(older.find('[data-testid="earlier-weeks-flag"]').exists()).toBe(false);
-            expect(older.find('[data-testid="next-week"]').attributes('aria-label')).toBe('Next week. 1 later week needs work: 19Sep26 (3 not marked, not posted)');
+            expect(older.find('[data-testid="next-week"]').attributes('aria-label')).toBe('Next week. 1 later week needs work: 25Sep26 (3 not marked, not posted)');
         });
 
         it('shows no flag when every past week is marked and posted', () => {
@@ -428,8 +428,8 @@ describe('Rollcall page', () => {
             const owed = wrapper.get('[data-testid="makeup-owed"]');
 
             expect(owed.findAll('li')).toHaveLength(2);
-            expect(owed.text()).toContain('Make-up requested for the week of 26Sep26, 03Oct26');
-            expect(owed.text()).toContain('Make-up requested for the week of 19Sep26');
+            expect(owed.text()).toContain('Make-up requested for the weeks ending 02Oct26, 09Oct26');
+            expect(owed.text()).toContain('Make-up requested for the week ending 25Sep26');
 
             page.url = '/rollcall/12?step=2';
             await wrapper.vm.$nextTick();

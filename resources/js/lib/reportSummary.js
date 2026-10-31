@@ -1,4 +1,4 @@
-import { forumDate } from '@/lib/forumDate';
+import { weekLabel } from '@/lib/forumDate';
 import { KPIS, kpiChange, percent, stamp } from '@/lib/report';
 
 // The short plain-text summary of a weekly report that "Copy summary" puts on the clipboard, for
@@ -70,7 +70,7 @@ function unitName(unit) {
  * @param {?string} report.notes
  */
 export function reportSummary({ unit, week, sent = false, sentAt = null, sentBy = null, kpis = null, delta = null, trainingSubject = null, notes = null }) {
-    const lines = [`${discordPlain(unitName(unit))} weekly report, week of ${forumDate(week.start)}`];
+    const lines = [`${discordPlain(unitName(unit))} weekly report, week ending ${weekLabel(week.start)}`];
 
     lines.push(sent ? `Sent ${stamp(sentAt)}${sentBy ? ` by ${discordPlain(sentBy)}` : ''}` : 'Draft, not sent yet');
 

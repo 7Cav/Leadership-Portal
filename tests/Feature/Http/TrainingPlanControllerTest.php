@@ -154,7 +154,7 @@ it('marks a week whose platoon report is sent as locked, and refuses a change to
         ->assertInertia(fn (AssertableInertia $page) => $page->where('weeks.0.locked', 'sent')->where('weeks.1.locked', null));
 
     $this->actingAs($this->leader)->put(tpcUrl($this->platoon->id), ['subjects' => ['2026-11-07' => 'Room clearing']])
-        ->assertSessionHasErrors(['plan' => 'The report for the week of 07Nov26 is already sent, so its subject can no longer change.']);
+        ->assertSessionHasErrors(['plan' => 'The report for the week ending 13Nov26 is already sent, so its subject can no longer change.']);
 
     expect(TrainingPlan::query()->exists())->toBeFalse();
 });

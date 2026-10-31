@@ -59,7 +59,7 @@ const practiceStats = computed(() => [
     { label: 'LOA', value: counts.value.loa, tone: 'text-muted-foreground' },
 ]);
 
-const weeksText = (weeks) => weeks.map(weekLabel).join(', ');
+const weeksText = (weeks) => `${weeks.length === 1 ? 'the week' : 'the weeks'} ending ${weeks.map(weekLabel).join(', ')}`;
 </script>
 
 <template>
@@ -131,7 +131,7 @@ const weeksText = (weeks) => weeks.map(weekLabel).join(', ');
                     <PhClockCounterClockwise class="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
                     <div class="min-w-0 flex-1">
                         <p class="text-[13px] font-medium">{{ fullName(row.trooper) }}</p>
-                        <p class="mt-0.5 text-xs text-muted-foreground">Make-up requested for the week of {{ weeksText(row.weeks) }}. Mark Make-up complete once it is done.</p>
+                        <p class="mt-0.5 text-xs text-muted-foreground">Make-up requested for {{ weeksText(row.weeks) }}. Mark Make-up complete once it is done.</p>
                     </div>
                 </li>
             </ul>

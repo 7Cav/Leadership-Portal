@@ -2,6 +2,7 @@
 
 namespace App\Commands\StaffReports;
 
+use App\Support\Time\WeekLabel;
 use Carbon\CarbonInterface;
 use RuntimeException;
 
@@ -35,12 +36,12 @@ class StaffReportRefusedException extends RuntimeException
 
     public static function notOwed(string $name, CarbonInterface $weekStart): self
     {
-        return new self("{$name} was not on a platoon, company or battalion HQ at the end of the week of {$weekStart->format('dMy')}, so there is no staff report to send for it.", 'not_owed', 'report');
+        return new self("{$name} was not on a platoon, company or battalion HQ when the week ending ".WeekLabel::ending($weekStart).' closed, so there is no staff report to send for it.', 'not_owed', 'report');
     }
 
     public static function weekBeforeFloor(CarbonInterface $weekStart): self
     {
-        return new self("The week of {$weekStart->format('dMy')} is too far back to change.", 'before_floor', 'report');
+        return new self('The week ending '.WeekLabel::ending($weekStart).' is too far back to change.', 'before_floor', 'report');
     }
 
     public static function future(): self
@@ -50,12 +51,12 @@ class StaffReportRefusedException extends RuntimeException
 
     public static function weekNotEnded(CarbonInterface $weekStart): self
     {
-        return new self("The week of {$weekStart->format('dMy')} has not ended yet. You can send its staff report from {$weekStart->addWeek()->format('dMy')}.", 'not_ended', 'report');
+        return new self('The week ending '.WeekLabel::ending($weekStart)." has not ended yet. You can send its staff report from {$weekStart->addWeek()->format('dMy')}.", 'not_ended', 'report');
     }
 
     public static function alreadySent(CarbonInterface $weekStart): self
     {
-        return new self("The staff report for the week of {$weekStart->format('dMy')} was already sent, so it can no longer change.", 'already_sent', 'report');
+        return new self('The staff report for the week ending '.WeekLabel::ending($weekStart).' was already sent, so it can no longer change.', 'already_sent', 'report');
     }
 
     public static function noPractice(): self

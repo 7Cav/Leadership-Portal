@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, useTemplateRef } from 'vue';
 import { useElementSize } from '@vueuse/core';
-import { forumDate } from '@/lib/forumDate';
+import { weekLabel } from '@/lib/forumDate';
 import { percent } from '@/lib/report';
 
 // RC % and SP % over the last eight weeks (P3 mini chart). Earlier weeks are their frozen sent
@@ -75,7 +75,7 @@ function onMove(event) {
 }
 
 const fmt = (v) => (v === null ? 'no sent report' : `${v}%`);
-const weekLabel = (v) => `Week of ${forumDate(v.week)}${v.current ? (props.live ? ', this draft' : ', this report') : ''}`;
+const hoverLabel = (v) => `Week Ending ${weekLabel(v.week)}${v.current ? (props.live ? ', this draft' : ', this report') : ''}`;
 </script>
 
 <template>
@@ -129,7 +129,7 @@ const weekLabel = (v) => `Week of ${forumDate(v.week)}${v.current ? (props.live 
                     class="fill-muted-foreground text-[10px]"
                     :class="{ 'font-semibold': v.current }"
                 >
-                    {{ forumDate(v.week).slice(0, 5) }}
+                    {{ weekLabel(v.week).slice(0, 5) }}
                 </text>
                 <line
                     v-if="hover !== null"
@@ -172,7 +172,7 @@ const weekLabel = (v) => `Week of ${forumDate(v.week)}${v.current ? (props.live 
                 :style="{ left: `${Math.min(x(hover) + 8, W - 150)}px` }"
                 aria-hidden="true"
             >
-                <div class="mb-0.5 font-medium">{{ weekLabel(values[hover]) }}</div>
+                <div class="mb-0.5 font-medium">{{ hoverLabel(values[hover]) }}</div>
                 <div class="tabular-nums">Roll call {{ fmt(values[hover].rc) }}</div>
                 <div class="tabular-nums">SP {{ fmt(values[hover].sp) }}</div>
             </div>
@@ -182,11 +182,11 @@ const weekLabel = (v) => `Week of ${forumDate(v.week)}${v.current ? (props.live 
         <table>
             <caption>Roll call and SP percentage by week</caption>
             <thead>
-                <tr><th scope="col">Week</th><th scope="col">Roll call %</th><th scope="col">SP %</th></tr>
+                <tr><th scope="col">Week ending</th><th scope="col">Roll call %</th><th scope="col">SP %</th></tr>
             </thead>
             <tbody>
                 <tr v-for="v in values" :key="v.week">
-                    <th scope="row">{{ weekLabel(v) }}</th>
+                    <th scope="row">{{ hoverLabel(v) }}</th>
                     <td>{{ fmt(v.rc) }}</td>
                     <td>{{ fmt(v.sp) }}</td>
                 </tr>

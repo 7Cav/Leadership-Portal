@@ -41,12 +41,12 @@ test('the main pages load with no content security policy violation', async ({ p
     // The rollcall.
     await page.goto('/__e2e/login/Vasquez.R?to=/rollcall');
     await expect(page).toHaveURL(/\/rollcall\/\d+$/);
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('Roll call, week of');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Roll call, week ending');
 
     // A weekly report, then the docs: docs home and a guide, whose body is server-rendered markdown.
     await page.goto('/__e2e/login/Mercer.J?to=/reports');
     await expect(page).toHaveURL(/\/reports\/\d+\/\d{4}-\d{2}-\d{2}$/);
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('Week of');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Week Ending');
 
     await page.goto('/docs');
     await expect(page.getByTestId('docs-home')).toBeVisible();

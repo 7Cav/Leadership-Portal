@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, useTemplateRef } from 'vue';
 import { useElementSize } from '@vueuse/core';
-import { forumDate } from '@/lib/forumDate';
+import { weekLabel } from '@/lib/forumDate';
 
 // A unit's headcount and in roll call per Cav week, drawn like the report's TrendChart: one count axis from 0, two
 // lines whose markers differ in shape so identity never rests on color, a gap wherever a week is unknown (never a
@@ -96,7 +96,7 @@ function onMove(event) {
 const fmt = (v) => (v === null || v === undefined ? 'Not known' : String(v));
 const SOURCES = { report: 'Sent report', history: 'Placement history', live: 'This week, so far' };
 const source = (p) => SOURCES[p.source] ?? 'Not known';
-const weekLabel = (p) => `Week of ${forumDate(p.week)}`;
+const hoverLabel = (p) => `Week Ending ${weekLabel(p.week)}`;
 </script>
 
 <template>
@@ -141,7 +141,7 @@ const weekLabel = (p) => `Week of ${forumDate(p.week)}`;
                         :text-anchor="i === points.length - 1 ? 'end' : i === 0 ? 'start' : 'middle'"
                         class="fill-muted-foreground text-[10px]"
                     >
-                        {{ forumDate(p.week).slice(0, 5) }}
+                        {{ weekLabel(p.week).slice(0, 5) }}
                     </text>
                 </template>
                 <line v-if="hover !== null" :x1="x(hover)" :x2="x(hover)" :y1="PAD.top" :y2="H - PAD.bottom" class="stroke-muted-foreground/50" />
@@ -161,7 +161,7 @@ const weekLabel = (p) => `Week of ${forumDate(p.week)}`;
                 :style="{ left: `${Math.max(0, Math.min(x(hover) + 8, W - 170))}px` }"
                 aria-hidden="true"
             >
-                <div class="mb-0.5 font-medium">{{ weekLabel(points[hover]) }}</div>
+                <div class="mb-0.5 font-medium">{{ hoverLabel(points[hover]) }}</div>
                 <div v-for="s in SERIES" :key="s.key" class="tabular-nums">{{ s.label }} {{ fmt(points[hover][s.key]) }}</div>
                 <div class="text-muted-foreground">{{ source(points[hover]) }}</div>
             </div>
@@ -172,7 +172,7 @@ const weekLabel = (p) => `Week of ${forumDate(p.week)}`;
                 <caption class="sr-only">{{ label }}</caption>
                 <thead class="text-left text-xs text-muted-foreground">
                     <tr>
-                        <th scope="col" class="py-1.5 pr-3 font-medium">Week</th>
+                        <th scope="col" class="py-1.5 pr-3 font-medium">Week ending</th>
                         <th scope="col" class="py-1.5 pr-3 text-right font-medium">Headcount</th>
                         <th scope="col" class="py-1.5 pr-3 text-right font-medium">Change</th>
                         <th scope="col" class="py-1.5 pr-3 text-right font-medium">In roll call</th>
@@ -183,7 +183,7 @@ const weekLabel = (p) => `Week of ${forumDate(p.week)}`;
                 </thead>
                 <tbody>
                     <tr v-for="p in rows" :key="p.week" class="border-t border-border" :data-week="p.week">
-                        <th scope="row" class="py-1.5 pr-3 text-left font-normal">{{ forumDate(p.week) }}</th>
+                        <th scope="row" class="py-1.5 pr-3 text-left font-normal">{{ weekLabel(p.week) }}</th>
                         <td class="py-1.5 pr-3 text-right">{{ fmt(p.headcount) }}</td>
                         <td class="py-1.5 pr-3 text-right" :class="changeClass(p.change)" data-testid="strength-change">{{ changeText(p.change) }}</td>
                         <td class="py-1.5 pr-3 text-right">{{ fmt(p.strength) }}</td>

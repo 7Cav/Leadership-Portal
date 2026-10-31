@@ -66,7 +66,7 @@ describe('Trooper sheet', () => {
         expect(sheet.querySelector('[data-testid="sheet-at-risk"]').textContent).toContain('Missed 3');
         const recent = sheet.querySelectorAll('[data-testid="sheet-recent"] tbody tr');
         expect(recent).toHaveLength(8);
-        expect(recent[0].textContent).toContain('03Oct26');
+        expect(recent[0].textContent).toContain('09Oct26');
         expect(recent[0].textContent).toContain('Auto, game server capture');
         expect(recent[1].textContent).toContain('No roll call posted');
     });
@@ -129,7 +129,7 @@ describe('Trooper sheet', () => {
 
         const rows = document.body.querySelectorAll('[data-testid="sheet-staff-practices"] [data-testid="staff-practice"]');
         expect(rows).toHaveLength(2);
-        expect(rows[0].textContent).toContain('Week of 03Oct26, 1/1/A/1-7');
+        expect(rows[0].textContent).toContain('Week Ending 09Oct26, 1/1/A/1-7');
         expect(rows[0].textContent).toContain('Self-reported by Reyes.M');
         expect(rows[1].textContent).toContain('Seen on the game server');
         expect(document.body.querySelector('[data-testid="staff-practice-remove"]')).toBeNull();
@@ -251,7 +251,7 @@ describe('Trooper sheet', () => {
             await flushPromises();
 
             const link = document.body.querySelector('[data-testid="sheet-makeup-pm"]');
-            expect(link.getAttribute('href')).toBe('https://7cav.us/conversations/add?to=Reyes.M&title=Section%20practice%20makeup%3A%20weeks%20of%2026Sep26%2C%2003Oct26');
+            expect(link.getAttribute('href')).toBe('https://7cav.us/conversations/add?to=Reyes.M&title=Section%20practice%20makeup%3A%20weeks%20ending%2002Oct26%2C%2009Oct26');
             expect(link.getAttribute('target')).toBe('_blank');
             expect(link.getAttribute('rel')).toBe('noopener noreferrer');
             expect(link.textContent).toContain('Send makeup PM');

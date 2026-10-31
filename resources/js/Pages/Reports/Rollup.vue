@@ -10,7 +10,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/
 import EmptyState from '@/components/EmptyState.vue';
 import NoValue from '@/components/NoValue.vue';
 import { copyText } from '@/lib/clipboard';
-import { forumDate } from '@/lib/forumDate';
+import { weekLabel } from '@/lib/forumDate';
 import {
     countNodes,
     dayTime,
@@ -177,7 +177,7 @@ async function copyReminder(node) {
     const text = reminderText(node, { weekStart: props.week.start, reportDue: props.week.reportDue, origin: window.location.origin });
 
     await copyText(text, 'Reminder copied', {
-        description: `${unitLabel(node)}, week of ${forumDate(props.week.start)}. Paste it to the leader.`,
+        description: `${unitLabel(node)}, week ending ${weekLabel(props.week.start)}. Paste it to the leader.`,
         failed: 'Could not copy the reminder',
         fallback: 'Open the report and send the leader its link instead.',
     });
@@ -200,7 +200,7 @@ function pct(ratio) {
         <div class="flex flex-wrap items-end gap-x-6 gap-y-3">
             <div class="min-w-0">
                 <p class="text-xs text-muted-foreground">{{ scopeName ? `${scopeName} weekly reports` : 'Weekly reports' }}</p>
-                <h1 class="text-xl font-semibold tracking-tight sm:text-[22px]">Week of {{ forumDate(week.start) }}</h1>
+                <h1 class="text-xl font-semibold tracking-tight sm:text-[22px]">Week Ending {{ weekLabel(week.start) }}</h1>
             </div>
             <div class="flex items-center gap-1 text-muted-foreground">
                 <Button
@@ -221,7 +221,7 @@ function pct(ratio) {
                     @update:model-value="goToWeek"
                 >
                     <NativeSelectOption v-for="(option, index) in week.options" :key="option" :value="option">
-                        {{ index === 0 ? `This week, ${forumDate(option)}` : `Week of ${forumDate(option)}` }}
+                        {{ index === 0 ? `This week, ending ${weekLabel(option)}` : `Week Ending ${weekLabel(option)}` }}
                     </NativeSelectOption>
                 </NativeSelect>
                 <Button variant="ghost" size="icon-sm" aria-label="Next week" :disabled="weekIndex <= 0" @click="goToWeek(week.options[weekIndex - 1])">
@@ -397,7 +397,7 @@ function pct(ratio) {
         <Sheet v-if="!docked" v-model:open="sheetOpen">
             <SheetContent side="right" class="w-full gap-0 p-0 sm:max-w-[31rem]">
                 <SheetTitle class="sr-only">{{ selected ? `${unitLabel(selected)} report` : 'Report' }}</SheetTitle>
-                <SheetDescription class="sr-only">The selected unit's report for the week of {{ forumDate(week.start) }}.</SheetDescription>
+                <SheetDescription class="sr-only">The selected unit's report for the week ending {{ weekLabel(week.start) }}.</SheetDescription>
                 <RollupReport
                     v-if="selected"
                     :node="selected"

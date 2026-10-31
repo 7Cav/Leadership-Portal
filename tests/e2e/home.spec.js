@@ -7,7 +7,7 @@ import { test, expect } from '@playwright/test';
 test('a company commander reads the dashboard and drills into a report', async ({ page }) => {
     await page.goto('/__e2e/login/Hale.S?to=/home');
 
-    await expect(page.getByRole('heading', { name: /^Week of / })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^Week Ending / })).toBeVisible();
 
     // KPI tiles: the six canonical KPIs, with history from last week's sent snapshots.
     const tiles = page.getByTestId('kpi-tiles');

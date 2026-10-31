@@ -4,7 +4,7 @@ import { Link } from '@inertiajs/vue3';
 import NoValue from '@/components/NoValue.vue';
 import Sparkline from '@/components/reports/Sparkline.vue';
 import { Card } from '@/components/ui/card';
-import { forumDate } from '@/lib/forumDate';
+import { weekLabel } from '@/lib/forumDate';
 
 // How an HQ's unit stood in one Cav week, beside its staff reports: SP and roll call over the KPI window (the numbers
 // Home and the roster show), headcount against how many are in roll call, at risk, and how many of the HQ's staff kept
@@ -20,7 +20,7 @@ const props = defineProps({
 const pct = (v) => (v === null || v === undefined ? null : Math.round(v * 100));
 const trend = computed(() => props.health.trend ?? []);
 const first = computed(() => trend.value[0]?.week);
-const span = computed(() => (first.value ? `${trend.value.length} weeks from ${forumDate(first.value)}` : ''));
+const span = computed(() => (first.value ? `${trend.value.length} weeks from the week ending ${weekLabel(first.value)}` : ''));
 
 const tiles = computed(() => [
     {
@@ -63,7 +63,7 @@ const tiles = computed(() => [
 const staffMet = computed(() => props.health.staff ?? { met: 0, total: 0 });
 
 function spoken(tile) {
-    const known = tile.series.map((v, i) => (v === null || v === undefined ? null : `${forumDate(trend.value[i].week)} ${v}${tile.unit === '%' ? '%' : ''}`));
+    const known = tile.series.map((v, i) => (v === null || v === undefined ? null : `${weekLabel(trend.value[i].week)} ${v}${tile.unit === '%' ? '%' : ''}`));
 
     return `${tile.label} by week: ${known.map((v) => v ?? 'no data').join(', ')}`;
 }

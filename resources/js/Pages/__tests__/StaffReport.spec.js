@@ -94,6 +94,14 @@ async function toPicker(props = {}) {
 describe('StaffReport page', () => {
     beforeEach(() => posted.mockReset());
 
+    it('names the week and the week before by their end date, keeping its own dates as a range (#568)', () => {
+        const wrapper = page();
+
+        expect(wrapper.find('h1').text()).toContain('Week Ending 09Oct26');
+        expect(wrapper.text()).toContain('03Oct26 to 09Oct26');
+        expect(wrapper.get('a[aria-label^="Previous week"]').attributes('aria-label')).toBe('Previous week, ending 02Oct26');
+    });
+
     it('asks Yes or No first, as big choices, with Send beside it saying what is missing', async () => {
         const wrapper = page();
 

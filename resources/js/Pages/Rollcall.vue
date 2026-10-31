@@ -41,7 +41,7 @@ import TimeAgo from '@/components/TimeAgo.vue';
 import StepReview from '@/components/rollcall/StepReview.vue';
 import TrooperCard from '@/components/rollcall/TrooperCard.vue';
 import UnmatchedDrawer from '@/components/rollcall/UnmatchedDrawer.vue';
-import { forumDate, forumDateTime } from '@/lib/forumDate';
+import { forumDateTime, weekLabel } from '@/lib/forumDate';
 import ForumPost from '@/components/rollcall/ForumPost.vue';
 import TemplatePick from '@/components/rollcall/TemplatePick.vue';
 import { copyText } from '@/lib/clipboard';
@@ -557,7 +557,7 @@ async function markPosted() {
                     description: 'Marks changed after you copied it. Copy it again, update the roll call post on the forum, then mark it posted again.',
                 });
             } else {
-                toast.success('Roll call marked posted', { description: `${props.section.designation}, week of ${weekLabel.value}` });
+                toast.success('Roll call marked posted', { description: `${props.section.designation}, week ending ${weekEnding.value}` });
             }
         } else {
             toast.error('Could not mark the roll call posted', { description: messageFor(result) });
@@ -595,7 +595,7 @@ async function confirmPractice() {
         }).catch(unreachable);
         if (result.ok && result.data?.confirmation) {
             confirmation.value = result.data.confirmation;
-            toast.success('Practice confirmed', { description: `${props.section.designation}, week of ${weekLabel.value}` });
+            toast.success('Practice confirmed', { description: `${props.section.designation}, week ending ${weekEnding.value}` });
         } else {
             toast.error('Could not confirm the practice', { description: messageFor(result) });
             // The report was sent since the page loaded: show the week as the server now has it.
@@ -806,7 +806,7 @@ const weekQuery = computed(() => (props.week.isCurrent && (bareWeek.value || !pr
 
 // The picker itself, even for a leader the server would land on a section (`?pick`).
 const pickerHref = computed(() => `/rollcall?pick=1${weekQuery.value ? `&week=${weekQuery.value}` : ''}`);
-const weekLabel = computed(() => forumDate(props.week.start));
+const weekEnding = computed(() => weekLabel(props.week.start));
 const closesLabel = computed(() => {
     const at = new Date(props.week.closes);
 
@@ -818,7 +818,7 @@ const syncedLabel = computed(() => (props.roster?.syncedAt ? `${forumDateTime(pr
 const unfinished = computed(() => weeksNeedingWork(props.weekStatus, props.week.date));
 function unfinishedLabel(weeks, direction) {
     if (!weeks.length) return null;
-    const list = weeks.map((week) => `${forumDate(week.date)} (${week.what})`).join(', ');
+    const list = weeks.map((week) => `${weekLabel(week.date)} (${week.what})`).join(', ');
 
     return `${weeks.length} ${direction} ${weeks.length === 1 ? 'week needs' : 'weeks need'} work: ${list}`;
 }
@@ -842,7 +842,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
     <!-- No section chosen: the picker. -->
     <div v-if="!section" class="mx-auto max-w-xl space-y-4">
         <div>
-            <p class="text-xs text-muted-foreground">Week of {{ forumDate(week.start) }}</p>
+            <p class="text-xs text-muted-foreground">Week Ending {{ weekLabel(week.start) }}</p>
             <h1 class="text-xl font-semibold tracking-tight sm:text-[22px]">Choose a section</h1>
         </div>
         <SectionPicker v-if="sections.length" :sections="sections" :week="weekQuery" />
@@ -864,7 +864,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                         <Link :href="pickerHref" class="underline-offset-2 hover:text-foreground hover:underline" data-testid="choose-section">Choose a section</Link>
                     </template>
                 </p>
-                <h1 class="text-xl font-semibold tracking-tight sm:text-[22px]">Roll call, week of {{ weekLabel }}</h1>
+                <h1 class="text-xl font-semibold tracking-tight sm:text-[22px]">Roll call, week ending {{ weekEnding }}</h1>
             </div>
             <div class="flex items-center gap-1 text-muted-foreground">
                 <Button variant="ghost" size="icon-sm" class="relative" as-child>
@@ -1018,7 +1018,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
         >
             <PhClockCounterClockwise class="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
             <p>
-                Editing a past week, {{ weekLabel }}. Changes correct that week's record and are logged like any other mark.
+                Editing the past week ending {{ weekEnding }}. Changes correct that week's record and are logged like any other mark.
             </p>
         </div>
 
@@ -1385,7 +1385,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                     </Card>
                     <Card v-else-if="step === 2" class="gap-0 p-4 text-[13px]">
                         <p class="mb-1 font-semibold">Section practice</p>
-                        <p class="text-xs text-muted-foreground">Week of {{ weekLabel }}.</p>
+                        <p class="text-xs text-muted-foreground">Week Ending {{ weekEnding }}.</p>
                         <dl class="mt-3 divide-y divide-border">
                             <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Attended</dt><dd class="font-medium tabular-nums">{{ counts.present }}</dd></div>
                             <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Not attended</dt><dd :class="cn('font-medium tabular-nums', counts.missed && 'text-destructive')">{{ counts.missed }}</dd></div>

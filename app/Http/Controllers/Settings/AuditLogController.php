@@ -27,6 +27,7 @@ use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Repositories\AuditLogRepository;
 use App\Repositories\UnitRepository;
+use App\Support\Time\WeekLabel;
 use Closure;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -143,11 +144,11 @@ class AuditLogController extends Controller
         return match (true) {
             $target instanceof SectionPractice && $target->section !== null => [
                 'href' => route('rollcall.show', ['unit' => $target->section_id, 'week' => $target->week_start->toDateString()], false),
-                'label' => "{$unit($target->section)} roll call, week of {$target->week_start->format('dMy')}",
+                'label' => "{$unit($target->section)} roll call, week ending ".WeekLabel::ending($target->week_start),
             ],
             $target instanceof WeeklyReport && $target->unit !== null => [
                 'href' => route('reports.show', ['unit' => $target->unit_id, 'week' => $target->week_start->toDateString()], false),
-                'label' => "{$unit($target->unit)} report, week of {$target->week_start->format('dMy')}",
+                'label' => "{$unit($target->unit)} report, week ending ".WeekLabel::ending($target->week_start),
             ],
             $target instanceof Unit => [
                 'href' => route('roster.index', ['unit' => $target->id], false),
@@ -188,7 +189,7 @@ class AuditLogController extends Controller
             ],
             $target instanceof PlatoonTrainingTopic && $target->unit !== null => [
                 'href' => route('reports.show', ['unit' => $target->unit_id, 'week' => $target->week_start->toDateString()], false),
-                'label' => "{$unit($target->unit)} training topic, week of {$target->week_start->format('dMy')}",
+                'label' => "{$unit($target->unit)} training topic, week ending ".WeekLabel::ending($target->week_start),
             ],
             $target instanceof TrainingPlan && $target->unit !== null => [
                 'href' => route('training-plans.show', ['unit' => $target->unit_id, 'month' => $target->month], false),
@@ -248,7 +249,7 @@ class AuditLogController extends Controller
 
         return [
             'href' => route('rollcall.show', ['unit' => $practice->section_id, 'week' => $practice->week_start->toDateString()], false),
-            'label' => GameIdentityText::reveal($dismissal->player_name)." dismissed, {$section} roll call, week of {$practice->week_start->format('dMy')}",
+            'label' => GameIdentityText::reveal($dismissal->player_name)." dismissed, {$section} roll call, week ending ".WeekLabel::ending($practice->week_start),
         ];
     }
 

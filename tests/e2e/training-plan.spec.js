@@ -17,7 +17,7 @@ test('a platoon leader plans the month and the company commander sends it back, 
     const planPath = new URL(page.url()).pathname;
 
     await expect(page.getByTestId('plan-status')).toHaveText('Not written');
-    await page.getByLabel(/^Week of /).nth(0).fill('Room clearing, two-man entries');
+    await page.getByLabel(/^Week Ending /).nth(0).fill('Room clearing, two-man entries');
     await page.getByLabel('Lock these subjects, so sections cannot change them').check();
     await page.getByTestId('plan-send').click();
     await expect(page.getByTestId('plan-status')).toHaveText('Waiting for approval');
@@ -37,7 +37,7 @@ test('a platoon leader plans the month and the company commander sends it back, 
     await page.goto(`/__e2e/login/Navarro.D?to=${planPath}`);
     await expect(page.getByTestId('plan-comment')).toHaveText('Add radio procedure in week two');
     await expect(page.getByTestId('plan-review')).toHaveCount(0);
-    await page.getByLabel(/^Week of /).nth(1).fill('Radio procedure');
+    await page.getByLabel(/^Week Ending /).nth(1).fill('Radio procedure');
     await page.getByTestId('plan-send').click();
     await expect(page.getByTestId('plan-status')).toHaveText('Waiting for approval');
 

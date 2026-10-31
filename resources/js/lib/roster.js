@@ -163,10 +163,7 @@ export function sourceLabel(mark) {
     return null;
 }
 
-/** `03Oct26`, the forum's date convention. */
-export function weekLabel(weekStart) {
-    return forumDate(`${weekStart}T00:00:00Z`);
-}
+export { weekLabel } from './forumDate';
 
 /**
  * One move from the placement history (`Milpac\PlacementHistory`, 2026-10-27), as the milpac and the Sheet word it:

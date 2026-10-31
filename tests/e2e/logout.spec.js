@@ -7,7 +7,7 @@ import { test, expect } from '@playwright/test';
 
 test('sign out then go Back shows the login page', async ({ page }) => {
     await page.goto('/__e2e/login/Hale.S?to=/reports');
-    await expect(page.getByRole('heading', { name: /^Week of / })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^Week Ending / })).toBeVisible();
 
     await page.getByTestId('user-menu').click();
     await page.getByTestId('sign-out').click();
@@ -21,6 +21,6 @@ test('sign out then go Back shows the login page', async ({ page }) => {
 
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /^Week of / })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: /^Week Ending / })).toHaveCount(0);
     await expect(page.getByRole('treegrid')).toHaveCount(0);
 });

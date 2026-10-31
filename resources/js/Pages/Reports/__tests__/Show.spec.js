@@ -379,6 +379,17 @@ describe('Reports/Show', () => {
         expect(put).not.toHaveBeenCalled();
     });
 
+    it('names the week by its end date in the heading, the preview, the week arrows and the trend (#568)', () => {
+        const wrapper = mountShow({ week: { ...props().week, next: '2026-10-10' } });
+
+        expect(wrapper.text()).toContain('Week Ending 09Oct26');
+        expect(wrapper.get('#preview-title').text()).toContain('week ending 09Oct26');
+        expect(wrapper.get('a[aria-label^="Previous week"]').attributes('aria-label')).toBe('Previous week, ending 02Oct26');
+        expect(wrapper.get('a[aria-label^="Next week"]').attributes('aria-label')).toBe('Next week, ending 16Oct26');
+        expect(wrapper.findAll('th[scope="row"]').map((th) => th.text())).toContain('Week Ending 09Oct26, this draft');
+        expect(wrapper.text()).not.toMatch(/week of/i);
+    });
+
     it('is read-only for a week before the week floor, with no send controls', () => {
         vi.useFakeTimers();
         const wrapper = mountShow({ week: { ...props().week, beforeFloor: true } });
@@ -485,7 +496,7 @@ describe('Reports/Show', () => {
         expect(badge('sp').text()).toContain('-3');
         expect(badge('sp').classes()).toContain('text-destructive');
         expect(badge('atRisk').classes()).toContain('text-destructive');
-        expect(wrapper.get('[data-testid="baseline"]').text()).toContain('26Sep26');
+        expect(wrapper.get('[data-testid="baseline"]').text()).toContain('the week ending 02Oct26');
     });
 
     it('copies a plain-text summary of the sent report', async () => {
@@ -501,7 +512,7 @@ describe('Reports/Show', () => {
 
         const text = writeText.mock.calls[0][0];
         expect(text.split('\n').slice(0, 3)).toEqual([
-            '2nd Section (2/1/A/1-7) weekly report, week of 03Oct26',
+            '2nd Section (2/1/A/1-7) weekly report, week ending 09Oct26',
             'Sent Thu 08Oct26 16:24Z by SGT Vasquez.R',
             'In roll call 2',
         ]);
