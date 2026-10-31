@@ -136,6 +136,8 @@ npm audit --audit-level=high  # supply-chain gate — must report no high/critic
 
 - Branch off `develop`: `feat/<issue>-<slug>` (e.g. `feat/1-2-enforce-layers-deptrac`).
 - One story / issue per PR; keep the diff focused. Reference the issue number.
+- The repo is public: never push keys, server addresses, database dumps or personal data. See
+  [docs/sensitive-information.md](docs/sensitive-information.md).
 - Commit messages describe the change plainly — Conventional Commits style
   (`feat:`, `chore:`, `fix:`) as used in the history.
 
