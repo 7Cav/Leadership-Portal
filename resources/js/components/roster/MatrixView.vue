@@ -1,4 +1,5 @@
 <script setup>
+import { slotLabel } from '@/lib/practiceSlot';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import { PhArrowSquareIn, PhArrowsOutLineVertical, PhArrowsInLineVertical, PhCaretDown, PhCaretRight, PhCaretUpDown, PhLockSimple, PhMagnifyingGlass, PhSortAscending, PhWarning } from '@phosphor-icons/vue';
@@ -9,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import EmptyState from '@/components/EmptyState.vue';
 import NoValue from '@/components/NoValue.vue';
+import PracticeSlotMissingIcon from '@/components/PracticeSlotMissingIcon.vue';
 import {
     aggregateWeek,
     displayName,
@@ -347,9 +349,13 @@ function clearAll() {
                                         <span class="flex items-center gap-1.5">
                                             <component :is="row.open ? PhCaretDown : PhCaretRight" class="size-3.5 text-muted-foreground" aria-hidden="true" />
                                             <span class="font-medium">{{ row.unit.callsign ?? row.unit.name }}</span>
+                                            <PracticeSlotMissingIcon :missing="row.unit.practiceSlotMissing ?? false" />
                                         </span>
                                         <span class="block truncate pl-5 text-xs text-muted-foreground">
                                             <template v-if="row.unit.leader">{{ row.unit.leader.displayName }}, </template>{{ row.members.length }} troopers
+                                        </span>
+                                        <span v-if="row.unit.practiceSlot" class="block truncate pl-5 text-xs text-muted-foreground" :data-testid="`matrix-slot-${row.unit.id}`">
+                                            Practice {{ slotLabel(row.unit.practiceSlot) }}
                                         </span>
                                     </button>
                                     <span v-else class="nm-btn" data-nav :data-r="row.r" data-c="0" :tabindex="tabFor(row.r, 0)">

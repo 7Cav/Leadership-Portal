@@ -48,6 +48,18 @@ checklist:
 2. **Mark all attended** and **Mark the rest not attended** fill many rows at once, and leave an automatically excused trooper alone. Choose **Undo** on the notice to take it back.
 3. With the keyboard, J and K or the arrow keys move between troopers. The number keys set the mark: 1 to 5 for signatures, 1 to 4 for practice. Press `?` for **All keyboard shortcuts**.
 
+## Set the practice slot
+
+The header shows when your section practices, in Zulu, with your own time beside it. A section practice is always one hour.
+
+1. Choose the pencil next to the practice time (or next to **No practice slot**).
+2. Pick the weekday and the start time in Zulu, then choose **Save slot**. **Remove slot** takes it away.
+3. To change one week only, use **This week only**: pick another day and time in the same Cav week and choose **Move this week**, or choose **Cancel this week**. **Back to the usual time** undoes either.
+
+A week the game server already read, or whose report was sent, keeps its time.
+
+If your section plays a game and has no slot, a warning sits at the top of the roll call: without a slot, its practices aren't captured automatically and make-ups aren't given from the game server. Choose **Set the practice slot** on the warning to open the same editor. It goes away once a slot is saved.
+
 ## Check what the game server saw
 
 1. If the game server recorded the practice, the marks are already filled in and say where they came from. Check them and fix any that are wrong.

@@ -169,6 +169,21 @@ On the same page:
   will not send until the leader answers "Made it up" or "Did not" for each. "Made it up" records Make-up complete
   (an audited mark, in the sender's name) before the numbers freeze; "Did not" leaves the mark. The answers are frozen
   with the report and shown on it as "Make-ups checked at send".
+- Practice slot: the header shows the section's weekly practice slot ("Practice Thu 02 00Z") with the viewer's own
+  time beside it as a hint. A section practice is always one hour, so the slot is a weekday and a start time in Zulu,
+  placed in the Cav week of its start (a Wednesday 2359Z practice ends on Thursday, a Friday 2330Z one still belongs
+  to the week it starts in). Sections can share a slot. The section's leaders, the command above them and Admins set,
+  change or remove it, and can move or cancel one week's practice without changing the slot; a week already captured,
+  or whose report was sent, cannot be moved. Every change is in the audit log. A captured practice keeps the window
+  it was read for, so changing the slot later does not rewrite it. A section without a slot works as before. The slot
+  is also shown under the section on the roster matrix and on Home's unit table.
+- No practice slot warning: a section that plays a game (its own or the one above it) and has someone serving in it,
+  but has no slot, is never captured from the game server, so nobody gets an automatic make-up there. Leaders (a
+  synced billet, an acting lead or Admin) see a warning at the top of Home naming those sections in their scope, each
+  linking to its roll call. The section's roll call shows the same warning to everyone who opens it, with a button
+  that opens the slot editor for those who can change it. The roster shows a banner for the viewed unit and a warning
+  icon on each section row without a slot, for leaders. Groups (ELOA, Reservists, New Recruits, staff departments)
+  are left out. The warning cannot be dismissed and goes away once a slot is set.
 - Capture review: when game-server data was captured for the practice, marks it made show their source, and the leader
   can confirm the practice ("Confirmed by ..."). Editing a mark by hand afterwards clears the confirmation.
   On a CRCON server selected on the Servers page, a player counts as present when they were connected to that server

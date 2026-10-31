@@ -32,6 +32,8 @@ use App\Commands\GameIdentities\LinkUnmatchedPlayerHandler;
 use App\Commands\GameIdentities\RestoreDismissedPlayer;
 use App\Commands\GameIdentities\RestoreDismissedPlayerHandler;
 use App\Commands\GameIdentities\UnmatchedPlayerResolutionException;
+use App\Commands\Practices\PracticeSchedule;
+use App\Commands\Practices\SectionsWithoutSlot;
 use App\Jobs\CaptureSectionPracticeJob;
 use App\Kpi\AutoExcused;
 use App\Kpi\Headcount;
@@ -123,6 +125,8 @@ class RollcallController extends Controller
     public const HISTORY_WEEKS = 4;
 
     public function __construct(
+        private readonly PracticeSchedule $schedule,
+        private readonly SectionsWithoutSlot $sectionsWithoutSlot,
         private readonly ScopeResolver $scope,
         private readonly UnitRepository $units,
         private readonly UnitCommandMappingRepository $commands,
@@ -830,6 +834,10 @@ class RollcallController extends Controller
             // A hand-added guest whose makeup is missing (its step failed after the entry was saved) is offered a retry.
             'guests' => $this->guests->forPractice($practice, $this->guestMakeupsMissing($practice)),
             'telemetry' => $this->telemetryProps($section->id, $practice),
+            // The section's weekly practice slot and this week's practice (#392), or null when it has none.
+            'practiceSlot' => $this->schedule->props($section->id, $weekStart, $practice),
+            // True when the section needs a slot and has none (plays a game, has troopers): the page warns at the top.
+            'practiceSlotMissing' => $this->sectionsWithoutSlot->among([$section->id]) !== [],
             'practice' => [
                 'lastMarkedAt' => $week->marks->max(fn (Attendance $row) => $row->updated_at)?->toIso8601String(),
                 'posted' => $this->postedProps($practice),
