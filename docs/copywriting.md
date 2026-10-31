@@ -323,14 +323,25 @@ dates.
 The changelog is read by every trooper, including new ones who do not know how the portal works inside. Each entry
 says what changed for the reader: what they can now do or see, and where. Not how it works.
 
+- Patch notes style: every entry starts with a tag and a colon, then a short fact. The page shows entry text as plain
+  text, so write the tag without bold. Pick one tag:
+  - `Added:` a new page, button, task or piece of information. "Added: Admins can manage the games list and how each
+    game checks attendance."
+  - `Changed:` something that already existed works or looks different. "Changed: Empty units are hidden on Reports,
+    Roster and Home."
+  - `Fixed:` something the reader saw go wrong. Name the symptom, not the cause in the code. "Fixed: The weekly report
+    losing an edit made while it was saving."
+  - `Removed:` something is gone. "Removed: Leftover code."
+  - `Security:` anything that makes the portal safer, including security fixes. Say what was fixed or is now safer,
+    never how it could be abused. No exploit detail, no affected versions. "Security: Sign-in and access checks are
+    stricter."
+- The `[major]` or `[technical]` marker comes first, before the tag: `- [major] Added: Roll call statuses Excused and
+  Make-up requested, and an LOA button.`
 - One change per line. If a line needs "and" to join two unrelated changes, make it two entries.
-- At most 300 characters. Aim for under 25 words.
-- Present tense for what the portal does now: "Roll call shows the report deadline." New things start with the thing:
-  "New Roster page with ...", "Admins can ...", "Leaders can ...".
-- Fixes start with "Fixed" and name what the reader saw go wrong: "Fixed the weekly report losing an edit made while it
-  was saving." Not the cause in the code.
-- Security fixes say what is now safer, without how it could be abused: "Sign-in and access checks are stricter.",
-  "Counseling PDFs with hidden code inside are refused on upload." No exploit detail, no affected versions.
+- At most 300 characters. Aim for under 20 words.
+- Present tense, active, plain: "Added: Roll call warns when the game server is down, so you can mark attendance by
+  hand."
+- Dates in capitals, such as 24OCT26. Week ranges as "24OCT26 to 30OCT26".
 - Use the on-screen names of pages and buttons, written as they appear: Roll call, Roster, Reports, Org structure,
   Mark the rest missed. No bold in entries.
 - Plain everyday words. No internal terms: sync, API, endpoint, cache, scope, billet mapping, seed, CRCON (write "game
@@ -347,12 +358,12 @@ says what changed for the reader: what they can now do or see, and where. Not ho
 
 | Bad | Good |
 | --- | --- |
-| "The portal keeps its own copy of the roster from the Cav site." (how it works) | "The roster updates from the Cav website on a regular schedule." |
-| "Troopers the roster could not place in a section are listed for leaders." | "Leaders see a list of troopers the portal could not place in a section." |
-| "Mark the rest missed button on the roll call practice step." (no verb) | "New Mark the rest missed button on the roll call practice step." |
-| "Past weeks are judged by that week's rules, and every trooper can open their own milpac page." (two changes) | "Past weeks are judged by the rules of that week." and "Every trooper can open their own milpac page." |
-| "An LOR locks 72 hours after filing, and only the RXO can overturn it." | "An LOR locks 72 hours after filing, and only the Regimental XO can overturn it." |
-| "Fixed edge cases with guests and game server marks." | "Fixed rare problems with guests and game server marks." |
+| "The portal keeps its own copy of the roster from the Cav site." (how it works) | "Added: The roster updates from the Cav website on a regular schedule." |
+| "Troopers the roster could not place in a section are listed for leaders." | "Added: Leaders see a list of troopers the portal could not place in a section." |
+| "Mark the rest missed button on the roll call practice step." (no tag) | "Added: Mark the rest missed button on the roll call practice step." |
+| "Past weeks are judged by that week's rules, and every trooper can open their own milpac page." (two changes) | "Changed: Past weeks are judged by the rules of that week." and "Changed: Every trooper can open their own milpac page." |
+| "An LOR locks 72 hours after filing, and only the RXO can overturn it." | "Added: An LOR locks 72 hours after filing. Only the Regimental XO can overturn it." |
+| "Fixed edge cases with guests and game server marks." | "Fixed: Rare problems with guests and game server marks." |
 
 ## Glossary
 
