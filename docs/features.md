@@ -177,6 +177,13 @@ On the same page:
   or whose report was sent, cannot be moved. Every change is in the audit log. A captured practice keeps the window
   it was read for, so changing the slot later does not rewrite it. A section without a slot works as before. The slot
   is also shown under the section on the roster matrix and on Home's unit table.
+- No practice slot warning: a section that plays a game (its own or the one above it) and has someone serving in it,
+  but has no slot, is never captured from the game server, so nobody gets an automatic make-up there. Leaders (a
+  synced billet, an acting lead or Admin) see a warning at the top of Home naming those sections in their scope, each
+  linking to its roll call. The section's roll call shows the same warning to everyone who opens it, with a button
+  that opens the slot editor for those who can change it. The roster shows a banner for the viewed unit and a warning
+  icon on each section row without a slot, for leaders. Groups (ELOA, Reservists, New Recruits, staff departments)
+  are left out. The warning cannot be dismissed and goes away once a slot is set.
 - Capture review: when game-server data was captured for the practice, marks it made show their source, and the leader
   can confirm the practice ("Confirmed by ..."). Editing a mark by hand afterwards clears the confirmation.
   On a CRCON server selected on the Servers page, a player counts as present when they were connected to that server

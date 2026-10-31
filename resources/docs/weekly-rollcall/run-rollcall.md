@@ -58,6 +58,8 @@ The header shows when your section practices, in Zulu, with your own time beside
 
 A week the game server already read, or whose report was sent, keeps its time.
 
+If your section plays a game and has no slot, a warning sits at the top of the roll call: without a slot, its practices aren't captured automatically and make-ups aren't given from the game server. Choose **Set the practice slot** on the warning to open the same editor. It goes away once a slot is saved.
+
 ## Check what the game server saw
 
 1. If the game server recorded the practice, the marks are already filled in and say where they came from. Check them and fix any that are wrong.
