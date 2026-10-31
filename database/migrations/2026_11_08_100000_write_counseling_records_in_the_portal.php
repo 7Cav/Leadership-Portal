@@ -96,10 +96,12 @@ return new class extends Migration
             ->delete();
 
         Schema::table('counseling_records', function (Blueprint $table) {
+            // MySQL backs the appeal unit's foreign key with the composite index, so the key goes before the index.
+            $table->dropForeign(['appeal_unit_id']);
             $table->dropIndex(['appeal_unit_id', 'appeal_decided_at']);
             $table->dropConstrainedForeignId('appeal_decided_by_admin');
             $table->dropConstrainedForeignId('appeal_decided_by');
-            $table->dropConstrainedForeignId('appeal_unit_id');
+            $table->dropColumn('appeal_unit_id');
             $table->dropConstrainedForeignId('responded_by');
             $table->dropUnique(['import_key']);
             $table->dropColumn([
