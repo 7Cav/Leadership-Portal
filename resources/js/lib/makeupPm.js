@@ -7,15 +7,15 @@ import { weekLabel } from '@/lib/forumDate';
 
 const WEEK = /^\d{4}-\d{2}-\d{2}$/;
 
-// "Section practice makeup: week ending 09Oct26", or "weeks ending 02Oct26, 09Oct26" for more than one, oldest
-// first, each week named by its Friday in the forum's date convention (#568). Just "Section practice makeup" when no week is known.
+// "Section practice makeup: week 03OCT26 to 09OCT26", or "weeks 26SEP26 to 02OCT26, 03OCT26 to 09OCT26" for more than one, oldest
+// first, each week named by both its dates in the forum's date convention. Just "Section practice makeup" when no week is known.
 export function makeupPmTitle(missedWeeks = []) {
     const weeks = [...new Set(missedWeeks.filter((week) => WEEK.test(String(week))))].sort();
     if (!weeks.length) return 'Section practice makeup';
 
     const labels = weeks.map(weekLabel);
 
-    return `Section practice makeup: ${labels.length === 1 ? 'week' : 'weeks'} ending ${labels.join(', ')}`;
+    return `Section practice makeup: ${labels.length === 1 ? 'week' : 'weeks'} ${labels.join(', ')}`;
 }
 
 // The forum URL that opens a new conversation to `username` titled for the missed weeks, or null when

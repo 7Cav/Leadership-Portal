@@ -70,7 +70,7 @@ describe('TrooperDetail', () => {
 
             expect(wrapper.get('[data-testid="rank"]').text()).toBe('Specialist');
             expect(wrapper.get('[data-testid="mos"]').text()).toBe('11B');
-            expect(wrapper.get('[data-testid="joined"]').text()).toBe('14Jan25');
+            expect(wrapper.get('[data-testid="joined"]').text()).toBe('14JAN25');
             expect(wrapper.get('[data-testid="status"]').text()).toBe('Active');
         });
 
@@ -144,10 +144,10 @@ describe('TrooperDetail', () => {
             const wrapper = page({ transfers: [{ at: '2026-09-30T18:00:00Z', from: '2/1/A/1-7', to: '1/1/E/2-7' }], attendance: history() });
             const rows = wrapper.findAll('[data-testid="attendance-week"]');
 
-            expect(wrapper.get('[data-testid="transfers"]').text()).toBe('Moved from 2/1/A/1-7 to 1/1/E/2-7, 30Sep26');
+            expect(wrapper.get('[data-testid="transfers"]').text()).toBe('Moved from 2/1/A/1-7 to 1/1/E/2-7, 30SEP26');
             expect(rows).toHaveLength(20);
             expect(rows[0].text()).toContain('This week');
-            expect(rows[2].text()).toContain('25Sep26');
+            expect(rows[2].text()).toContain('25SEP26');
             expect(rows[2].get('[data-testid="attendance-section"]').text()).toBe('2/1/A/1-7');
             expect(rows[2].text()).toContain('Will attend');
             expect(rows[2].text()).toContain('Attended');
@@ -217,14 +217,14 @@ describe('TrooperDetail', () => {
             const wrapper = page();
 
             expect(wrapper.get('[data-testid="source-line"]').text()).toContain('Source: milpac');
-            expect(wrapper.get('[data-testid="last-synced"]').text()).toBe('08Oct26 09:30Z (45 min ago)');
+            expect(wrapper.get('[data-testid="last-synced"]').text()).toBe('08OCT26 09\u200A30Z (45 min ago)');
             expect(wrapper.find('[data-testid="stale-notice"]').exists()).toBe(false);
         });
 
         it('says the record is the last good copy when a later sync failed', () => {
             const wrapper = page({ sync: sync({ stale: true, lastAttempt: { status: 'failure', at: '2026-10-08T11:00:00+00:00' } }) });
 
-            expect(wrapper.get('[data-testid="stale-notice"]').text()).toContain('failed on 08Oct26 11:00Z');
+            expect(wrapper.get('[data-testid="stale-notice"]').text()).toContain('failed on 08OCT26 11\u200A00Z');
             expect(wrapper.get('[data-testid="stale-notice"]').text()).toContain('last successful sync');
         });
 
@@ -264,7 +264,7 @@ describe('TrooperDetail', () => {
             const wrapper = page();
             const rows = wrapper.get('[data-testid="group-qualified"]').findAll('[data-testid="course"]');
 
-            expect(rows[0].get('[data-testid="awarded"]').text()).toBe('02Feb25');
+            expect(rows[0].get('[data-testid="awarded"]').text()).toBe('02FEB25');
             expect(rows[1].find('[data-testid="awarded"]').exists()).toBe(false);
         });
 
@@ -316,7 +316,7 @@ describe('TrooperDetail', () => {
 
             expect(rows).toHaveLength(2);
             expect(rows[0].text()).toContain('Army Achievement Medal');
-            expect(rows[0].get('[data-testid="award-date"]').text()).toBe('18Jan26');
+            expect(rows[0].get('[data-testid="award-date"]').text()).toBe('18JAN26');
             expect(rows[0].get('[data-testid="award-citation"]').text()).toBe('Sustained SP attendance and mentoring.');
             expect(wrapper.get('[data-testid="awards-count"]').text()).toBe('2');
             expect(wrapper.find('[data-testid="awards-empty"]').exists()).toBe(false);
@@ -381,10 +381,10 @@ describe('TrooperDetail', () => {
             const rows = wrapper.findAll('li[data-testid^="event-"]');
 
             expect(rows).toHaveLength(2);
-            expect(rows[0].get('[data-testid="event-date"]').text()).toBe('04Mar26');
+            expect(rows[0].get('[data-testid="event-date"]').text()).toBe('04MAR26');
             expect(rows[0].get('[data-testid="event-title"]').text()).toBe('Course: Squad Advanced Course');
             expect(rows[0].get('[data-testid="event-detail"]').text()).toBe('SAC');
-            expect(rows[1].get('[data-testid="event-date"]').text()).toBe('22Nov25');
+            expect(rows[1].get('[data-testid="event-date"]').text()).toBe('22NOV25');
         });
 
         it('gives each event type its own colour, matching the legend', () => {
@@ -483,7 +483,7 @@ describe('TrooperDetail', () => {
             const wrapper = page({ actions, makeup: { username: 'Milkovic.D', missedWeeks: ['2026-10-03'] } });
             const link = wrapper.get('[data-testid="action-makeup-pm"]');
 
-            expect(link.attributes('href')).toBe('https://7cav.us/conversations/add?to=Milkovic.D&title=Section%20practice%20makeup%3A%20week%20ending%2009Oct26');
+            expect(link.attributes('href')).toBe('https://7cav.us/conversations/add?to=Milkovic.D&title=Section%20practice%20makeup%3A%20week%2003OCT26%20to%2009OCT26');
             expect(link.attributes('target')).toBe('_blank');
             expect(link.attributes('rel')).toBe('noopener noreferrer');
             expect(link.text()).toContain('Send makeup PM');

@@ -154,7 +154,7 @@ describe('Roster page', () => {
     it('names the leave source and last sync, and hands it to the trooper sheet (4.3, AD-20)', () => {
         const wrapper = factory();
 
-        expect(wrapper.get('[data-testid="loa-sync"]').text()).toBe('Leave from Forum thread, synced 08Oct26 09:14Z');
+        expect(wrapper.get('[data-testid="loa-sync"]').text()).toBe('Leave from Forum thread, synced 08OCT26 09\u200A14Z');
         expect(wrapper.get('[data-testid="sheet-stub"]').attributes('data-loa-source')).toBe('Forum thread');
 
         const stale = factory({ loaSync: { ...props().loaSync, stale: true, latestStatus: 'failure' } });
@@ -173,10 +173,10 @@ describe('Roster page', () => {
         try {
             vi.setSystemTime(new Date('2026-10-08T11:20:00Z'));
             const wrapper = factory({ sync: { source: 'milpac', lastSuccessAt: '2026-10-08T09:14:00+00:00', stale: false, lastAttempt: null } });
-            expect(wrapper.find('[data-testid="roster-sync-stamp"]').text()).toBe('milpac, synced 09:14Z (2 h ago)');
+            expect(wrapper.find('[data-testid="roster-sync-stamp"]').text()).toBe('milpac, synced 09\u200A14Z (2 h ago)');
 
             await vi.advanceTimersByTimeAsync(60 * 60_000);
-            expect(wrapper.find('[data-testid="roster-sync-stamp"]').text()).toBe('milpac, synced 09:14Z (3 h ago)');
+            expect(wrapper.find('[data-testid="roster-sync-stamp"]').text()).toBe('milpac, synced 09\u200A14Z (3 h ago)');
         } finally {
             vi.useRealTimers();
         }
@@ -205,7 +205,7 @@ describe('Roster page', () => {
 
         const ok = factory({ sync: { ...base, unit: { status: 'success', at: '2026-10-08T10:20:00+00:00' } } });
         expect(ok.find('[data-testid="roster-unit-sync"]').text()).toContain('This unit synced');
-        expect(ok.find('[data-testid="roster-unit-sync"]').text()).toContain('10:20Z');
+        expect(ok.find('[data-testid="roster-unit-sync"]').text()).toContain('10\u200A20Z');
 
         const partial = factory({ sync: { ...base, unit: { status: 'partial', at: '2026-10-08T10:20:00+00:00' } } });
         expect(partial.find('[data-testid="roster-unit-sync"]').text()).toContain('some rows skipped');

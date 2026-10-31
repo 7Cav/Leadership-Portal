@@ -145,7 +145,7 @@ it('links an unmatched player at the floor and refuses the week before it, which
         'week' => $week, 'platform' => 'hll', 'platform_id' => '7656119000000001', 'trooper_id' => $ortega->id,
     ]);
 
-    $link(BEFORE_FLOOR_WEEK)->assertStatus(422)->assertJsonPath('message', 'The week ending 15May26 is too far back to change.');
+    $link(BEFORE_FLOOR_WEEK)->assertStatus(422)->assertJsonPath('message', 'The week ending 15MAY26 (09MAY26 to 15MAY26) is too far back to change.');
     expect(Attendance::query()->count())->toBe(0)
         ->and(TrooperGameIdentity::query()->where('trooper_id', $ortega->id)->count())->toBe(0);
 

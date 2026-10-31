@@ -190,8 +190,8 @@ describe('ordering and matching', () => {
 });
 
 describe('labels', () => {
-    it('names a week by its end date, the Friday, in the forum convention (#568)', () => {
-        expect(weekLabel('2026-10-24')).toBe('30Oct26');
+    it('names a week by its Saturday and Friday', () => {
+        expect(weekLabel('2026-10-24')).toBe('24OCT26 to 30OCT26');
     });
 
     it('names the source of a mark', () => {
@@ -454,9 +454,9 @@ describe('time in service and grade', () => {
 // Decided 2026-10-27: the milpac and the Sheet show a trooper's moves and their attendance across every unit.
 describe('transfers and the attendance history', () => {
     it('words a move, a first placement and a trooper left unplaced, with the forum date', () => {
-        expect(transferLabel({ at: '2026-10-12T18:00:00Z', from: '2/1/A/1-7', to: '1/2/A/1-7' })).toBe('Moved from 2/1/A/1-7 to 1/2/A/1-7, 12Oct26');
-        expect(transferLabel({ at: '2026-10-12T18:00:00Z', from: null, to: '1/2/A/1-7' })).toBe('Placed in 1/2/A/1-7, 12Oct26');
-        expect(transferLabel({ at: '2026-10-12T18:00:00Z', from: '2/1/A/1-7', to: null })).toBe('Left 2/1/A/1-7, 12Oct26');
+        expect(transferLabel({ at: '2026-10-12T18:00:00Z', from: '2/1/A/1-7', to: '1/2/A/1-7' })).toBe('Moved from 2/1/A/1-7 to 1/2/A/1-7, 12OCT26');
+        expect(transferLabel({ at: '2026-10-12T18:00:00Z', from: null, to: '1/2/A/1-7' })).toBe('Placed in 1/2/A/1-7, 12OCT26');
+        expect(transferLabel({ at: '2026-10-12T18:00:00Z', from: '2/1/A/1-7', to: null })).toBe('Left 2/1/A/1-7, 12OCT26');
     });
 
     const week = (overrides = {}) => ({ week: '2026-09-19', section: { id: 4, label: '2/1/A/1-7' }, rollcall: 'will_attend', status: 'present', source: 'manual', held: true, loa: false, ...overrides });

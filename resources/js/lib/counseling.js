@@ -1,6 +1,8 @@
 // Developmental Counseling Statements and Letters of Reprimand on the trooper page (#381). The server decides who
 // sees and may do what; these are the words and small rules the panel draws with.
 
+import { zuluTime } from '@/lib/forumDate';
+
 export const COUNSELING_TYPES = {
     dcs: { short: 'DCS', label: 'Developmental Counseling Statement' },
     lor: { short: 'LOR', label: 'Letter of Reprimand' },
@@ -127,11 +129,11 @@ export function counselingFormPayload(form, type) {
     return { ...shared, consequences: [...consequences], removal: consequences.includes('removal') ? removal : '', special_punishments, appeal };
 }
 
-// A record freezes 72 hours after it is filed. `at` is the server's ISO 8601 UTC instant; shown as "2026-11-02 10:00Z".
+// A record freezes 72 hours after it is filed. `at` is the server's ISO 8601 UTC instant; shown as "2026-11-02 10 00Z".
 export function utcStamp(at) {
     if (typeof at !== 'string' || at.length < 16) return '';
 
-    return `${at.slice(0, 10)} ${at.slice(11, 16)}Z`;
+    return `${at.slice(0, 10)} ${zuluTime(at)}`;
 }
 
 // The trooper's answer to a record, in the words of its type: an LOR is appealed. The regiment's DCS form says a DCS is

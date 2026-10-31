@@ -80,7 +80,7 @@ describe('Reports/TrainingPlan', () => {
         expect(wrapper.get('[data-testid="plan-status"]').text()).toBe('Not written');
         expect(wrapper.get('[data-testid="plan-send"]').attributes('disabled')).toBeDefined();
 
-        expect(wrapper.get('label[for="week-2026-11-07"]').text()).toBe('Week Ending 13Nov26');
+        expect(wrapper.get('label[for="week-2026-11-07"]').text()).toBe('07NOV26 to 13NOV26');
         await wrapper.get('#week-2026-11-07').setValue('Room clearing');
         await wrapper.get('#week-2026-11-21').setValue('Radio procedure');
         await wrapper.get('[data-testid="plan-send"]').trigger('click');
@@ -153,7 +153,7 @@ describe('Reports/TrainingPlan', () => {
         });
         const wrapper = mountPage();
 
-        expect(wrapper.get('label[for="week-2026-11-07"]').text()).toBe('Week Ending 13Nov26');
+        expect(wrapper.get('label[for="week-2026-11-07"]').text()).toBe('07NOV26 to 13NOV26');
         await wrapper.get('#week-2026-11-07').setValue('Room clearing');
         await wrapper.get('[data-testid="plan-send"]').trigger('click');
         await flushPromises();

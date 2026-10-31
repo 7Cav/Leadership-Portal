@@ -37,7 +37,7 @@ function consistencyAt(string $moment): void
     Carbon::setTestNow(CarbonImmutable::parse($moment, 'UTC'));
 }
 
-/** Saturday 10Oct26 08:00, with the 03Oct26 reports due at 23:59: the mover goes from A to B, the leaver leaves the Cav. */
+/** Saturday 10OCT26 08:00, with the 03OCT26 reports due at 23:59: the mover goes from A to B, the leaver leaves the Cav. */
 function consistencySaturday(object $test): void
 {
     consistencyAt('2026-10-10 08:00:00');
@@ -84,7 +84,7 @@ beforeEach(function () {
     $this->co = User::factory()->commanding($this->company)->create();
     $this->leaderA = User::factory()->commanding($this->a)->create();
 
-    // Placed by the sync before the week of 03Oct26: the stayer and the mover in A, the leaver alone in C.
+    // Placed by the sync before the week of 03OCT26: the stayer and the mover in A, the leaver alone in C.
     consistencyAt('2026-09-30 12:00:00');
     $this->stayer = Trooper::factory()->create();
     $this->mover = Trooper::factory()->create();
@@ -130,7 +130,7 @@ it('counts Home\'s step matrix and live roll-up rows over the roster the closing
     $units = collect($props['units'])->keyBy('id');
     $kpis = app(KpiService::class);
 
-    // The report still due is 03Oct26's: A and C take part (someone ended the week in them), B does not.
+    // The report still due is 03OCT26's: A and C take part (someone ended the week in them), B does not.
     expect($props['week']['start'])->toBe('2026-10-03T00:00:00+00:00')
         ->and($steps->keys()->sort()->values()->all())->toBe([$this->a->id, $this->c->id])
         ->and($steps[$this->a->id])->toMatchArray(['strength' => 2, 'marked' => 1, 'held' => true])
@@ -158,13 +158,13 @@ it('waits in the report chain on exactly the sections whose closing-week rollcal
         ->and(app(TrooperPlacementRepository::class)->unitIdsPlacedByWeek($this->week, $this->week)['2026-10-03'])
         ->toBe([$this->a->id, $this->c->id]);
 
-    // He served the week he left in (10Oct26) too, and none after it.
+    // He served the week he left in (10OCT26) too, and none after it.
     expect(app(TrooperPlacementRepository::class)->unitIdsPlacedByWeek($this->week->addWeek(), $this->week->addWeeks(2)))
         ->toBe(['2026-10-10' => [$this->a->id, $this->b->id, $this->c->id], '2026-10-17' => [$this->a->id, $this->b->id]]);
 });
 
 it('takes a section a trooper left during the week out of that week\'s chain, as its rollcall does', function () {
-    // Thursday 08Oct26, mid-week: the leaver, alone in C, moves to A.
+    // Thursday 08OCT26, mid-week: the leaver, alone in C, moves to A.
     consistencyAt('2026-10-08 09:00:00');
     $this->troopers->updatePrimarySections([$this->leaver->cav_id => $this->a->id]);
     consistencyAt('2026-10-10 12:00:00');
@@ -219,7 +219,7 @@ it('pre-marks a capture of the running week by who is placed and serving now', f
 });
 
 it('counts a given roster exactly as it counts who is placed now', function () {
-    // Still the running week (Wednesday 07Oct26): the roster is who is placed now, so both ways must agree.
+    // Still the running week (Wednesday 07OCT26): the roster is who is placed now, so both ways must agree.
     $repo = app(AttendanceRepository::class);
     $practices = app(SectionPracticeRepository::class);
     $repo->signRollcall($practices->find($this->a->id, $this->week), $this->mover->id, RollcallSignature::WillAttend);

@@ -485,7 +485,7 @@ describe('Changelog page', () => {
         it('shows the restore bar with Zulu stamps and restores on click', async () => {
             mountPage({ isEditor: true, days: [], pendingRestore: { count: 265, deletedAt: '2026-10-31T18:20:00Z', restoreUntil: '2026-11-03T18:20:00Z' } });
 
-            expect(wrapper.get('[data-testid="changelog-restore-text"]').text()).toBe('265 entries deleted on 31OCT26 18:20Z. Restore until 03NOV26 18:20Z.');
+            expect(wrapper.get('[data-testid="changelog-restore-text"]').text()).toBe('265 entries deleted on 31OCT26 18 20Z. Restore until 03NOV26 18 20Z.');
             await wrapper.get('[data-testid="changelog-restore"]').trigger('click');
             expect(routerPost).toHaveBeenCalledWith('/changelog/restore', {}, expect.any(Object));
         });

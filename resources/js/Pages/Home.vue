@@ -5,7 +5,8 @@ import { PhChartLine, PhTray, PhUserCheck, PhWarning } from '@phosphor-icons/vue
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { forumDate, forumDateTime, weekLabel } from '@/lib/forumDate';
+import { forumDate, forumDateTime, weekPhrase, zuluTime } from '@/lib/forumDate';
+import WeekHeading from '@/components/week/WeekHeading.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import KpiTiles from '@/components/home/KpiTiles.vue';
 import StepLanes from '@/components/home/StepLanes.vue';
@@ -19,7 +20,7 @@ import NeedsAttention from '@/components/home/NeedsAttention.vue';
 // it. Where the scope or the data is missing each area is an honest empty state; nothing here
 // shows a number the portal does not have.
 const props = defineProps({
-    // `{ start, reportDue }`, ISO-8601 UTC. `start` is the Saturday 00:00Z that opens the week.
+    // `{ start, reportDue }`, ISO-8601 UTC. `start` is the Saturday 0000Z that opens the week.
     week: { type: Object, required: true },
     // The six KPIs for the viewer's scope with their sent-snapshot history (Story 5.9); null when
     // the viewer's scope holds no units.
@@ -82,14 +83,12 @@ const days = computed(() =>
     }),
 );
 
-// Days are whole UTC days from the week start, matching the server's Saturday 00:00Z boundary.
+// Days are whole UTC days from the week start, matching the server's Saturday 0000Z boundary.
 const todayIndex = computed(() => Math.floor((now.value - weekStart.value) / DAY));
 
 const dueLabel = computed(() => {
     const due = new Date(props.week.reportDue);
-    const time = `${String(due.getUTCHours()).padStart(2, '0')}:${String(due.getUTCMinutes()).padStart(2, '0')}Z`;
-
-    return `${WEEKDAYS[due.getUTCDay()]} ${forumDate(due)} ${time}`;
+    return `${WEEKDAYS[due.getUTCDay()]} ${forumDate(due)} ${zuluTime(due)}`;
 });
 
 const countdown = computed(() => {
@@ -133,7 +132,7 @@ const countdown = computed(() => {
             <div class="flex flex-wrap items-end gap-x-6 gap-y-3 px-4 pt-4 pb-3 sm:px-5">
                 <div class="min-w-0">
                     <p class="text-xs text-muted-foreground">Weekly cycle</p>
-                    <h1 id="week-title" class="text-xl font-semibold tracking-tight sm:text-[22px]">Week Ending {{ weekLabel(week.start) }}</h1>
+                    <h1 id="week-title" class="text-xl font-semibold tracking-tight sm:text-[22px]"><WeekHeading :week="week.start" /></h1>
                 </div>
                 <div class="w-full sm:ml-auto sm:w-auto sm:text-right">
                     <p class="text-xs text-muted-foreground">Report due {{ dueLabel }}</p>
@@ -190,7 +189,7 @@ const countdown = computed(() => {
         >
             <PhUserCheck class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             <p class="min-w-0 flex-1">
-                Your staff report for the week ending {{ weekLabel(staffReport.week + 'T00:00:00Z') }} is not sent yet. It is due
+                Your staff report for the {{ weekPhrase(staffReport.week + 'T00:00:00Z') }} is not sent yet. It is due
                 {{ forumDateTime(staffReport.due) }}Z.
             </p>
             <Button size="sm" variant="outline" as-child>

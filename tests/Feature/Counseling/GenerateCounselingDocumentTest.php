@@ -31,7 +31,7 @@ beforeEach(function () {
         'counseled_on' => now()->subDays(2)->toDateString(),
         'reason' => 'Disrespect toward an NCO.',
         'form' => [
-            'infraction' => 'Swore at the SL during practice on 12Oct26.',
+            'infraction' => 'Swore at the SL during practice on 12OCT26.',
             'regulation' => '7CAV-R-042',
             'discussion' => 'Talked it through after practice.',
             'plan_authority' => 'Check in after next practice.',
@@ -79,7 +79,7 @@ it('files a DCS from the form: a real PDF stored privately, the form kept, and a
         ->and($record->document_size)->toBe(strlen($bytes))
         ->and($record->document_sha256)->toBe(hash('sha256', $bytes))
         ->and($record->drive_status)->toBe(DriveUploadStatus::Skipped)
-        ->and($record->form_data['infraction'])->toBe('Swore at the SL during practice on 12Oct26.')
+        ->and($record->form_data['infraction'])->toBe('Swore at the SL during practice on 12OCT26.')
         ->and($record->form_data['plan_trooper'])->toBe('Apologise to the SL.')
         // A DCS carries the form's fixed text in place of the LOR fields.
         ->and($record->form_data['consequences'])->toBe([])
@@ -97,7 +97,7 @@ it('renders the trooper, the issuer and the infraction on the official DCS form'
         ->toContain('Counselling Authority')
         ->toContain('Brandt.L')
         ->toContain('Okafor.B')
-        ->toContain('Swore at the SL during practice on 12Oct26.')
+        ->toContain('Swore at the SL during practice on 12OCT26.')
         ->toContain('Not applicable for Counselling Statements.')
         ->toContain('RECORDS must be kept for 90 days only in the 7<sup>th</sup> Cavalry Google Drive and/or Leadership Portal. Send up Chain of Command when complete.')
         ->toContain('PROCEDURAL REFERENCE – For use only in conjunction with 7CAV-R-042.')

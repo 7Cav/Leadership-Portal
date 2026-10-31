@@ -99,7 +99,7 @@ describe('NeedsAttention', () => {
             const wrapper = mountList([risk(7, 'SGT Vasquez.R', 2, '1/1/A/1-7', { trooper: { id: 7, displayName: 'SGT Vasquez.R', rankShort: 'SGT', username: 'Vasquez.R' }, missedWeeks })]);
             const link = wrapper.get('[data-testid="makeup-pm"]');
 
-            expect(link.attributes('href')).toBe('https://7cav.us/conversations/add?to=Vasquez.R&title=Section%20practice%20makeup%3A%20weeks%20ending%2002Oct26%2C%2009Oct26');
+            expect(link.attributes('href')).toBe('https://7cav.us/conversations/add?to=Vasquez.R&title=Section%20practice%20makeup%3A%20weeks%2026SEP26%20to%2002OCT26%2C%2003OCT26%20to%2009OCT26');
             expect(link.attributes('target')).toBe('_blank');
             expect(link.attributes('rel')).toBe('noopener noreferrer');
             expect(link.text()).toContain('Send makeup PM to SGT Vasquez.R');
@@ -177,7 +177,7 @@ describe('NeedsAttention, owed make-ups', () => {
         expect(wrapper.get('[data-group="makeup_owed"] h3').text()).toContain('Owe a make-up');
         expect(row.attributes('href')).toBe('/rollcall/5?week=2026-10-03&focus=9');
         expect(row.attributes('title')).toBe('Open PFC Adams.P on the 1/1/A/1-7 roll call');
-        expect(row.text()).toContain('Make-up requested for the weeks ending 02Oct26, 09Oct26 in 1/1/A/1-7');
+        expect(row.text()).toContain('Make-up requested for the weeks 26SEP26 to 02OCT26, 03OCT26 to 09OCT26 in 1/1/A/1-7');
         expect(row.text()).toContain('Owes a make-up');
     });
 });

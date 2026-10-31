@@ -24,8 +24,8 @@ use Carbon\CarbonImmutable;
 use Inertia\Testing\AssertableInertia;
 
 // #442: a line unit with nobody serving in it or under it is left out of the report chain, the roster and Home until
-// someone is placed in it. "Has troopers" is one definition, a headcount above zero (`Headcount`). "Now" is Thu 08Oct26,
-// so the running week opens Sat 03Oct26. Fixture tree:
+// someone is placed in it. "Has troopers" is one definition, a headcount above zero (`Headcount`). "Now" is Thu 08OCT26,
+// so the running week opens Sat 03OCT26. Fixture tree:
 //   2-7 ─┬─ A/2-7 ─ 1/A/2-7 ─┬─ 1/1/A/2-7  (2 troopers)
 //        │                   └─ 2/1/A/2-7  (empty)
 //        └─ E/2-7 ─ 1/E/2-7 ─── 1/1/E/2-7  (empty, all the way down)
@@ -373,7 +373,7 @@ it('keeps the platoon and company of a section that sent in that week\'s chain a
 it('leaves a section stood up after a past week out of that week\'s roll-up, and counts it from its first week', function () {
     $standUp = app(UnitRepository::class)->create(UnitType::Section, '3rd Section', '3/1/A/2-7', $this->platoon->id);
     $joined = Trooper::factory()->create(['primary_section_id' => null]);
-    // The roster sync fills it now (Thu 08Oct26), writing the placement history as it does.
+    // The roster sync fills it now (Thu 08OCT26), writing the placement history as it does.
     app(TrooperRepository::class)->updatePrimarySections([$joined->cav_id => $standUp->id]);
     $lastWeek = $this->weekStart->subWeek();
 

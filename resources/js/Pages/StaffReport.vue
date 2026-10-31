@@ -29,7 +29,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { forumDate, weekLabel } from '@/lib/forumDate';
+import { forumDate, weekLabel, weekPhrase } from '@/lib/forumDate';
+import WeekHeading from '@/components/week/WeekHeading.vue';
 import { onHttpException } from '@/lib/httpError';
 import { stamp } from '@/lib/report';
 import { attendedText, pickerCollapses, pickerGroups, sheetText } from '@/lib/staffReport';
@@ -278,7 +279,7 @@ function entryNote(id) {
 </script>
 
 <template>
-    <Head :title="`Staff report, week ending ${weekLabel(week.start)} · 7Cav Leadership Portal`" />
+    <Head :title="`Staff report, ${weekPhrase(week.start)} · 7Cav Leadership Portal`" />
 
     <div class="flex flex-col gap-4" :class="canSend && !report ? 'max-w-5xl' : 'max-w-3xl'" data-testid="staff-report-page">
         <section aria-labelledby="page-title" class="flex flex-wrap items-end gap-x-6 gap-y-3">
@@ -287,17 +288,17 @@ function entryNote(id) {
                     Staff report for {{ trooper.displayName }}<template v-if="hqLabel">, {{ hqLabel }}</template>
                 </p>
                 <h1 id="page-title" class="flex flex-wrap items-center gap-2.5 text-xl font-semibold tracking-tight sm:text-[22px]">
-                    Week Ending {{ weekLabel(week.start) }}
+                    <WeekHeading :week="week.start" />
                     <Badge v-if="report" variant="success" data-testid="status-badge"><PhLockSimple aria-hidden="true" />Sent</Badge>
                     <Badge v-else-if="hq" variant="warning" data-testid="status-badge">Not sent</Badge>
                 </h1>
             </div>
             <nav class="flex items-center gap-1" aria-label="Choose week">
                 <Button variant="ghost" size="icon-sm" as-child>
-                    <Link :href="weekUrl(week.previous)" :aria-label="`Previous week, ending ${weekLabel(week.previous)}`"><PhCaretLeft /></Link>
+                    <Link :href="weekUrl(week.previous)" :aria-label="`Previous week, ${weekLabel(week.previous)}`"><PhCaretLeft /></Link>
                 </Button>
                 <Button v-if="week.next" variant="ghost" size="icon-sm" as-child>
-                    <Link :href="weekUrl(week.next)" :aria-label="`Next week, ending ${weekLabel(week.next)}`"><PhCaretRight /></Link>
+                    <Link :href="weekUrl(week.next)" :aria-label="`Next week, ${weekLabel(week.next)}`"><PhCaretRight /></Link>
                 </Button>
                 <Button v-else variant="ghost" size="icon-sm" disabled aria-label="Next week, not open yet"><PhCaretRight /></Button>
             </nav>

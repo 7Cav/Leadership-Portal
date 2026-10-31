@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, useTemplateRef } from 'vue';
 import { useElementSize } from '@vueuse/core';
-import { weekLabel } from '@/lib/forumDate';
+import { weekLabel, weekTick } from '@/lib/forumDate';
 import { percent } from '@/lib/report';
 
 // RC % and SP % over the last eight weeks (P3 mini chart). Earlier weeks are their frozen sent
@@ -75,7 +75,7 @@ function onMove(event) {
 }
 
 const fmt = (v) => (v === null ? 'no sent report' : `${v}%`);
-const hoverLabel = (v) => `Week Ending ${weekLabel(v.week)}${v.current ? (props.live ? ', this draft' : ', this report') : ''}`;
+const hoverLabel = (v) => `${weekLabel(v.week)}${v.current ? (props.live ? ', this draft' : ', this report') : ''}`;
 </script>
 
 <template>
@@ -129,7 +129,7 @@ const hoverLabel = (v) => `Week Ending ${weekLabel(v.week)}${v.current ? (props.
                     class="fill-muted-foreground text-[10px]"
                     :class="{ 'font-semibold': v.current }"
                 >
-                    {{ weekLabel(v.week).slice(0, 5) }}
+                    {{ weekTick(v.week) }}
                 </text>
                 <line
                     v-if="hover !== null"
@@ -182,7 +182,7 @@ const hoverLabel = (v) => `Week Ending ${weekLabel(v.week)}${v.current ? (props.
         <table>
             <caption>Roll call and SP percentage by week</caption>
             <thead>
-                <tr><th scope="col">Week ending</th><th scope="col">Roll call %</th><th scope="col">SP %</th></tr>
+                <tr><th scope="col">Week</th><th scope="col">Roll call %</th><th scope="col">SP %</th></tr>
             </thead>
             <tbody>
                 <tr v-for="v in values" :key="v.week">

@@ -59,7 +59,7 @@ const practiceStats = computed(() => [
     { label: 'LOA', value: counts.value.loa, tone: 'text-muted-foreground' },
 ]);
 
-const weeksText = (weeks) => `${weeks.length === 1 ? 'the week' : 'the weeks'} ending ${weeks.map(weekLabel).join(', ')}`;
+const weeksText = (weeks) => `${weeks.length === 1 ? 'the week' : 'the weeks'} ${weeks.map(weekLabel).join(', ')}`;
 </script>
 
 <template>

@@ -47,15 +47,15 @@ describe('useIdentity', () => {
 
         expect(provenance.value).toContain('MOS 42A');
         expect(provenance.value).toContain('Cav roster (api.7cav.us)');
-        expect(provenance.value).toMatch(/\d{1,2}:\d{2}/);
+        expect(provenance.value).toMatch(/\d{2}\u200A\d{2}Z/);
     });
 
     describe('the fetch time, in UTC like the rest of the portal', () => {
         afterEach(() => vi.useRealTimers());
 
         it.each([
-            ['today', '2026-08-03T22:00:00Z', 'Cav roster (api.7cav.us) · 09:14Z'],
-            ['a day ago', '2026-08-04T10:00:00Z', 'Cav roster (api.7cav.us) · 03Aug26 09:14Z'],
+            ['today', '2026-08-03T22:00:00Z', 'Cav roster (api.7cav.us) · 09\u200A14Z'],
+            ['a day ago', '2026-08-04T10:00:00Z', 'Cav roster (api.7cav.us) · 03AUG26 09\u200A14Z'],
         ])('shows the date only when the fetch was not %s', (_label, now, expected) => {
             // The session lasts 24h (SESSION_LIFETIME=1440): a time-only stamp would let a day-old rank
             // read as an hour old.
@@ -66,7 +66,7 @@ describe('useIdentity', () => {
         });
 
         it('puts the exact UTC time in the detail', () => {
-            expect(identityFor({ username: 'Hale.S' }, enriched()).provenanceDetail.value).toBe('Warrant Officer 1, fetched 03Aug26 09:14Z');
+            expect(identityFor({ username: 'Hale.S' }, enriched()).provenanceDetail.value).toBe('Warrant Officer 1, fetched 03AUG26 09\u200A14Z');
         });
     });
 

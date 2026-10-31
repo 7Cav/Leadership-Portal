@@ -133,7 +133,7 @@ it('shows no favorable action for 30 days after the latest LOR, and not on the 3
     $this->travel(30)->days();
     expect(counselingProps('pl', $this)['warnings'])->toBe([[
         'key' => 'no-favorable-action',
-        'message' => 'No favorable action until '.$until->format('dMy').', 30 days after the LOR of '.$given->format('dMy').'.',
+        'message' => 'No favorable action until '.strtoupper($until->format('dMy')).', 30 days after the LOR of '.strtoupper($given->format('dMy')).'.',
         'until' => $until->toDateString(),
     ]]);
 

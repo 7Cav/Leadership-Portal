@@ -25,7 +25,7 @@ use Illuminate\Support\Carbon;
 // The 2026-10-29 audit (M2): a guest's makeup belongs on their own section's rollcall for the host's week. For a week
 // that has ended that is the section whose rollcall lists them that week, read from the placement history, not the one
 // they were moved to since. The running week keeps reading where they are placed now. The case is the closing week:
-// on Saturday 10Oct26 the sync moves the guest from A to B and the host's own trooper from H to B, while the 03Oct26
+// on Saturday 10OCT26 the sync moves the guest from A to B and the host's own trooper from H to B, while the 03OCT26
 // reports are still due.
 
 function pastMakeupsAt(string $moment): void
@@ -72,7 +72,7 @@ beforeEach(function () {
     $this->hostLeader = User::factory()->commanding($this->h)->create();
     $this->co = User::factory()->commanding($company)->create();
 
-    // Placed by the sync before the week of 03Oct26: the guest in A, the host's own trooper in H.
+    // Placed by the sync before the week of 03OCT26: the guest in A, the host's own trooper in H.
     pastMakeupsAt('2026-09-30 12:00:00');
     $this->guest = Trooper::factory()->create();
     $this->hostOwn = Trooper::factory()->create();
@@ -81,7 +81,7 @@ beforeEach(function () {
     $this->week = CarbonImmutable::parse('2026-10-03', 'UTC');
     $this->running = $this->week->addWeek();
 
-    // Saturday 10Oct26: both move to B, while the 03Oct26 reports are still due.
+    // Saturday 10OCT26: both move to B, while the 03OCT26 reports are still due.
     pastMakeupsAt('2026-10-10 08:00:00');
     $this->troopers->updatePrimarySections([$this->guest->cav_id => $this->b->id, $this->hostOwn->cav_id => $this->b->id]);
     pastMakeupsAt('2026-10-10 12:00:00');

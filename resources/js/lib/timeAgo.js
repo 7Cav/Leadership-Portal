@@ -1,5 +1,5 @@
 // Relative and local readings of a portal timestamp. The Cav works in Zulu, so every stamp keeps its
-// UTC text as the primary reading (`forumDateTime`, `14Oct26 22:16Z`); these add how long ago that
+// UTC text as the primary reading (`forumDateTime`, `14OCT26 2216Z`); these add how long ago that
 // was and what it is on the viewer's own clock.
 
 const MINUTE = 60 * 1000;

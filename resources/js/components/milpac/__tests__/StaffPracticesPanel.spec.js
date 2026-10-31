@@ -76,7 +76,7 @@ describe('Staff practices panel', () => {
 
         const rows = wrapper.findAll('[data-testid="staff-practice"]');
         expect(rows).toHaveLength(3);
-        expect(rows[0].text()).toContain('Week Ending 09Oct26, 1/1/A/1-7');
+        expect(rows[0].text()).toContain('03OCT26 to 09OCT26, 1/1/A/1-7');
         expect(rows[0].text()).toContain('Self-reported by Brandt.L');
         expect(rows[1].text()).toContain('Entered by Mercer.J');
         expect(rows[2].text()).toContain('Seen on the game server');
@@ -99,7 +99,7 @@ describe('Staff practices panel', () => {
 
         await wrapper.find('[data-testid="staff-practice-open"]').trigger('click');
         expect(wrapper.find('[data-testid="staff-practice-week"]').element.value).toBe('2026-10-03');
-        expect(wrapper.find('[data-testid="staff-practice-week"]').text()).toContain('Week Ending 09Oct26 (this week)');
+        expect(wrapper.find('[data-testid="staff-practice-week"]').text()).toContain('03OCT26 to 09OCT26 (this week)');
         expect(wrapper.find('[data-testid="staff-practice-submit"]').attributes('disabled')).toBeDefined();
 
         await wrapper.find('[data-testid="staff-practice-section"]').setValue('5');

@@ -154,11 +154,11 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
 
                     <div>
                         <h3 class="mb-2 text-xs text-muted-foreground">20 Cav weeks</h3>
-                        <div class="flex gap-[3px] overflow-x-auto pb-1" role="img" :aria-label="`Attendance over the last 20 Cav weeks, from the week ending ${weekLabel(weeks[0])} to this week`">
+                        <div class="flex gap-[3px] overflow-x-auto pb-1" role="img" :aria-label="`Attendance over the last 20 Cav weeks, from the week ${weekLabel(weeks[0])} to this week`">
                             <span
                                 v-for="cell in cells"
                                 :key="cell.week"
-                                :title="`Week Ending ${weekLabel(cell.week)}${elsewhere(cell.mark) ? ` at ${elsewhere(cell.mark)}` : ''}. Roll call: ${RC_STATES[cell.rc]}. SP: ${SP_STATES[cell.sp]}.`"
+                                :title="`${weekLabel(cell.week)}${elsewhere(cell.mark) ? ` at ${elsewhere(cell.mark)}` : ''}. Roll call: ${RC_STATES[cell.rc]}. SP: ${SP_STATES[cell.sp]}.`"
                                 :class="cell.week === current && 'rounded-[4px] outline outline-[1.5px] outline-offset-2 outline-primary'"
                             >
                                 <WeekCell :rc="cell.rc" :sp="cell.sp" size="xs" />

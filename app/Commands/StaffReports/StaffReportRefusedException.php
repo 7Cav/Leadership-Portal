@@ -36,12 +36,12 @@ class StaffReportRefusedException extends RuntimeException
 
     public static function notOwed(string $name, CarbonInterface $weekStart): self
     {
-        return new self("{$name} was not on a platoon, company or battalion HQ when the week ending ".WeekLabel::ending($weekStart).' closed, so there is no staff report to send for it.', 'not_owed', 'report');
+        return new self("{$name} was not on a platoon, company or battalion HQ when the ".WeekLabel::phrase($weekStart).' closed, so there is no staff report to send for it.', 'not_owed', 'report');
     }
 
     public static function weekBeforeFloor(CarbonInterface $weekStart): self
     {
-        return new self('The week ending '.WeekLabel::ending($weekStart).' is too far back to change.', 'before_floor', 'report');
+        return new self('The '.WeekLabel::phrase($weekStart).' is too far back to change.', 'before_floor', 'report');
     }
 
     public static function future(): self
@@ -51,12 +51,12 @@ class StaffReportRefusedException extends RuntimeException
 
     public static function weekNotEnded(CarbonInterface $weekStart): self
     {
-        return new self('The week ending '.WeekLabel::ending($weekStart)." has not ended yet. You can send its staff report from {$weekStart->addWeek()->format('dMy')}.", 'not_ended', 'report');
+        return new self('The '.WeekLabel::phrase($weekStart).' has not ended yet. You can send its staff report from '.WeekLabel::date($weekStart->addWeek()).'.', 'not_ended', 'report');
     }
 
     public static function alreadySent(CarbonInterface $weekStart): self
     {
-        return new self('The staff report for the week ending '.WeekLabel::ending($weekStart).' was already sent, so it can no longer change.', 'already_sent', 'report');
+        return new self('The staff report for the '.WeekLabel::phrase($weekStart).' was already sent, so it can no longer change.', 'already_sent', 'report');
     }
 
     public static function noPractice(): self
@@ -91,7 +91,7 @@ class StaffReportRefusedException extends RuntimeException
 
     public static function ftxDateOutsideWeek(CarbonInterface $weekStart): self
     {
-        return new self("Pick the date of the FTX, from {$weekStart->format('dMy')} to {$weekStart->addDays(6)->format('dMy')}.", 'ftx', 'ftx_date');
+        return new self('Pick the date of the FTX, from '.WeekLabel::date($weekStart).' to '.WeekLabel::date($weekStart->addDays(6)).'.', 'ftx', 'ftx_date');
     }
 
     public static function ftxFieldsWithSp(): self
@@ -111,7 +111,7 @@ class StaffReportRefusedException extends RuntimeException
 
     public static function officeHourDateOutsideWeek(CarbonInterface $weekStart): self
     {
-        return new self("Pick the date of the office hour, from {$weekStart->format('dMy')} to {$weekStart->addDays(6)->format('dMy')}.", 'office_hour', 'office_hour_date');
+        return new self('Pick the date of the office hour, from '.WeekLabel::date($weekStart).' to '.WeekLabel::date($weekStart->addDays(6)).'.', 'office_hour', 'office_hour_date');
     }
 
     public static function officeHourNoteMissing(): self

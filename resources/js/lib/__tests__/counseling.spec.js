@@ -59,7 +59,7 @@ describe('counseling', () => {
     });
 
     it('shows when a record freezes as a UTC date and time with a Z', () => {
-        expect(utcStamp('2026-11-02T10:00:00Z')).toBe('2026-11-02 10:00Z');
+        expect(utcStamp('2026-11-02T10:00:00Z')).toBe('2026-11-02 10\u200A00Z');
         expect(utcStamp(null)).toBe('');
     });
 });

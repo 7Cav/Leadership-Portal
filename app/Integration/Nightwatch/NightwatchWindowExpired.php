@@ -3,6 +3,7 @@
 namespace App\Integration\Nightwatch;
 
 use DateTimeImmutable;
+use DateTimeZone;
 use RuntimeException;
 
 /**
@@ -17,9 +18,12 @@ class NightwatchWindowExpired extends RuntimeException
         public readonly DateTimeImmutable $windowEnd,
         public readonly int $retentionHours,
     ) {
+        // The portal's date and plain Zulu time (`10OCT26 2359Z`): server text, so no hair space.
+        $utc = $windowEnd->setTimezone(new DateTimeZone('UTC'));
+
         parent::__construct(sprintf(
             'The practice window ended %s, beyond Nightwatch\'s %d-hour match retention.',
-            $windowEnd->format('Y-m-d H:i \U\T\C'),
+            strtoupper($utc->format('dMy')).' '.$utc->format('Hi').'Z',
             $retentionHours,
         ));
     }

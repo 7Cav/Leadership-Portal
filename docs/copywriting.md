@@ -41,7 +41,7 @@ the forum. They want to know what state things are in and what to click next.
 | One apology at most, usually none | "The portal hit an error. Your changes are kept; retry in a moment." | "Sorry! Something went wrong, sorry for the trouble." |
 | Calm, no shouting | "It has not been sent; try again." | "It has NOT been sent; try again." |
 | No jokes or slang | "Nothing needs a look" | "All quiet on the western front" |
-| Facts the user can check | "Leave from <source>, synced 14Oct26 22:16Z" | "Leave data is fresh" |
+| Facts the user can check | "Leave from <source>, synced 14OCT26 22 16Z" | "Leave data is fresh" |
 
 Banned words and forms in UI text: "please", "sorry", "simply", "just" (as filler), "in order to", "please note",
 "note that", "successfully", "oops", "we", "our" (except the established "Guests at our practices"), "I" (except a
@@ -80,8 +80,8 @@ Exclamation marks: never. There is no exception.
 - No em dash (U+2014) or en dash (U+2013) as a dash. Use a colon, a comma, a semicolon or a new sentence.
   The one allowed em dash is a lone "—" in a table cell or figure that has no value (`'—'` in `lib/report.js`,
   `MatrixView.vue`, `OrbatView.vue`). Do not use "–" or "-" for that.
-- Ranges: "to" in text ("Sat to Fri", "1 to 12 weeks"). The forum date range in the BBCode `week` value is template
-  output and stays as it is.
+- Ranges: "to" in text ("Sat to Fri", "1 to 12 weeks"). The roll call forum post keeps its own dates (`03Oct26`, month in title case) and its
+  `week` value (`03Oct26 – 09Oct26`): it is template output and reads as it always has.
 - Straight quotes only: `"` and `'`. Quote what the user typed or a name in straight double quotes:
   `No trooper in your scope matches "Tay".`
 - No trailing period on: buttons, labels, menu items, headings, table headers, toast titles, empty-state titles,
@@ -127,15 +127,23 @@ All times in the portal are UTC. The Cav works in Zulu time.
 
 | What | Format | Example | Helper |
 | --- | --- | --- | --- |
-| A date | Forum date: 2 digit day, 3 letter month, 2 digit year | `03Oct26` | `forumDate()` |
-| A date and time | Forum date, space, 24h time, `Z` | `14Oct26 22:16Z` | `forumDateTime()` + `Z` |
-| A time today | 24h time and `Z` | `22:16Z` | `timeOf()` |
-| A deadline | Weekday, forum date, time, `Z` | `Sat 10Oct26 23:59Z` | `stamp()` |
-| A Cav week | "week of" and the Saturday it starts | `week of 03Oct26` | `weekLabel()` |
-| The current week | "this week" | `Week of 03Oct26 (this week)` | |
-| How long ago | Only next to a UTC stamp, never alone | `14Oct26 22:16Z, 3 h ago` | `<TimeAgo>` |
+| A date | Portal date: 2 digit day, 3 letter month in capitals, 2 digit year | `03OCT26` | `forumDate()` |
+| A time | 24h military time, a hair space between hours and minutes, `Z` | `22 16Z` | `zuluTime()` |
+| A date and time | Forum date, space, time, `Z` | `14OCT26 22 16Z` | `forumDateTime()` + `Z` |
+| A time today | Time and `Z` | `22 16Z` | `timeOf()` |
+| A deadline | Weekday, forum date, time, `Z` | `Sat 10OCT26 23 59Z` | `stamp()` |
+| A Cav week, long form (page titles, headers, home cards, document titles) | "Week Ending", the Friday, then the range in brackets | `Week Ending 09OCT26 (03OCT26 to 09OCT26)`; in a heading the range is smaller and muted | `<WeekHeading>` in headings, `weekTitle()` in plain text, `WeekLabel::title()` |
+| A Cav week mid-sentence | "the week ending", the Friday, the range in brackets | `the week ending 09OCT26 (03OCT26 to 09OCT26)` | `weekPhrase()`, `WeekLabel::phrase()` |
+| A Cav week, short form (table cells, pickers, badges, tooltips, toasts, lists of weeks) | the Saturday, "to", the Friday | `03OCT26 to 09OCT26` | `weekLabel()` |
+| A Cav week on a chart axis | days, then the month once, no year | `03 to 09OCT`, `31OCT to 06NOV` | `weekTick()` |
+| The current week | "this week" | `03OCT26 to 09OCT26 (this week)` | |
+| How long ago | Only next to a UTC stamp, never alone | `14OCT26 22 16Z, 3 h ago` | `<TimeAgo>` |
 | The viewer's own clock | Only as extra detail, with the zone named | `Last synced Fri, Oct 16, 12:16 AM GMT+2 your time.` | `localTime()` |
 
+- A time is military time with no colon: `2359Z`. On screen a hair space (U+200A) sits between hours and minutes so
+  it reads `23 59Z`; `zuluTime()` in `resources/js/lib/forumDate.js` is the one place that writes it. Text that leaves
+  the portal (Discord, forum posts, anything copied to the clipboard) uses plain `2359Z` with `{ plain: true }`, since a
+  hair space can turn into a box or a full space there.
 - Name the zone as `Z` on a stamp. Use the word "UTC" only in prose that explains the zone and in column headers:
   "Time (UTC)", "All times are UTC".
 - A Cav week runs Saturday 00:00 UTC to the next Saturday 00:00 UTC. Say "Sat to Fri" when you show a week as days.
@@ -212,7 +220,7 @@ Success:
 
 - Title: past tense, what happened and to what: "Report sent to A/1-7", "Roll call marked posted", "Trooper placed",
   "BBCode copied", "Linked PlayerOne to Taylor.C".
-- Description: where it applies or what to do next: "2/1/A/1-7, week of 03Oct26", "Paste it as a reply in the
+- Description: where it applies or what to do next: "2/1/A/1-7, week 03OCT26 to 09OCT26", "Paste it as a reply in the
   2/1/A/1-7 roll call thread."
 - Bulk changes offer "Undo" as the action and list the names in the description.
 
@@ -278,7 +286,7 @@ New locks follow the same shape: "Read-only: <reason>" or "<thing> is locked bec
 
 ### Loading and saving
 
-- Saving state on autosave pages: "Saving", "Saved 22:16Z", "Unsaved changes", "Not saved" with "Retry".
+- Saving state on autosave pages: "Saving", "Saved 22 16Z", "Unsaved changes", "Not saved" with "Retry".
 - Loading text names what loads: "Loading roster", "Loading the section", "Loading trooper" (screen readers).
 - In-progress labels have no punctuation; the spinner shows progress. "Saving", "Importing", "Loading roster", not
   "Saving..." or "Importing…".
@@ -292,8 +300,8 @@ New locks follow the same shape: "Read-only: <reason>" or "<thing> is locked bec
 - `title` tooltips repeat or extend the visible text; never hide the only explanation of a lock in a tooltip on touch
   screens. Pair it with visible text where the action matters.
 - `aria-label` describes the control and its object: "Undo adding Taylor.C", "Open the 1/A/1-7 report", "Previous
-  week, 26Sep26".
-- Status cells read as a sentence: "Week of 03Oct26. Roll call: Will attend. SP: Attended."
+  week, 26SEP26".
+- Status cells read as a sentence: "03OCT26 to 09OCT26. Roll call: Will attend. SP: Attended."
 - Icon-only buttons always have an `aria-label`.
 
 ### Subtitles and sub-headings
@@ -315,7 +323,7 @@ New locks follow the same shape: "Read-only: <reason>" or "<thing> is locked bec
 ### Pasted text (PMs, summaries, reminders)
 
 Text the user pastes to the forum or Discord follows the same rules and reads as the leader's own words: no "please",
-no product voice. Start with the subject ("Section practice makeup: week of 03Oct26"), use designations and forum
+no product voice. Start with the subject ("Section practice makeup: week 03OCT26 to 09OCT26"), use designations and forum
 dates.
 
 ### Changelog entries
@@ -408,7 +416,7 @@ tests and comments. They include some route and key names, so read them as rough
 | training topic | The platoon's subject for its sections for the week, default or enforced | Platoon report | 1 JS / 6 server | training subject (for the platoon) |
 | training plan | A platoon's subjects for each Cav week of one month, reviewed by its company | Training plan page | new (#380) | training schedule, monthly plan |
 | approve, send back (a training plan) | What the company does with a platoon's training plan; "Sent back" is the status, "Waiting for approval" the one before | Training plan page | new (#380) | reject, decline, return |
-| Cav week | Saturday 00:00 UTC to the next Saturday 00:00 UTC | Everywhere | Cav week 6, "week of" 27 | calendar week, Mon to Sun |
+| Cav week | Saturday 00:00 UTC to the next Saturday 00:00 UTC | Everywhere | Cav week 6, "Week Ending 09OCT26 (03OCT26 to 09OCT26)" | calendar week, Mon to Sun |
 | week floor | Weeks older than this are read-only (`PORTAL_WEEK_FLOOR_WEEKS`) | Docs; UI says "too far back" | UI: "too far back" 2 / 6 | locked week, archived |
 | LOA, ELOA | Leave of absence and extended leave of absence, from forum threads | Roll call, roster | LOA 39, "on LOA" 19, "on leave" 1, "leave of absence" 1 | absence, away |
 | on LOA | A trooper whose leave covers the week | Roll call, KPIs | on LOA | on leave (in labels) |
@@ -465,7 +473,7 @@ Run this before finishing any change that adds or edits user-facing text.
 7. Success toasts are past tense with the object; error toasts are "Could not ..." plus why and what to do, via
    `httpError.js`.
 8. Every disabled or read-only control says why, using the reasons table.
-9. Dates use `forumDate()` and friends with `Z`; weeks read "week of 03Oct26"; no local or ISO dates in text.
+9. Dates use `forumDate()` and friends with `Z`; weeks read "Week Ending 09OCT26 (03OCT26 to 09OCT26)" (long), "the week ending 09OCT26 (03OCT26 to 09OCT26)" (in a sentence) or "03OCT26 to 09OCT26" (short), month in capitals; no local or ISO dates in text.
 10. Names come from `displayName()` or `display_name`; units from the callsign, name or designation helpers.
 11. Counts agree with their noun; numerals for all numbers.
 12. Server messages a user can see name the trooper or unit, never a database ID, and never cite AD or story numbers.

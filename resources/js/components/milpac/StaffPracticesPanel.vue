@@ -100,7 +100,7 @@ function remove(entry) {
                         <Label for="staff-practice-week">Cav week</Label>
                         <NativeSelect id="staff-practice-week" v-model="form.week" data-testid="staff-practice-week" :aria-invalid="!!form.errors.week">
                             <option v-for="(week, index) in staffPractices.weeks" :key="week" :value="week">
-                                Week Ending {{ weekLabel(week) }}{{ index === 0 ? ' (this week)' : '' }}
+                                {{ weekLabel(week) }}{{ index === 0 ? ' (this week)' : '' }}
                             </option>
                         </NativeSelect>
                         <p v-if="form.errors.week" class="text-xs text-destructive" data-testid="staff-practice-error-week">{{ form.errors.week }}</p>

@@ -34,12 +34,12 @@ class InvalidTrainingPlanException extends RuntimeException
 
     public static function weekSent(CarbonInterface $weekStart): self
     {
-        return new self('The report for the week ending '.WeekLabel::ending($weekStart).' is already sent, so its subject can no longer change.');
+        return new self('The report for the '.WeekLabel::phrase($weekStart).' is already sent, so its subject can no longer change.');
     }
 
     public static function weekBeforeFloor(CarbonInterface $weekStart): self
     {
-        return new self('The week ending '.WeekLabel::ending($weekStart).' is too far back to change.');
+        return new self('The '.WeekLabel::phrase($weekStart).' is too far back to change.');
     }
 
     public static function noPlan(): self

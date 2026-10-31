@@ -8,7 +8,7 @@ test('a section leader completes and sends the weekly report', async ({ page }) 
     await page.goto('/__e2e/login/Mercer.J?to=/reports');
 
     await expect(page).toHaveURL(/\/reports\/\d+\/\d{4}-\d{2}-\d{2}$/);
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('Week Ending');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Week Ending ');
     await expect(page.getByTestId('status-badge')).toHaveText('Draft');
     await expect(page.getByTestId('kpi-grid')).toBeVisible();
     // The rollcall figure and the headcount with staff, labelled apart (#424).

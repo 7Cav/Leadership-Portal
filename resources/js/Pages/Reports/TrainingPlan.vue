@@ -178,7 +178,7 @@ function sendBack() {
 
                 <div v-for="week in weeks" :key="week.start" class="space-y-1.5">
                     <div class="flex items-baseline justify-between gap-2">
-                        <Label :for="`week-${week.start}`" class="text-[13px]">Week Ending {{ weekLabel(week.start) }}</Label>
+                        <Label :for="`week-${week.start}`" class="text-[13px]">{{ weekLabel(week.start) }}</Label>
                         <Link v-if="week.reportUrl" :href="week.reportUrl" class="text-xs text-muted-foreground hover:text-foreground">Open report</Link>
                     </div>
                     <Input

@@ -26,7 +26,7 @@ use Illuminate\Support\Facades\DB;
 // for a week, gated by the ScopeResolver.
 
 beforeEach(function () {
-    // Thursday 08Oct26 16:20Z — inside the Cav week that opened Saturday 03Oct26.
+    // Thursday 08OCT26 16:20Z — inside the Cav week that opened Saturday 03OCT26.
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-08 16:20:00', 'UTC'));
     $this->week = CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');
 
@@ -458,26 +458,26 @@ it('sends where each of the last four past weeks stands, so the week navigation 
     // This week is in progress and never flagged.
     $mark($practice(0), $a, null);
 
-    // 26Sep26: everyone marked (LOA counts), posted after the last mark.
+    // 26SEP26: everyone marked (LOA counts), posted after the last mark.
     $done = $practice(1);
     $mark($done, $a, AttendanceStatus::Present);
     $mark($done, $b, AttendanceStatus::Loa);
     $done->forceFill(['rollcall_posted_at' => '2026-10-08 17:00:00'])->save();
 
-    // 19Sep26: one signed but unmarked; marks of a departed or moved trooper do not count.
+    // 19SEP26: one signed but unmarked; marks of a departed or moved trooper do not count.
     $half = $practice(2);
     $mark($half, $a, AttendanceStatus::Missed);
     $mark($half, $b, null);
     $mark($half, $departed, AttendanceStatus::Present);
     $mark($half, $moved, AttendanceStatus::Present);
 
-    // 12Sep26: everyone marked, but a mark changed after it was posted.
+    // 12SEP26: everyone marked, but a mark changed after it was posted.
     $stale = $practice(3);
     $stale->forceFill(['rollcall_posted_at' => '2026-10-01 12:00:00'])->save();
     $mark($stale, $a, AttendanceStatus::Present);
     $mark($stale, $b, AttendanceStatus::Present);
 
-    // 05Sep26 has no practice row at all; 29Aug26 is outside the window.
+    // 05SEP26 has no practice row at all; 29AUG26 is outside the window.
     $practice(5);
 
     $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}?week=2026-09-19")
@@ -513,7 +513,7 @@ it('counts a trooper whose leave covers a past week as having nothing to mark th
     $here = rollcallTrooper($this->section);
     $away = rollcallTrooper($this->section);
     $markedThenAway = rollcallTrooper($this->section);
-    // Synced leave (4.4): $away is covered for 19Sep26 and 26Sep26, $markedThenAway for 19Sep26 only,
+    // Synced leave (4.4): $away is covered for 19SEP26 and 26SEP26, $markedThenAway for 19SEP26 only,
     // after a leader had already marked them present that week.
     Loa::factory()->create(['trooper_id' => $away->id, 'starts_at' => '2026-09-19', 'ends_at' => '2026-10-02']);
     Loa::factory()->create(['trooper_id' => $markedThenAway->id, 'starts_at' => '2026-09-19', 'ends_at' => '2026-09-25']);
@@ -586,7 +586,7 @@ it('moves the strip\'s window with the week being viewed', function () {
 it('marks a week LOA when leave covers it, with or without a practice that week, or when it was marked loa', function () {
     $trooper = rollcallTrooper($this->section, ['username' => 'Adams.P']);
     $present = rollcallTrooper($this->section, ['username' => 'Baker.Q']);
-    // Covers the Cav weeks of 12Sep26 (no practice row) and 19Sep26 (a held practice the trooper was not marked in).
+    // Covers the Cav weeks of 12SEP26 (no practice row) and 19SEP26 (a held practice the trooper was not marked in).
     Loa::factory()->create(['trooper_id' => $trooper->id, 'starts_at' => '2026-09-14', 'ends_at' => '2026-09-21']);
     practiceWeek($this->section, $this->week->subWeeks(2), [$present->id => AttendanceStatus::Present]);
     // An older `loa` mark the resolver no longer backs still reads as LOA, as it does for the KPI service.
@@ -660,7 +660,7 @@ it('reads the strip in the same number of queries however many troopers the sect
 describe('the week a bare URL opens while last week\'s report is due', function () {
     beforeEach(function () {
         rollcallTrooper($this->section);
-        // Saturday 10Oct26 20:00Z: the week of 03Oct26 is over, its report due at 23:59Z today.
+        // Saturday 10OCT26 20:00Z: the week of 03OCT26 is over, its report due at 23:59Z today.
         $this->travelTo(CarbonImmutable::parse('2026-10-10 20:00:00', 'UTC'));
     });
 

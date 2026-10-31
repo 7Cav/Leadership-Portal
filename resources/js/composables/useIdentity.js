@@ -46,7 +46,7 @@ export function useIdentity() {
     });
 
     // The snapshot is taken once per login and the session lives for 24h (SESSION_LIFETIME=1440),
-    // so a bare `09:14Z` would read as "an hour ago" the next morning. Show the date too whenever
+    // so a bare `0914Z` would read as "an hour ago" the next morning. Show the date too whenever
     // the fetch was not today: the point of AD-20 is that age is legible. UTC, like every other
     // time in the portal (AD-11), so "today" is the UTC day too.
     const fetchedAtLabel = computed(() => {

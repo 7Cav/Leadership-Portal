@@ -98,7 +98,7 @@ describe('Reports/Show', () => {
     });
 
     it("names the leave source and last sync under a live draft's KPIs, and nothing when the server sends none (4.3, AD-20)", () => {
-        expect(mountShow().get('[data-testid="loa-sync"]').text()).toBe('Leave from Forum thread, synced 08Oct26 09:14Z');
+        expect(mountShow().get('[data-testid="loa-sync"]').text()).toBe('Leave from Forum thread, synced 08OCT26 09\u200A14Z');
 
         document.body.innerHTML = '';
         expect(mountShow({ loaSync: null }).find('[data-testid="loa-sync"]').exists()).toBe(false);
@@ -327,7 +327,7 @@ describe('Reports/Show', () => {
         vi.setSystemTime(new Date('2026-10-08T16:40:00Z'));
         const wrapper = mountShow({ report: { status: 'draft', notes: '', trainingSubject: '', unaccounted: [], savedAt: '2026-10-08T16:22:00+00:00', sentAt: null, sentBy: null } });
 
-        expect(wrapper.get('[data-testid="save-state"]').text()).toBe('Draft saved 16:22Z (18 min ago)');
+        expect(wrapper.get('[data-testid="save-state"]').text()).toBe('Draft saved 16\u200A22Z (18 min ago)');
         // The save state is a live region: the ticking part stays out of what a screen reader announces.
         expect(wrapper.get('[data-testid="save-state"] [data-relative]').attributes('aria-hidden')).toBe('true');
     });
@@ -339,7 +339,7 @@ describe('Reports/Show', () => {
             troopers: null,
         });
 
-        expect(wrapper.get('[data-testid="sent-line"]').text()).toBe('Sent Thu 08Oct26 16:24Z (2 h ago) by SGT Vasquez.R');
+        expect(wrapper.get('[data-testid="sent-line"]').text()).toBe('Sent Thu 08OCT26 16\u200A24Z (2 h ago) by SGT Vasquez.R');
         expect(wrapper.find('[data-testid="sent-panel"]').exists()).toBe(true);
         expect(wrapper.find('[data-testid="send-bar"]').exists()).toBe(false);
         expect(wrapper.get('#training-subject').attributes('disabled')).toBeDefined();
@@ -382,11 +382,11 @@ describe('Reports/Show', () => {
     it('names the week by its end date in the heading, the preview, the week arrows and the trend (#568)', () => {
         const wrapper = mountShow({ week: { ...props().week, next: '2026-10-10' } });
 
-        expect(wrapper.text()).toContain('Week Ending 09Oct26');
-        expect(wrapper.get('#preview-title').text()).toContain('week ending 09Oct26');
-        expect(wrapper.get('a[aria-label^="Previous week"]').attributes('aria-label')).toBe('Previous week, ending 02Oct26');
-        expect(wrapper.get('a[aria-label^="Next week"]').attributes('aria-label')).toBe('Next week, ending 16Oct26');
-        expect(wrapper.findAll('th[scope="row"]').map((th) => th.text())).toContain('Week Ending 09Oct26, this draft');
+        expect(wrapper.text()).toContain('Week Ending 09OCT26 (03OCT26 to 09OCT26)');
+        expect(wrapper.get('#preview-title').text()).toContain('week ending 09OCT26 (03OCT26 to 09OCT26)');
+        expect(wrapper.get('a[aria-label^="Previous week"]').attributes('aria-label')).toBe('Previous week, 26SEP26 to 02OCT26');
+        expect(wrapper.get('a[aria-label^="Next week"]').attributes('aria-label')).toBe('Next week, 10OCT26 to 16OCT26');
+        expect(wrapper.findAll('th[scope="row"]').map((th) => th.text())).toContain('03OCT26 to 09OCT26, this draft');
         expect(wrapper.text()).not.toMatch(/week of/i);
     });
 
@@ -496,7 +496,7 @@ describe('Reports/Show', () => {
         expect(badge('sp').text()).toContain('-3');
         expect(badge('sp').classes()).toContain('text-destructive');
         expect(badge('atRisk').classes()).toContain('text-destructive');
-        expect(wrapper.get('[data-testid="baseline"]').text()).toContain('the week ending 02Oct26');
+        expect(wrapper.get('[data-testid="baseline"]').text()).toContain('the week ending 02OCT26 (26SEP26 to 02OCT26)');
     });
 
     it('copies a plain-text summary of the sent report', async () => {
@@ -512,8 +512,8 @@ describe('Reports/Show', () => {
 
         const text = writeText.mock.calls[0][0];
         expect(text.split('\n').slice(0, 3)).toEqual([
-            '2nd Section (2/1/A/1-7) weekly report, week ending 09Oct26',
-            'Sent Thu 08Oct26 16:24Z by SGT Vasquez.R',
+            '2nd Section (2/1/A/1-7) weekly report, week ending 09OCT26 (03OCT26 to 09OCT26)',
+            'Sent Thu 08OCT26 1624Z by SGT Vasquez.R',
             'In roll call 2',
         ]);
         expect(text).toContain('Trained: Land nav');

@@ -58,7 +58,7 @@ describe('Settings/AuditLog', () => {
         expect(wrapper.text()).toContain('Unit#7');
         expect(wrapper.text()).toContain('Reorganizing the chain of command');
         expect(wrapper.text()).toContain('abc123');
-        expect(wrapper.text()).toContain('30May26');
+        expect(wrapper.text()).toContain('30MAY26');
     });
 
     it('shows an empty state when there are no entries', () => {
@@ -110,13 +110,13 @@ describe('Settings/AuditLog', () => {
 
     it('links an entry to what it changed, and keeps the raw target beside it', () => {
         const wrapper = makeWrapper({
-            entries: { ...ENTRIES, data: [{ ...ENTRY, link: { href: '/rollcall/7?week=2026-10-03', label: '2/1/A/1-7 roll call, week of 03Oct26' } }] },
+            entries: { ...ENTRIES, data: [{ ...ENTRY, link: { href: '/rollcall/7?week=2026-10-03', label: '2/1/A/1-7 roll call, week of 03OCT26' } }] },
         });
         const link = wrapper.get('[data-testid="target-link-1"]');
 
         expect(link.element.tagName).toBe('A');
         expect(link.attributes('href')).toBe('/rollcall/7?week=2026-10-03');
-        expect(link.text()).toBe('2/1/A/1-7 roll call, week of 03Oct26');
+        expect(link.text()).toBe('2/1/A/1-7 roll call, week of 03OCT26');
         expect(wrapper.get('[data-testid="entry-row-1"]').text()).toContain('Unit#7');
     });
 

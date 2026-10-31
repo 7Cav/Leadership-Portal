@@ -174,7 +174,7 @@ it('raises NightwatchWindowExpired, never an empty list, once the window is past
 
     $end = new DateTimeImmutable('2026-10-08 21:59:59', new DateTimeZone('UTC'));
 
-    expect(fn () => nw()->fetchPresence($end->modify('-2 hours'), $end))->toThrow(NightwatchWindowExpired::class);
+    expect(fn () => nw()->fetchPresence($end->modify('-2 hours'), $end))->toThrow(NightwatchWindowExpired::class, 'The practice window ended 08OCT26 2159Z,');
     $mock->assertNothingSent();
 
     $edge = new DateTimeImmutable('2026-10-08 22:00:00', new DateTimeZone('UTC'));

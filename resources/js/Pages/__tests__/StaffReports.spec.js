@@ -46,8 +46,8 @@ describe('StaffReports', () => {
     it('names the week and its neighbours by their end date, as the Google Form does (#568)', () => {
         const page = mount(StaffReports, { props: { week: WEEK, groups: [] } });
 
-        expect(page.find('h1').text()).toBe('Week Ending 09Oct26');
-        expect(page.find('a[aria-label^="Previous week"]').attributes('aria-label')).toBe('Previous week, ending 02Oct26');
+        expect(page.find('h1').text()).toBe('Week Ending 09OCT26 (03OCT26 to 09OCT26)');
+        expect(page.find('a[aria-label^="Previous week"]').attributes('aria-label')).toBe('Previous week, 26SEP26 to 02OCT26');
     });
 
     it('reads the running week as not due', () => {
@@ -71,7 +71,7 @@ describe('StaffReports', () => {
         const page = mount(StaffReports, { props: { week: WEEK, sheetConfigured: true, groups: [{ id: 4, label: '1/A/1-7', rows: [ftx, pushed] }] } });
 
         const first = page.find('[data-testid="staff-reports-row-7"]');
-        expect(first.find('[data-testid="row-attended"]').text()).toBe('Yes, FTX Operation Anvil (05Oct26)');
+        expect(first.find('[data-testid="row-attended"]').text()).toBe('Yes, FTX Operation Anvil (05OCT26)');
         expect(first.find('[data-testid="row-other-events"]').text()).toBe('Other events: Range day');
         expect(first.find('[data-testid="row-notes"]').text()).toBe('Notes: Ran OPFOR.');
         expect(first.find('[data-testid="row-sheet"]').text()).toBe('Not sent to the sheet yet');
@@ -165,7 +165,7 @@ describe('StaffReports', () => {
         expect(panel.find('[data-testid="health-atRisk"]').text()).toContain('2');
         expect(panel.find('[data-testid="health-staff"]').text()).toContain('1 of 3');
         expect(panel.findAll('[data-testid="sparkline"]')).toHaveLength(4);
-        expect(panel.find('[data-testid="health-sp"] [data-testid="sparkline"]').attributes('aria-label')).toBe('SP attendance by week: 02Oct26 40%, 09Oct26 50%');
+        expect(panel.find('[data-testid="health-sp"] [data-testid="sparkline"]').attributes('aria-label')).toBe('SP attendance by week: 26SEP26 to 02OCT26 40%, 03OCT26 to 09OCT26 50%');
         expect(panel.findAll('[data-testid="health-hqs"] a').map((a) => a.attributes('href'))).toEqual(['/staff-reports?week=2026-10-03&hq=4', '/staff-reports?week=2026-10-03&hq=5']);
     });
 

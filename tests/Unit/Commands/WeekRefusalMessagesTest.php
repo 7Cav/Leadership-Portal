@@ -10,13 +10,13 @@ use App\Commands\WeeklyReports\InvalidPlatoonTrainingTopicException;
 use App\Commands\WeeklyReports\InvalidReportContentException;
 use Carbon\CarbonImmutable;
 
-// Every refusal a user reads names its week by the end date, as the UI does (#568). 2026-10-24 is a Saturday, so the
-// week is the one ending Friday 30Oct26.
+// Every refusal a user reads names its week by its Saturday and Friday, as the UI does. 2026-10-24 is a Saturday, so the
+// week runs Saturday 24OCT26 to Friday 30OCT26.
 
-it('names the week by its end date', function (Closure $refusal) {
+it('names the week by its Saturday and Friday', function (Closure $refusal) {
     $message = $refusal(CarbonImmutable::parse('2026-10-24 00:00:00', 'UTC'))->getMessage();
 
-    expect($message)->toContain('week ending 30Oct26')
+    expect($message)->toContain('week ending 30OCT26 (24OCT26 to 30OCT26)')
         ->and($message)->not->toContain('24Oct26')
         ->and(strtolower($message))->not->toContain('week of');
 })->with([
@@ -38,5 +38,5 @@ it('names the week by its end date', function (Closure $refusal) {
 
 it('says a running week ends on its Friday and opens for its staff report the next day', function () {
     expect(StaffReportRefusedException::weekNotEnded(CarbonImmutable::parse('2026-10-24 00:00:00', 'UTC'))->getMessage())
-        ->toBe('The week ending 30Oct26 has not ended yet. You can send its staff report from 31Oct26.');
+        ->toBe('The week ending 30OCT26 (24OCT26 to 30OCT26) has not ended yet. You can send its staff report from 31OCT26.');
 });

@@ -25,7 +25,7 @@ describe('ReportDeadlineBanner', () => {
 
         await vi.advanceTimersByTimeAsync(4 * 3_600_000);
         expect(banner(wrapper).text()).toContain('Report due in 23 h');
-        expect(banner(wrapper).text()).toContain('(due 10Oct26 23:59Z)');
+        expect(banner(wrapper).text()).toContain('(due 10OCT26 23\u200A59Z)');
         expect(banner(wrapper).attributes('data-state')).toBe('due');
 
         await vi.advanceTimersByTimeAsync(23 * 3_600_000 + 30 * 60_000);

@@ -58,7 +58,7 @@ const label = computed(() => {
 });
 
 // The hover tooltip: the label's date spelled out, so "LOA ends in 2d" can be read as a day without opening the
-// details ("LOA until 20Oct26"). Mouse only; a tap still opens the full details above.
+// details ("LOA until 20OCT26"). Mouse only; a tap still opens the full details above.
 const hoverText = computed(() => {
     const type = typeLabel.value;
 

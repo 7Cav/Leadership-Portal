@@ -27,7 +27,7 @@ describe('AttendanceStrip', () => {
     it('titles each square with its week and state', () => {
         const titles = squares(strip()).map((square) => square.attributes('title'));
 
-        expect(titles).toEqual(['Week Ending 11Sep26: Attended', 'Week Ending 18Sep26: Attended', 'Week Ending 25Sep26: Not attended', 'Week Ending 02Oct26: On LOA']);
+        expect(titles).toEqual(['05SEP26 to 11SEP26: Attended', '12SEP26 to 18SEP26: Attended', '19SEP26 to 25SEP26: Not attended', '26SEP26 to 02OCT26: On LOA']);
     });
 
     it('tells make-up complete, excused, not marked yet and no practice held apart', () => {

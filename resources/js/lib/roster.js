@@ -163,11 +163,11 @@ export function sourceLabel(mark) {
     return null;
 }
 
-export { weekLabel } from './forumDate';
+export { weekLabel, weekTick, weekTitle } from './forumDate';
 
 /**
  * One move from the placement history (`Milpac\PlacementHistory`, 2026-10-27), as the milpac and the Sheet word it:
- * "Moved from 2/1/A/1-7 to 1/2/A/1-7, 12Oct26". `from` is null for a first placement, `to` when they were left
+ * "Moved from 2/1/A/1-7 to 1/2/A/1-7, 12OCT26". `from` is null for a first placement, `to` when they were left
  * unplaced.
  */
 export function transferLabel(move) {

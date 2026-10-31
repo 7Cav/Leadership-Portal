@@ -7,7 +7,7 @@ use App\Models\Trooper;
 use Carbon\CarbonImmutable;
 
 // The "Leave from" chip: a cleanly read leave starting in the Cav week after the one asked about, read from the one
-// LOA definition. The week asked about runs Saturday 03Oct26 to Friday 09Oct26; the next one opens Saturday 10Oct26.
+// LOA definition. The week asked about runs Saturday 03OCT26 to Friday 09OCT26; the next one opens Saturday 10OCT26.
 
 beforeEach(function () {
     $this->week = CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');

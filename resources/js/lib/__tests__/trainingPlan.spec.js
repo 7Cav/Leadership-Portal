@@ -12,9 +12,9 @@ describe('training plan wording', () => {
     it('says who wrote the plan and who reviewed it last', () => {
         const plan = { status: 'approved', writtenBy: 'SFC Hale.J', writtenAt: '2026-11-11T12:00:00+00:00', reviewedBy: 'CPT Reyes.M', reviewedAt: '2026-11-12T09:30:00+00:00' };
 
-        expect(planHistory(plan)).toBe('Written by SFC Hale.J Wed 11Nov26 12:00Z. Approved by CPT Reyes.M Thu 12Nov26 09:30Z.');
+        expect(planHistory(plan)).toBe('Written by SFC Hale.J Wed 11NOV26 12\u200A00Z. Approved by CPT Reyes.M Thu 12NOV26 09\u200A30Z.');
         expect(planHistory({ ...plan, status: 'returned' })).toContain('Sent back by CPT Reyes.M');
-        expect(planHistory({ ...plan, status: 'pending' })).toBe('Written by SFC Hale.J Wed 11Nov26 12:00Z.');
+        expect(planHistory({ ...plan, status: 'pending' })).toBe('Written by SFC Hale.J Wed 11NOV26 12\u200A00Z.');
         expect(planHistory(null)).toBeNull();
     });
 

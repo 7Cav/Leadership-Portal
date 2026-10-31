@@ -30,8 +30,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
 
 // Stories 5.9–5.11: the leader's Home dashboard. Scope from the ScopeResolver (AD-8), numbers from
-// the shared KPI pieces (AD-21) and sent snapshots. "Now" is Thu 08Oct26, so the running cycle is
-// the week opening Sat 03Oct26. Fixture tree:
+// the shared KPI pieces (AD-21) and sent snapshots. "Now" is Thu 08OCT26, so the running cycle is
+// the week opening Sat 03OCT26. Fixture tree:
 //   1-7 ─ A/1-7 ─ 1/A ─┬─ 1/1/A  (4 troopers)
 //                      └─ 2/1/A  (3 troopers)
 //       └ B/1-7 ─ 1/B ─── 1/1/B  (2 troopers, outside Alpha's scope)
@@ -565,7 +565,7 @@ describe('Week step matrix', function () {
 });
 
 describe('LOA posts that need review after a move (the 2026-10-29 audit)', function () {
-    // Saturday 10Oct26, with the 03Oct26 reports due at 23:59: the sync moved one of 1/1/A's troopers to Bravo and
+    // Saturday 10OCT26, with the 03OCT26 reports due at 23:59: the sync moved one of 1/1/A's troopers to Bravo and
     // one of Bravo's to 1/1/A at 08:00. Each week is checked against its own roster in the viewer's scope.
     beforeEach(function () {
         CarbonImmutable::setTestNow('2026-10-10 08:00:00');

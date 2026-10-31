@@ -73,7 +73,7 @@ return [
     | Roll call opens on the week whose report is still due
     |--------------------------------------------------------------------------
     |
-    | On the Saturday after a week ends, until its report is due at 23:59Z, a bare roll call URL
+    | On the Saturday after a week ends, until its report is due at 2359Z, a bare roll call URL
     | opens that closing week for a section that has not sent its report. Off only for the browser
     | tests (APP_ENV=e2e): their server and browser run on the real clock, which cannot be set, so
     | on a Saturday every spec that opens a roll call would land on last week. Pest covers the

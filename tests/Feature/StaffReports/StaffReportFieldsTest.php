@@ -61,7 +61,7 @@ class FakeSheetsClient implements SheetsClient
 beforeEach(function () {
     $this->tree = staffPracticeTree();
     $this->week = staffPracticeWeek();
-    // The Saturday after the fixture's week: 03Oct26 has ended and its report is due tonight.
+    // The Saturday after the fixture's week: 03OCT26 has ended and its report is due tonight.
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-10 12:00:00', 'UTC'));
     $this->host = $this->tree['units']['host'];
     $this->psg = $this->tree['troopers']['psg'];
@@ -263,7 +263,7 @@ it('maps a platoon HQ report to the staff tab, column by column', function () {
     expect(pushToSheet($report))->toBeTrue()
         ->and(StaffReportSheetRow::STAFF_PRACTICE_COLUMNS)->toBe(5)
         ->and($fake->rows)->toBe([['tab' => 'Weekly Staff Report 2O26', 'row' => [
-            '10/10/2026 12:00:00', 'Brandt.L', '1-7', 'Alpha', '', '09Oct26', 'Yes', 'Section Practice (SP)',
+            '10/10/2026 12:00:00', 'Brandt.L', '1-7', 'Alpha', '', '09OCT26', 'Yes', 'Section Practice (SP)',
             '1/1/A/1-7, 2/1/A/1-7', '', '', '', '', '', '', 'Platoon', 'Platoon Sergeant', '1st Platoon', 'All good.', '', '', 'Range day',
         ]]]);
 });
@@ -277,7 +277,7 @@ it('maps a company HQ FTX report to the staff tab, with the company billet and n
     pushToSheet($report);
 
     expect($fake->rows)->toBe([['tab' => 'Weekly Staff Report 2O26', 'row' => [
-        '10/10/2026 12:00:00', 'Kerr.D', '1-7', 'Alpha', '', '09Oct26', 'Yes', 'FTX',
+        '10/10/2026 12:00:00', 'Kerr.D', '1-7', 'Alpha', '', '09OCT26', 'Yes', 'FTX',
         '', '', '', '', '', 'Operation Anvil', '10/5/2026', 'Company', '', '', '', 'Company Commander', 'Led it.', '',
     ]]]);
 });
@@ -289,7 +289,7 @@ it('maps a battalion HQ report to the battalion tab, with the battalion billet',
     pushToSheet($report);
 
     expect($fake->rows)->toBe([['tab' => 'Weekly Battalion Report 2O26', 'row' => [
-        '10/10/2026 12:00:00', 'Stone.A', '1st Battalion', '09Oct26', 'Battalion XO', 'Yes', '1/1/A/1-7', 'Range day', 'Visited 1/A.',
+        '10/10/2026 12:00:00', 'Stone.A', '1st Battalion', '09OCT26', 'Battalion XO', 'Yes', '1/1/A/1-7', 'Range day', 'Visited 1/A.',
         '', '', '', '', '', '', '',
     ]]]);
 });
@@ -305,7 +305,7 @@ it('maps an ACD HQ report to the battalion tab, with the billet in ACD Billet', 
 
     expect($report->unit_id)->toBe($acd->id)
         ->and($fake->rows)->toBe([['tab' => 'Weekly Battalion Report 2O26', 'row' => [
-            '10/10/2026 12:00:00', 'Reyes.M', 'Auxiliary Combat Detachment', '09Oct26', '', '', '', '', '',
+            '10/10/2026 12:00:00', 'Reyes.M', 'Auxiliary Combat Detachment', '09OCT26', '', '', '', '', '',
             'ACD Commander', 'No', '', '', '', '', '',
         ]]]);
 });
@@ -450,7 +450,7 @@ it('puts the office hour at the front of the other events cell on the battalion 
     pushToSheet($report);
 
     expect($fake->rows)->toBe([['tab' => 'Weekly Battalion Report 2O26', 'row' => [
-        '10/10/2026 12:00:00', 'Stone.A', '1st Battalion', '09Oct26', 'Battalion XO', 'Yes', '', 'Office hour (10/6/2026): Q and A; Range day', '',
+        '10/10/2026 12:00:00', 'Stone.A', '1st Battalion', '09OCT26', 'Battalion XO', 'Yes', '', 'Office hour (10/6/2026): Q and A; Range day', '',
         '', '', '', '', '', '', '',
     ]]]);
 });

@@ -21,7 +21,7 @@ beforeEach(function () {
     $this->section = $units->create(UnitType::Section, 'A', '1/1/A/1-7', $platoon->id);
     $this->leader = User::factory()->commanding($this->section)->create();
 
-    // Saturday 24Oct26: the veteran joined years ago, the recruit on 20Oct26. Neither has placement history rows.
+    // Saturday 24OCT26: the veteran joined years ago, the recruit on 20OCT26. Neither has placement history rows.
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-24 12:00:00', 'UTC'));
     $this->veteran = Trooper::factory()->create(['tis' => '2015-03-01']);
     $this->recruit = Trooper::factory()->create(['tis' => '2026-10-20']);

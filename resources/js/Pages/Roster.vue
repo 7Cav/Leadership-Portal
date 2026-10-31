@@ -48,7 +48,7 @@ import PracticeGuestsPanel from "@/components/roster/PracticeGuestsPanel.vue";
 import TrooperSheet from "@/components/roster/TrooperSheet.vue";
 import { useNow } from "@/composables/useNow";
 import { useViewAs } from "@/composables/useViewAs";
-import { forumDate } from "@/lib/forumDate";
+import { forumDate, zuluTime } from "@/lib/forumDate";
 import { percentLabel } from "@/lib/roster";
 import { localTime, timeAgo } from "@/lib/timeAgo";
 
@@ -191,10 +191,9 @@ function unitHref(id) {
 // Source and freshness (AD-20): the time is always the last successful sync.
 function clock(iso) {
     const at = new Date(iso);
-    const hhmm = `${String(at.getUTCHours()).padStart(2, "0")}:${String(at.getUTCMinutes()).padStart(2, "0")}`;
     const today = new Date().toISOString().slice(0, 10) === iso.slice(0, 10);
 
-    return today ? `${hhmm}Z` : `${forumDate(iso)} ${hhmm}Z`;
+    return today ? zuluTime(at) : `${forumDate(iso)} ${zuluTime(at)}`;
 }
 // The stamp sits inside its own tooltip, so the relative time joins the text and the viewer's local
 // time joins that tooltip (the shared clock keeps "35 min ago" current).

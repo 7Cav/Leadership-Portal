@@ -10,7 +10,7 @@ test('a section leader sees a transferred trooper\'s weeks at the old section an
 
     await page.locator('tr[data-member]').filter({ hasText: 'Brandt.L' }).click();
     const sheet = page.getByTestId('trooper-sheet');
-    await expect(sheet.getByTestId('transfers')).toContainText(/Moved from 2\/1\/E\/1-7 to 1\/1\/E\/1-7, \d{2}[A-Z][a-z]{2}\d{2}/);
+    await expect(sheet.getByTestId('transfers')).toContainText(/Moved from 2\/1\/E\/1-7 to 1\/1\/E\/1-7, \d{2}[A-Z]{3}\d{2}/);
     await expect(sheet.getByTestId('sheet-week-section')).toHaveCount(2);
     await expect(sheet.getByTestId('sheet-week-section').first()).toHaveText('At 2/1/E/1-7');
     // Both weeks at the old section count: two of two practices attended.

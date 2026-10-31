@@ -20,7 +20,7 @@ const props = defineProps({
 const pct = (v) => (v === null || v === undefined ? null : Math.round(v * 100));
 const trend = computed(() => props.health.trend ?? []);
 const first = computed(() => trend.value[0]?.week);
-const span = computed(() => (first.value ? `${trend.value.length} weeks from the week ending ${weekLabel(first.value)}` : ''));
+const span = computed(() => (first.value ? `${trend.value.length} weeks from the week ${weekLabel(first.value)}` : ''));
 
 const tiles = computed(() => [
     {
