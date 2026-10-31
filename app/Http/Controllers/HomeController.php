@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffReportAccess;
 use App\Commands\Practices\PracticeSchedule;
+use App\Commands\Practices\SectionsWithoutSlot;
 use App\Kpi\AutoExcused;
 use App\Kpi\ChainNode;
 use App\Kpi\ChildReport;
@@ -75,6 +76,7 @@ class HomeController extends Controller
         private readonly AutoExcused $autoExcused,
         private readonly UnitGuidonRepository $guidons,
         private readonly PracticeSchedule $schedule,
+        private readonly SectionsWithoutSlot $sectionsWithoutSlot,
     ) {}
 
     public function show(Request $request): Response
@@ -112,6 +114,9 @@ class HomeController extends Controller
             'attention' => $roots->isEmpty() ? null : $this->attentionProps($attendance, $chains, $scope, $weekStart),
             'steps' => $this->stepProps($scope, $weekStart, $reports, $sent),
             'staffReport' => $this->staffReportProps($request),
+            // Sections in scope that play a game and have troopers but no practice slot (#392), so nothing is captured
+            // there. Leaders only (a synced billet, an acting lead or Admin): a staff grant reads but cannot set one.
+            'sectionsWithoutSlot' => $this->scope->leads($request->user()) ? $this->sectionsWithoutSlot->among($scope) : [],
             'units' => $chains->flatMap(function (ChainNode $chain, int $i) use ($attendance, $paths, $weekStart, $slots) {
                 $rows = $attendance[$i];
 

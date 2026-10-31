@@ -40,6 +40,7 @@ import EmptyState from "@/components/EmptyState.vue";
 import Guidon from "@/components/Guidon.vue";
 import LoaSyncNote from "@/components/LoaSyncNote.vue";
 import LoaSyncProblems from "@/components/LoaSyncProblems.vue";
+import MissingPracticeSlots from "@/components/MissingPracticeSlots.vue";
 import MatrixView from "@/components/roster/MatrixView.vue";
 import OrbatView from "@/components/roster/OrbatView.vue";
 import StrengthView from "@/components/roster/StrengthView.vue";
@@ -62,6 +63,8 @@ const props = defineProps({
     trail: { type: Array, required: true },
     scopeOptions: { type: Array, required: true },
     weeks: { type: Array, required: true },
+    // The viewed unit's sections with no practice slot set, `[{ id, designation }]`; leaders only.
+    sectionsWithoutSlot: { type: Array, default: () => [] },
     currentWeek: { type: String, required: true },
     units: { type: Array, required: true },
     troopers: { type: Array, required: true },
@@ -544,6 +547,8 @@ function syncNow() {
         </section>
 
         <template v-else>
+            <MissingPracticeSlots :sections="sectionsWithoutSlot" :own="false" class="mb-3" />
+
             <Tabs v-model="view">
                 <TabsList aria-label="Roster view">
                     <TabsTrigger value="orbat" data-testid="view-orbat"

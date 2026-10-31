@@ -25,6 +25,14 @@ describe('PracticeSlot', () => {
         expect(wrapper.find('[data-testid="practice-slot-edit"]').exists()).toBe(false);
     });
 
+    it('opens its editor when the no-slot warning asks it to', async () => {
+        const wrapper = factory({ slot: null, canEdit: true });
+
+        wrapper.vm.startEditing();
+        await flushPromises();
+        expect(document.body.querySelector('[data-testid="practice-slot-form"]')).not.toBeNull();
+    });
+
     it('says when the section has no slot, and when this week is cancelled or moved', () => {
         expect(factory({ slot: null }).find('[data-testid="practice-slot-none"]').exists()).toBe(true);
         expect(factory({ slot: { ...SLOT, week: { ...SLOT.week, cancelled: true, start: null } } }).text()).toContain('Cancelled this week');

@@ -25,6 +25,8 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['updated']);
+// The roll call's no-slot warning opens the editor from its own button.
+defineExpose({ startEditing });
 
 const open = ref(false);
 const saving = ref(false);
