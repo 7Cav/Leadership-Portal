@@ -290,10 +290,10 @@ class MarkAttendanceHandler
     /**
      * An automatic makeup (refining AD-14): a trooper is on
      * exactly one rollcall, their primary section's, so a trooper who attended *another* section's
-     * practice (`$host`) has made up their own section's practice. The capture does not call this
-     * until practice time slots exist: its window is the whole Cav week so far, on servers every
-     * section shares, so it cannot tell a practice from a public match. Makeups come from a leader: today
-     * the one caller is a host leader's hand-added guest (`RecordGuestAttendanceHandler`). Each of `$trooperIds`
+     * practice (`$host`) has made up their own section's practice. Two callers: a host leader's hand-added guest
+     * (`RecordGuestAttendanceHandler`), and the capture of a practice with a slot (#558) for a trooper who was on its
+     * server for at least the presence minimum and whose own section's practice is not in the same window (the capture
+     * of a whole week, with no slot, never calls this). Each of `$trooperIds`
      * gets `makeup` with `source = auto` on their own section's practice for the host's Cav week —
      * the same week, never an older or a later one, found or created through
      * {@see SectionPracticeRepository::findOrCreate()} — the same writer and second *source* as

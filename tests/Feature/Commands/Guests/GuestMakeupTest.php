@@ -306,6 +306,11 @@ it('writes no makeup when an Undo removes the entry between its commit and the m
             return $this->inner->existsForTrooperInWeek($trooperId, $weekStart);
         }
 
+        public function firstGuestInWeek(array $trooperIds, CarbonInterface $weekStart): Collection
+        {
+            return $this->inner->firstGuestInWeek($trooperIds, $weekStart);
+        }
+
         public function visitsWithin(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
         {
             return $this->inner->visitsWithin($unit, $firstWeek, $lastWeek);
