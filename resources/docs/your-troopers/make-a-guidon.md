@@ -11,7 +11,7 @@ audience: leader
 ## Open the generator
 
 1. Open the **Roster** on your company, battalion or the regiment.
-2. Choose **Edit guidon** at the top. It shows for the unit's command team (CO, XO and 1SG of a company), the command above it, and Admins. Platoons and sections have no guidon.
+2. Choose **Edit guidon** at the top. It shows for the unit's command team (CO, XO and 1SG of a company), the command above it, and Admins. An Admin acting as one of them gets it too, and the save is recorded as the Admin acting for them. It never shows during view as. Platoons and sections have no guidon.
 
 ## Pick the colors and the text
 

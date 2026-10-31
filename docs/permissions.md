@@ -255,7 +255,8 @@ yourself: another Admin assigns an Admin. A unit with only its XO, PSG or ASL se
 ### Act as
 
 Act as runs the portal as another person, writes included, and every entry it writes names you acting for them ("Hale.S
-for Vasquez.R"). Starting and stopping act as, and view as, keep the page you were on. A page the
+for Vasquez.R"). It is not read only: the buttons and saves the identity would get show and work (the roster's Edit
+guidon among them), and only view as is a read-only preview. Starting and stopping act as, and view as, keep the page you were on. A page the
 identity you act or view as may not open answers with its usual 403 or 404 status, but renders the shell with a short
 blocked note and the bar to leave instead of an error page; nothing of the page is sent. Who you may act as:
 
