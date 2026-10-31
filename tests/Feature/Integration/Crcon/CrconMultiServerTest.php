@@ -45,9 +45,9 @@ function multiWindow(): array
 function fiveInfos(): array
 {
     return [
-        'one.test/api/get_connection_info' => crconInfo('WW2 - Tac East', 'hll', 1),
-        'two.test/api/get_connection_info' => crconInfo('WW2 - Training Server 1', 'hll', 2),
-        'three.test/api/get_connection_info' => crconInfo('Vietnam - Training 1', 'hllv', 5),
+        'one.test/api/get_connection_info' => crconInfo('WW2 public', 'hll', 1),
+        'two.test/api/get_connection_info' => crconInfo('WW2 training', 'hll', 2),
+        'three.test/api/get_connection_info' => crconInfo('Vietnam training', 'hllv', 5),
     ];
 }
 
@@ -57,9 +57,9 @@ it('lists one server per instance with its number and game', function () {
     $listed = multiCrcon()->listServers();
 
     expect(array_map(fn ($s) => [$s->externalId, $s->name, $s->gameSlug], $listed))->toBe([
-        ['crcon:1', 'WW2 - Tac East', 'hll'],
-        ['crcon:2', 'WW2 - Training Server 1', 'hll'],
-        ['crcon:5', 'Vietnam - Training 1', 'hll-vietnam'],
+        ['crcon:1', 'WW2 public', 'hll'],
+        ['crcon:2', 'WW2 training', 'hll'],
+        ['crcon:5', 'Vietnam training', 'hll-vietnam'],
     ]);
 });
 

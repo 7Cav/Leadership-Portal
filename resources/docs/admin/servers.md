@@ -23,17 +23,9 @@ page: /settings/servers
 
 ## Add the 7Cav Hell Let Loose servers
 
-The unit runs a CRCON for each Hell Let Loose server. Once all of them are set up for the portal, **Fetch servers** lists five:
+The unit runs a CRCON for each Hell Let Loose server, both WW2 and Vietnam. Once all of them are set up for the portal, **Fetch servers** lists each one by its name, with its game filled in.
 
-| Server | Game | Type |
-| --- | --- | --- |
-| WW2 - Tac East | Hell Let Loose (WW2) | Public |
-| WW2 - Training Server 1 | Hell Let Loose (WW2) | Training |
-| Vietnam - Tac East | Hell Let Loose: Vietnam | Public |
-| Vietnam - Tac Central | Hell Let Loose: Vietnam | Public |
-| Vietnam - Training 1 | Hell Let Loose: Vietnam | Training |
-
-1. Tick **Selected** on the two training servers, check the **Game**, set **Type** to training and save each row.
+1. Tick **Selected** on each training server, check the **Game**, set **Type** to training and save each row.
 2. Leave the public servers unselected, or select them as public: a public server is never read for attendance.
 3. A CRCON server from before this list existed shows as **No longer listed**. It keeps reading the same CRCON it always did; once the new rows are set up, untick it and save.
 
