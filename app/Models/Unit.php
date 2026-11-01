@@ -67,14 +67,32 @@ class Unit extends Model
     }
 
     /**
-     * Whether this unit picks its own game: the regiment, a unit with no parent, and every unit directly under the
-     * regiment (a battalion, or a top-level group such as ACD or DEVCOM, which stand at battalion level). Every unit
-     * below one of those plays the game it inherits; a game already set on one stays until it is cleared, and none can
-     * be newly set. `$parent` is this unit's parent, or null at the top.
+     * Whether this unit may pick a game of its own: when no unit above it has one. A unit under one that does plays the
+     * game it inherits; a game already set on it stays until it is cleared, and none can be newly set. `$ancestors` are
+     * the units above this one, in any order.
+     *
+     * @param  iterable<Unit|null>  $ancestors
      */
-    public function setsOwnGame(?Unit $parent): bool
+    public function setsOwnGame(iterable $ancestors): bool
     {
-        return $this->parent_id === null || $this->type === UnitType::Regiment || $parent?->type === UnitType::Regiment;
+        return self::gameLockOf($ancestors) === null;
+    }
+
+    /**
+     * The nearest unit among `$ancestors` (nearest first) that has a game of its own, which locks every unit under it to
+     * that game; null when none has one.
+     *
+     * @param  iterable<Unit|null>  $ancestors
+     */
+    public static function gameLockOf(iterable $ancestors): ?Unit
+    {
+        foreach ($ancestors as $ancestor) {
+            if ($ancestor !== null && $ancestor->game_id !== null) {
+                return $ancestor;
+            }
+        }
+
+        return null;
     }
 
     public function game(): BelongsTo

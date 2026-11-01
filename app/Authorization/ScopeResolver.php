@@ -2,6 +2,7 @@
 
 namespace App\Authorization;
 
+use App\Commands\Units\CommandBillet;
 use App\Models\AdminBillet;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
@@ -512,10 +513,10 @@ class ScopeResolver
     }
 
     /**
-     * Whether `$user` may set or clear the game of `$unit`: an Admin, Regimental HQ staff ({@see isRegimentalHqStaff()}),
-     * or the serving overseer of the unit that picks the game for it (the unit itself at battalion level or above, else
-     * the battalion-level unit above it, {@see Unit::setsOwnGame()}). Under a view-as preview the request is read-only
-     * anyway (the ReadOnlyWhileViewingAs middleware), so this asks only about the person.
+     * Whether `$user` may set or clear the game of `$unit`: an Admin or Regimental HQ staff ({@see isRegimentalHqStaff()})
+     * on any unit; anyone else on a unit at or under one of {@see gameUnitsOf()}. Whether a game may be set there at all
+     * (no unit above has one, {@see Unit::setsOwnGame()}) is the command's check. Under a view-as preview the request is
+     * read-only anyway (the ReadOnlyWhileViewingAs middleware), so this asks only about the person.
      */
     public function maySetUnitGame(User $user, Unit $unit): bool
     {
@@ -523,23 +524,42 @@ class ScopeResolver
             return true;
         }
 
-        $picker = $this->gamePickerOf($unit);
-
-        return $picker !== null && $this->oversights->unitsOverseenBy($user)->contains('id', $picker->id);
-    }
-
-    /** The unit whose game `$unit` plays by rule: itself when it picks its own, else the nearest one above that does. */
-    public function gamePickerOf(Unit $unit): ?Unit
-    {
-        for ($at = $unit, $depth = 0; $at !== null && $depth < 10; $depth++) {
-            $parent = $at->parent_id === null ? null : $this->units->find((int) $at->parent_id);
-            if ($at->setsOwnGame($parent)) {
-                return $at;
-            }
-            $at = $parent;
+        $roots = $this->gameUnitsOf($user)->pluck('id')->flip();
+        if ($roots->isEmpty()) {
+            return false;
         }
 
-        return null;
+        for ($at = $unit, $depth = 0; $at !== null && $depth < 10; $depth++) {
+            if ($roots->has($at->id)) {
+                return true;
+            }
+            $at = $at->parent_id === null ? null : $this->units->find((int) $at->parent_id);
+        }
+
+        return false;
+    }
+
+    /**
+     * The units whose games, and those of every unit under them, `$user` may set short of being an Admin or Regimental
+     * HQ staff: each unit they oversee while serving (Org structure's "Oversight"), and DEVCOM for the serving holder
+     * of a DEVCOM command billet (`DEVCOM 1IC`, `DEVCOM 2IC`, {@see CommandBillet::devcomCommand()}), the unit that
+     * billet commands. Empty for everyone else.
+     *
+     * @return Collection<int, Unit>
+     */
+    public function gameUnitsOf(User $user): Collection
+    {
+        $units = $this->oversights->unitsOverseenBy($user)->values();
+
+        $trooper = $user->cav_id === null ? null : $this->troopers->byCavId([(int) $user->cav_id])->get((int) $user->cav_id);
+        if (($trooper?->status?->isServing() ?? false) && CommandBillet::devcomCommand((string) $trooper->billet) !== null) {
+            $devcom = $this->commands->commandedUnitFor($user);
+            if ($devcom !== null) {
+                $units->push($devcom);
+            }
+        }
+
+        return $units;
     }
 
     /**

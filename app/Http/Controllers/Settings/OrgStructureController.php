@@ -114,23 +114,23 @@ class OrgStructureController extends Controller
         $withTroopers = $headcount->withoutEmptyLineUnits($tree)->pluck('id')->flip();
         $oversightOf = $oversights->forUnits($tree->modelKeys());
         // Who may change a unit's game, by `ScopeResolver::maySetUnitGame()`'s rule worked out once over the tree: an
-        // Admin or Regimental HQ staff anywhere, an overseer on the battalion they oversee and the units under it. None
-        // while previewing with view as, which is read-only.
+        // Admin or Regimental HQ staff anywhere, an overseer (or DEVCOM's 1IC and 2IC) on their units and those under
+        // them. None while previewing with view as, which is read-only.
         $byId = $tree->keyBy('id');
-        $parentOf = fn (Unit $unit) => $unit->parent_id === null ? null : $byId->get($unit->parent_id);
-        $pickerOf = function (Unit $unit) use ($parentOf): ?Unit {
-            for ($at = $unit, $depth = 0; $at !== null && $depth < 10; $depth++, $at = $parentOf($at)) {
-                if ($at->setsOwnGame($parentOf($at))) {
-                    return $at;
-                }
+        $ancestorsOf = function (Unit $unit) use ($byId): array {
+            $chain = [];
+            for ($at = $byId->get($unit->parent_id), $depth = 0; $at !== null && $depth < 10; $depth++, $at = $byId->get($at->parent_id)) {
+                $chain[] = $at;
             }
 
-            return null;
+            return $chain;
         };
         $viewer = $request->user();
         $previewing = $scope->activeViewAs($viewer) !== null;
         $gamesEverywhere = ! $previewing && ($scope->isAdmin($viewer) || $scope->isRegimentalHqStaff($viewer));
-        $overseen = $previewing ? collect() : $oversights->unitsOverseenBy($viewer)->pluck('id')->flip();
+        $gameRoots = $previewing || $gamesEverywhere ? collect() : $scope->gameUnitsOf($viewer)->pluck('id')->flip();
+        $mayGame = fn (Unit $unit) => $gamesEverywhere
+            || collect([$unit, ...$ancestorsOf($unit)])->contains(fn (Unit $at) => $gameRoots->has($at->id));
 
         $units = $tree->map(fn (Unit $unit) => [
             'id' => $unit->id,
@@ -144,10 +144,12 @@ class OrgStructureController extends Controller
             // unit it comes from. Null when no unit on its chain has one.
             'game_id' => $unit->game_id,
             'game' => $gameOf->get($unit->id),
-            // Whether this unit picks its own game (battalion level and above), and whether the viewer may change it.
-            // Below battalion level the only change is clearing a game set there before, back to the inherited one.
-            'sets_game' => $unit->setsOwnGame($parentOf($unit)),
-            'can_set_game' => $gamesEverywhere || (($picker = $pickerOf($unit)) !== null && $overseen->has($picker->id)),
+            // Whether this unit may pick its own game (no unit above has one), the unit above whose game locks it
+            // otherwise, and whether the viewer may change it. Under a locked unit the only change is clearing a game
+            // set there before, back to the inherited one.
+            'sets_game' => ($lock = Unit::gameLockOf($ancestorsOf($unit))) === null,
+            'game_locked_by' => $lock === null ? null : ($lock->callsign ?? $lock->name),
+            'can_set_game' => $mayGame($unit),
             // The unit's saved guidon (#446), drawn next to its name; null when it has none.
             'guidon' => $guidonOf->get($unit->id)?->design(),
             'path' => $unit->path,
@@ -329,22 +331,23 @@ class OrgStructureController extends Controller
 
     /**
      * Set the game a unit plays from the Games list, or clear it so the unit inherits again. Server-side (AD-6): an
-     * Admin, Regimental HQ staff, or the overseer of the battalion the unit is or sits under
-     * (`ScopeResolver::maySetUnitGame()`); anyone else gets a 403, whether or not the unit exists, when they could set
-     * no game anywhere. Audited by {@see SetUnitGame} (AD-16). A game that is gone or retired, or a new game below
-     * battalion level, comes back as a form error on `game_id`.
+     * Admin or Regimental HQ staff on any unit, an overseer on the units they oversee and those under them, DEVCOM's 1IC
+     * and 2IC on DEVCOM and the units under it (`ScopeResolver::maySetUnitGame()`); anyone else gets a 403, whether or
+     * not the unit exists, when they could set no game anywhere. Audited by {@see SetUnitGame} (AD-16). A game that is
+     * gone or retired, a new game under a unit that has one, or one over units with their own comes back as a form
+     * error on `game_id`.
      */
-    public function game(Request $request, int $unit, SetUnitGame $command, UnitOversightRepository $oversights): RedirectResponse
+    public function game(Request $request, int $unit, SetUnitGame $command): RedirectResponse
     {
         $user = $request->user();
-        $anywhere = $this->scope->isAdmin($user) || $this->scope->isRegimentalHqStaff($user) || $oversights->unitsOverseenBy($user)->isNotEmpty();
+        $anywhere = $this->scope->isAdmin($user) || $this->scope->isRegimentalHqStaff($user) || $this->scope->gameUnitsOf($user)->isNotEmpty();
         if (! $anywhere) {
-            abort(403, 'Only an Admin, Regimental HQ or the overseer of a battalion may change its game.');
+            abort(403, 'Only an Admin, Regimental HQ or someone who oversees this unit may change its game.');
         }
 
         $unit = $this->units->find($unit) ?? abort(404);
         if (! $this->scope->maySetUnitGame($user, $unit)) {
-            abort(403, 'Only an Admin, Regimental HQ or the overseer of this battalion may change its game.');
+            abort(403, 'Only an Admin, Regimental HQ or someone who oversees this unit may change its game.');
         }
 
         $data = $request->validate([

@@ -14,9 +14,11 @@ use App\Repositories\UnitGame;
 use App\Repositories\UnitRepository;
 use Inertia\Testing\AssertableInertia as Assert;
 
-// Settings, Org structure: an Admin, Regimental HQ staff or a battalion's overseer sets the game a battalion-level unit
-// plays from the Games list, and every unit under it plays the same game. A game set below battalion level before stays
-// until cleared; no new one can be set there. The team label stays free text beside it.
+// Settings, Org structure: an Admin or Regimental HQ staff on any unit, an overseer on the units they oversee and those
+// under them, and DEVCOM's 1IC and 2IC on DEVCOM, set the game a unit plays from the Games list, and every unit under it
+// plays the same game. Any unit picks one while no unit above it has one; under one that does, a game set before stays
+// until cleared and no new one can be set. A unit with units under it that have their own is refused until those are
+// cleared. The team label stays free text beside it.
 
 /** @return array<int, array<string, mixed>> the page's units by id */
 function ougUnits($response): array
@@ -67,31 +69,75 @@ describe('setting a unit\'s game', function () {
     it('lets the regiment and a top-level group pick a game too', function () {
         $devcom = app(UnitRepository::class)->create(UnitType::Group, 'Development Command', 'DEVCOM', $this->regiment->id);
 
-        ougSetGame($this, $this->regiment, game('hll')->id)->assertSessionHasNoErrors();
         ougSetGame($this, $devcom, game('arma')->id)->assertSessionHasNoErrors();
+        ougSetGame($this, $devcom, null)->assertSessionHasNoErrors();
+        ougSetGame($this, $this->regiment, game('hll')->id)->assertSessionHasNoErrors();
 
         expect($this->regiment->fresh()->game_id)->toBe(game('hll')->id)
-            ->and($devcom->fresh()->game_id)->toBe(game('arma')->id);
+            ->and($devcom->fresh()->game_id)->toBeNull();
     });
 
-    it('refuses a new game below battalion level, as a form error, changing nothing', function () {
+    it('lets any unit pick a game while no unit above it has one', function () {
+        ougSetGame($this, $this->section, game('arma')->id)->assertSessionHasNoErrors();
+        ougSetGame($this, $this->other, game('wardogs')->id)->assertSessionHasNoErrors();
+
+        expect($this->section->fresh()->game_id)->toBe(game('arma')->id)
+            ->and($this->other->fresh()->game_id)->toBe(game('wardogs')->id);
+
+        $page = ougUnits($this->actingAs($this->admin)->get('/settings/org-structure'));
+        expect($page[$this->company->id]['sets_game'])->toBeTrue()
+            ->and($page[$this->company->id]['game_locked_by'])->toBeNull();
+    });
+
+    it('locks a unit under one with a game to that game, as a form error naming it, changing nothing', function () {
+        app(UnitRepository::class)->setGame($this->battalion, game('hll')->id);
+
         foreach ([$this->company, $this->platoon, $this->section] as $unit) {
             ougSetGame($this, $unit, game('wardogs')->id)
-                ->assertSessionHasErrors(['game_id' => 'Only a battalion or a unit above it picks a game. This unit plays the game of the battalion it sits under.']);
+                ->assertSessionHasErrors(['game_id' => 'This unit plays the game of 2-7. Clear the game there first to pick one here.']);
         }
 
-        expect(Unit::query()->whereNotNull('game_id')->count())->toBe(0)
+        $page = ougUnits($this->actingAs($this->admin)->get('/settings/org-structure'));
+        expect($page[$this->section->id]['sets_game'])->toBeFalse()
+            ->and($page[$this->section->id]['game_locked_by'])->toBe('2-7')
+            ->and($page[$this->battalion->id]['sets_game'])->toBeTrue();
+
+        expect(Unit::query()->whereNotNull('game_id')->count())->toBe(1)
             ->and(AuditLogEntry::query()->where('action', 'unit.game_set')->count())->toBe(0);
     });
 
-    it('keeps a game set below battalion level before, refuses changing it, and lets it be cleared', function () {
+    it('refuses a game on a unit whose units below have their own, naming them, until they are cleared', function () {
+        $units = app(UnitRepository::class);
+        $units->setGame($this->platoon, game('wardogs')->id);
+        $units->setGame($this->other, game('arma')->id);
+
+        ougSetGame($this, $this->battalion, game('hll')->id)
+            ->assertSessionHasErrors(['game_id' => 'Clear the game on 2/A/2-7 and B/2-7 first.']);
+        ougSetGame($this, $this->regiment, game('hll')->id)
+            ->assertSessionHasErrors(['game_id' => 'Clear the game on 2/A/2-7 and B/2-7 first.']);
+        expect($this->battalion->fresh()->game_id)->toBeNull()
+            ->and(AuditLogEntry::query()->where('action', 'unit.game_set')->count())->toBe(0);
+
+        ougSetGame($this, $this->platoon, null)->assertSessionHasNoErrors();
+        ougSetGame($this, $this->battalion, game('hll')->id)
+            ->assertSessionHasErrors(['game_id' => 'Clear the game on B/2-7 first.']);
+        ougSetGame($this, $this->other, null)->assertSessionHasNoErrors();
+        ougSetGame($this, $this->battalion, game('hll')->id)->assertSessionHasNoErrors();
+
+        expect($this->battalion->fresh()->game_id)->toBe(game('hll')->id);
+    });
+
+    it('keeps a game set under a unit that has one, refuses changing it, and lets it be cleared', function () {
         app(UnitRepository::class)->setGame($this->platoon, game('wardogs')->id);
+        app(UnitRepository::class)->setGame($this->battalion, game('hll')->id);
 
         // Shown on the page as the platoon's own.
         $page = ougUnits($this->actingAs($this->admin)->get('/settings/org-structure'));
         expect($page[$this->platoon->id]['game']['from'])->toBeNull()
             ->and($page[$this->platoon->id]['sets_game'])->toBeFalse()
-            ->and($page[$this->section->id]['game']['from'])->toBe('2/A/2-7');
+            ->and($page[$this->platoon->id]['game_locked_by'])->toBe('2-7')
+            ->and($page[$this->section->id]['game']['from'])->toBe('2/A/2-7')
+            ->and($page[$this->section->id]['game_locked_by'])->toBe('2/A/2-7');
 
         // Saving the same game is unchanged; another game is refused.
         ougSetGame($this, $this->platoon, game('wardogs')->id)->assertSessionHasNoErrors();
@@ -119,49 +165,88 @@ describe('setting a unit\'s game', function () {
             ->and(AuditLogEntry::query()->where('action', 'unit.game_set')->count())->toBe(0);
     });
 
-    it('lets Regimental HQ staff set any battalion\'s game, while their billet is a Regimental HQ one', function () {
+    it('lets Regimental HQ staff set any unit\'s game, while their billet is a Regimental HQ one', function () {
         $trooper = Trooper::factory()->create(['cav_position_id' => 9010, 'billet' => 'Regimental Chief of Staff']);
         $trooper->forceFill(['primary_section_id' => $this->regiment->id])->save();
         AdminBillet::query()->create(['cav_position_id' => 9010, 'proposed_title' => 'Regimental Chief of Staff', 'proposed_group_title' => 'Regimental HQ', 'status' => AdminBilletStatus::Pending]);
         $chief = User::factory()->create(['cav_id' => $trooper->cav_id]);
 
-        ougSetGame($this, $this->battalion, game('hll')->id, $chief)->assertSessionHasNoErrors();
-        expect($this->battalion->fresh()->game_id)->toBe(game('hll')->id);
+        ougSetGame($this, $this->section, game('arma')->id, $chief)->assertSessionHasNoErrors();
+        ougSetGame($this, $this->other, game('hll')->id, $chief)->assertSessionHasNoErrors();
+        expect($this->section->fresh()->game_id)->toBe(game('arma')->id)
+            ->and($this->other->fresh()->game_id)->toBe(game('hll')->id);
 
         $page = ougUnits($this->actingAs($chief)->get('/settings/org-structure'));
-        expect($page[$this->battalion->id]['can_set_game'])->toBeTrue();
+        expect($page[$this->regiment->id]['can_set_game'])->toBeTrue()
+            ->and($page[$this->section->id]['can_set_game'])->toBeTrue();
 
         // Placed below the regiment, the same billet is not Regimental HQ.
         $trooper->forceFill(['primary_section_id' => $this->company->id])->save();
         ougSetGame($this, $this->battalion, game('arma')->id, $chief)->assertForbidden();
     });
 
-    it('lets a battalion\'s serving overseer set its game and clear an old one under it, nothing else', function () {
+    it('lets a serving overseer set games on the units they oversee and those under them, nothing else', function () {
+        $units = app(UnitRepository::class);
+        $acd = $units->create(UnitType::Group, 'Auxiliary Combat Division', 'ACD', $this->regiment->id);
+        $devcom = $units->create(UnitType::Group, 'Development Command', 'DEVCOM', $this->regiment->id);
+        $devcomTeam = $units->create(UnitType::Company, 'Research Team', 'RT/DEVCOM', $devcom->id);
         $overseer = Trooper::factory()->create(['status' => TrooperStatus::Combat]);
-        UnitOversight::query()->create(['unit_id' => $this->battalion->id, 'trooper_id' => $overseer->id]);
+        UnitOversight::query()->create(['unit_id' => $acd->id, 'trooper_id' => $overseer->id]);
+        UnitOversight::query()->create(['unit_id' => $devcom->id, 'trooper_id' => $overseer->id]);
         $user = User::factory()->create(['cav_id' => $overseer->cav_id]);
-        $otherBattalion = app(UnitRepository::class)->create(UnitType::Battalion, '1st Battalion', '1-7', $this->regiment->id);
-        app(UnitRepository::class)->setGame($this->platoon, game('wardogs')->id);
+        $units->setGame($this->platoon, game('wardogs')->id);
 
-        ougSetGame($this, $this->battalion, game('hll-vietnam')->id, $user)->assertSessionHasNoErrors();
-        ougSetGame($this, $this->platoon, null, $user)->assertSessionHasNoErrors();
-        ougSetGame($this, $otherBattalion, game('hll')->id, $user)->assertForbidden();
+        ougSetGame($this, $acd, game('hll-vietnam')->id, $user)->assertSessionHasNoErrors();
+        ougSetGame($this, $devcomTeam, game('arma')->id, $user)->assertSessionHasNoErrors();
+        ougSetGame($this, $devcomTeam, null, $user)->assertSessionHasNoErrors();
+        ougSetGame($this, $devcom, game('hll')->id, $user)->assertSessionHasNoErrors();
+        ougSetGame($this, $this->battalion, game('hll')->id, $user)->assertForbidden();
+        ougSetGame($this, $this->platoon, null, $user)->assertForbidden();
         ougSetGame($this, $this->regiment, game('hll')->id, $user)->assertForbidden();
 
-        expect($this->battalion->fresh()->game_id)->toBe(game('hll-vietnam')->id)
-            ->and($this->platoon->fresh()->game_id)->toBeNull()
-            ->and($otherBattalion->fresh()->game_id)->toBeNull();
+        expect($acd->fresh()->game_id)->toBe(game('hll-vietnam')->id)
+            ->and($devcom->fresh()->game_id)->toBe(game('hll')->id)
+            ->and($this->battalion->fresh()->game_id)->toBeNull()
+            ->and($this->platoon->fresh()->game_id)->toBe(game('wardogs')->id);
 
         $page = ougUnits($this->actingAs($user)->get('/settings/org-structure'));
-        expect($page[$this->battalion->id]['can_set_game'])->toBeTrue()
-            ->and($page[$this->section->id]['can_set_game'])->toBeTrue()
-            ->and($page[$otherBattalion->id]['can_set_game'])->toBeFalse()
+        expect($page[$acd->id]['can_set_game'])->toBeTrue()
+            ->and($page[$devcomTeam->id]['can_set_game'])->toBeTrue()
+            ->and($page[$this->battalion->id]['can_set_game'])->toBeFalse()
+            ->and($page[$this->section->id]['can_set_game'])->toBeFalse()
             ->and($page[$this->regiment->id]['can_set_game'])->toBeFalse();
 
         // No longer serving: no longer the overseer (nor signed in), and nothing changes.
         $overseer->forceFill(['status' => TrooperStatus::Inactive])->save();
-        ougSetGame($this, $this->battalion, game('hll')->id, $user);
-        expect($this->battalion->fresh()->game_id)->toBe(game('hll-vietnam')->id);
+        ougSetGame($this, $acd, game('hll')->id, $user);
+        expect($acd->fresh()->game_id)->toBe(game('hll-vietnam')->id);
+    });
+
+    it('lets DEVCOM\'s 1IC and 2IC set games on DEVCOM and the units under it, nothing else', function () {
+        $units = app(UnitRepository::class);
+        $devcom = $units->create(UnitType::Battalion, 'DEVCOM', 'DEVCOM', $this->regiment->id);
+        $devcomTeam = $units->create(UnitType::Company, 'Research Team', 'RT/DEVCOM', $devcom->id);
+
+        foreach (['DEVCOM 1IC', 'DEVCOM 2IC'] as $title) {
+            $lead = User::factory()->commanding($devcom, ['billet' => $title])->create();
+
+            ougSetGame($this, $devcomTeam, game('arma')->id, $lead)->assertSessionHasNoErrors();
+            ougSetGame($this, $devcomTeam, null, $lead)->assertSessionHasNoErrors();
+            ougSetGame($this, $devcom, game('hll')->id, $lead)->assertSessionHasNoErrors();
+            ougSetGame($this, $devcom, null, $lead)->assertSessionHasNoErrors();
+            ougSetGame($this, $this->battalion, game('hll')->id, $lead)->assertForbidden();
+            ougSetGame($this, $this->regiment, game('hll')->id, $lead)->assertForbidden();
+
+            $page = ougUnits($this->actingAs($lead)->get('/settings/org-structure'));
+            expect($page[$devcom->id]['can_set_game'])->toBeTrue()
+                ->and($page[$devcomTeam->id]['can_set_game'])->toBeTrue()
+                ->and($page[$this->battalion->id]['can_set_game'])->toBeFalse();
+        }
+
+        // Another billet commanding DEVCOM is not its command team.
+        ougSetGame($this, $devcom, game('hll')->id, User::factory()->commanding($devcom, ['billet' => 'DEVCOM Staff'])->create())->assertForbidden();
+        expect($devcom->fresh()->game_id)->toBeNull()
+            ->and($this->battalion->fresh()->game_id)->toBeNull();
     });
 
     it('refuses an Admin previewing someone with view as: the preview is read-only', function () {
