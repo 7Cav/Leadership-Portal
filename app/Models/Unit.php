@@ -66,6 +66,17 @@ class Unit extends Model
         return $this->kind === null || $this->kind->isLine();
     }
 
+    /**
+     * Whether this unit picks its own game: the regiment, a unit with no parent, and every unit directly under the
+     * regiment (a battalion, or a top-level group such as ACD or DEVCOM, which stand at battalion level). Every unit
+     * below one of those plays the game it inherits; a game already set on one stays until it is cleared, and none can
+     * be newly set. `$parent` is this unit's parent, or null at the top.
+     */
+    public function setsOwnGame(?Unit $parent): bool
+    {
+        return $this->parent_id === null || $this->type === UnitType::Regiment || $parent?->type === UnitType::Regiment;
+    }
+
     public function game(): BelongsTo
     {
         return $this->belongsTo(Game::class);

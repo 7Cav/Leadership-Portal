@@ -500,6 +500,49 @@ class ScopeResolver
     }
 
     /**
+     * Whether `$user` is Regimental HQ staff right now: serving, placed directly on the regiment node, on a position
+     * that is still a Regimental HQ billet. The same test the read scope applies ({@see regimentPlacing()}). Two or three
+     * queries.
+     */
+    public function isRegimentalHqStaff(User $user): bool
+    {
+        $trooper = $user->cav_id === null ? null : $this->troopers->byCavId([(int) $user->cav_id])->get((int) $user->cav_id);
+
+        return ($trooper?->status?->isServing() ?? false) && $this->regimentPlacing($trooper) !== null;
+    }
+
+    /**
+     * Whether `$user` may set or clear the game of `$unit`: an Admin, Regimental HQ staff ({@see isRegimentalHqStaff()}),
+     * or the serving overseer of the unit that picks the game for it (the unit itself at battalion level or above, else
+     * the battalion-level unit above it, {@see Unit::setsOwnGame()}). Under a view-as preview the request is read-only
+     * anyway (the ReadOnlyWhileViewingAs middleware), so this asks only about the person.
+     */
+    public function maySetUnitGame(User $user, Unit $unit): bool
+    {
+        if ($this->isAdmin($user) || $this->isRegimentalHqStaff($user)) {
+            return true;
+        }
+
+        $picker = $this->gamePickerOf($unit);
+
+        return $picker !== null && $this->oversights->unitsOverseenBy($user)->contains('id', $picker->id);
+    }
+
+    /** The unit whose game `$unit` plays by rule: itself when it picks its own, else the nearest one above that does. */
+    public function gamePickerOf(Unit $unit): ?Unit
+    {
+        for ($at = $unit, $depth = 0; $at !== null && $depth < 10; $depth++) {
+            $parent = $at->parent_id === null ? null : $this->units->find((int) $at->parent_id);
+            if ($at->setsOwnGame($parent)) {
+                return $at;
+            }
+            $at = $parent;
+        }
+
+        return null;
+    }
+
+    /**
      * Whether a trooper placed on `$unit` is Regimental HQ staff: placed on the regiment node itself, nothing below it.
      * The Regimental HQ read scope's placement rule; Admin by billet ({@see isAdminByBillet()}) does not use it.
      */

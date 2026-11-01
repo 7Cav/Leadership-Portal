@@ -35,8 +35,17 @@ const childNameCh = computed(() => {
 // Only from `sm` up (the class reads the variable): on a phone the callsign sits under the name instead.
 const nameStyle = computed(() => (props.nameCh && props.node.callsign && !isHq(props.node) ? { '--name-ch': `${props.nameCh}ch` } : undefined));
 
+// The game chip: only on a row that picks its own game below the regiment (a battalion, or a top-level group such as
+// ACD), as the game's short code. Units under it show no game; the details panel says which one applies.
+const gameChip = computed(() => {
+    const { node } = props;
+    if (!node.game || !node.sets_game || node.type === 'regiment') return null;
+    const name = `${node.game.name}${node.game.retired ? ' (retired)' : ''}`;
+    return { text: node.game.abbreviation ?? node.game.name, title: node.game.from ? `${name}, from ${node.game.from}` : name };
+});
+
 // Game, label, vacant lead and oversight: inline from `sm` up, their own line under the name on a phone.
-const hasMeta = computed(() => Boolean(props.node.game || props.node.label || (props.node.lead_vacant && !props.node.empty) || oversightText.value));
+const hasMeta = computed(() => Boolean(gameChip.value || props.node.label || (props.node.lead_vacant && !props.node.empty) || oversightText.value));
 
 const oversightText = computed(() => {
     if (props.node.oversight) return `Oversight: ${props.node.oversight.displayName}${props.node.oversight.serving ? '' : ' (not serving)'}`;
@@ -66,12 +75,11 @@ const oversightText = computed(() => {
                 <span class="ml-1.5 text-[11px]">{{ node.refNote }}</span>
             </span>
             <span
-                v-if="node.game"
+                v-if="gameChip"
                 :data-testid="`ref-game-${node.refParentId}-${node.id}`"
-                class="min-w-0 text-[11px] max-sm:order-last max-sm:basis-full max-sm:pl-5 sm:shrink-0 sm:truncate"
-                :title="node.game.from ? `${node.game.name}, from ${node.game.from}` : node.game.name"
-                >{{ node.game.name }}<template v-if="node.game.retired"> (retired)</template
-                ><template v-if="node.game.from"> from {{ node.game.from }}</template></span
+                class="shrink-0 rounded-sm border border-border px-1 font-mono text-[10px] font-semibold tracking-wide"
+                :title="gameChip.title"
+                >{{ gameChip.text }}</span
             >
             <span v-if="oversightText" :data-testid="`ref-oversight-${node.refParentId}-${node.id}`" class="text-[11px] max-sm:order-last max-sm:basis-full max-sm:pl-5 sm:shrink-0">{{ oversightText }}</span>
             <span class="ml-auto shrink-0 text-[11px] tabular-nums"><span class="sr-only sm:not-sr-only">Headcount </span>{{ node.trooper_count }}</span>
@@ -115,16 +123,15 @@ const oversightText = computed(() => {
                 <span class="break-words sm:shrink-0 sm:min-w-(--name-ch)" :style="nameStyle">{{ node.name }}</span>
                 <span v-if="node.callsign" class="font-mono text-[11px] break-all text-muted-foreground sm:ml-1.5">{{ node.callsign }}</span>
             </span>
-            <span v-if="hasMeta" class="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 max-sm:order-last max-sm:basis-full max-sm:pl-[1.625rem]">
-            <!-- The game the unit plays: its own in full, one it inherits muted with the unit it comes from. -->
+            <span v-if="hasMeta" class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 max-sm:order-last max-sm:basis-full max-sm:pl-[1.625rem] sm:ml-1.5">
+            <!-- The game chip, battalion level only: the game's short code, its full name on hover. -->
             <span
-                v-if="node.game"
+                v-if="gameChip"
                 :data-testid="`unit-game-${node.id}`"
-                class="min-w-0 text-[11px] sm:shrink-0 sm:truncate"
-                :class="node.game.from ? 'text-muted-foreground/80' : 'font-medium text-muted-foreground'"
-                :title="node.game.from ? `${node.game.name}, from ${node.game.from}` : node.game.name"
-                >{{ node.game.name }}<template v-if="node.game.retired"> (retired)</template
-                ><template v-if="node.game.from"> from {{ node.game.from }}</template></span
+                class="shrink-0 rounded-sm border border-border bg-muted/50 px-1 font-mono text-[10px] font-semibold tracking-wide text-foreground/80"
+                :title="gameChip.title"
+                :aria-label="`Game: ${gameChip.title}`"
+                >{{ gameChip.text }}</span
             >
             <!-- The team label an Admin set. -->
             <span

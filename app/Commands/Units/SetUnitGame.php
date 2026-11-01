@@ -14,8 +14,10 @@ use App\Support\Audit\AuditEnvelope;
  * same game unless it has one of its own ({@see UnitGame}). Game identities opens on it, and the
  * capture reads a section's practice from it.
  *
- * Admin-only, enforced by the controller (AD-6), same as {@see SetUnitLabel}. Audited through the envelope (AD-16) as
- * an org-structure edit, so no reason is required. Null clears it, so the unit inherits again; an unchanged game writes
+ * Who may is enforced by the controller (AD-6) through `ScopeResolver::maySetUnitGame()`: an Admin, Regimental HQ staff,
+ * or the overseer of the battalion the unit is or sits under. Only a unit at battalion level or above picks a game
+ * ({@see Unit::setsOwnGame()}); a game already set on a unit below stays until it is cleared, and clearing it is the only
+ * change allowed there. Audited through the envelope (AD-16) as an org-structure edit, so no reason is required. Null clears it, so the unit inherits again; an unchanged game writes
  * nothing and logs nothing, so a unit keeps a game that has since been retired until an Admin changes it. A game that is
  * gone, or retired, cannot be newly set.
  */
@@ -28,12 +30,16 @@ class SetUnitGame
     ) {}
 
     /**
-     * @throws InvalidUnitGameException when the game does not exist or is retired.
+     * @throws InvalidUnitGameException when the game does not exist or is retired, or the unit sits below battalion level.
      */
     public function handle(User $actor, Unit $unit, ?int $gameId): Unit
     {
         if ($gameId === $unit->game_id) {
             return $unit;
+        }
+
+        if ($gameId !== null && ! $unit->setsOwnGame($unit->parent_id === null ? null : $this->units->find((int) $unit->parent_id))) {
+            throw InvalidUnitGameException::belowBattalion();
         }
 
         if ($gameId !== null && $this->games->find($gameId) === null) {
