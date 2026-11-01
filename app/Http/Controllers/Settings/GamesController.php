@@ -51,6 +51,7 @@ class GamesController extends Controller
                 'id' => $game->id,
                 'slug' => $game->slug,
                 'name' => $game->name,
+                'abbreviation' => $game->abbreviation,
                 'idKinds' => $game->id_kinds,
                 // The kinds whose IDs are checked for a shape (#450); the others take any value.
                 'checkedKinds' => array_values(array_filter($game->id_kinds, fn (string $kind) => IdKindFormat::for($kind) !== null)),
@@ -89,7 +90,7 @@ class GamesController extends Controller
         $data = $request->validate($this->rules());
 
         try {
-            $command->handle($request->user(), $data['name'], $data['id_kinds'], TelemetryInterface::from($data['interface']));
+            $command->handle($request->user(), $data['name'], $data['id_kinds'], TelemetryInterface::from($data['interface']), $data['abbreviation'] ?? null);
         } catch (InvalidGameException $e) {
             throw ValidationException::withMessages(['name' => $e->getMessage()]);
         }
@@ -105,7 +106,7 @@ class GamesController extends Controller
         $data = $request->validate($this->rules($game));
 
         try {
-            $command->handle($request->user(), $game, $data['name'], $data['id_kinds'], TelemetryInterface::from($data['interface']));
+            $command->handle($request->user(), $game, $data['name'], $data['id_kinds'], TelemetryInterface::from($data['interface']), $data['abbreviation'] ?? null);
         } catch (InvalidGameException $e) {
             throw ValidationException::withMessages(['id_kinds' => $e->getMessage()]);
         }
@@ -161,6 +162,9 @@ class GamesController extends Controller
     {
         return [
             'name' => ['required', 'string', 'max:100', Rule::unique('games', 'name')->ignore($game?->id)],
+            // The short code on a battalion's game chip. Left blank, a new game gets one made from its name and an
+            // existing game keeps its own. Two games may not share one.
+            'abbreviation' => ['nullable', 'string', 'regex:'.Game::ABBREVIATION_PATTERN, Rule::unique('games', 'abbreviation')->ignore($game?->id)],
             // The kinds of player ID the game asks for ("Steam ID", "Epic ID"), the first being the default (#428).
             'id_kinds' => ['required', 'array', 'min:1', 'max:8'],
             'id_kinds.*' => ['required', 'string', 'max:50', 'distinct:ignore_case'],

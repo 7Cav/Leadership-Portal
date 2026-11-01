@@ -12,12 +12,12 @@ page: /settings/games
 ## Add a game
 
 1. Open **Settings**, then **Games**, and fill in **Add a game**.
-2. Give its **Name**, its **Player ID kinds** (such as Steam ID), and what its **Attendance read by**.
+2. Give its **Name**, its **Abbreviation** (2 to 6 letters or digits, such as HLLV; left blank, it is made from the name), its **Player ID kinds** (such as Steam ID), and what its **Attendance read by**.
 3. Choose **Add game**.
 
 ## Edit or retire a game
 
-1. Choose **Edit** next to it, change it, and choose **Save changes**.
+1. Choose **Edit** next to it, change it, and choose **Save changes**. The abbreviation is what Org structure shows on a battalion's row; two games cannot share one.
 2. For a game no longer played, choose **Retire**. Its links stay, but no new ones can be made, and it stops being captured.
 3. Choose **Bring back** to reinstate it.
 
