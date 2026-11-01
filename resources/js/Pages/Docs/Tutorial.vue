@@ -16,6 +16,8 @@ const props = defineProps({
     contents: { type: Array, required: true },
     checklist: { type: Array, required: true },
     feedbackUrl: { type: String, default: null },
+    // `{ tutorial: [step id], checklist: [item id] }`: what the portal ticks off by itself (app/Docs/PortalProgress).
+    portalDone: { type: Object, default: null },
     search: { type: Array, required: true },
     // The step, shaped as a guide: `{ title, summary, url, page, try, minutes, html, headings, ... }`.
     guide: { type: Object, required: true },
@@ -29,7 +31,7 @@ const props = defineProps({
 const page = usePage();
 const progress = useTutorialProgress(
     () => props.steps,
-    () => ({ userId: page.props.auth?.user?.id ?? null, previewing: page.props.viewAs != null }),
+    () => ({ userId: page.props.auth?.user?.id ?? null, previewing: page.props.viewAs != null, portal: page.props.portalDone?.tutorial ?? [] }),
 );
 
 const index = computed(() => props.steps.findIndex((step) => step.url === props.guide.url));
@@ -39,6 +41,9 @@ const tryIt = computed(() => {
 
     return href && props.guide.try ? { href, label: props.guide.try } : null;
 });
+
+// The portal already knows this step is done: the tick is set and cannot be undone here.
+const portalDone = computed(() => (step.value ? progress.byPortal(step.value.id) : false));
 
 function toggleDone() {
     if (step.value) progress.mark(step.value.id, !progress.isDone(step.value.id));
@@ -103,16 +108,21 @@ function advance() {
                 </Button>
             </section>
 
-            <label class="mt-6 flex w-fit cursor-pointer items-center gap-2 text-sm">
+            <label class="mt-6 flex w-fit items-center gap-2 text-sm" :class="portalDone ? '' : 'cursor-pointer'">
                 <input
                     type="checkbox"
                     class="size-4 accent-[var(--primary)]"
                     :checked="step ? progress.isDone(step.id) : false"
+                    :disabled="portalDone"
+                    :aria-describedby="portalDone ? 'tutorial-done-hint' : undefined"
                     data-testid="tutorial-done"
                     @change="toggleDone"
                 />
                 I have done this step
             </label>
+            <p v-if="portalDone" id="tutorial-done-hint" class="mt-1 ml-6 text-[13px] text-muted-foreground" data-testid="tutorial-done-hint">
+                Done in the portal
+            </p>
 
             <nav class="mt-8 flex items-center gap-3 border-t border-border pt-5" aria-label="Tutorial">
                 <Button v-if="previous" as-child variant="ghost">

@@ -10,15 +10,18 @@ final class DocsPages
 {
     public function __construct(private readonly GuideLibrary $library) {}
 
-    /** @return array<string, mixed> */
-    public function home(Audience $reader): array
+    /**
+     * @param  list<string>  $facts  what the portal knows the reader has done ({@see PortalProgress})
+     * @return array<string, mixed>
+     */
+    public function home(Audience $reader, array $facts = []): array
     {
         $guides = array_filter($this->library->guides(), fn (Guide $guide) => $reader->reads($guide->audience) && $guide->section !== GuideLibrary::TUTORIAL);
         $recent = array_values(array_filter($guides, fn (Guide $guide) => $guide->updated !== null));
         usort($recent, fn (Guide $a, Guide $b) => [$b->updated, $a->title] <=> [$a->updated, $b->title]);
 
         return [
-            ...$this->shared($reader),
+            ...$this->shared($reader, $facts),
             // The role paths (Section Leader, HQ staff...) this reader can follow, each with the guides on it.
             'paths' => array_map(fn (array $path) => [
                 'key' => $path['key'],
@@ -39,8 +42,11 @@ final class DocsPages
         return ($this->library->tutorial($reader)[0] ?? null)?->url();
     }
 
-    /** @return ?array<string, mixed> null when the guide does not exist or the reader may not read it */
-    public function guide(Audience $reader, string $section, string $slug): ?array
+    /**
+     * @param  list<string>  $facts  what the portal knows the reader has done ({@see PortalProgress})
+     * @return ?array<string, mixed> null when the guide does not exist or the reader may not read it
+     */
+    public function guide(Audience $reader, string $section, string $slug, array $facts = []): ?array
     {
         $guide = $this->library->find($reader, $section, $slug);
         if ($guide === null) {
@@ -52,7 +58,7 @@ final class DocsPages
         $sectionTitle = collect($this->library->sections())->firstWhere('key', $guide->section)?->title;
 
         return [
-            ...$this->shared($reader),
+            ...$this->shared($reader, $facts),
             'guide' => [
                 ...$this->link($guide),
                 'section' => ['key' => $guide->section, 'title' => $sectionTitle],
@@ -81,10 +87,15 @@ final class DocsPages
         ];
     }
 
-    /** @return array<string, mixed> */
-    private function shared(Audience $reader): array
+    /**
+     * @param  list<string>  $facts
+     * @return array<string, mixed>
+     */
+    private function shared(Audience $reader, array $facts): array
     {
         return [
+            // The tutorial steps and Start here items the portal ticks off by itself: `{ tutorial: [slug], checklist: [id] }`.
+            'portalDone' => PortalProgress::done($facts),
             'audience' => $reader->value,
             'feedbackUrl' => config('portal.docs_feedback_url') ?: null,
             // The tutorial is not a section of the contents: it has its own entry, `tutorial`.

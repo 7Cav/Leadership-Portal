@@ -20,6 +20,8 @@ const props = defineProps({
     // `[{ id, label, url }]`: the Start here items for this viewer (#412).
     checklist: { type: Array, required: true },
     feedbackUrl: { type: String, default: null },
+    // `{ tutorial: [step id], checklist: [item id] }`: what the portal ticks off by itself (app/Docs/PortalProgress).
+    portalDone: { type: Object, default: null },
     // `[{ title, summary, url, section, headings, text }]`: the search index (#413).
     search: { type: Array, required: true },
     // `[{ key, title, blurb, guides: [{ title, summary, url }] }]`: the role paths this viewer can follow.
@@ -57,7 +59,7 @@ watch(role, (key) => {
 
 const progress = useTutorialProgress(
     () => props.tutorial?.steps ?? [],
-    () => ({ userId: page.props.auth?.user?.id ?? null, previewing: page.props.viewAs != null }),
+    () => ({ userId: page.props.auth?.user?.id ?? null, previewing: page.props.viewAs != null, portal: page.props.portalDone?.tutorial ?? [] }),
 );
 // Where "Start the tutorial" goes: the first step not done yet, or the first step once all are done.
 const resume = computed(() => {

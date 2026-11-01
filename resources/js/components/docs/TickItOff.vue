@@ -16,10 +16,11 @@ const props = defineProps({
 const page = usePage();
 const startHere = useStartHere(
     () => props.checklist,
-    () => ({ userId: page.props.auth?.user?.id ?? null, previewing: page.props.viewAs != null }),
+    () => ({ userId: page.props.auth?.user?.id ?? null, previewing: page.props.viewAs != null, portal: page.props.portalDone?.checklist ?? [] }),
 );
 
 const done = computed(() => startHere.isDone(props.id));
+const byPortal = computed(() => startHere.byPortal(props.id));
 </script>
 
 <template>
@@ -29,10 +30,12 @@ const done = computed(() => startHere.isDone(props.id));
         <Button
             variant="outline"
             :aria-pressed="done"
+            :disabled="byPortal"
             :class="done ? 'border-success bg-success/14 text-success hover:bg-success/20 hover:text-success' : ''"
             @click="startHere.setDone(id, !done)"
         >
-            <template v-if="done"><PhCheck weight="bold" />Ticked off</template>
+            <template v-if="byPortal"><PhCheck weight="bold" />Done in the portal</template>
+            <template v-else-if="done"><PhCheck weight="bold" />Ticked off</template>
             <template v-else>Tick it off</template>
         </Button>
     </div>

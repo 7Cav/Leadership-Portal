@@ -224,3 +224,46 @@ describe('search highlight', () => {
         expect(highlight('Add a guest', '')).toEqual([{ text: 'Add a guest', hit: false }]);
     });
 });
+
+describe('steps the portal knows are done', () => {
+    it('ticks a step the portal knows is done, says so, and will not untick it', async () => {
+        page.props = { ...page.props, portalDone: { tutorial: ['second'], checklist: [] } };
+        const wrapper = step(1);
+
+        const box = wrapper.get('[data-testid="tutorial-done"]');
+        expect(box.element.checked).toBe(true);
+        expect(box.attributes('disabled')).toBeDefined();
+        expect(wrapper.get('[data-testid="tutorial-done-hint"]').text()).toBe('Done in the portal');
+        expect(wrapper.get('[data-testid="tutorial-position"]').text()).toContain('1 done');
+
+        await box.trigger('change');
+        expect(box.element.checked).toBe(true);
+        expect(JSON.parse(localStorage.getItem('docs-tutorial:7') ?? '[]')).toEqual([]);
+    });
+
+    it('merges the portal ticks with the ones saved in this browser, and keeps manual ticks for the rest', async () => {
+        localStorage.setItem('docs-tutorial:7', JSON.stringify(['third']));
+        page.props = { ...page.props, portalDone: { tutorial: ['first'], checklist: [] } };
+        resetTutorialProgress();
+        const wrapper = step(1);
+
+        expect(wrapper.get('[data-testid="tutorial-position"]').text()).toContain('2 done');
+        expect(wrapper.find('[data-testid="tutorial-done-hint"]').exists()).toBe(false);
+
+        await wrapper.get('[data-testid="tutorial-done"]').trigger('change');
+        expect(JSON.parse(localStorage.getItem('docs-tutorial:7'))).toEqual(['third', 'second']);
+        expect(wrapper.get('[data-testid="tutorial-position"]').text()).toContain('3 done');
+    });
+});
+
+describe('sub-step letters', () => {
+    it('keeps the lettered list the server marks under a numbered step', () => {
+        const html = '<h2 id="a">Record</h2><ol type="A" class="docs-substeps"><li>Open it.</li><li>Mark it.</li></ol><ol><li>Plain.</li></ol>';
+        const wrapper = step(0, { guide: { title: 'Sign in', summary: 'S.', url: STEPS[0].url, page: null, try: null, minutes: null, html, headings: [] } });
+
+        const lists = wrapper.get('[data-testid="guide-body"]').findAll('ol');
+        expect(lists[0].attributes('type')).toBe('A');
+        expect(lists[0].classes()).toContain('docs-substeps');
+        expect(lists[1].attributes('type')).toBeUndefined();
+    });
+});

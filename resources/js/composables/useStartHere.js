@@ -54,7 +54,8 @@ function narrow() {
 
 /**
  * @param {() => Array<{id: string, label: string, url: string}>} items the viewer's items, as a getter
- * @param {() => {userId: number|null, previewing: boolean}} viewer who is reading, as a getter
+ * @param {() => {userId: number|null, previewing: boolean, portal?: string[]}} viewer who is reading, as a getter;
+ *   `portal` lists the items the portal knows are done (`portalDone.checklist`): always done, never unticked
  */
 export function useStartHere(items, viewer) {
     const current = () => {
@@ -72,7 +73,7 @@ export function useStartHere(items, viewer) {
     const doneIds = computed(() => {
         current();
 
-        return new Set(store.done);
+        return new Set([...store.done, ...(viewer().portal ?? [])]);
     });
     const done = computed(() => visible.value.filter((item) => doneIds.value.has(item.id)).length);
     const total = computed(() => visible.value.length);
@@ -84,8 +85,10 @@ export function useStartHere(items, viewer) {
     });
 
     const isDone = (id) => doneIds.value.has(id);
+    const byPortal = (id) => (viewer().portal ?? []).includes(id);
 
     function setDone(id, value) {
+        if (byPortal(id)) return;
         const userId = current();
         const others = store.done.filter((saved) => saved !== id);
         store.done = value ? [...others, id] : others;
@@ -98,7 +101,7 @@ export function useStartHere(items, viewer) {
         if (userId != null) write(collapsedKey(userId), store.collapsed);
     }
 
-    return { items: visible, done, total, complete, collapsed, isDone, setDone, toggleCollapsed };
+    return { items: visible, done, total, complete, collapsed, isDone, byPortal, setDone, toggleCollapsed };
 }
 
 // Test hook: forget the loaded viewer so the next use reads storage again.

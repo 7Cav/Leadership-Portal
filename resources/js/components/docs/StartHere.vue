@@ -19,7 +19,7 @@ const props = defineProps({
 const page = usePage();
 const startHere = useStartHere(
     () => props.checklist,
-    () => ({ userId: page.props.auth?.user?.id ?? null, previewing: page.props.viewAs != null }),
+    () => ({ userId: page.props.auth?.user?.id ?? null, previewing: page.props.viewAs != null, portal: page.props.portalDone?.checklist ?? [] }),
 );
 
 const percent = computed(() => (startHere.total.value ? Math.round((startHere.done.value / startHere.total.value) * 100) : 0));
@@ -77,17 +77,21 @@ const percent = computed(() => (startHere.total.value ? Math.round((startHere.do
                         :id="`start-here-${item.id}`"
                         class="mt-0.5 size-[18px]"
                         :model-value="startHere.isDone(item.id)"
-                        :aria-label="`Done: ${item.label}`"
+                        :disabled="startHere.byPortal(item.id)"
+                        :aria-label="startHere.byPortal(item.id) ? `Done in the portal: ${item.label}` : `Done: ${item.label}`"
                         @update:model-value="(value) => startHere.setDone(item.id, value === true)"
                     />
-                    <Link
-                        :href="item.url"
-                        class="flex-1 text-[13px] leading-snug hover:underline"
-                        :class="[startHere.isDone(item.id) ? 'text-muted-foreground line-through' : '', item.url === current ? 'font-semibold' : '']"
-                        :aria-current="item.url === current ? 'page' : undefined"
-                    >
-                        {{ item.label }}<span v-if="startHere.isDone(item.id)" class="sr-only"> (done)</span>
-                    </Link>
+                    <div class="min-w-0 flex-1">
+                        <Link
+                            :href="item.url"
+                            class="block text-[13px] leading-snug hover:underline"
+                            :class="[startHere.isDone(item.id) ? 'text-muted-foreground line-through' : '', item.url === current ? 'font-semibold' : '']"
+                            :aria-current="item.url === current ? 'page' : undefined"
+                        >
+                            {{ item.label }}<span v-if="startHere.isDone(item.id)" class="sr-only"> (done)</span>
+                        </Link>
+                        <p v-if="startHere.byPortal(item.id)" class="text-xs text-muted-foreground" :data-testid="`start-here-portal-${item.id}`">Done in the portal</p>
+                    </div>
                 </li>
             </ul>
         </div>

@@ -154,6 +154,21 @@ describe('Start here', () => {
         expect(count(wrapper)).toBe('0 of 3');
     });
 
+    it('ticks an item the portal knows is done, says so, and will not untick it', async () => {
+        page.props = { ...page.props, portalDone: { tutorial: [], checklist: ['basics/sign-in'] } };
+        const wrapper = card();
+
+        expect(count(wrapper)).toBe('1 of 3');
+        expect(boxes(wrapper)[0].attributes('disabled')).toBeDefined();
+        expect(wrapper.get('[data-testid="start-here-portal-basics/sign-in"]').text()).toBe('Done in the portal');
+
+        await tick(wrapper, 0);
+        expect(count(wrapper)).toBe('1 of 3');
+        await tick(wrapper, 1);
+        expect(count(wrapper)).toBe('2 of 3');
+        expect(JSON.parse(localStorage.getItem('docs-start-here:7'))).toEqual(['weekly-rollcall/run']);
+    });
+
     it('shows nothing when the viewer has no items', () => {
         expect(card([]).html()).toBe('<!--v-if-->');
     });

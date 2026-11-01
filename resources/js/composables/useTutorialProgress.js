@@ -35,9 +35,12 @@ function load(userId, previewing) {
     store.done = store.saving ? read(storageKey(userId)) : [];
 }
 
+// A step the portal knows the reader already did (`portal`, from the server's `portalDone.tutorial`) counts as done
+// whatever this browser holds, and cannot be unticked: the tick follows the portal, not the reader.
+
 /**
  * @param {() => Array<{id: string}>} steps every step of the tutorial, as a getter
- * @param {() => {userId: number|null, previewing: boolean}} viewer who is reading, as a getter
+ * @param {() => {userId: number|null, previewing: boolean, portal?: string[]}} viewer who is reading, as a getter
  */
 export function useTutorialProgress(steps, viewer) {
     const sync = () => {
@@ -50,10 +53,13 @@ export function useTutorialProgress(steps, viewer) {
 
     const ids = () => steps().map((step) => step.id);
     // A saved id for a step that is no longer in the tutorial is ignored, never counted.
-    const done = computed(() => (sync(), store.done.filter((id) => ids().includes(id))));
+    const portal = computed(() => viewer().portal ?? []);
+    const done = computed(() => (sync(), ids().filter((id) => store.done.includes(id) || portal.value.includes(id))));
     const isDone = (id) => done.value.includes(id);
+    const byPortal = (id) => portal.value.includes(id);
 
     function mark(id, value = true) {
+        if (byPortal(id)) return;
         const userId = sync();
         const others = store.done.filter((saved) => saved !== id);
         store.done = value ? [...others, id] : others;
@@ -63,6 +69,7 @@ export function useTutorialProgress(steps, viewer) {
     return {
         done,
         isDone,
+        byPortal,
         mark,
         count: computed(() => done.value.length),
         total: computed(() => steps().length),

@@ -22,6 +22,8 @@ const props = defineProps({
     checklist: { type: Array, required: true },
     // Where "Was this helpful? No" sends the reader, or null.
     feedbackUrl: { type: String, default: null },
+    // `{ tutorial: [step id], checklist: [item id] }`: what the portal ticks off by itself (app/Docs/PortalProgress).
+    portalDone: { type: Object, default: null },
     // `[{ title, summary, url, section, headings, text }]`: the search index (#413).
     search: { type: Array, required: true },
     // `{ title, summary, url, section: { key, title }, audience, page, weekly, minutes, html, headings, checklist }`;
