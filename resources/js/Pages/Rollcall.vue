@@ -110,6 +110,8 @@ const props = defineProps({
     practiceSlot: { type: Object, default: null },
     // True when the section plays a game and has troopers but no slot: the page warns at the top until one is set.
     practiceSlotMissing: { type: Boolean, default: false },
+    // The Cav week a slot saved now starts with when this week is held, or null.
+    practiceSlotChangesFrom: { type: String, default: null },
     // `{ source, capturedAt }` once a capture run stamped this practice, else null (7.7). Drives the
     // capture banner and the confirm action (7.8).
     capture: { type: Object, default: null },
@@ -509,7 +511,8 @@ watch(
     () => props.practiceSlot,
     () => (slotOverride.value = undefined),
 );
-const slotDisabled = computed(() => previewReason.value ?? lockedReason.value);
+// A sent week does not stop the weekly slot (a change then starts next week), only this week's move or cancel.
+const slotDisabled = computed(() => previewReason.value);
 const slotEditor = ref(null);
 // Gone as soon as a slot is saved here, without waiting for the next load.
 const slotMissing = computed(() => props.practiceSlotMissing && !currentSlot.value);
@@ -970,6 +973,8 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                     :slot="currentSlot"
                     :can-edit="canWrite"
                     :disabled-reason="slotDisabled"
+                    :week-locked-reason="lockedReason"
+                    :changes-from="practiceSlotChangesFrom"
                     @updated="(slot) => (slotOverride = slot)"
                 />
                 <span role="status" aria-live="polite" class="inline-flex items-center gap-1.5 text-foreground" data-testid="save-state">

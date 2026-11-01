@@ -62,4 +62,24 @@ describe('PracticeSlot', () => {
         expect(postJson).toHaveBeenCalledWith('/rollcall/3/slot', { weekday: 3, start_minute: 1439, week: '2026-10-24' });
         expect(wrapper.emitted('updated')).toEqual([[answer]]);
     });
+
+    it('stays editable on a sent week, says from which week a change applies, and hides the one-week change', async () => {
+        const wrapper = factory({ canEdit: true, weekLockedReason: 'This week was sent', changesFrom: '2026-10-31' });
+        const edit = wrapper.get('[data-testid="practice-slot-edit"]');
+
+        expect(edit.attributes('disabled')).toBeUndefined();
+        await edit.trigger('click');
+        await flushPromises();
+        expect(document.body.querySelector('[data-testid="practice-slot-changes-from"]').textContent).toContain('Takes effect from week 31OCT26 to 06NOV26');
+        expect(document.body.querySelector('[data-testid="practice-week"]')).toBeNull();
+    });
+
+    it('shows a slot that starts next week', () => {
+        const slot = { weekday: 3, startMinute: 1439, effectiveFrom: '2026-10-31', week: { start: null, end: null, cancelled: false, moved: false, captured: false } };
+        const wrapper = factory({ slot });
+
+        expect(wrapper.text()).toContain('Practice Wed');
+        expect(wrapper.text()).toContain('Z from 31OCT26');
+        expect(wrapper.find('[data-testid="practice-slot-starts"]').text()).toBe('Starts next week');
+    });
 });
