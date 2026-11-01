@@ -227,7 +227,7 @@ their own plan unless they also command the company.
 | Org structure: Import from Cav roster | Yes | No | No |
 | Org structure: place a trooper the sync could not place | Yes | No | No |
 | Org structure: set or clear the game a unit plays (from the Games list, not a retired game; only while no unit above has one) (12) | Yes | Regimental HQ staff on any unit; an overseer on the units they oversee and those under them; DEVCOM's 1IC and 2IC on DEVCOM and the units under it (12) | No |
-| Org structure: set or clear a unit's team label | Yes | No | No |
+| Org structure: set or clear a unit's nickname | Yes | No | No |
 | Org structure: assign or remove an acting lead (10) | Yes | No | No |
 | Org structure: set, change or clear a unit's overseer | Yes | No | No |
 | Staff grants: grant or revoke | Yes | No | No |

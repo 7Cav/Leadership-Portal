@@ -24,7 +24,7 @@ The page has two cards. **Chain of command** holds the regiment, its battalions 
 
 ## Add, rename or move a unit
 
-1. To add a unit, select the unit it goes under; the form adds one echelon below it and shows its **Parent**. With nothing selected it adds a battalion under the regiment.
+1. To add a unit, select the unit it goes under and choose the button under its details, such as "Add a platoon under Alpha Company". The form adds one echelon below it and shows its **Parent**. With nothing selected the button adds a battalion under the regiment.
 2. Set its **Name** and **Callsign**, and choose **Save unit**. To rename or move a unit, select it and change it in the details panel.
 
 > [!good-to-know] What this changes, and how to undo it: moving a unit moves everyone's access with it on the next page load. Move it back the same way. A unit with troopers, reports or anything else attached cannot be deleted.
@@ -49,9 +49,9 @@ Admins and Regimental HQ staff can change any unit's game. An overseer can chang
 
 > [!good-to-know] What this changes, and how to undo it: Game identities opens Add identity on this game, and the practice capture reads the section's practice from it. Pick the inherited choice at the top of the list to clear it. A unit keeps a game that has since been retired, marked retired, until you change it. A unit under one with a game keeps a game of its own set before until you choose **Clear game**; no new one can be set there. A unit with units under it that have their own games cannot be given one until you clear those; the error names them. Both are in the audit log.
 
-## Set a team label
+## Set a nickname
 
-1. Select the unit, fill in **Team label**, and choose **Save label**. It shows next to the unit's name. It is free text and changes nothing else.
+1. Select the unit, fill in **Nickname**, such as Jaegers, and choose **Save nickname**. It shows next to the unit's name on the rosters of that unit and of the company or platoon above it, not in the Org structure tree or across a battalion. It is free text and changes nothing else; to rename the unit itself, change **Name** above it.
 
 ## Set who oversees a battalion
 

@@ -48,6 +48,10 @@ const emit = defineEmits(['open']);
 const query = defineModel('query', { type: String, default: '' });
 const filter = defineModel('filter', { type: String, default: 'all' });
 
+// A unit's nickname (`label`, such as Jaegers) shows on the rows of a company, platoon or section roster only, not
+// across a battalion or the regiment.
+const showNicknames = computed(() => ['company', 'platoon', 'section'].includes(props.units[0]?.type));
+
 const win = ref('20');
 // A single-select group emits an empty value when the active button is pressed again; keep the
 // current window rather than rendering zero (NaN) week columns.
@@ -333,6 +337,7 @@ function clearAll() {
                         <tr v-if="row.kind === 'label'" class="tr-label">
                             <td class="sl">
                                 <span class="font-medium text-foreground">{{ row.unit.callsign ?? row.unit.name }}</span>
+                                <span v-if="showNicknames && row.unit.label" class="text-muted-foreground" :data-testid="`label-${row.unit.id}`">{{ ' ' }}· {{ row.unit.label }}</span>
                                 <span v-if="row.unit.leader" class="hidden sm:inline">{{ ' ' }}{{ row.unit.leader.displayName }}</span>
                             </td>
                             <td :colspan="range.length + 3">Headcount {{ row.unit.kpis.strength }}</td>
@@ -356,6 +361,7 @@ function clearAll() {
                                         <span class="flex items-center gap-1.5">
                                             <component :is="row.open ? PhCaretDown : PhCaretRight" class="size-3.5 text-muted-foreground" aria-hidden="true" />
                                             <span class="font-medium">{{ row.unit.callsign ?? row.unit.name }}</span>
+                                            <span v-if="showNicknames && row.unit.label" class="truncate text-xs text-muted-foreground" :data-testid="`label-${row.unit.id}`">· {{ row.unit.label }}</span>
                                             <PracticeSlotMissingIcon :missing="row.unit.practiceSlotMissing ?? false" />
                                         </span>
                                         <span class="block truncate pl-5 text-xs text-muted-foreground">

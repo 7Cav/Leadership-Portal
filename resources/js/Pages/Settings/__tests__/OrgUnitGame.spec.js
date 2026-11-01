@@ -56,16 +56,13 @@ afterEach(() => {
 });
 
 describe('Settings/OrgStructure unit game', () => {
-    it('shows the game only on a battalion\'s row, as its abbreviation, before the team label chip', () => {
+    it('shows the game only on a battalion\'s row, as its abbreviation, and no nickname chip', () => {
         const wrapper = mountPage();
 
         const chip = wrapper.find('[data-testid="unit-game-5"]');
         expect(chip.text()).toBe('HLLV');
         expect(chip.attributes('title')).toBe('Hell Let Loose: Vietnam');
-        expect(wrapper.find('[data-testid="unit-label-5"]').text()).toBe('Team Bravo');
-        // Game chip first, then the label.
-        const row = wrapper.find('[data-testid="unit-row-5"]').html();
-        expect(row.indexOf('unit-game-5')).toBeLessThan(row.indexOf('unit-label-5'));
+        expect(wrapper.find('[data-testid="unit-row-5"]').text()).not.toContain('Team Bravo');
 
         // No game text on the regiment or below the battalion, own or inherited.
         for (const id of [1, 6, 2, 3]) expect(wrapper.find(`[data-testid="unit-game-${id}"]`).exists()).toBe(false);
@@ -184,8 +181,9 @@ describe('Settings/OrgStructure unit game', () => {
 });
 
 describe('Settings/OrgStructure add unit placement', () => {
-    it('adds a battalion under the regiment with nothing selected, the parent shown read-only', () => {
+    it('adds a battalion under the regiment with nothing selected, the parent shown read-only', async () => {
         const wrapper = mountPage({ isAdmin: true });
+        await wrapper.find('[data-testid="add-unit-open"]').trigger('click');
 
         expect(wrapper.find('[data-testid="add-parent"]').text()).toBe('7th Cavalry Regiment');
         expect(wrapper.find('[data-testid="add-type"]').text()).toBe('battalion');
@@ -197,6 +195,7 @@ describe('Settings/OrgStructure add unit placement', () => {
         const wrapper = mountPage({ isAdmin: true });
 
         await wrapper.find('[data-testid="unit-row-6"]').trigger('click');
+        await wrapper.find('[data-testid="add-unit-open"]').trigger('click');
 
         expect(wrapper.find('[data-testid="add-parent"]').text()).toBe('Alpha Company');
         expect(wrapper.vm.form.type).toBe('platoon');

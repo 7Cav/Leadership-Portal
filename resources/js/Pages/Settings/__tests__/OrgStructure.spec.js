@@ -25,7 +25,7 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     Head: { template: '<head></head>' },
     router: { delete: (...args) => deleteSpy(...args), post: (...args) => postSpy(...args) },
     useForm: (initial) => ('type' in initial
-        ? { ...addFormState, post: addSubmit }
+        ? { ...addFormState, post: addSubmit, reset: vi.fn(), clearErrors: vi.fn() }
         : { ...editFormState, patch: editSubmit, clearErrors: vi.fn() }),
 }));
 
@@ -50,12 +50,34 @@ describe('Settings/OrgStructure', () => {
         const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: false } });
 
         expect(wrapper.find('[data-testid="add-unit-form"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="add-unit-open"]').exists()).toBe(false);
     });
 
-    it('shows the add-node control for an Admin', () => {
+    it('keeps Add unit collapsed behind one button for an Admin, named for where the unit goes', async () => {
         const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
 
+        expect(wrapper.find('[data-testid="add-unit-form"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="add-unit-open"]').text()).toBe('Add a battalion under 7th Cavalry Regiment');
+
+        await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+        expect(wrapper.find('[data-testid="add-unit-open"]').text()).toBe('Add a company under 2nd Battalion');
+
+        await wrapper.find('[data-testid="add-unit-open"]').trigger('click');
         expect(wrapper.find('[data-testid="add-unit-form"]').exists()).toBe(true);
+
+        await wrapper.find('[data-testid="add-unit-cancel"]').trigger('click');
+        expect(wrapper.find('[data-testid="add-unit-form"]').exists()).toBe(false);
+    });
+
+    it("lists the unit's own fields before its nickname, and both before Add unit", async () => {
+        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+
+        await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+        const html = wrapper.html();
+
+        expect(html.indexOf('data-testid="edit-unit-form"')).toBeLessThan(html.indexOf('data-testid="label-form"'));
+        expect(html.indexOf('data-testid="label-form"')).toBeLessThan(html.indexOf('data-testid="add-unit-open"'));
+        expect(wrapper.find('label[for="edit-label"]').text()).toBe('Nickname');
     });
 
     it('shows the detail panel for the selected unit', async () => {
@@ -112,6 +134,7 @@ describe('Settings/OrgStructure', () => {
         addFormState = { type: 'battalion', name: 'New Battalion', callsign: '9-7', parent_id: 1, processing: false, errors: {} };
         const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
 
+        await wrapper.find('[data-testid="add-unit-open"]').trigger('click');
         await wrapper.find('[data-testid="add-unit-form"]').trigger('submit');
 
         expect(addSubmit).toHaveBeenCalledWith('/settings/org-structure', expect.objectContaining({ onSuccess: expect.any(Function) }));
@@ -121,13 +144,14 @@ describe('Settings/OrgStructure', () => {
         toastError.mockReset();
         const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
 
+        await wrapper.find('[data-testid="add-unit-open"]').trigger('click');
         await wrapper.find('[data-testid="add-unit-form"]').trigger('submit');
 
         expect(addSubmit.mock.lastCall[1].onHttpException({ status: 403 })).toBe(false);
         expect(toastError).toHaveBeenCalledWith('The unit was not added. You are not allowed to do that; reload the page, or exit view as first.');
     });
 
-    it('renders a server-side validation error next to its field', () => {
+    it('renders a server-side validation error next to its field', async () => {
         addFormState = {
             type: 'section',
             name: '',
@@ -137,6 +161,7 @@ describe('Settings/OrgStructure', () => {
             errors: { type: 'A section cannot be placed under a regiment.' },
         };
         const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+        await wrapper.find('[data-testid="add-unit-open"]').trigger('click');
 
         expect(wrapper.find('[data-testid="error-type"]').text()).toBe('A section cannot be placed under a regiment.');
     });

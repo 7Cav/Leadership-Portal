@@ -44,8 +44,8 @@ const gameChip = computed(() => {
     return { text: node.game.abbreviation ?? node.game.name, title: node.game.from ? `${name}, from ${node.game.from}` : name };
 });
 
-// Game, label, vacant lead and oversight: inline from `sm` up, their own line under the name on a phone.
-const hasMeta = computed(() => Boolean(gameChip.value || props.node.label || (props.node.lead_vacant && !props.node.empty) || oversightText.value));
+// Game, vacant lead and oversight: inline from `sm` up, their own line under the name on a phone.
+const hasMeta = computed(() => Boolean(gameChip.value || (props.node.lead_vacant && !props.node.empty) || oversightText.value));
 
 const oversightText = computed(() => {
     if (props.node.oversight) return `Oversight: ${props.node.oversight.displayName}${props.node.oversight.serving ? '' : ' (not serving)'}`;
@@ -132,13 +132,6 @@ const oversightText = computed(() => {
                 :title="gameChip.title"
                 :aria-label="`Game: ${gameChip.title}`"
                 >{{ gameChip.text }}</span
-            >
-            <!-- The team label an Admin set. -->
-            <span
-                v-if="node.label"
-                :data-testid="`unit-label-${node.id}`"
-                class="shrink-0 rounded-sm border border-border px-1 text-[10px] font-semibold tracking-wide text-muted-foreground"
-                >{{ node.label }}</span
             >
             <!--
               A billet commands this unit and nobody serving holds it. No previous holder is remembered. Not said of an

@@ -146,7 +146,7 @@ watch(selectedId, (id) => {
 });
 const selectedMembers = computed(() => (selectedUnit.value ? (props.groupMembers[selectedUnit.value.id] ?? null) : null));
 
-// Team label (Admin): its own small form, audited on the server.
+// Nickname (Admin), stored as the unit's `label`: its own small form, audited on the server.
 const labelForm = useForm({ label: '' });
 // The game the unit plays, picked from the Games list by an Admin, Regimental HQ, the unit's overseer or DEVCOM's command
 // team (`can_set_game`); null inherits the game of the nearest unit above. A unit picks one only while no unit above it
@@ -448,16 +448,29 @@ watch(
     { immediate: true },
 );
 
+// Add unit sits collapsed behind one button so it doesn't read as part of the selected unit's edit form.
+const addOpen = ref(false);
+const addButtonLabel = computed(() =>
+    addTarget.value.parent ? `Add a ${addTarget.value.type} under ${addTarget.value.parent.name}` : `Add a ${addTarget.value.type}`,
+);
+
+function closeAdd() {
+    addOpen.value = false;
+    form.reset('name', 'callsign');
+    form.clearErrors();
+}
+
 function submitAdd() {
     form.post('/settings/org-structure', {
-        onSuccess: () => form.reset('name', 'callsign'),
+        onSuccess: closeAdd,
         onHttpException: onHttpException('The unit was not added', (message) => toast.error(message)),
     });
 }
 
-// A row's ＋ tool selects that row, so the one add-unit form follows it and adds a unit one echelon down.
+// A row's ＋ tool selects that row and opens the one add-unit form, which then adds a unit one echelon down.
 function prefillAddChild({ parentId }) {
     selectedId.value = parentId;
+    addOpen.value = true;
 }
 
 const editForm = useForm({ name: '', callsign: '', parent_id: null });
@@ -1017,62 +1030,6 @@ function confirmDelete() {
                         </div>
                     </section>
 
-                    <form
-                        v-if="selectedUnit.can_set_game && selectedUnit.sets_game"
-                        data-testid="game-form"
-                        class="mb-4 flex items-end gap-2"
-                        @submit.prevent="submitGame"
-                    >
-                        <div class="grid flex-1 gap-1.5">
-                            <Label for="edit-game">Game</Label>
-                            <NativeSelect id="edit-game" v-model="gameForm.game_id" data-testid="edit-game" :aria-invalid="!!gameForm.errors.game_id">
-                                <option :value="null">{{ inheritLabel }}</option>
-                                <option v-for="game in gameOptions" :key="game.id" :value="game.id">
-                                    {{ game.name }}<template v-if="game.retired"> (retired)</template>
-                                </option>
-                            </NativeSelect>
-                            <p v-if="gameForm.errors.game_id" class="text-xs text-destructive" data-testid="edit-error-game">{{ gameForm.errors.game_id }}</p>
-                        </div>
-                        <Button type="submit" variant="outline" data-testid="save-game" :disabled="gameForm.processing">Save game</Button>
-                    </form>
-                    <!-- Under a unit with a game, the game is that unit's: shown locked. A game set here before stays until cleared. -->
-                    <div v-else-if="selectedUnit.can_set_game" data-testid="game-locked" class="mb-4 grid gap-1.5">
-                        <Label for="edit-game">Game</Label>
-                        <div class="flex items-end gap-2">
-                            <NativeSelect id="edit-game" :model-value="selectedUnit.game_id" data-testid="edit-game" disabled class="flex-1">
-                                <option :value="selectedUnit.game_id">
-                                    <template v-if="selectedUnit.game"
-                                        >{{ selectedUnit.game.name }}<template v-if="selectedUnit.game.retired"> (retired)</template
-                                        ><template v-if="selectedUnit.game.from"> (from {{ selectedUnit.game.from }})</template></template
-                                    ><template v-else>None</template>
-                                </option>
-                            </NativeSelect>
-                            <Button
-                                v-if="selectedUnit.game_id !== null"
-                                type="button"
-                                variant="outline"
-                                data-testid="clear-game"
-                                :disabled="gameForm.processing"
-                                @click="clearGame"
-                                >Clear game</Button
-                            >
-                        </div>
-                        <p class="text-xs text-muted-foreground">
-                            <template v-if="selectedUnit.game_id !== null">{{ selectedUnit.game_locked_by }} has a game too. Clear this one to play the game of {{ selectedUnit.game_locked_by }}.</template>
-                            <template v-else>Set by {{ selectedUnit.game_locked_by }}. Clear the game there to pick one here.</template>
-                        </p>
-                        <p v-if="gameForm.errors.game_id" class="text-xs text-destructive" data-testid="edit-error-game">{{ gameForm.errors.game_id }}</p>
-                    </div>
-
-                    <form v-if="isAdmin" data-testid="label-form" class="mb-4 flex items-end gap-2" @submit.prevent="submitLabel">
-                        <div class="grid flex-1 gap-1.5">
-                            <Label for="edit-label">Team label</Label>
-                            <Input id="edit-label" v-model="labelForm.label" data-testid="edit-label" type="text" maxlength="40" :aria-invalid="!!labelForm.errors.label" />
-                            <p v-if="labelForm.errors.label" class="text-xs text-destructive" data-testid="edit-error-label">{{ labelForm.errors.label }}</p>
-                        </div>
-                        <Button type="submit" variant="outline" data-testid="save-label" :disabled="labelForm.processing">Save label</Button>
-                    </form>
-
                     <!--
                       Editable for an Admin (AC #1, #2); read-only otherwise. Echelon isn't editable:
                       see `UpdateUnit`'s docblock for why re-parenting is kept separate from a rank change.
@@ -1157,6 +1114,71 @@ function confirmDelete() {
                             <dd class="tabular-nums">{{ selectedUnit.trooper_count }}</dd>
                         </div>
                     </dl>
+                    <form v-if="isAdmin" data-testid="label-form" class="mb-4 mt-4 flex items-start gap-2 border-t border-border pt-4" @submit.prevent="submitLabel">
+                        <div class="grid flex-1 gap-1.5">
+                            <Label for="edit-label">Nickname</Label>
+                            <Input
+                                id="edit-label"
+                                v-model="labelForm.label"
+                                data-testid="edit-label"
+                                type="text"
+                                maxlength="40"
+                                aria-describedby="edit-label-hint"
+                                :aria-invalid="!!labelForm.errors.label"
+                            />
+                            <p id="edit-label-hint" class="text-xs text-muted-foreground">Shown next to the unit's name, for example Jaegers.</p>
+                            <p v-if="labelForm.errors.label" class="text-xs text-destructive" data-testid="edit-error-label">{{ labelForm.errors.label }}</p>
+                        </div>
+                        <Button type="submit" variant="outline" data-testid="save-label" :disabled="labelForm.processing"class="mt-[22px]">Save nickname</Button>
+                    </form>
+
+                    <form
+                        v-if="selectedUnit.can_set_game && selectedUnit.sets_game"
+                        data-testid="game-form"
+                        class="mb-4 flex items-end gap-2"
+                        @submit.prevent="submitGame"
+                    >
+                        <div class="grid flex-1 gap-1.5">
+                            <Label for="edit-game">Game</Label>
+                            <NativeSelect id="edit-game" v-model="gameForm.game_id" data-testid="edit-game" :aria-invalid="!!gameForm.errors.game_id">
+                                <option :value="null">{{ inheritLabel }}</option>
+                                <option v-for="game in gameOptions" :key="game.id" :value="game.id">
+                                    {{ game.name }}<template v-if="game.retired"> (retired)</template>
+                                </option>
+                            </NativeSelect>
+                            <p v-if="gameForm.errors.game_id" class="text-xs text-destructive" data-testid="edit-error-game">{{ gameForm.errors.game_id }}</p>
+                        </div>
+                        <Button type="submit" variant="outline" data-testid="save-game" :disabled="gameForm.processing">Save game</Button>
+                    </form>
+                    <!-- Under a unit with a game, the game is that unit's: shown locked. A game set here before stays until cleared. -->
+                    <div v-else-if="selectedUnit.can_set_game" data-testid="game-locked" class="mb-4 grid gap-1.5">
+                        <Label for="edit-game">Game</Label>
+                        <div class="flex items-end gap-2">
+                            <NativeSelect id="edit-game" :model-value="selectedUnit.game_id" data-testid="edit-game" disabled class="flex-1">
+                                <option :value="selectedUnit.game_id">
+                                    <template v-if="selectedUnit.game"
+                                        >{{ selectedUnit.game.name }}<template v-if="selectedUnit.game.retired"> (retired)</template
+                                        ><template v-if="selectedUnit.game.from"> (from {{ selectedUnit.game.from }})</template></template
+                                    ><template v-else>None</template>
+                                </option>
+                            </NativeSelect>
+                            <Button
+                                v-if="selectedUnit.game_id !== null"
+                                type="button"
+                                variant="outline"
+                                data-testid="clear-game"
+                                :disabled="gameForm.processing"
+                                @click="clearGame"
+                                >Clear game</Button
+                            >
+                        </div>
+                        <p class="text-xs text-muted-foreground">
+                            <template v-if="selectedUnit.game_id !== null">{{ selectedUnit.game_locked_by }} has a game too. Clear this one to play the game of {{ selectedUnit.game_locked_by }}.</template>
+                            <template v-else>Set by {{ selectedUnit.game_locked_by }}. Clear the game there to pick one here.</template>
+                        </p>
+                        <p v-if="gameForm.errors.game_id" class="text-xs text-destructive" data-testid="edit-error-game">{{ gameForm.errors.game_id }}</p>
+                    </div>
+
                 </div>
                 <p v-else class="text-[13px] text-muted-foreground">Select a unit to see its details.</p>
 
@@ -1275,7 +1297,10 @@ function confirmDelete() {
                 -->
                 <template v-if="isAdmin">
                     <Separator class="my-4" />
-                    <form data-testid="add-unit-form" class="space-y-3" @submit.prevent="submitAdd">
+                    <Button v-if="!addOpen" type="button" variant="outline" data-testid="add-unit-open" class="w-full" @click="addOpen = true">
+                        <PhPlus aria-hidden="true" />{{ addButtonLabel }}
+                    </Button>
+                    <form v-else data-testid="add-unit-form" class="space-y-3 rounded-lg border border-border bg-muted/30 p-3" @submit.prevent="submitAdd">
                         <h3 class="flex items-center gap-1.5 text-[13px] font-semibold"><PhPlus aria-hidden="true" />Add {{ form.type }}</h3>
 
                         <!-- Where the new unit goes follows the selected unit; neither is picked here. -->
@@ -1300,7 +1325,10 @@ function confirmDelete() {
                             <p v-if="form.errors.callsign" class="text-xs text-destructive" data-testid="error-callsign">{{ form.errors.callsign }}</p>
                         </div>
 
-                        <Button type="submit" :disabled="form.processing">Save unit</Button>
+                        <div class="flex justify-end gap-2">
+                            <Button type="button" variant="ghost" data-testid="add-unit-cancel" @click="closeAdd">Cancel</Button>
+                            <Button type="submit" data-testid="add-unit-save" :disabled="form.processing">Save unit</Button>
+                        </div>
                     </form>
                 </template>
             </Card>
