@@ -277,6 +277,8 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // every audited write.
     Route::get('/settings/staff-grants', [StaffGrantsController::class, 'index'])->name('settings.staff-grants');
     Route::post('/settings/staff-grants', [StaffGrantsController::class, 'store'])->middleware('throttle:audited-writes')->name('settings.staff-grants.store');
+    Route::patch('/settings/staff-grants/{grant}', [StaffGrantsController::class, 'update'])->middleware('throttle:audited-writes')->name('settings.staff-grants.update');
+    Route::post('/settings/staff-grants/{grant}/renew', [StaffGrantsController::class, 'renew'])->middleware('throttle:audited-writes')->name('settings.staff-grants.renew');
     Route::delete('/settings/staff-grants/{grant}', [StaffGrantsController::class, 'destroy'])->middleware('throttle:audited-writes')->name('settings.staff-grants.destroy');
     // Confirming a Regimental HQ billet as an Admin billet, Admin only, audited.
     Route::post('/settings/staff-grants/admin-billets/{billet}/approve', [StaffGrantsController::class, 'approveAdminBillet'])->middleware('throttle:audited-writes')->name('settings.staff-grants.admin-billets.approve');

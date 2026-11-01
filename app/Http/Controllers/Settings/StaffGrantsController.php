@@ -7,9 +7,13 @@ use App\Commands\AdminBillets\AdminBilletForbiddenException;
 use App\Commands\AdminBillets\DecideAdminBillet;
 use App\Commands\AdminBillets\DecideAdminBilletHandler;
 use App\Commands\AdminBillets\InvalidAdminBilletDecisionException;
+use App\Commands\PortalRoleGrants\GrantExpiry;
+use App\Commands\PortalRoleGrants\GrantNotRenewableException;
 use App\Commands\PortalRoleGrants\GrantStaffScope;
 use App\Commands\PortalRoleGrants\GrantTargetIsAdminException;
+use App\Commands\PortalRoleGrants\RenewStaffGrant;
 use App\Commands\PortalRoleGrants\RevokeStaffScope;
+use App\Commands\PortalRoleGrants\SetStaffGrantExpiry;
 use App\Http\Controllers\Controller;
 use App\Models\AdminBillet;
 use App\Models\AdminBilletStatus;
@@ -24,6 +28,7 @@ use App\Repositories\UserRepository;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -80,6 +85,12 @@ class StaffGrantsController extends Controller
             'unit_name' => $grant->unit->name,
             'unit_label' => $this->label($grant->unit, $byId),
             'created_at' => $grant->created_at->toIso8601String(),
+            // The end date, if any: `ends` revokes it for good once passed, `renew` lapses it until renewed. `past_end`
+            // is the server's answer to whether it already gives no scope, so the page never trusts the viewer's clock.
+            'mode' => $grant->expires_at === null ? 'none' : ($grant->renews() ? 'renew' : 'ends'),
+            'expires_at' => $grant->expires_at?->toIso8601String(),
+            'renew_every_days' => $grant->renew_every_days,
+            'past_end' => $grant->isPastEnd(now()),
         ])->values();
 
         $units = $tree->map(fn (Unit $unit) => [
@@ -194,7 +205,9 @@ class StaffGrantsController extends Controller
             'user_id' => ['required', 'integer', 'exists:users,id'],
             'unit_id' => ['required', 'integer', 'exists:units,id'],
             'reason' => ['required', 'string', 'max:1000'],
+            ...self::expiryRules(),
         ], [
+            ...self::expiryMessages(),
             'user_id.required' => 'Choose the user to grant.',
             'user_id.exists' => 'That user no longer exists. Reload the page and choose another.',
             'unit_id.required' => 'Choose the unit to grant.',
@@ -209,7 +222,7 @@ class StaffGrantsController extends Controller
         $unit = $this->units->find($data['unit_id']);
 
         try {
-            $command->handle($request->user(), $target, $unit, $data['reason']);
+            $command->handle($request->user(), $target, $unit, $data['reason'], $this->expiryFrom($data));
         } catch (GrantTargetIsAdminException $e) {
             throw ValidationException::withMessages(['user_id' => $e->getMessage()]);
         }
@@ -245,6 +258,89 @@ class StaffGrantsController extends Controller
         $command->handle($request->user(), $target, $unit, $data['reason']);
 
         return redirect()->route('settings.staff-grants');
+    }
+
+    /**
+     * Set, change or clear a grant's end date (Admin only, AD-6, the gate before the lookup as in {@see destroy()}).
+     */
+    public function update(Request $request, int $grant, SetStaffGrantExpiry $command): RedirectResponse
+    {
+        if (! $this->scope->isAdmin($request->user())) {
+            abort(403, 'Only an Admin may manage staff grants.');
+        }
+
+        $grant = $this->grants->findById($grant) ?? abort(404);
+
+        $data = $request->validate([
+            ...self::expiryRules(),
+            'mode' => ['required', Rule::in(GrantExpiry::MODES)],
+            'reason' => ['required', 'string', 'max:1000'],
+        ], [
+            ...self::expiryMessages(),
+            'mode.required' => 'Choose whether the grant ends, needs renewing, or has no end date.',
+            'reason.required' => 'A reason is required to change a grant.',
+            'reason.max' => 'Keep the reason to :max characters.',
+        ]);
+
+        $command->handle($request->user(), $grant, $this->expiryFrom($data), $data['reason']);
+
+        return redirect()->route('settings.staff-grants');
+    }
+
+    /**
+     * Renew a grant that lapses at its date: by its period, or to `ends_on` when one is given. The same permission as
+     * editing a grant (Admin only, AD-6).
+     */
+    public function renew(Request $request, int $grant, RenewStaffGrant $command): RedirectResponse
+    {
+        if (! $this->scope->isAdmin($request->user())) {
+            abort(403, 'Only an Admin may manage staff grants.');
+        }
+
+        $grant = $this->grants->findById($grant) ?? abort(404);
+
+        $data = $request->validate([
+            'ends_on' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:'.now()->utc()->toDateString()],
+            'reason' => ['required', 'string', 'max:1000'],
+        ], [
+            ...self::expiryMessages(),
+            'reason.required' => 'A reason is required to renew a grant.',
+            'reason.max' => 'Keep the reason to :max characters.',
+        ]);
+
+        try {
+            $command->handle($request->user(), $grant, $data['ends_on'] ?? null, $data['reason'], now());
+        } catch (GrantNotRenewableException $e) {
+            throw ValidationException::withMessages(['ends_on' => $e->getMessage()]);
+        }
+
+        return redirect()->route('settings.staff-grants');
+    }
+
+    /** @return array<string, list<mixed>> the end date fields shared by giving and editing a grant */
+    private static function expiryRules(): array
+    {
+        return [
+            'mode' => ['nullable', Rule::in(GrantExpiry::MODES)],
+            'ends_on' => ['nullable', 'required_if:mode,ends,renew', 'date_format:Y-m-d', 'after_or_equal:'.now()->utc()->toDateString()],
+        ];
+    }
+
+    /** @return array<string, string> */
+    private static function expiryMessages(): array
+    {
+        return [
+            'mode.in' => 'Choose whether the grant ends, needs renewing, or has no end date.',
+            'ends_on.required_if' => 'Choose the date.',
+            'ends_on.date_format' => 'Choose a valid date.',
+            'ends_on.after_or_equal' => 'Choose today or a later date.',
+        ];
+    }
+
+    /** @param  array<string, mixed>  $data */
+    private function expiryFrom(array $data): ?GrantExpiry
+    {
+        return GrantExpiry::fromInput($data['mode'] ?? 'none', $data['ends_on'] ?? null, now());
     }
 
     /** Approve a billet as an Admin billet. */

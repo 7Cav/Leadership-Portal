@@ -59,7 +59,7 @@ interface PortalRoleGrantRepository
      * throwing or duplicating it, including when a racing grant committed it inside the caller's
      * transaction. The returned row's `wasRecentlyCreated` says whether this call wrote it.
      */
-    public function grant(User $user, Unit $unit): PortalRoleGrant;
+    public function grant(User $user, Unit $unit, ?\DateTimeInterface $expiresAt = null, ?int $renewEveryDays = null, ?int $setBy = null): PortalRoleGrant;
 
     /**
      * Detach `$user` from `$unit`, returning the removed row for the audit envelope (its
@@ -67,6 +67,24 @@ interface PortalRoleGrantRepository
      * existed. The row is read with a lock, so a racing revoke that committed first yields `null`.
      */
     public function revoke(User $user, Unit $unit): ?PortalRoleGrant;
+
+    /**
+     * Set or clear a grant's end date (`$expiresAt` null clears both columns), recording who set it. Returns the
+     * row as saved, or null when it is gone. The row is read with a lock, so a racing revoke is seen.
+     */
+    public function setExpiry(int $grantId, ?\DateTimeInterface $expiresAt, ?int $renewEveryDays, ?int $setBy): ?PortalRoleGrant;
+
+    /**
+     * Grants that end for good (no renewal period) whose end date is before `$now`, for the scheduled revoke.
+     *
+     * @return EloquentCollection<int, PortalRoleGrant>
+     */
+    public function endedBefore(\DateTimeInterface $now): EloquentCollection;
+
+    /**
+     * Delete the grant with this id, read under a lock, returning the removed row or null when it is already gone.
+     */
+    public function revokeById(int $grantId): ?PortalRoleGrant;
 
     /**
      * Whether anyone holds a grant on `$unit` — `portal_role_grants.unit_id` restricts deletes,
