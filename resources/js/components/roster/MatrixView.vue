@@ -25,7 +25,7 @@ import {
     SP_STATES,
     weekCell,
     weekLabel,
-    weekTick,
+    weekEndTick,
 } from '@/lib/roster';
 import { vStickyHead } from '@/lib/stickyHead';
 import CellLegend from './CellLegend.vue';
@@ -221,6 +221,10 @@ async function scrollToNow() {
 }
 onMounted(scrollToNow);
 watch(win, scrollToNow);
+// The rows can arrive after the first paint (a deferred load, or the skeleton while navigating): open on the current
+// week again once they are in, since the table only gets its full width then.
+watch(() => props.loading, (busy) => busy || scrollToNow());
+watch(() => props.weeks.length, scrollToNow);
 
 function clearAll() {
     query.value = '';
@@ -245,6 +249,8 @@ function clearAll() {
                     @keydown.esc="query = ''"
                 />
             </label>
+            <!-- The page can put a control before the chips, such as the way back up to the unit above. -->
+            <slot name="before-filters" />
             <FilterChips v-model="filter" :troopers="troopers" :current-week="currentWeek" />
             <div class="ml-auto flex items-center gap-2">
                 <ToggleGroup :model-value="win" type="single" variant="segment" aria-label="Weeks shown" @update:model-value="selectWindow">
@@ -279,9 +285,9 @@ function clearAll() {
                             scope="col"
                             class="wk"
                             :class="weeks[i] === currentWeek && 'is-now'"
-                            :title="`Cav week ${weekLabel(weeks[i])}${weeks[i] === currentWeek ? ', this week' : ''}`"
+                            :title="`Week ending ${weekEndTick(weeks[i])} (${weekLabel(weeks[i])})${weeks[i] === currentWeek ? ', this week' : ''}`"
                         >
-                            {{ weekTick(weeks[i]) }}
+                            {{ weekEndTick(weeks[i]) }}
                         </th>
                         <th class="sum sum-rc" scope="col" :aria-sort="sortKey === 'rc' ? 'ascending' : 'none'">
                             <button type="button" class="ml-auto inline-flex items-center gap-1 hover:text-foreground" title="Sort by RC 30d" @click="sortKey = 'rc'">
@@ -555,7 +561,8 @@ function clearAll() {
     }
     .rm .sum-rc {
         right: 11rem;
-        box-shadow: -1px 0 0 var(--border);
+        /* The divider is drawn inside this column: drawn outside, it covered the current week's right outline. */
+        box-shadow: inset 1px 0 0 var(--border);
     }
 }
 .rm .tr-trooper {

@@ -191,6 +191,14 @@ onBeforeUnmount(() => {
     offFinish?.();
 });
 
+// Opening a unit from a row ("Show 1/1/A/1-7 only") lands on that unit's own roster; this is the way back
+// up to the unit above it, on the same tab. Only offered when the reader can open that unit.
+const parentCrumb = computed(() => {
+    const crumb = props.trail.length > 1 ? props.trail[props.trail.length - 2] : null;
+
+    return crumb?.inScope ? crumb : null;
+});
+
 function unitHref(id) {
     return `/roster/${id}?view=${view.value}`;
 }
@@ -568,6 +576,14 @@ function syncNow() {
                 </TabsList>
             </Tabs>
 
+            <!-- The Strength tab has no filter bar, so its way back sits above the charts. -->
+            <Link
+                v-if="view === 'strength' && parentCrumb"
+                :href="unitHref(parentCrumb.id)"
+                class="inline-flex h-8 w-fit items-center gap-1 rounded-md border border-border px-2.5 text-[13px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                data-testid="roster-up"
+                ><PhCaretRight class="size-3.5 rotate-180" aria-hidden="true" />Return to {{ parentCrumb.callsign ?? parentCrumb.name }}</Link
+            >
             <StrengthView
                 v-if="view === 'strength'"
                 :unit="unit"
@@ -606,7 +622,17 @@ function syncNow() {
                 :current-week="currentWeek"
                 :loading="navigating"
                 @open="openTrooperId = $event"
-            />
+            >
+                <template #before-filters>
+                    <Link
+                        v-if="parentCrumb"
+                        :href="unitHref(parentCrumb.id)"
+                        class="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border border-border px-2.5 text-[13px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                        data-testid="roster-up"
+                        ><PhCaretRight class="size-3.5 rotate-180" aria-hidden="true" />Return to {{ parentCrumb.callsign ?? parentCrumb.name }}</Link
+                    >
+                </template>
+            </OrbatView>
             <MatrixView
                 v-else
                 v-model:query="query"
@@ -617,7 +643,17 @@ function syncNow() {
                 :current-week="currentWeek"
                 :loading="navigating"
                 @open="openTrooperId = $event"
-            />
+            >
+                <template #before-filters>
+                    <Link
+                        v-if="parentCrumb"
+                        :href="unitHref(parentCrumb.id)"
+                        class="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border border-border px-2.5 text-[13px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                        data-testid="roster-up"
+                        ><PhCaretRight class="size-3.5 rotate-180" aria-hidden="true" />Return to {{ parentCrumb.callsign ?? parentCrumb.name }}</Link
+                    >
+                </template>
+            </MatrixView>
 
             <PresenceMinimumPanel
                 v-if="presenceMinimum"

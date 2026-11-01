@@ -293,6 +293,8 @@ function clearAll() {
                     <PhX />
                 </Button>
             </div>
+            <!-- The page can put a control before the chips, such as the way back up to the unit above. -->
+            <slot name="before-filters" />
             <FilterChips v-model="filter" :troopers="troopers" :current-week="currentWeek" />
             <div class="ml-auto flex items-center gap-1">
                 <Button v-if="sort" variant="ghost" size="sm" data-testid="sort-reset" @click="resetSort">Billet order</Button>

@@ -68,6 +68,16 @@ describe('Roster page', () => {
         expect(factory().find('[data-testid="practice-guests"]').exists()).toBe(false);
     });
 
+    it('offers a way back up to the unit above, on the same tab, only when the reader can open it', () => {
+        mockPage.url = '/roster/1?view=matrix';
+        const inScope = [{ id: 8, type: 'company', name: 'Alpha Company', callsign: 'A/1-7', inScope: true }, props().trail[1]];
+        const up = factory({ trail: inScope }).find('[data-testid="roster-up"]');
+
+        expect(up.text()).toBe('Return to A/1-7');
+        expect(up.attributes('href')).toBe('/roster/8?view=matrix');
+        expect(factory().find('[data-testid="roster-up"]').exists()).toBe(false);
+    });
+
     it('opens on the order of battle and keeps the chosen view in the URL', async () => {
         const wrapper = factory();
         expect(wrapper.find('[data-testid="roster-orbat"]').exists()).toBe(true);
