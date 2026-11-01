@@ -151,16 +151,17 @@ const oversightText = computed(() => {
             <span class="ml-auto shrink-0 text-[11px] text-muted-foreground tabular-nums"><span class="sr-only sm:not-sr-only">Headcount </span>{{ node.trooper_count }}</span>
 
             <!--
-              Inline tools (UX-DR4 / settings-v1-tree.html), Admin-only and revealed on hover or
-              focus. Hidden here for a non-Admin per the mockup; the server enforces the same gate
-              regardless (AD-6). Root gets rename only; a leaf gets no add-child.
+              Inline tools (UX-DR4 / settings-v1-tree.html), revealed on hover or focus. Rename and
+              delete are Admin-only; add-child shows wherever the viewer may add (`can_add_child`). The
+              server enforces the same gates regardless (AD-6). Root gets rename only; a leaf gets no add-child.
             -->
             <span
-                v-if="isAdmin"
+                v-if="isAdmin || node.can_add_child"
                 class="shrink-0 items-center gap-0.5 sm:flex sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100"
                 :class="node.id === selectedId ? 'flex' : 'hidden'"
             >
                 <button
+                    v-if="isAdmin"
                     type="button"
                     :data-testid="`tool-edit-${node.id}`"
                     :aria-label="`Rename ${node.name}`"
@@ -171,7 +172,7 @@ const oversightText = computed(() => {
                     <PhPencilSimple class="size-3.5" />
                 </button>
                 <button
-                    v-if="childType && !isRoot"
+                    v-if="childType && !isRoot && (isAdmin || node.can_add_child)"
                     type="button"
                     :data-testid="`tool-add-${node.id}`"
                     :aria-label="`Add ${childType} under ${node.name}`"
@@ -182,7 +183,7 @@ const oversightText = computed(() => {
                     <PhPlus class="size-3.5" />
                 </button>
                 <button
-                    v-if="!isRoot"
+                    v-if="isAdmin && !isRoot"
                     type="button"
                     :data-testid="`tool-delete-${node.id}`"
                     :aria-label="`Delete ${node.name}`"

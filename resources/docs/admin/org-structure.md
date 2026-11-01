@@ -26,7 +26,7 @@ The page has two cards. **Chain of command** holds the regiment, its battalions 
 
 1. To add a unit, select the unit it goes under and choose the button under its details, such as "Add a platoon under Alpha Company". A separate **Add a unit** window opens with the **Echelon** and, under it, the **Parent**. With nothing selected the button adds a battalion under the regiment.
 2. Pick which one it is from the list, such as "2nd Section" or "Bravo Company". The list only offers the ones the parent does not have yet, so a platoon with a 1st and 3rd Section still offers the 2nd. The name and callsign follow from your pick and the parent's callsign, the same way the import names units (2nd Section under 1/A/3-7 is 2/1/A/3-7), and cannot be typed in. Choose **Add unit**.
-> [!good-to-know] Who can add: Admins anywhere. A leader or overseer can add units inside their own unit, at least two echelons below it: a company commander adds sections, a battalion commander platoons, and the overseer of a battalion its companies. Without that, the button is not shown.
+> [!good-to-know] Who can add: Admins anywhere, and Regimental HQ staff any unit below the regiment. A leader or overseer can add units inside their own unit, at least two echelons below it: a company commander adds sections, a battalion commander platoons, and the overseer of a battalion its companies. Without that, the button is not shown.
 
 3. To rename or move a unit, select it and change it in the details panel.
 

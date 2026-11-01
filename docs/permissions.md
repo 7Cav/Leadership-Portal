@@ -223,7 +223,7 @@ their own plan unless they also command the company.
 
 | Action | Adm | Everyone else | VA |
 | --- | --- | --- | --- |
-| Org structure: add a unit (13) | Yes | A leader or overseer, inside the unit they command or oversee and at least two echelons below it (13) | No |
+| Org structure: add a unit (13) | Yes | Regimental HQ staff below the regiment; a leader or overseer inside the unit they command or oversee and at least two echelons below it (13) | No |
 | Org structure: rename or move a unit, delete an empty unit | Yes | No | No |
 | Org structure: Import from Cav roster | Yes | No | No |
 | Org structure: place a trooper the sync could not place | Yes | No | No |
@@ -256,13 +256,15 @@ who read the whole regiment) on any unit; a serving overseer (Org structure's "O
 every unit under them; the serving holders of DEVCOM 1IC and DEVCOM 2IC on DEVCOM and every unit under it. Anyone else
 gets a 403 and sees no game control. Act as may change it as the person acted as would; view as is read only.
 
-(13) Admins add any unit. Anyone else adds a line unit only inside a unit they command (billet or acting lead) or
+(13) Admins add any unit. Regimental HQ staff (the same people as in (12)) add any unit below the regiment,
+battalions and companies included. Anyone else adds a line unit only inside a unit they command (billet or acting lead) or
 oversee, and only at least two echelons below that unit: a section needs a company or above, a platoon a battalion or
 above, a company the regiment. An overseer counts one echelon higher than the unit they oversee, so the overseer of a
-battalion may add its companies. Battalions, the regiment and groups are Admin only. A section or platoon leader cannot
+battalion may add its companies. Battalions are Admins and Regimental HQ staff only; the regiment and groups are Admin
+only. A section or platoon leader cannot
 add units. The parent must sit inside that unit. The unit's name and callsign are derived from the parent and the
 picked number or letter, never typed. Anyone else gets a 403 and sees no Add unit button. Every add is in the audit
-log. Act as may add as the person acted as would; view as is read only.
+log. Act as may add as the person acted as would (an Admin acting as a Chief of Staff who is Regimental HQ staff may add a battalion); view as is read only. The row add tool in the tree shows wherever the viewer may add.
 
 ### Game identities and syncs
 

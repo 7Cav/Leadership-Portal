@@ -133,7 +133,7 @@ class OrgStructureController extends Controller
         $mayGame = fn (Unit $unit) => $gamesEverywhere
             || collect([$unit, ...$ancestorsOf($unit)])->contains(fn (Unit $at) => $gameRoots->has($at->id));
 
-        $addEverywhere = ! $previewing && $scope->isAdmin($viewer);
+        $addEverywhere = ! $previewing && ($scope->isAdmin($viewer) || $scope->isRegimentalHqStaff($viewer));
         $addRoots = $previewing || $addEverywhere ? collect() : $scope->unitAddRoots($viewer);
         $mayAddUnder = function (Unit $unit) use ($addEverywhere, $addRoots, $ancestorsOf): bool {
             $below = collect(UnitType::cases())->first(fn (UnitType $type) => $type->isLine() && $unit->isLine() && $type->rank() === $unit->type->rank() + 1);
@@ -271,9 +271,10 @@ class OrgStructureController extends Controller
      */
     public function store(Request $request, CreateUnit $command): RedirectResponse
     {
-        // Admins add anywhere; a leader adds a line unit inside the unit they command or oversee, at least two echelons
+        // Admins add anywhere, Regimental HQ staff any line unit below the regiment; a leader adds a line unit inside the unit they command or oversee, at least two echelons
         // below it (ScopeResolver::mayAddUnit). Checked again after validation, once the parent is known.
-        if (! $this->scope->isAdmin($request->user()) && $this->scope->unitAddRoots($request->user())->isEmpty()) {
+        $adder = $request->user();
+        if (! $this->scope->isAdmin($adder) && ! $this->scope->isRegimentalHqStaff($adder) && $this->scope->unitAddRoots($adder)->isEmpty()) {
             abort(403, 'You may not add units.');
         }
 

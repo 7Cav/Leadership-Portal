@@ -514,10 +514,11 @@ class ScopeResolver
 
     /**
      * Whether `$user` may add a `$type` unit under `$parent`: an Admin (the flag or an approved Regimental HQ billet,
-     * {@see isAdmin()}) anywhere; anyone else only
+     * {@see isAdmin()}) anywhere; Regimental HQ staff ({@see isRegimentalHqStaff()}) any line unit below the regiment,
+     * battalions included; anyone else only
      * a line unit inside a unit they command or oversee ({@see unitAddRoots()}) that sits at least two echelons above
      * the new one. A section needs a company or above, a platoon a battalion or above, a company the regiment; a
-     * battalion and the regiment itself are left to Admins. Whether the echelon fits under the parent
+     * battalion is left to Admins and Regimental HQ staff, the regiment itself to Admins. Whether the echelon fits under the parent
      * is the command's check. Real authority: a view-as preview is read only anyway.
      */
     public function mayAddUnit(User $user, Unit $parent, UnitType $type): bool
@@ -528,6 +529,10 @@ class ScopeResolver
 
         if (! $type->isLine() || $type === UnitType::Regiment) {
             return false;
+        }
+
+        if ($this->isRegimentalHqStaff($user)) {
+            return true;
         }
 
         $need = $type->rank() - 2;

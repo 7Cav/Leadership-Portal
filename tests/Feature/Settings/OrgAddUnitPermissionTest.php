@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\AdminBillet;
+use App\Models\AdminBilletStatus;
 use App\Models\AuditLogEntry;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
@@ -102,6 +104,31 @@ it('lets the regiment commander add a company but leaves battalions to Admins', 
 
     oaAdd($this, $rc, $this->battalion, 'company', 'C')->assertSessionHasNoErrors();
     oaAdd($this, $rc, $this->regiment, 'battalion', '2')->assertForbidden();
+});
+
+it('lets Regimental HQ staff add a battalion and a company anywhere, but not the regiment', function () {
+    // A Regimental HQ billet placed on the regiment node, not (yet) approved as an Admin billet: staff, not Admin.
+    $trooper = Trooper::factory()->create(['cav_position_id' => 9010, 'billet' => 'Regimental Chief of Staff', 'status' => TrooperStatus::Combat]);
+    $trooper->forceFill(['primary_section_id' => $this->regiment->id])->save();
+    AdminBillet::query()->create(['cav_position_id' => 9010, 'proposed_title' => 'Regimental Chief of Staff', 'proposed_group_title' => 'Regimental HQ', 'status' => AdminBilletStatus::Pending]);
+    $hq = User::factory()->create(['cav_id' => $trooper->cav_id]);
+
+    oaAdd($this, $hq, $this->regiment, 'battalion', '2')->assertSessionHasNoErrors();
+    oaAdd($this, $hq, $this->otherBattalion, 'company', 'A')->assertSessionHasNoErrors();
+    oaAdd($this, $hq, $this->otherPlatoon, 'section', '2')->assertSessionHasNoErrors();
+    expect(Unit::where('callsign', '2-7')->value('name'))->toBe('2nd Battalion')
+        ->and(Unit::where('callsign', 'A/1-7')->exists())->toBeTrue();
+
+    expect(oaUnits($this->actingAs($hq)->get('/settings/org-structure'))[$this->regiment->id]['can_add_child'])->toBeTrue();
+
+    $this->actingAs($hq)->post('/settings/org-structure', ['type' => 'regiment', 'parent_id' => null])->assertForbidden();
+});
+
+it('refuses a battalion to anyone short of an Admin or Regimental HQ staff, the regiment commander included', function () {
+    oaAdd($this, oaLeaderOf($this->regiment), $this->regiment, 'battalion', '2')->assertForbidden();
+    oaAdd($this, oaLeaderOf($this->battalion), $this->regiment, 'battalion', '2')->assertForbidden();
+
+    expect(Unit::where('callsign', '2-7')->exists())->toBeFalse();
 });
 
 it('lets an Admin add anything, and refuses a trooper who leads nothing', function () {
