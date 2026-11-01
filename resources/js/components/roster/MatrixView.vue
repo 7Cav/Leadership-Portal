@@ -9,6 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadio
 import { Skeleton } from '@/components/ui/skeleton';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import EmptyState from '@/components/EmptyState.vue';
+import MissingIdentityIcon from '@/components/MissingIdentityIcon.vue';
 import NoValue from '@/components/NoValue.vue';
 import PracticeSlotMissingIcon from '@/components/PracticeSlotMissingIcon.vue';
 import {
@@ -413,6 +414,7 @@ function clearAll() {
                                         <span class="rank">{{ row.trooper.rank }}</span>
                                         <span class="nm-name truncate font-medium">{{ displayName(row.trooper) }}</span>
                                         <PhLockSimple v-if="row.trooper.kpis?.onLoa" class="text-muted-foreground" aria-label="On LOA" />
+                                        <MissingIdentityIcon :game="row.trooper.missingGame ?? null" />
                                     </span>
                                     <span class="block max-w-[12rem] truncate pl-[2.35rem] text-xs text-muted-foreground">{{ row.trooper.departed ? 'Departed' : row.trooper.billet ?? 'No billet on record' }}</span>
                                 </button>

@@ -40,6 +40,7 @@ use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitGuidonRepository;
 use App\Repositories\UnitLeadRepository;
 use App\Repositories\UnitRepository;
+use App\Rollcall\MissingGameIdentities;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -89,6 +90,7 @@ class RosterController extends Controller
         private readonly LoaSyncProblems $loaSyncProblems,
         private readonly StrengthTrends $strengthTrends,
         private readonly AutoExcused $autoExcused,
+        private readonly MissingGameIdentities $missingIdentities,
     ) {}
 
     /**
@@ -358,6 +360,9 @@ class RosterController extends Controller
             $tags->get($t->id),
             $excused[$t->id] ?? [],
         ))->values()->all();
+        // The game each serving trooper has no identity linked for, so the capture cannot see them; read-only.
+        $missingGame = $this->missingIdentities->forTroopers($placed);
+        $troopers = array_map(fn (array $row) => [...$row, 'missingGame' => ($missingGame[$row['id']] ?? null)?->name], $troopers);
 
         return ['units' => $units, 'troopers' => $troopers];
     }

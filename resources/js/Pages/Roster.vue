@@ -40,6 +40,7 @@ import EmptyState from "@/components/EmptyState.vue";
 import Guidon from "@/components/Guidon.vue";
 import LoaSyncNote from "@/components/LoaSyncNote.vue";
 import LoaSyncProblems from "@/components/LoaSyncProblems.vue";
+import MissingIdentityNotice from "@/components/MissingIdentityNotice.vue";
 import MissingPracticeSlots from "@/components/MissingPracticeSlots.vue";
 import MatrixView from "@/components/roster/MatrixView.vue";
 import OrbatView from "@/components/roster/OrbatView.vue";
@@ -558,6 +559,7 @@ function syncNow() {
         </section>
 
         <template v-else>
+            <MissingIdentityNotice :troopers="troopers" class="mb-3" />
             <MissingPracticeSlots :sections="sectionsWithoutSlot" :own="false" class="mb-3" />
 
             <Tabs v-model="view">

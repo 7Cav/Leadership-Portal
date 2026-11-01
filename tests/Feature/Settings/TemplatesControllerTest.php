@@ -293,9 +293,9 @@ describe('previewing with a real section', function () {
         $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")->assertInertia(function ($page) use (&$rollcall) {
             $rollcall = $page->toArray()['props'];
         });
-        // The card's attendance strip and its "Leave from" chip are the page's own; the post, and so the preview, does
+        // The card's attendance strip, its "Leave from" chip and its missing identity icon are the page's own; the post, and so the preview, does
         // not read them.
-        $rollcall['troopers'] = array_map(fn (array $row) => array_diff_key($row, ['history' => true, 'leaveFrom' => true]), $rollcall['troopers']);
+        $rollcall['troopers'] = array_map(fn (array $row) => array_diff_key($row, ['history' => true, 'leaveFrom' => true, 'missingGame' => true]), $rollcall['troopers']);
         // So is the week whose report is still due, which only steers the page's own week links.
         unset($rollcall['week']['reporting']);
 

@@ -13,6 +13,7 @@ import StepLanes from '@/components/home/StepLanes.vue';
 import StepMatrix from '@/components/home/StepMatrix.vue';
 import SubordinateUnits from '@/components/home/SubordinateUnits.vue';
 import NeedsAttention from '@/components/home/NeedsAttention.vue';
+import MissingIdentities from '@/components/home/MissingIdentities.vue';
 import Guidon from '@/components/Guidon.vue';
 import MissingPracticeSlots from '@/components/MissingPracticeSlots.vue';
 
@@ -38,6 +39,8 @@ const props = defineProps({
     steps: { type: Array, default: () => [] },
     // The viewer's own staff report while it is due and not sent, `{ week, due, href }`, or null.
     staffReport: { type: Object, default: null },
+    // Troopers under the viewer's lead with no identity for their unit's game, `[{ game, count, troopers }]`.
+    missingIdentities: { type: Array, default: () => [] },
     // Sections under the viewer's lead that play a game and have troopers but no practice slot, `[{ id, designation }]`.
     sectionsWithoutSlot: { type: Array, default: () => [] },
 });
@@ -117,6 +120,8 @@ const countdown = computed(() => {
     <Head title="Home · 7Cav Leadership Portal" />
 
     <div class="space-y-5">
+        <!-- Not dismissible: it goes away once every trooper is linked. -->
+        <MissingIdentities :groups="missingIdentities" />
         <!-- Not dismissible: it goes away once every section has a slot. -->
         <MissingPracticeSlots :sections="sectionsWithoutSlot" />
 

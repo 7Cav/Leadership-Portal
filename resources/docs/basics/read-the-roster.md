@@ -29,6 +29,8 @@ checklist:
 
 6. A warning icon next to a section means it has no practice slot set (point at it to read why). When a unit you lead has such sections, a warning above the views lists them, each linking to its roll call where the slot is set.
 
+> [!good-to-know] A warning icon by a name means the trooper has no identity for their unit's game; the warning at the top of the page lists them all.
+
 ## See strength over time
 
 1. Choose the **Strength** tab on the roster, or **Strength** on a unit row on Home.

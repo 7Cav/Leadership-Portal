@@ -9,6 +9,10 @@ page: /home
 
 > [!why] Home shows what is still to do this week across every section you lead, and who to chase.
 
+## Troopers missing a game identity
+
+If you lead a unit and one of your troopers has no identity for the game your unit plays, a warning at the top of Home names them. Link them on [Game identities](/docs/your-troopers/game-identities); until then the game server can't record their practice attendance.
+
 ## Fix a missing practice slot
 
 If a section you lead plays a game and has no practice slot, a warning at the top of Home names it. Without a slot, its practices aren't captured automatically and make-ups aren't given from the game server. Choose the section's callsign, or **Set it on the section's roll call**, and set the slot there. The warning goes away once every section has one.

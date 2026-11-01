@@ -26,6 +26,10 @@ checklist:
 
 > [!good-to-know] **Add identity** opens on the game the trooper's unit plays, set on Org structure or inherited from the unit above, while they have no identity for it. A unit with no game set opens on the game most of its troopers have linked. Once that game is filled in, it opens on another game they are still missing.
 
+## Troopers missing an identity
+
+When a trooper you lead has no identity for the game their unit plays, a warning shows at the top of **Home**, of the section's roll call and of the roster, and a warning icon sits beside their name. The game server can't see them, so their practice attendance and make-ups won't be recorded automatically. Any of the game's ID kinds counts, so a Steam ID or an Epic ID both clear it. Departed troopers, groups such as ELOA or Reservists, and units with no game set are left out. The warning goes away once they are linked here.
+
 ## Change or remove one
 
 1. Choose **Edit** next to the game, change it, and choose **Save changes**.

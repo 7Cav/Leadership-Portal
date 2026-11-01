@@ -31,6 +31,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import EmptyState from '@/components/EmptyState.vue';
+import MissingIdentityNotice from '@/components/MissingIdentityNotice.vue';
 import FireteamPanel from '@/components/rollcall/FireteamPanel.vue';
 import GuestsPanel from '@/components/rollcall/GuestsPanel.vue';
 import AttendanceSourceLegend from '@/components/attendance/AttendanceSourceLegend.vue';
@@ -1108,6 +1109,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
             </nav>
         </div>
 
+        <MissingIdentityNotice :troopers="rows" />
         <!-- Not dismissible: it goes away once the section has a slot. -->
         <WarningBanner v-if="slotMissing" class="mt-3" data-testid="slot-missing-banner">
             <p class="font-semibold">This section has no practice slot set</p>
