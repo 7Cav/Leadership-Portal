@@ -34,6 +34,7 @@ use App\Commands\GameIdentities\RestoreDismissedPlayerHandler;
 use App\Commands\GameIdentities\UnmatchedPlayerResolutionException;
 use App\Commands\Practices\PracticeSchedule;
 use App\Commands\Practices\SectionsWithoutSlot;
+use App\Commands\Practices\SetPracticeSlot;
 use App\Jobs\CaptureSectionPracticeJob;
 use App\Kpi\AutoExcused;
 use App\Kpi\Headcount;
@@ -128,6 +129,7 @@ class RollcallController extends Controller
     public function __construct(
         private readonly PracticeSchedule $schedule,
         private readonly SectionsWithoutSlot $sectionsWithoutSlot,
+        private readonly SetPracticeSlot $setPracticeSlot,
         private readonly ScopeResolver $scope,
         private readonly UnitRepository $units,
         private readonly UnitCommandMappingRepository $commands,
@@ -843,6 +845,8 @@ class RollcallController extends Controller
             'practiceSlot' => $this->schedule->props($section->id, $weekStart, $practice),
             // True when the section needs a slot and has none (plays a game, has troopers): the page warns at the top.
             'practiceSlotMissing' => $this->sectionsWithoutSlot->among([$section->id]) !== [],
+            // The Cav week (`Y-m-d`) a slot set now starts with when the current week is held, or null for straight away.
+            'practiceSlotChangesFrom' => $this->setPracticeSlot->changesFrom($section->id)?->toDateString(),
             'practice' => [
                 'lastMarkedAt' => $week->marks->max(fn (Attendance $row) => $row->updated_at)?->toIso8601String(),
                 'posted' => $this->postedProps($practice),
