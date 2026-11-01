@@ -500,6 +500,142 @@ class ScopeResolver
     }
 
     /**
+     * Whether `$user` is Regimental HQ staff right now: serving, placed directly on the regiment node, on a position
+     * that is still a Regimental HQ billet. The same test the read scope applies ({@see regimentPlacing()}). Two or three
+     * queries.
+     */
+    public function isRegimentalHqStaff(User $user): bool
+    {
+        $trooper = $user->cav_id === null ? null : $this->troopers->byCavId([(int) $user->cav_id])->get((int) $user->cav_id);
+
+        return ($trooper?->status?->isServing() ?? false) && $this->regimentPlacing($trooper) !== null;
+    }
+
+    /**
+     * Whether `$user` may add a `$type` unit under `$parent`: an Admin (the flag or an approved Regimental HQ billet,
+     * {@see isAdmin()}) anywhere; Regimental HQ staff ({@see isRegimentalHqStaff()}) any line unit below the regiment,
+     * battalions included; anyone else only
+     * a line unit inside a unit they command or oversee ({@see unitAddRoots()}) that sits at least two echelons above
+     * the new one. A section needs a company or above, a platoon a battalion or above, a company the regiment; a
+     * battalion is left to Admins and Regimental HQ staff, the regiment itself to Admins. Whether the echelon fits under the parent
+     * is the command's check. Real authority: a view-as preview is read only anyway.
+     */
+    public function mayAddUnit(User $user, Unit $parent, UnitType $type): bool
+    {
+        if ($this->isAdmin($user)) {
+            return true;
+        }
+
+        if (! $type->isLine() || $type === UnitType::Regiment) {
+            return false;
+        }
+
+        if ($this->isRegimentalHqStaff($user)) {
+            return true;
+        }
+
+        $need = $type->rank() - 2;
+
+        return $this->unitAddRoots($user)->contains(
+            fn (int $rank, int $rootId) => $rank <= $need
+                && ($root = $this->units->find($rootId)) !== null
+                && $this->units->subtreeIds($root)->contains($parent->id),
+        );
+    }
+
+    /**
+     * Whether `$user` may undo adding `$unit` now: they added it themselves, less than {@see Unit::UNDO_ADD_MINUTES}
+     * minutes ago, and would still be allowed to add it there ({@see mayAddUnit()}). Whether it is still empty is the
+     * delete's own check, under its lock. Admins delete any unit anyway.
+     */
+    public function mayUndoAddUnit(User $user, Unit $unit): bool
+    {
+        if ($unit->undoAddUntil($user) === null) {
+            return false;
+        }
+
+        $parent = $unit->parent_id === null ? null : $this->units->find($unit->parent_id);
+
+        return $parent === null ? $this->isAdmin($user) : $this->mayAddUnit($user, $parent, $unit->type);
+    }
+
+    /**
+     * The units whose subtree `$user` may add units in, short of being an Admin, each with the echelon it counts at:
+     * a unit they command (billet, acting lead or a held billet) at its own, a unit they oversee while serving one
+     * higher, since oversight is the regiment's over that battalion (an overseer of a battalion may add its
+     * companies). {@see mayAddUnit()} decides which echelons below each one they may add.
+     *
+     * @return Collection<int, int> unit id => echelon rank it counts at
+     */
+    public function unitAddRoots(User $user): Collection
+    {
+        $roots = collect();
+        foreach ($this->commandedUnits($user) as $unit) {
+            if ($unit->type->isLine()) {
+                $roots[$unit->id] = min($roots->get($unit->id, PHP_INT_MAX), $unit->type->rank());
+            }
+        }
+        foreach ($this->oversights->unitsOverseenBy($user) as $unit) {
+            $roots[$unit->id] = min($roots->get($unit->id, PHP_INT_MAX), $unit->type->rank() - 1);
+        }
+
+        return $roots;
+    }
+
+    /**
+     * Whether `$user` may set or clear the game of `$unit`: an Admin or Regimental HQ staff ({@see isRegimentalHqStaff()})
+     * on any unit; anyone else on a unit at or under one of {@see gameUnitsOf()}. Whether a game may be set there at all
+     * (no unit above has one, {@see Unit::setsOwnGame()}) is the command's check. Under a view-as preview the request is
+     * read-only anyway (the ReadOnlyWhileViewingAs middleware), so this asks only about the person.
+     */
+    public function maySetUnitGame(User $user, Unit $unit): bool
+    {
+        if ($this->isAdmin($user) || $this->isRegimentalHqStaff($user)) {
+            return true;
+        }
+
+        $roots = $this->gameUnitsOf($user)->pluck('id')->flip();
+        if ($roots->isEmpty()) {
+            return false;
+        }
+
+        for ($at = $unit, $depth = 0; $at !== null && $depth < 10; $depth++) {
+            if ($roots->has($at->id)) {
+                return true;
+            }
+            $at = $at->parent_id === null ? null : $this->units->find((int) $at->parent_id);
+        }
+
+        return false;
+    }
+
+    /** DEVCOM's command billets, the same as `CommandBillet`'s, which Authorization may not depend on. */
+    private const DEVCOM_COMMAND_TITLES = ['DEVCOM 1IC', 'DEVCOM 2IC'];
+
+    /**
+     * The units whose games, and those of every unit under them, `$user` may set short of being an Admin or Regimental
+     * HQ staff: each unit they oversee while serving (Org structure's "Oversight"), and DEVCOM for the serving holder
+     * of a DEVCOM command billet (`DEVCOM 1IC`, `DEVCOM 2IC`, the same titles as `CommandBillet::devcomCommand()`), the unit that
+     * billet commands. Empty for everyone else.
+     *
+     * @return Collection<int, Unit>
+     */
+    public function gameUnitsOf(User $user): Collection
+    {
+        $units = $this->oversights->unitsOverseenBy($user)->values();
+
+        $trooper = $user->cav_id === null ? null : $this->troopers->byCavId([(int) $user->cav_id])->get((int) $user->cav_id);
+        if (($trooper?->status?->isServing() ?? false) && in_array(trim((string) $trooper->billet), self::DEVCOM_COMMAND_TITLES, true)) {
+            $devcom = $this->commands->commandedUnitFor($user);
+            if ($devcom !== null) {
+                $units->push($devcom);
+            }
+        }
+
+        return $units;
+    }
+
+    /**
      * Whether a trooper placed on `$unit` is Regimental HQ staff: placed on the regiment node itself, nothing below it.
      * The Regimental HQ read scope's placement rule; Admin by billet ({@see isAdminByBillet()}) does not use it.
      */

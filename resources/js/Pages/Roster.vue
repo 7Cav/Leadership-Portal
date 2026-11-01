@@ -368,9 +368,9 @@ function syncNow() {
                         class="ml-2"
                     /><span
                         v-if="unit?.label"
-                        class="ml-2 rounded-sm border border-border px-1.5 align-middle text-xs font-semibold tracking-wide text-muted-foreground"
+                        class="ml-2 align-middle text-sm font-normal text-muted-foreground"
                         data-testid="unit-label"
-                        >{{ unit.label }}</span
+                        >· {{ unit.label }}</span
                     >
                 </h1>
                 <p
@@ -457,11 +457,6 @@ function syncNow() {
                                 <span class="truncate text-muted-foreground">{{
                                     option.name
                                 }}</span>
-                                <span
-                                    v-if="option.label"
-                                    class="rounded-sm border border-border px-1 text-[10px] font-semibold text-muted-foreground"
-                                    >{{ option.label }}</span
-                                >
                                 <PhCheck
                                     v-if="option.id === unit?.id"
                                     class="ml-auto"

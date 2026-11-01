@@ -24,6 +24,8 @@ import EmptyState from '@/components/EmptyState.vue';
 import ReasonDialog from '@/components/ReasonDialog.vue';
 import { onHttpException } from '@/lib/httpError';
 import { ancestorIds, searchUnits } from '@/lib/orgSearch';
+import { ordinalOptions } from '@/lib/unitDesignation';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import OrgTreeNode from './OrgTreeNode.vue';
 
 // Flat units array with `path` (AD-18) — nested here for rendering; the server keeps the
@@ -64,7 +66,10 @@ const recruitIds = computed(() => {
 const hiddenIds = computed(() => {
     const hidden = new Set(showRecruits.value ? [] : recruitIds.value);
     if (!showEmpty.value) {
-        props.units.filter((unit) => unit.empty).forEach((unit) => hidden.add(unit.id));
+        // The selected unit and the units above it stay, empty or not, so a selection never vanishes from the tree.
+        const selected = selectedUnit.value;
+        const kept = new Set(selected ? [selected.id, ...ancestorIds(selected)] : []);
+        props.units.filter((unit) => unit.empty && !kept.has(unit.id)).forEach((unit) => hidden.add(unit.id));
     }
     return hidden;
 });
@@ -146,9 +151,12 @@ watch(selectedId, (id) => {
 });
 const selectedMembers = computed(() => (selectedUnit.value ? (props.groupMembers[selectedUnit.value.id] ?? null) : null));
 
-// Team label (Admin): its own small form, audited on the server.
+// Nickname (Admin), stored as the unit's `label`: its own small form, audited on the server.
 const labelForm = useForm({ label: '' });
-// The game the unit plays (Admin), picked from the Games list; null inherits the game of the nearest unit above.
+// The game the unit plays, picked from the Games list by an Admin, Regimental HQ, the unit's overseer or DEVCOM's command
+// team (`can_set_game`); null inherits the game of the nearest unit above. A unit picks one only while no unit above it
+// has one (`sets_game`): under one that does (`game_locked_by`) the picker is locked to the inherited game, and a game
+// set there before can only be cleared.
 const gameForm = useForm({ game_id: null });
 watch(
     selectedUnit,
@@ -307,6 +315,18 @@ function removeActing() {
     });
 }
 
+// What the "inherit" choice reads: the inherited game's name when the unit inherits one now.
+const inheritLabel = computed(() => {
+    const unit = selectedUnit.value;
+    if (unit?.game_id === null && unit.game) return `${unit.game.name} (from ${unit.game.from})`;
+    return unit?.game_id === null ? 'None' : 'Inherit from the unit above';
+});
+
+function clearGame() {
+    gameForm.game_id = null;
+    submitGame();
+}
+
 function submitGame() {
     gameForm.patch(`/settings/org-structure/${selectedUnit.value.id}/game`, {
         preserveScroll: true,
@@ -403,46 +423,126 @@ function pickUnit(id) {
 onBeforeUnmount(() => clearTimeout(highlightTimer));
 
 // Mirrors `UnitType::rank()` (app/Models/UnitType.php) — Regiment first, one rank per echelon.
-// `CreateUnit` enforces the real invariant server-side; this is the UI's best-effort mirror of
-// it (AC #5's "hidden in the UI" pattern), so the parent list below only ever offers legal
-// parents instead of relying on the 422 round-trip to teach the Admin the rule.
+// `CreateUnit` enforces the real invariant server-side.
 const RANK = { regiment: 0, battalion: 1, company: 2, platoon: 3, section: 4 };
-const unitTypes = Object.keys(RANK);
+const ECHELONS = Object.keys(RANK);
 
-const form = useForm({
-    type: 'battalion',
-    name: '',
-    callsign: '',
-    parent_id: null,
+// Add unit picks where the new unit goes, shown read-only: under the selected unit, one echelon down, when it can have
+// units under it (a line unit above a section); otherwise a battalion under the regiment; with no tree yet, the regiment.
+const addTarget = computed(() => {
+    const selected = selectedUnit.value;
+    const below = selected ? ECHELONS[RANK[selected.type] + 1] : undefined;
+    if (selected && selected.type !== 'group' && below) return { parent: selected, type: below };
+    const regiment = props.units.find((unit) => unit.type === 'regiment' && unit.parent_id === null);
+    return regiment ? { parent: regiment, type: 'battalion' } : { parent: null, type: 'regiment' };
 });
 
-// A Regiment is always a root (no legal parent); everything else needs a parent exactly one
-// rank above it.
-const legalParents = computed(() =>
-    form.type === 'regiment' ? [] : props.units.filter((unit) => RANK[unit.type] === RANK[form.type] - 1),
-);
+// Only where the unit goes and which one it is: the server derives the name and callsign from these (CreateUnit).
+const form = useForm({
+    type: 'battalion',
+    parent_id: null,
+    ordinal: '',
+});
 
-// Changing the echelon can invalidate the previously-selected parent (e.g. switching from
-// Company to Regiment), so re-pick rather than silently submit a now-illegal combination.
 watch(
-    () => form.type,
-    () => {
-        form.parent_id = legalParents.value.some((unit) => unit.id === form.parent_id) ? form.parent_id : null;
+    addTarget,
+    (target) => {
+        form.type = target.type;
+        form.parent_id = target.parent?.id ?? null;
+        form.ordinal = '';
     },
+    { immediate: true },
 );
 
+// The ordinals still free under the parent, gaps included; the regiment, as the root, has its one fixed designation.
+// Admins add anywhere; a leader only where the server says they may (`can_add_child`: inside the unit they command or
+// oversee, at least two echelons below it). The button and dialog hide otherwise; `store` checks again.
+const canAdd = computed(() => props.isAdmin || addTarget.value.parent?.can_add_child === true);
+
+const addOptions = computed(() => ordinalOptions(addTarget.value.type, addTarget.value.parent, props.units));
+const addPreview = computed(() =>
+    addTarget.value.type === 'regiment'
+        ? { name: '7th Cavalry Regiment', callsign: '7CAV' }
+        : (addOptions.value.find((option) => option.value === form.ordinal) ?? null),
+);
+const addReady = computed(() => addPreview.value !== null);
+
+// Add unit opens in its own dialog so it never reads as part of the selected unit's edit form.
+const addOpen = ref(false);
+const addButtonLabel = computed(() =>
+    addTarget.value.parent ? `Add a ${addTarget.value.type} under ${addTarget.value.parent.name}` : `Add a ${addTarget.value.type}`,
+);
+
+function closeAdd() {
+    addOpen.value = false;
+    form.ordinal = '';
+    form.clearErrors();
+}
+
+// A new unit has nobody in it yet, so it is empty and Show empty units would hide it the moment it is added: after the
+// reload, find it under its parent by the callsign it was given, turn empty units on and select it in the tree.
 function submitAdd() {
+    const parentId = form.parent_id;
+    // Read fresh rather than through `addPreview`: the pick is what is being sent now.
+    const preview = addTarget.value.type === 'regiment' ? addPreview.value : addOptions.value.find((option) => option.value === form.ordinal);
     form.post('/settings/org-structure', {
-        onSuccess: () => form.reset('name', 'callsign'),
+        onSuccess: () => {
+            closeAdd();
+            const added = props.units.find(
+                (unit) => preview && unit.parent_id === parentId && (preview.callsign ? unit.callsign === preview.callsign : unit.name === preview.name),
+            );
+            if (!added) return;
+            const revealed = added.empty && !showEmpty.value;
+            pickUnit(added.id);
+            const label = added.callsign ? `${added.name} (${added.callsign})` : added.name;
+            const message = `Added ${label}.${revealed ? ' Empty units are now shown.' : ''}`;
+            // The leader who added it may take it back within the hour (`undo_add_until`); an Admin deletes it instead.
+            if (added.undo_add_until) toast.success(message, { action: { label: 'Undo', onClick: () => undoAdd(added) } });
+            else toast.success(message);
+        },
         onHttpException: onHttpException('The unit was not added', (message) => toast.error(message)),
     });
 }
 
-// Pre-fills the shared add-unit form from a row's ＋ tool rather than duplicating a form per
-// row (the mockup's per-node ".add-child" affordance, built on the one form 1.8 already has).
-function prefillAddChild({ parentId, type }) {
-    form.type = type;
-    form.parent_id = parentId;
+// Undo add: the leader who added a unit may remove it again for an hour while it is still empty. The minutes left tick
+// down on the page; the server checks the window, the creator and the emptiness again on the undo itself.
+const now = ref(Date.now());
+const nowTimer = setInterval(() => {
+    now.value = Date.now();
+}, 15000);
+onBeforeUnmount(() => clearInterval(nowTimer));
+const undoProcessing = ref(false);
+
+function undoMinutesLeft(unit) {
+    if (!unit?.undo_add_until) return null;
+    const left = Math.ceil((Date.parse(unit.undo_add_until) - now.value) / 60000);
+    return left > 0 ? left : null;
+}
+
+function undoAdd(unit) {
+    if (undoProcessing.value) return;
+    const label = unit.callsign ? `${unit.name} (${unit.callsign})` : unit.name;
+    router.delete(`/settings/org-structure/${unit.id}`, {
+        preserveScroll: true,
+        onStart: () => {
+            undoProcessing.value = true;
+        },
+        onSuccess: () => {
+            if (selectedId.value === unit.id) selectedId.value = unit.parent_id;
+            toast.success(`Removed ${label}.`);
+        },
+        onError: (errors) => toast.error(errors.delete ?? Object.values(errors)[0] ?? 'The unit was not removed. Try again.'),
+        onHttpException: onHttpException('The unit was not removed', (message) => toast.error(message)),
+        onFinish: () => {
+            undoProcessing.value = false;
+        },
+    });
+}
+
+// A row's ＋ tool selects that row and opens the one add-unit form, which then adds a unit one echelon down.
+function prefillAddChild({ parentId }) {
+    selectedId.value = parentId;
+    addOpen.value = true;
 }
 
 const editForm = useForm({ name: '', callsign: '', parent_id: null });
@@ -462,7 +562,7 @@ watch(
 
 // A descendant always has strictly higher rank than its ancestor, and the unit itself has equal
 // rank — neither can ever equal `rank - 1`, so this rank filter alone already excludes both a
-// cycle and a self-reparent without a separate path check (mirrors the add-form's `legalParents`).
+// cycle and a self-reparent without a separate path check.
 const editLegalParents = computed(() => {
     if (!selectedUnit.value) {
         return [];
@@ -1002,29 +1102,6 @@ function confirmDelete() {
                         </div>
                     </section>
 
-                    <form v-if="isAdmin" data-testid="game-form" class="mb-4 flex items-end gap-2" @submit.prevent="submitGame">
-                        <div class="grid flex-1 gap-1.5">
-                            <Label for="edit-game">Game</Label>
-                            <NativeSelect id="edit-game" v-model="gameForm.game_id" data-testid="edit-game" :aria-invalid="!!gameForm.errors.game_id">
-                                <option :value="null">None (inherits)</option>
-                                <option v-for="game in gameOptions" :key="game.id" :value="game.id">
-                                    {{ game.name }}<template v-if="game.retired"> (retired)</template>
-                                </option>
-                            </NativeSelect>
-                            <p v-if="gameForm.errors.game_id" class="text-xs text-destructive" data-testid="edit-error-game">{{ gameForm.errors.game_id }}</p>
-                        </div>
-                        <Button type="submit" variant="outline" data-testid="save-game" :disabled="gameForm.processing">Save game</Button>
-                    </form>
-
-                    <form v-if="isAdmin" data-testid="label-form" class="mb-4 flex items-end gap-2" @submit.prevent="submitLabel">
-                        <div class="grid flex-1 gap-1.5">
-                            <Label for="edit-label">Team label</Label>
-                            <Input id="edit-label" v-model="labelForm.label" data-testid="edit-label" type="text" maxlength="40" :aria-invalid="!!labelForm.errors.label" />
-                            <p v-if="labelForm.errors.label" class="text-xs text-destructive" data-testid="edit-error-label">{{ labelForm.errors.label }}</p>
-                        </div>
-                        <Button type="submit" variant="outline" data-testid="save-label" :disabled="labelForm.processing">Save label</Button>
-                    </form>
-
                     <!--
                       Editable for an Admin (AC #1, #2); read-only otherwise. Echelon isn't editable:
                       see `UpdateUnit`'s docblock for why re-parenting is kept separate from a rank change.
@@ -1109,6 +1186,76 @@ function confirmDelete() {
                             <dd class="tabular-nums">{{ selectedUnit.trooper_count }}</dd>
                         </div>
                     </dl>
+                    <div v-if="undoMinutesLeft(selectedUnit) !== null" class="mt-3">
+                        <Button type="button" variant="outline" data-testid="undo-add" :disabled="undoProcessing" @click="undoAdd(selectedUnit)">
+                            Undo add, {{ undoMinutesLeft(selectedUnit) }} min left
+                        </Button>
+                    </div>
+                    <form v-if="isAdmin" data-testid="label-form" class="mb-4 mt-4 flex items-start gap-2 border-t border-border pt-4" @submit.prevent="submitLabel">
+                        <div class="grid flex-1 gap-1.5">
+                            <Label for="edit-label">Nickname</Label>
+                            <Input
+                                id="edit-label"
+                                v-model="labelForm.label"
+                                data-testid="edit-label"
+                                type="text"
+                                maxlength="40"
+                                aria-describedby="edit-label-hint"
+                                :aria-invalid="!!labelForm.errors.label"
+                            />
+                            <p id="edit-label-hint" class="text-xs text-muted-foreground">Shown next to the unit's name, for example Jaegers.</p>
+                            <p v-if="labelForm.errors.label" class="text-xs text-destructive" data-testid="edit-error-label">{{ labelForm.errors.label }}</p>
+                        </div>
+                        <Button type="submit" variant="outline" data-testid="save-label" :disabled="labelForm.processing"class="mt-[22px]">Save nickname</Button>
+                    </form>
+
+                    <form
+                        v-if="selectedUnit.can_set_game && selectedUnit.sets_game"
+                        data-testid="game-form"
+                        class="mb-4 flex items-end gap-2"
+                        @submit.prevent="submitGame"
+                    >
+                        <div class="grid flex-1 gap-1.5">
+                            <Label for="edit-game">Game</Label>
+                            <NativeSelect id="edit-game" v-model="gameForm.game_id" data-testid="edit-game" :aria-invalid="!!gameForm.errors.game_id">
+                                <option :value="null">{{ inheritLabel }}</option>
+                                <option v-for="game in gameOptions" :key="game.id" :value="game.id">
+                                    {{ game.name }}<template v-if="game.retired"> (retired)</template>
+                                </option>
+                            </NativeSelect>
+                            <p v-if="gameForm.errors.game_id" class="text-xs text-destructive" data-testid="edit-error-game">{{ gameForm.errors.game_id }}</p>
+                        </div>
+                        <Button type="submit" variant="outline" data-testid="save-game" :disabled="gameForm.processing">Save game</Button>
+                    </form>
+                    <!-- Under a unit with a game, the game is that unit's: shown locked. A game set here before stays until cleared. -->
+                    <div v-else-if="selectedUnit.can_set_game" data-testid="game-locked" class="mb-4 grid gap-1.5">
+                        <Label for="edit-game">Game</Label>
+                        <div class="flex items-end gap-2">
+                            <NativeSelect id="edit-game" :model-value="selectedUnit.game_id" data-testid="edit-game" disabled class="flex-1">
+                                <option :value="selectedUnit.game_id">
+                                    <template v-if="selectedUnit.game"
+                                        >{{ selectedUnit.game.name }}<template v-if="selectedUnit.game.retired"> (retired)</template
+                                        ><template v-if="selectedUnit.game.from"> (from {{ selectedUnit.game.from }})</template></template
+                                    ><template v-else>None</template>
+                                </option>
+                            </NativeSelect>
+                            <Button
+                                v-if="selectedUnit.game_id !== null"
+                                type="button"
+                                variant="outline"
+                                data-testid="clear-game"
+                                :disabled="gameForm.processing"
+                                @click="clearGame"
+                                >Clear game</Button
+                            >
+                        </div>
+                        <p class="text-xs text-muted-foreground">
+                            <template v-if="selectedUnit.game_id !== null">{{ selectedUnit.game_locked_by }} has a game too. Clear this one to play the game of {{ selectedUnit.game_locked_by }}.</template>
+                            <template v-else>Set by {{ selectedUnit.game_locked_by }}. Clear the game there to pick one here.</template>
+                        </p>
+                        <p v-if="gameForm.errors.game_id" class="text-xs text-destructive" data-testid="edit-error-game">{{ gameForm.errors.game_id }}</p>
+                    </div>
+
                 </div>
                 <p v-else class="text-[13px] text-muted-foreground">Select a unit to see its details.</p>
 
@@ -1222,53 +1369,67 @@ function confirmDelete() {
                 </section>
 
                 <!--
-                  Add-node control, Admin-only (AC #2). Hidden for a non-Admin per the mockup; the
-                  server enforces the same gate on `store` regardless (AC #5, AD-6).
+                  Add-node control: Admins, and leaders two echelons above the new unit (`canAdd`). Hidden
+                  otherwise; the server enforces the same gate on `store` regardless (AC #5, AD-6).
                 -->
-                <template v-if="isAdmin">
+                <template v-if="canAdd">
                     <Separator class="my-4" />
-                    <form data-testid="add-unit-form" class="space-y-3" @submit.prevent="submitAdd">
-                        <h3 class="flex items-center gap-1.5 text-[13px] font-semibold"><PhPlus aria-hidden="true" />Add unit</h3>
-
-                        <div class="grid gap-1.5">
-                            <Label for="add-type">Echelon</Label>
-                            <NativeSelect id="add-type" v-model="form.type" class="capitalize" :aria-invalid="!!form.errors.type">
-                                <option v-for="type in unitTypes" :key="type" :value="type">{{ type }}</option>
-                            </NativeSelect>
-                            <p v-if="form.errors.type" class="text-xs text-destructive" data-testid="error-type">{{ form.errors.type }}</p>
-                        </div>
-
-                        <div class="grid gap-1.5">
-                            <Label for="add-name">Name</Label>
-                            <Input id="add-name" v-model="form.name" type="text" :aria-invalid="!!form.errors.name" />
-                            <p v-if="form.errors.name" class="text-xs text-destructive" data-testid="error-name">{{ form.errors.name }}</p>
-                        </div>
-
-                        <div class="grid gap-1.5">
-                            <Label for="add-callsign">Callsign</Label>
-                            <Input id="add-callsign" v-model="form.callsign" type="text" class="font-mono" :aria-invalid="!!form.errors.callsign" />
-                            <p v-if="form.errors.callsign" class="text-xs text-destructive" data-testid="error-callsign">{{ form.errors.callsign }}</p>
-                        </div>
-
-                        <div class="grid gap-1.5">
-                            <Label for="add-parent">Parent</Label>
-                            <NativeSelect
-                                id="add-parent"
-                                v-model="form.parent_id"
-                                :disabled="form.type === 'regiment'"
-                                :aria-invalid="!!form.errors.parent_id"
-                            >
-                                <option :value="null">{{ form.type === 'regiment' ? 'None, this is the root' : 'Choose a parent' }}</option>
-                                <option v-for="unit in legalParents" :key="unit.id" :value="unit.id">{{ unit.name }}</option>
-                            </NativeSelect>
-                            <p v-if="form.errors.parent_id" class="text-xs text-destructive" data-testid="error-parent_id">{{ form.errors.parent_id }}</p>
-                        </div>
-
-                        <Button type="submit" :disabled="form.processing">Save unit</Button>
-                    </form>
+                    <Button type="button" variant="outline" data-testid="add-unit-open" class="w-full" @click="addOpen = true">
+                        <PhPlus aria-hidden="true" />{{ addButtonLabel }}
+                    </Button>
                 </template>
             </Card>
         </div>
+
+        <!-- Add unit: its own dialog, apart from the details panel where the selected unit is edited. -->
+        <Dialog v-if="canAdd" :open="addOpen" @update:open="(open) => !open && !form.processing && closeAdd()">
+            <DialogContent class="sm:max-w-md" data-testid="add-unit-dialog">
+                <DialogHeader>
+                    <DialogTitle>Add a unit</DialogTitle>
+                    <DialogDescription>The name and callsign follow from the parent and the number you pick.</DialogDescription>
+                </DialogHeader>
+                <form data-testid="add-unit-form" class="space-y-4" @submit.prevent="submitAdd">
+                    <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[13px]" data-testid="add-placement">
+                        <dt class="text-muted-foreground">Echelon</dt>
+                        <dd class="capitalize" data-testid="add-type">{{ form.type }}</dd>
+                        <dt class="text-muted-foreground">Parent</dt>
+                        <dd data-testid="add-parent">{{ addTarget.parent ? addTarget.parent.name : 'None, this is the root' }}</dd>
+                    </dl>
+                    <p v-if="form.errors.type" class="text-xs text-destructive" data-testid="error-type">{{ form.errors.type }}</p>
+                    <p v-if="form.errors.parent_id" class="text-xs text-destructive" data-testid="error-parent_id">{{ form.errors.parent_id }}</p>
+
+                    <div v-if="form.type !== 'regiment'" class="grid gap-1.5">
+                        <Label for="add-ordinal" class="capitalize">{{ form.type }}</Label>
+                        <NativeSelect
+                            id="add-ordinal"
+                            v-model="form.ordinal"
+                            data-testid="add-ordinal"
+                            :disabled="addOptions.length === 0"
+                            :aria-invalid="!!form.errors.ordinal"
+                        >
+                            <option value="" disabled>{{ addOptions.length ? `Choose a ${form.type}` : 'None free' }}</option>
+                            <option v-for="option in addOptions" :key="option.value" :value="option.value">{{ option.name }}</option>
+                        </NativeSelect>
+                        <p v-if="addOptions.length === 0" class="text-xs text-muted-foreground" data-testid="add-ordinal-none">
+                            {{ addTarget.parent?.callsign ? `Every ${form.type} this parent can hold is already there.` : 'The parent has no callsign to build on. Give it one first.' }}
+                        </p>
+                        <p v-if="form.errors.ordinal" class="text-xs text-destructive" data-testid="error-ordinal">{{ form.errors.ordinal }}</p>
+                    </div>
+
+                    <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-md bg-muted/50 px-3 py-2 text-[13px]" data-testid="add-result">
+                        <dt class="text-muted-foreground">Name</dt>
+                        <dd data-testid="add-name">{{ addPreview?.name ?? 'Pick one above' }}</dd>
+                        <dt class="text-muted-foreground">Callsign</dt>
+                        <dd class="font-mono" data-testid="add-callsign">{{ addPreview?.callsign ?? '' }}</dd>
+                    </dl>
+
+                    <DialogFooter class="flex-row justify-end gap-2">
+                        <Button type="button" variant="ghost" data-testid="add-unit-cancel" @click="closeAdd">Cancel</Button>
+                        <Button type="submit" data-testid="add-unit-save" :disabled="form.processing || !addReady">Add unit</Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
 
         <ReasonDialog
             :open="deleting !== null"

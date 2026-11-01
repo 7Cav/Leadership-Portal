@@ -27,7 +27,7 @@ class AddGame
      *
      * @throws InvalidGameException when the name has nothing a slug can be made from.
      */
-    public function handle(User $actor, string $name, array $idKinds, TelemetryInterface $interface): Game
+    public function handle(User $actor, string $name, array $idKinds, TelemetryInterface $interface, ?string $abbreviation = null): Game
     {
         $base = Str::slug($name);
 
@@ -41,12 +41,22 @@ class AddGame
             $slug = "{$base}-{$n}";
         }
 
+        // None given: made from the name, with a digit when that code is taken.
+        if ($abbreviation === null || trim($abbreviation) === '') {
+            $base = Game::abbreviationFor($name);
+            $abbreviation = $base;
+            for ($n = 2; $this->games->findByAbbreviation($abbreviation) !== null; $n++) {
+                $abbreviation = substr($base, 0, 6 - strlen((string) $n)).$n;
+            }
+        }
+        $abbreviation = strtoupper(trim($abbreviation));
+
         return $this->audit->record(
             actorId: $actor->id,
             action: 'game.added',
             reason: null,
             reasonRequired: false,
-            mutation: fn () => $this->games->create($slug, trim($name), array_values(array_map('trim', $idKinds)), $interface),
+            mutation: fn () => $this->games->create($slug, trim($name), $abbreviation, array_values(array_map('trim', $idKinds)), $interface),
         );
     }
 }
