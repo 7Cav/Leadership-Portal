@@ -33,12 +33,20 @@ class CreateUnit
     ) {}
 
     /**
+     * The name and callsign are derived here, never taken from the request: the regiment gets its fixed designation,
+     * a line unit is built from its parent's designation and the picked `$ordinal` ({@see CavDesignation::childOf()}),
+     * and only a group, which the import never names by rule, takes a free `$name` and no callsign.
+     *
      * @throws InvalidUnitPlacementException when the requested placement breaks echelon
      *                                       ordering — caught by the controller and turned
      *                                       into a form validation error.
+     * @throws InvalidUnitOrdinalException when the ordinal is out of range or already used under the parent, or a
+     *                                     group has no name.
      */
-    public function handle(User $actor, UnitType $type, string $name, ?string $callsign, ?int $parentId): Unit
+    public function handle(User $actor, UnitType $type, ?int $parentId, ?string $ordinal = null, ?string $name = null): Unit
     {
+        $parent = null;
+
         if ($parentId === null) {
             if ($type !== UnitType::Regiment) {
                 throw InvalidUnitPlacementException::rootMustBeRegiment($type);
@@ -55,6 +63,12 @@ class CreateUnit
             }
         }
 
+        [$name, $callsign] = match (true) {
+            $type === UnitType::Regiment => [CavDesignation::REGIMENT_NAME, CavDesignation::REGIMENT_CALLSIGN],
+            $type === UnitType::Group => [self::groupName($name), null],
+            default => $this->derive($type, $parent, (string) $ordinal),
+        };
+
         // A group made by hand is a staff group: ELOA, Reservists and New Recruits are the import's own, found by callsign.
         $kind = $type === UnitType::Group ? UnitKind::Staff : UnitKind::Line;
 
@@ -65,6 +79,35 @@ class CreateUnit
             reasonRequired: false,
             mutation: fn () => $this->units->create($type, $name, $callsign, $parentId, $kind),
         );
+    }
+
+    /**
+     * @return array{0: string, 1: string} the name and callsign of the line unit `$ordinal` names under `$parent`
+     */
+    private function derive(UnitType $type, Unit $parent, string $ordinal): array
+    {
+        if ($type !== UnitType::Battalion && trim((string) $parent->callsign) === '') {
+            throw InvalidUnitOrdinalException::parentHasNoDesignation();
+        }
+
+        $designation = CavDesignation::childOf($type, $parent->callsign, $ordinal)
+            ?? throw InvalidUnitOrdinalException::invalid($type);
+
+        $callsign = $designation->callsign();
+        $taken = $this->units->children($parent)->contains(fn (Unit $sibling) => strcasecmp((string) $sibling->callsign, $callsign) === 0);
+
+        if ($taken) {
+            throw InvalidUnitOrdinalException::taken($designation->name());
+        }
+
+        return [$designation->name(), $callsign];
+    }
+
+    private static function groupName(?string $name): string
+    {
+        $name = trim((string) $name);
+
+        return $name !== '' ? $name : throw InvalidUnitOrdinalException::nameRequired();
     }
 
     /**

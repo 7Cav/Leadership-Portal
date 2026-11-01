@@ -24,8 +24,9 @@ The page has two cards. **Chain of command** holds the regiment, its battalions 
 
 ## Add, rename or move a unit
 
-1. To add a unit, select the unit it goes under and choose the button under its details, such as "Add a platoon under Alpha Company". The form adds one echelon below it and shows its **Parent**. With nothing selected the button adds a battalion under the regiment.
-2. Set its **Name** and **Callsign**, and choose **Save unit**. To rename or move a unit, select it and change it in the details panel.
+1. To add a unit, select the unit it goes under and choose the button under its details, such as "Add a platoon under Alpha Company". A separate **Add a unit** window opens with the **Echelon** and, under it, the **Parent**. With nothing selected the button adds a battalion under the regiment.
+2. Pick which one it is from the list, such as "2nd Section" or "Bravo Company". The list only offers the ones the parent does not have yet, so a platoon with a 1st and 3rd Section still offers the 2nd. The name and callsign follow from your pick and the parent's callsign, the same way the import names units (2nd Section under 1/A/3-7 is 2/1/A/3-7), and cannot be typed in. Choose **Add unit**.
+3. To rename or move a unit, select it and change it in the details panel.
 
 > [!good-to-know] What this changes, and how to undo it: moving a unit moves everyone's access with it on the next page load. Move it back the same way. A unit with troopers, reports or anything else attached cannot be deleted.
 

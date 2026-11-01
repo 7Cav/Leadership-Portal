@@ -108,7 +108,7 @@ describe('who is an Admin by billet', function () {
 
         // An org structure write, as any Admin's.
         $this->actingAs($this->chief)->post('/settings/org-structure', [
-            'type' => 'company', 'name' => 'Bravo Company', 'callsign' => 'B/1-7', 'parent_id' => $this->battalion->id,
+            'type' => 'company', 'ordinal' => 'B', 'parent_id' => $this->battalion->id,
         ])->assertRedirect(route('settings.org-structure'));
         expect(Unit::query()->where('callsign', 'B/1-7')->exists())->toBeTrue();
 
@@ -277,7 +277,7 @@ describe('act as and view as', function () {
             ->where('auth.user.is_admin', false));
         $this->actingAs($this->admin)->get('/settings/audit-log')->assertForbidden();
         $this->actingAs($this->admin)->post('/settings/org-structure', [
-            'type' => 'company', 'name' => 'Bravo Company', 'callsign' => 'B/1-7', 'parent_id' => $this->battalion->id,
+            'type' => 'company', 'ordinal' => 'B', 'parent_id' => $this->battalion->id,
         ])->assertForbidden();
 
         $plain = app(ActAs::class)->withoutAdmin($this->chief->fresh());

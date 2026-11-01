@@ -24,6 +24,8 @@ import EmptyState from '@/components/EmptyState.vue';
 import ReasonDialog from '@/components/ReasonDialog.vue';
 import { onHttpException } from '@/lib/httpError';
 import { ancestorIds, searchUnits } from '@/lib/orgSearch';
+import { ordinalOptions } from '@/lib/unitDesignation';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import OrgTreeNode from './OrgTreeNode.vue';
 
 // Flat units array with `path` (AD-18) — nested here for rendering; the server keeps the
@@ -432,11 +434,11 @@ const addTarget = computed(() => {
     return regiment ? { parent: regiment, type: 'battalion' } : { parent: null, type: 'regiment' };
 });
 
+// Only where the unit goes and which one it is: the server derives the name and callsign from these (CreateUnit).
 const form = useForm({
     type: 'battalion',
-    name: '',
-    callsign: '',
     parent_id: null,
+    ordinal: '',
 });
 
 watch(
@@ -444,11 +446,21 @@ watch(
     (target) => {
         form.type = target.type;
         form.parent_id = target.parent?.id ?? null;
+        form.ordinal = '';
     },
     { immediate: true },
 );
 
-// Add unit sits collapsed behind one button so it doesn't read as part of the selected unit's edit form.
+// The ordinals still free under the parent, gaps included; the regiment, as the root, has its one fixed designation.
+const addOptions = computed(() => ordinalOptions(addTarget.value.type, addTarget.value.parent, props.units));
+const addPreview = computed(() =>
+    addTarget.value.type === 'regiment'
+        ? { name: '7th Cavalry Regiment', callsign: '7CAV' }
+        : (addOptions.value.find((option) => option.value === form.ordinal) ?? null),
+);
+const addReady = computed(() => addPreview.value !== null);
+
+// Add unit opens in its own dialog so it never reads as part of the selected unit's edit form.
 const addOpen = ref(false);
 const addButtonLabel = computed(() =>
     addTarget.value.parent ? `Add a ${addTarget.value.type} under ${addTarget.value.parent.name}` : `Add a ${addTarget.value.type}`,
@@ -456,7 +468,7 @@ const addButtonLabel = computed(() =>
 
 function closeAdd() {
     addOpen.value = false;
-    form.reset('name', 'callsign');
+    form.ordinal = '';
     form.clearErrors();
 }
 
@@ -1297,42 +1309,62 @@ function confirmDelete() {
                 -->
                 <template v-if="isAdmin">
                     <Separator class="my-4" />
-                    <Button v-if="!addOpen" type="button" variant="outline" data-testid="add-unit-open" class="w-full" @click="addOpen = true">
+                    <Button type="button" variant="outline" data-testid="add-unit-open" class="w-full" @click="addOpen = true">
                         <PhPlus aria-hidden="true" />{{ addButtonLabel }}
                     </Button>
-                    <form v-else data-testid="add-unit-form" class="space-y-3 rounded-lg border border-border bg-muted/30 p-3" @submit.prevent="submitAdd">
-                        <h3 class="flex items-center gap-1.5 text-[13px] font-semibold"><PhPlus aria-hidden="true" />Add {{ form.type }}</h3>
-
-                        <!-- Where the new unit goes follows the selected unit; neither is picked here. -->
-                        <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[13px]" data-testid="add-placement">
-                            <dt class="text-muted-foreground">Echelon</dt>
-                            <dd class="capitalize" data-testid="add-type">{{ form.type }}</dd>
-                            <dt class="text-muted-foreground">Parent</dt>
-                            <dd data-testid="add-parent">{{ addTarget.parent ? addTarget.parent.name : 'None, this is the root' }}</dd>
-                        </dl>
-                        <p v-if="form.errors.type" class="text-xs text-destructive" data-testid="error-type">{{ form.errors.type }}</p>
-                        <p v-if="form.errors.parent_id" class="text-xs text-destructive" data-testid="error-parent_id">{{ form.errors.parent_id }}</p>
-
-                        <div class="grid gap-1.5">
-                            <Label for="add-name">Name</Label>
-                            <Input id="add-name" v-model="form.name" type="text" :aria-invalid="!!form.errors.name" />
-                            <p v-if="form.errors.name" class="text-xs text-destructive" data-testid="error-name">{{ form.errors.name }}</p>
-                        </div>
-
-                        <div class="grid gap-1.5">
-                            <Label for="add-callsign">Callsign</Label>
-                            <Input id="add-callsign" v-model="form.callsign" type="text" class="font-mono" :aria-invalid="!!form.errors.callsign" />
-                            <p v-if="form.errors.callsign" class="text-xs text-destructive" data-testid="error-callsign">{{ form.errors.callsign }}</p>
-                        </div>
-
-                        <div class="flex justify-end gap-2">
-                            <Button type="button" variant="ghost" data-testid="add-unit-cancel" @click="closeAdd">Cancel</Button>
-                            <Button type="submit" data-testid="add-unit-save" :disabled="form.processing">Save unit</Button>
-                        </div>
-                    </form>
                 </template>
             </Card>
         </div>
+
+        <!-- Add unit: its own dialog, apart from the details panel where the selected unit is edited. -->
+        <Dialog v-if="isAdmin" :open="addOpen" @update:open="(open) => !open && !form.processing && closeAdd()">
+            <DialogContent class="sm:max-w-md" data-testid="add-unit-dialog">
+                <DialogHeader>
+                    <DialogTitle>Add a unit</DialogTitle>
+                    <DialogDescription>The name and callsign follow from the parent and the number you pick.</DialogDescription>
+                </DialogHeader>
+                <form data-testid="add-unit-form" class="space-y-4" @submit.prevent="submitAdd">
+                    <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[13px]" data-testid="add-placement">
+                        <dt class="text-muted-foreground">Echelon</dt>
+                        <dd class="capitalize" data-testid="add-type">{{ form.type }}</dd>
+                        <dt class="text-muted-foreground">Parent</dt>
+                        <dd data-testid="add-parent">{{ addTarget.parent ? addTarget.parent.name : 'None, this is the root' }}</dd>
+                    </dl>
+                    <p v-if="form.errors.type" class="text-xs text-destructive" data-testid="error-type">{{ form.errors.type }}</p>
+                    <p v-if="form.errors.parent_id" class="text-xs text-destructive" data-testid="error-parent_id">{{ form.errors.parent_id }}</p>
+
+                    <div v-if="form.type !== 'regiment'" class="grid gap-1.5">
+                        <Label for="add-ordinal" class="capitalize">{{ form.type }}</Label>
+                        <NativeSelect
+                            id="add-ordinal"
+                            v-model="form.ordinal"
+                            data-testid="add-ordinal"
+                            :disabled="addOptions.length === 0"
+                            :aria-invalid="!!form.errors.ordinal"
+                        >
+                            <option value="" disabled>{{ addOptions.length ? `Choose a ${form.type}` : 'None free' }}</option>
+                            <option v-for="option in addOptions" :key="option.value" :value="option.value">{{ option.name }}</option>
+                        </NativeSelect>
+                        <p v-if="addOptions.length === 0" class="text-xs text-muted-foreground" data-testid="add-ordinal-none">
+                            {{ addTarget.parent?.callsign ? `Every ${form.type} this parent can hold is already there.` : 'The parent has no callsign to build on. Give it one first.' }}
+                        </p>
+                        <p v-if="form.errors.ordinal" class="text-xs text-destructive" data-testid="error-ordinal">{{ form.errors.ordinal }}</p>
+                    </div>
+
+                    <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-md bg-muted/50 px-3 py-2 text-[13px]" data-testid="add-result">
+                        <dt class="text-muted-foreground">Name</dt>
+                        <dd data-testid="add-name">{{ addPreview?.name ?? 'Pick one above' }}</dd>
+                        <dt class="text-muted-foreground">Callsign</dt>
+                        <dd class="font-mono" data-testid="add-callsign">{{ addPreview?.callsign ?? '' }}</dd>
+                    </dl>
+
+                    <DialogFooter class="flex-row justify-end gap-2">
+                        <Button type="button" variant="ghost" data-testid="add-unit-cancel" @click="closeAdd">Cancel</Button>
+                        <Button type="submit" data-testid="add-unit-save" :disabled="form.processing || !addReady">Add unit</Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
 
         <ReasonDialog
             :open="deleting !== null"

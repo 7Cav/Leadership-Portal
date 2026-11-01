@@ -11,6 +11,7 @@ use App\Commands\Units\DeleteUnit;
 use App\Commands\Units\ImportOrgStructure;
 use App\Commands\Units\InvalidActingLeadException;
 use App\Commands\Units\InvalidUnitGameException;
+use App\Commands\Units\InvalidUnitOrdinalException;
 use App\Commands\Units\InvalidUnitOversightException;
 use App\Commands\Units\InvalidUnitPlacementException;
 use App\Commands\Units\OrgStructureImportFailedException;
@@ -260,26 +261,32 @@ class OrgStructureController extends Controller
             abort(403, 'Only an Admin may change the org structure.');
         }
 
+        // Only where the unit goes and which one it is: the server derives the name and callsign (CreateUnit), so a
+        // request cannot hand it an arbitrary callsign. A name is read for a group only, which has no rule for one.
         $data = $request->validate([
             'type' => ['required', Rule::enum(UnitType::class)],
-            'name' => ['required', 'string', 'max:255'],
-            'callsign' => ['nullable', 'string', 'max:255'],
             'parent_id' => ['nullable', 'integer', 'exists:units,id'],
-        ], self::UNIT_MESSAGES);
+            'ordinal' => ['nullable', 'regex:/^([1-9]|[A-Za-z])$/'],
+            'name' => ['nullable', 'string', 'max:255'],
+        ], self::UNIT_MESSAGES + ['ordinal.regex' => 'Pick which unit this is from the list.']);
+
+        $type = UnitType::from($data['type']);
 
         try {
             $command->handle(
                 $request->user(),
-                UnitType::from($data['type']),
-                $data['name'],
-                $data['callsign'] ?? null,
+                $type,
                 $data['parent_id'] ?? null,
+                isset($data['ordinal']) ? (string) $data['ordinal'] : null,
+                $type === UnitType::Group ? ($data['name'] ?? null) : null,
             );
         } catch (InvalidUnitPlacementException $e) {
             // Echelon ordering is a domain rule the request-shape validation above can't
             // express (it needs the parent's own type) — surfaced as a form error on `type`
             // rather than a 500, so the Inertia form's `errors.type` renders it.
             throw ValidationException::withMessages(['type' => $e->getMessage()]);
+        } catch (InvalidUnitOrdinalException $e) {
+            throw ValidationException::withMessages([$type === UnitType::Group ? 'name' : 'ordinal' => $e->getMessage()]);
         }
 
         return redirect()->route('settings.org-structure');

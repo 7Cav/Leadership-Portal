@@ -1,6 +1,6 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { reactive } from 'vue';
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import OrgStructure from '../OrgStructure.vue';
 
 // The game a unit plays on the org page: a unit with no game above it picks it from the Games list, every unit under it
@@ -53,6 +53,7 @@ function mountPage(props = {}, units = UNITS) {
 afterEach(() => {
     vi.clearAllMocks();
     gameForm = null;
+    document.body.innerHTML = '';
 });
 
 describe('Settings/OrgStructure unit game', () => {
@@ -184,10 +185,11 @@ describe('Settings/OrgStructure add unit placement', () => {
     it('adds a battalion under the regiment with nothing selected, the parent shown read-only', async () => {
         const wrapper = mountPage({ isAdmin: true });
         await wrapper.find('[data-testid="add-unit-open"]').trigger('click');
+        await flushPromises();
 
-        expect(wrapper.find('[data-testid="add-parent"]').text()).toBe('7th Cavalry Regiment');
-        expect(wrapper.find('[data-testid="add-type"]').text()).toBe('battalion');
-        expect(wrapper.find('#add-parent').exists()).toBe(false);
+        expect(document.body.querySelector('[data-testid="add-parent"]').textContent).toBe('7th Cavalry Regiment');
+        expect(document.body.querySelector('[data-testid="add-type"]').textContent).toBe('battalion');
+        expect(document.body.querySelector('#add-parent')).toBeNull();
         expect(wrapper.vm.form.parent_id).toBe(1);
     });
 
@@ -196,8 +198,9 @@ describe('Settings/OrgStructure add unit placement', () => {
 
         await wrapper.find('[data-testid="unit-row-6"]').trigger('click');
         await wrapper.find('[data-testid="add-unit-open"]').trigger('click');
+        await flushPromises();
 
-        expect(wrapper.find('[data-testid="add-parent"]').text()).toBe('Alpha Company');
+        expect(document.body.querySelector('[data-testid="add-parent"]').textContent).toBe('Alpha Company');
         expect(wrapper.vm.form.type).toBe('platoon');
         expect(wrapper.vm.form.parent_id).toBe(6);
     });
@@ -209,5 +212,59 @@ describe('Settings/OrgStructure add unit placement', () => {
 
         expect(wrapper.vm.form.type).toBe('battalion');
         expect(wrapper.vm.form.parent_id).toBe(1);
+    });
+});
+
+describe('Settings/OrgStructure add unit dialog', () => {
+    const body = (testid) => document.body.querySelector(`[data-testid="${testid}"]`);
+
+    async function openFor(rowId) {
+        const wrapper = mountPage({ isAdmin: true });
+        if (rowId) await wrapper.find(`[data-testid="unit-row-${rowId}"]`).trigger('click');
+        await wrapper.find('[data-testid="add-unit-open"]').trigger('click');
+        await flushPromises();
+        return wrapper;
+    }
+
+    it('puts the echelon first, the parent right under it, then the pick', async () => {
+        await openFor(6);
+        const html = body('add-unit-dialog').innerHTML;
+
+        expect(html.indexOf('data-testid="add-type"')).toBeLessThan(html.indexOf('data-testid="add-parent"'));
+        expect(html.indexOf('data-testid="add-parent"')).toBeLessThan(html.indexOf('data-testid="add-ordinal"'));
+    });
+
+    it('offers only the ordinals still free under the parent, gaps included', async () => {
+        await openFor(1);
+        const names = [...body('add-ordinal').querySelectorAll('option:not([disabled])')].map((option) => option.textContent);
+
+        // 1st, 2nd and 3rd Battalion exist under the regiment.
+        expect(names[0]).toBe('4th Battalion');
+        expect(names).not.toContain('2nd Battalion');
+        expect(names).toHaveLength(6);
+    });
+
+    it('shows the derived name and callsign read-only, with no free text for either', async () => {
+        const wrapper = await openFor(2);
+        expect(body('add-unit-save').disabled).toBe(true);
+
+        wrapper.vm.form.ordinal = '2';
+        await flushPromises();
+
+        expect(body('add-name').textContent).toBe('2nd Section');
+        expect(body('add-callsign').textContent).toBe('2/2/A/2-7');
+        expect(body('add-unit-dialog').querySelectorAll('input')).toHaveLength(0);
+        expect(body('add-unit-save').disabled).toBe(false);
+    });
+
+    it('sends only the echelon, parent and pick', async () => {
+        const wrapper = await openFor(6);
+        wrapper.vm.form.ordinal = '1';
+        await flushPromises();
+
+        expect(Object.keys(wrapper.vm.form).filter((key) => ['type', 'parent_id', 'ordinal', 'name', 'callsign'].includes(key)).sort())
+            .toEqual(['ordinal', 'parent_id', 'type']);
+        expect(wrapper.vm.form.type).toBe('platoon');
+        expect(wrapper.vm.form.parent_id).toBe(6);
     });
 });
