@@ -91,11 +91,12 @@ Your scope's units and troopers, from the cached Cav roster.
   corner to corner, the text top left and bottom right), top and bottom (two colors split across the middle, like the
   wiki's Regimental HQ and 3-7 HQ guidons, each text left or centered on its half), quartered (four quarters like a
   checkerboard, the first color top left and bottom right, the top text in the top left quarter and the bottom text in
-  the bottom right one, left or centered) and solid (one color). A guidon saved in the dropped band format draws as top
+  the bottom right one, left or centered) and solid (one color). The top and bottom text always share one letter height. A guidon saved in the dropped band format draws as top
   and bottom. An optional
-  large character (one or two letters or digits, like the 7 on the wiki's Reserve guidon) runs about three quarters of
-  the flag's height at the hoist in the opposite color of each half, and the texts start just right of it, left aligned
-  at the same x, and take the opposite color too (on the quartered format it fills the left quarters and the texts
+  large character (one or two letters or digits, like the 7 on the wiki's Reserve guidon) runs about two thirds of
+  the flag's height at the hoist in the opposite color of each half, and the texts start about a third of the way
+  across (further right after a wide character, never closer than a clear gap), on one ink left edge or one center
+  line when both are a single character, and take the opposite color too (on the quartered format it fills the left quarters and the texts
   move to the right ones). Without one, text also takes the other color unless the two colors are too alike to tell apart, black or white otherwise and on a solid guidon. Switching format keeps the colors and
   text. The text starts as the battalion and the 7 on the top left ("2/7") and the company letter on the bottom right
   ("A"). The generator warns when the two colors are too close in a two color format. Every guidon saved before
