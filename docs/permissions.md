@@ -225,6 +225,7 @@ their own plan unless they also command the company.
 | --- | --- | --- | --- |
 | Org structure: add a unit (13) | Yes | Regimental HQ staff below the regiment; a leader or overseer inside the unit they command or oversee and at least two echelons below it (13) | No |
 | Org structure: rename or move a unit, delete an empty unit | Yes | No | No |
+| Org structure: undo adding a unit | Yes (Admins delete instead) | The person who added it, within 60 minutes, while it is still empty and they could still add it there | No |
 | Org structure: Import from Cav roster | Yes | No | No |
 | Org structure: place a trooper the sync could not place | Yes | No | No |
 | Org structure: set or clear the game a unit plays (from the Games list, not a retired game; only while no unit above has one) (12) | Yes | Regimental HQ staff on any unit; an overseer on the units they oversee and those under them; DEVCOM's 1IC and 2IC on DEVCOM and the units under it (12) | No |
@@ -265,6 +266,13 @@ only. A section or platoon leader cannot
 add units. The parent must sit inside that unit. The unit's name and callsign are derived from the parent and the
 picked number or letter, never typed. Anyone else gets a 403 and sees no Add unit button. Every add is in the audit
 log. Act as may add as the person acted as would (an Admin acting as a Chief of Staff who is Regimental HQ staff may add a battalion); view as is read only. The row add tool in the tree shows wherever the viewer may add.
+
+Undo add: the person who added a unit may delete it again for 60 minutes after adding it, while it is still empty
+(no troopers placed in it now or before, no units under it, no nickname, game, guidon, practice slot, oversight, acting
+lead or anything else attached, and no audited change since it was added) and while they could still add it there. The
+server checks all of it on the delete; otherwise it answers 403, or "You can undo this for 60 minutes after adding it,
+while it is still empty." when something is attached. The delete is audited as `unit.deleted` with the reason "Undo of
+an add". Admins delete any empty unit as before. Act as may undo what the person acted as added; view as is read only.
 
 ### Game identities and syncs
 
