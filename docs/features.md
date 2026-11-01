@@ -186,7 +186,11 @@ On the same page:
   linking to its roll call. The section's roll call shows the same warning to everyone who opens it, with a button
   that opens the slot editor for those who can change it. The roster shows a banner for the viewed unit and a warning
   icon on each section row without a slot, for leaders. Groups (ELOA, Reservists, New Recruits, staff departments)
-  are left out. The warning cannot be dismissed and goes away once a slot is set.
+  are left out. The warning cannot be dismissed and goes away once a slot is set. Each section says whether its game is
+  read automatically, decided the way the capture decides it can read a game (`CaptureSources::isConfigured()`: an
+  interface other than none and a training server, or the legacy env server, with credentials). For a game that is
+  not, attendance is marked by hand, so the warning leaves out the line about captures and make-ups (Home and the
+  roster when no listed section's game is read; the roll call for its own section).
 - Capture review: when game-server data was captured for the practice, marks it made show their source, and the leader
   can confirm the practice ("Confirmed by ..."). Editing a mark by hand afterwards clears the confirmation.
   On a CRCON server selected on the Servers page, a player counts as present when they were connected to that server
@@ -375,7 +379,16 @@ Missing identity alert: a trooper counts as missing when they have no identity o
 or inherited, not retired), whatever ID kind; departed troopers, troopers placed on groups and units with no game are
 left out. A leader (synced billet, acting lead or Admin; view as shows the target's) sees a top-of-page warning on Home
 for their scope, naming the troopers by game. The section's roll call and the roster show the same warning at the top
-and an icon on each affected row. Not dismissible; read-only, with a fixed number of queries.
+and an icon on each affected row. Not dismissible; read-only, with a fixed number of queries. Each game in the warning
+says whether its server is read automatically (the same `CaptureSources::isConfigured()` check the capture makes); for
+a game marked by hand the line about the game server is left out for that game, the rest of the warning stays.
+
+Above battalion level: Home leaves out both leader warnings (missing identities, no practice slot) for a leader whose
+commands hold no battalion or unit below one, such as the regiment or Regimental HQ and its staff departments. The
+units are the ones the active view as anchors to (the topmost units of its scope; a previewed Admin counts as above),
+else the leader's own commands (billet, acting lead, or the billet held while acting as someone). An Admin with no
+command of their own does not see them unless viewing or acting as someone at battalion level or below. The roll call
+and roster banners are about the page's own unit and stay.
 
 The ID is checked against the shape of its kind when it is saved: a Steam ID is 17 digits starting 7656119, an Epic ID
 32 characters of 0 to 9 and a to f (stored lower case, as the game server reports it). Other kinds, such as Xbox ID or
