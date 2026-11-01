@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
-import { nextTick } from 'vue';
+import { nextTick, reactive } from 'vue';
 import StaffGrants from '../StaffGrants.vue';
 
 const grantSubmit = vi.fn();
@@ -8,13 +8,15 @@ const toastError = vi.fn();
 vi.mock('vue-sonner', () => ({ toast: { error: (...a) => toastError(...a) } }));
 let deleteSpy = vi.fn();
 let postSpy = vi.fn();
+let patchSpy = vi.fn();
 let grantFormState = { user_id: null, unit_id: null, reason: '', processing: false, errors: {} };
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
+    // The form is reactive like the real one, so a field change re-renders what depends on it.
     ...(await importOriginal()),
     Head: { template: '<head></head>' },
     router: { delete: (...args) => deleteSpy(...args), post: (...args) => postSpy(...args) },
-    useForm: () => ({ ...grantFormState, post: grantSubmit, reset: vi.fn() }),
+    useForm: (initial) => reactive({ ...initial, ...grantFormState, post: grantSubmit, patch: (...a) => patchSpy(...a), reset: vi.fn(), clearErrors: vi.fn() }),
 }));
 
 const UNITS = [
@@ -521,6 +523,54 @@ describe('Settings/StaffGrants', () => {
 
             const leader = mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, adminBillets: BILLETS, isAdmin: false } });
             expect(leader.find('[data-testid="admin-billets"]').exists()).toBe(false);
+        });
+    });
+    describe('end dates', () => {
+        const DATED = [
+            { ...GRANTS[0], id: 101, mode: 'ends', expires_at: '2099-11-30T23:59:59Z', renew_every_days: null, past_end: false },
+            { ...GRANTS[0], id: 102, mode: 'renew', expires_at: '2026-10-31T23:59:59Z', renew_every_days: 30, past_end: true },
+        ];
+
+        it('shows each grant status and lists a lapsed one first', () => {
+            const wrapper = mount(StaffGrants, { props: { grants: [...GRANTS, ...DATED], units: UNITS, users: USERS, isAdmin: false } });
+
+            expect(wrapper.find('[data-testid="grant-status-101"]').text()).toBe('Ends 30NOV99');
+            expect(wrapper.find('[data-testid="grant-status-102"]').text()).toBe('Lapsed since 31OCT26, renew to restore');
+            expect(wrapper.find('[data-testid="grant-status-100"]').text()).toBe('None');
+            expect(wrapper.findAll('tbody tr')[0].attributes('data-testid')).toBe('grant-row-102');
+            expect(wrapper.find('[data-testid="renew-102"]').exists()).toBe(false);
+        });
+
+        it('offers quick picks for the end date only once a mode is chosen', async () => {
+            const wrapper = mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, isAdmin: true } });
+            expect(wrapper.find('[data-testid="grant-date"]').exists()).toBe(false);
+
+            await wrapper.find('[data-testid="grant-mode"]').setValue('renew');
+            expect(wrapper.find('[data-testid="grant-preset-30"]').exists()).toBe(true);
+            await wrapper.find('[data-testid="grant-preset-7"]').trigger('click');
+            expect(wrapper.find('[data-testid="grant-hint"]').text()).toMatch(/^Stops working after 23 59Z on \d{2}[A-Z]{3}\d{2} until someone renews it\.$/);
+        });
+
+        it('renews a lapsing grant with a reason', async () => {
+            postSpy = vi.fn();
+            const wrapper = attached({ grants: DATED, units: UNITS, users: USERS, isAdmin: true });
+
+            await open(wrapper, 'renew-102');
+            expect(dialog().textContent).toContain('It moves on by 30 days from today and works again at once.');
+            await typeReason('still on staff');
+            await confirmDialog();
+            expect(postSpy.mock.calls[0][0]).toBe('/settings/staff-grants/102/renew');
+            expect(postSpy.mock.calls[0][1]).toEqual({ reason: 'still on staff' });
+            wrapper.unmount();
+        });
+
+        it('edits an end date in the side card', async () => {
+            const wrapper = mount(StaffGrants, { props: { grants: DATED, units: UNITS, users: USERS, isAdmin: true } });
+
+            await wrapper.find('[data-testid="edit-101"]').trigger('click');
+            expect(wrapper.find('[data-testid="edit-form"]').text()).toContain('End date for jsmith at 2nd Battalion');
+            await wrapper.find('[data-testid="edit-form"]').trigger('submit');
+            expect(patchSpy.mock.calls[0][0]).toBe('/settings/staff-grants/101');
         });
     });
 });

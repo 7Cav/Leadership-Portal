@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { PhKey, PhLockSimple, PhPlus } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,8 @@ import ReasonDialog from '@/components/ReasonDialog.vue';
 import { toast } from 'vue-sonner';
 import { onHttpException } from '@/lib/httpError';
 import { forumDate } from '@/lib/forumDate';
+import { grantStatus, sortGrants } from '@/lib/grantExpiry';
+import GrantExpiryFields from '@/components/settings/GrantExpiryFields.vue';
 
 // Flat grants/units/users lists (mirrors `OrgStructure.vue`'s flat-props pattern) — the target
 // user and node pickers are plain `<select>`s (no roster/Trooper model exists yet for a live
@@ -39,8 +41,48 @@ const props = defineProps({
 const form = useForm({
     user_id: null,
     unit_id: null,
+    mode: 'none',
+    ends_on: null,
     reason: '',
 });
+
+// Grants lapsing or ending within a week, or already past their date, come first.
+const sortedGrants = computed(() => sortGrants(props.grants));
+
+// The grant whose end date is being edited in the side card, or null for the grant form.
+const editing = ref(null);
+const editForm = useForm({ mode: 'none', ends_on: null, reason: '' });
+
+function startEdit(grant) {
+    editing.value = grant;
+    editForm.clearErrors();
+    editForm.mode = grant.mode;
+    editForm.ends_on = grant.expires_at ? grant.expires_at.slice(0, 10) : null;
+    editForm.reason = '';
+}
+
+function submitEdit() {
+    editForm.patch(`/settings/staff-grants/${editing.value.id}`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            editing.value = null;
+            editForm.reset();
+        },
+        onHttpException: onHttpException('The end date was not saved', (message) => toast.error(message)),
+    });
+}
+
+function requestRenew(grant) {
+    openDialog({
+        title: `Renew ${grant.username}'s grant at ${grant.unit_label}?`,
+        description: `It moves on by ${grant.renew_every_days} ${grant.renew_every_days === 1 ? 'day' : 'days'}${grant.past_end ? ' from today and works again at once' : ''}. To pick another date, edit the end date instead.`,
+        confirmLabel: 'Renew grant',
+        pendingLabel: 'Renewing',
+        failed: 'The grant was not renewed',
+        send: (reason, options) => router.post(`/settings/staff-grants/${grant.id}/renew`, { reason }, options),
+        fieldError: (errors) => errors.ends_on ?? errors.reason,
+    });
+}
 
 function submitGrant() {
     form.post('/settings/staff-grants', {
@@ -166,11 +208,12 @@ function confirmDialog(reason) {
                         <TableRow class="hover:bg-transparent">
                             <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">User</TableHead>
                             <TableHead class="h-8 text-xs font-medium text-muted-foreground">Unit</TableHead>
+                            <TableHead class="h-8 text-xs font-medium text-muted-foreground">End date</TableHead>
                             <TableHead class="h-8 px-4"><span class="sr-only">Actions</span></TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-for="grant in grants" :key="grant.id" :data-testid="`grant-row-${grant.id}`">
+                        <TableRow v-for="grant in sortedGrants" :key="grant.id" :data-testid="`grant-row-${grant.id}`">
                             <TableCell class="px-4 font-medium">
                                 <span class="flex flex-wrap items-center gap-1.5">
                                     {{ grant.username }}
@@ -187,7 +230,23 @@ function confirmDialog(reason) {
                                 </span>
                             </TableCell>
                             <TableCell><Badge variant="outline">{{ grant.unit_label }}</Badge></TableCell>
-                            <TableCell class="px-4 text-right">
+                            <TableCell :data-testid="`grant-status-${grant.id}`">
+                                <Badge v-if="grantStatus(grant).label" :variant="grantStatus(grant).tone">{{ grantStatus(grant).label }}</Badge>
+                                <span v-else class="text-xs text-muted-foreground">None</span>
+                            </TableCell>
+                            <TableCell class="px-4 text-right whitespace-nowrap">
+                                <Button
+                                    v-if="isAdmin && grant.mode === 'renew'"
+                                    variant="ghost"
+                                    size="sm"
+                                    :data-testid="`renew-${grant.id}`"
+                                    @click="requestRenew(grant)"
+                                >
+                                    Renew
+                                </Button>
+                                <Button v-if="isAdmin" variant="ghost" size="sm" :data-testid="`edit-${grant.id}`" @click="startEdit(grant)">
+                                    End date
+                                </Button>
                                 <Button
                                     v-if="isAdmin"
                                     variant="ghost"
@@ -207,7 +266,26 @@ function confirmDialog(reason) {
                 </EmptyState>
             </Card>
 
-            <Card v-if="isAdmin" class="min-w-0 gap-0 p-4">
+            <Card v-if="isAdmin && editing" class="min-w-0 gap-0 p-4">
+                <form data-testid="edit-form" class="space-y-3" @submit.prevent="submitEdit">
+                    <h2 class="text-[15px] font-semibold">End date for {{ editing.username }} at {{ editing.unit_label }}</h2>
+
+                    <GrantExpiryFields v-model:mode="editForm.mode" v-model:ends-on="editForm.ends_on" id-prefix="edit" :errors="editForm.errors" />
+
+                    <div class="grid gap-1.5">
+                        <Label for="edit-reason">Reason</Label>
+                        <Textarea id="edit-reason" v-model="editForm.reason" data-testid="edit-reason" rows="2" :aria-invalid="!!editForm.errors.reason" />
+                        <p v-if="editForm.errors.reason" class="text-xs text-destructive">{{ editForm.errors.reason }}</p>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <Button type="submit" data-testid="submit-edit" :disabled="editForm.processing">Save end date</Button>
+                        <Button type="button" variant="ghost" data-testid="cancel-edit" @click="editing = null">Cancel</Button>
+                    </div>
+                </form>
+            </Card>
+
+            <Card v-else-if="isAdmin" class="min-w-0 gap-0 p-4">
                 <form data-testid="grant-form" class="space-y-3" @submit.prevent="submitGrant">
                     <h2 class="flex items-center gap-1.5 text-[15px] font-semibold"><PhPlus aria-hidden="true" />Grant scope</h2>
 
@@ -228,6 +306,8 @@ function confirmDialog(reason) {
                         </NativeSelect>
                         <p v-if="form.errors.unit_id" class="text-xs text-destructive" data-testid="error-unit_id">{{ form.errors.unit_id }}</p>
                     </div>
+
+                    <GrantExpiryFields v-model:mode="form.mode" v-model:ends-on="form.ends_on" id-prefix="grant" :errors="form.errors" />
 
                     <div class="grid gap-1.5">
                         <Label for="grant-reason">Reason</Label>
