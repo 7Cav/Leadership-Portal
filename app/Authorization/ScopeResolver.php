@@ -2,7 +2,6 @@
 
 namespace App\Authorization;
 
-use App\Commands\Units\CommandBillet;
 use App\Models\AdminBillet;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
@@ -610,10 +609,13 @@ class ScopeResolver
         return false;
     }
 
+    /** DEVCOM's command billets, the same as `CommandBillet`'s, which Authorization may not depend on. */
+    private const DEVCOM_COMMAND_TITLES = ['DEVCOM 1IC', 'DEVCOM 2IC'];
+
     /**
      * The units whose games, and those of every unit under them, `$user` may set short of being an Admin or Regimental
      * HQ staff: each unit they oversee while serving (Org structure's "Oversight"), and DEVCOM for the serving holder
-     * of a DEVCOM command billet (`DEVCOM 1IC`, `DEVCOM 2IC`, {@see CommandBillet::devcomCommand()}), the unit that
+     * of a DEVCOM command billet (`DEVCOM 1IC`, `DEVCOM 2IC`, the same titles as `CommandBillet::devcomCommand()`), the unit that
      * billet commands. Empty for everyone else.
      *
      * @return Collection<int, Unit>
@@ -623,7 +625,7 @@ class ScopeResolver
         $units = $this->oversights->unitsOverseenBy($user)->values();
 
         $trooper = $user->cav_id === null ? null : $this->troopers->byCavId([(int) $user->cav_id])->get((int) $user->cav_id);
-        if (($trooper?->status?->isServing() ?? false) && CommandBillet::devcomCommand((string) $trooper->billet) !== null) {
+        if (($trooper?->status?->isServing() ?? false) && in_array(trim((string) $trooper->billet), self::DEVCOM_COMMAND_TITLES, true)) {
             $devcom = $this->commands->commandedUnitFor($user);
             if ($devcom !== null) {
                 $units->push($devcom);
