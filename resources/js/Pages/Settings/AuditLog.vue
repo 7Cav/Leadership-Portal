@@ -14,7 +14,8 @@ import { forumDateTime } from '@/lib/forumDate';
 
 // Flat entries + option lists (mirrors `StaffGrants.vue`'s flat-props pattern). `entries` is a
 // Laravel paginator serialized as-is — `data` plus the standard pagination metadata — so no
-// reshaping happens here. Each entry's `link` (`{ href, label }`, or null) is where to see what it changed, resolved
+// reshaping happens here. Each entry's `subject` (or null) names what it is about, `changes` (`[{ field, from, to }]`) lists
+// what it changed, and `link` (`{ href, label }`, or null) is where to see it, all resolved
 // by the server for the whole page at once.
 const props = defineProps({
     entries: { type: Object, required: true },
@@ -150,11 +151,18 @@ function goTo(url) {
                             </span>
                         </TableCell>
                         <TableCell class="font-mono text-xs">{{ entry.action }}</TableCell>
-                        <TableCell class="text-xs">
+                        <TableCell class="max-w-[48ch] whitespace-normal text-xs">
+                            <div v-if="entry.subject" class="font-medium text-foreground" :data-testid="`subject-${entry.id}`">{{ entry.subject }}</div>
+                            <ul v-if="entry.changes?.length" class="mt-0.5 space-y-0.5 text-muted-foreground" :data-testid="`changes-${entry.id}`">
+                                <li v-for="(change, index) in entry.changes" :key="index">
+                                    {{ change.field }}<template v-if="change.from !== null || change.to !== null">: {{ change.from ?? 'none' }} → {{ change.to ?? 'none' }}</template>
+                                </li>
+                            </ul>
                             <Link
                                 v-if="entry.link"
                                 :href="entry.link.href"
-                                class="font-medium text-foreground underline underline-offset-2 hover:decoration-2"
+                                class="mt-0.5 inline-block text-foreground underline underline-offset-2 hover:decoration-2"
+                                :class="{ 'font-medium': !entry.subject }"
                                 :data-testid="`target-link-${entry.id}`"
                                 >{{ entry.link.label }}</Link
                             >
