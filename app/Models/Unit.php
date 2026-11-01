@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\CarbonImmutable;
 use Database\Factories\UnitFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -26,6 +27,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * a unit without one plays the game of the nearest unit above it that has one
  * (worked out by `UnitGame` in the repository layer). Not mass-assigned. `lead_position_id` is the billet whose holder
  * leads a regimental staff portfolio the import made (shown as its lead, or vacant); written by the import only.
+ * `created_by` is the user who added the unit by hand, who may undo the add for {@see UNDO_ADD_MINUTES} minutes while it
+ * is still empty; null for the import's units. Not mass-assigned.
  */
 #[Fillable(['type', 'name', 'callsign', 'label'])]
 class Unit extends Model
@@ -33,14 +36,30 @@ class Unit extends Model
     /** @use HasFactory<UnitFactory> */
     use HasFactory;
 
+    /** How long after adding a unit its creator may undo the add. */
+    public const UNDO_ADD_MINUTES = 60;
+
     protected function casts(): array
     {
         return [
+            'created_by' => 'integer',
             'type' => UnitType::class,
             'kind' => UnitKind::class,
             'lead_position_id' => 'integer',
             'game_id' => 'integer',
         ];
+    }
+
+    /** Until when `$user` may undo adding this unit: null when they did not add it, or the hour is over. */
+    public function undoAddUntil(User $user): ?CarbonImmutable
+    {
+        if ($this->created_by === null || $this->created_by !== $user->id || $this->created_at === null) {
+            return null;
+        }
+
+        $until = CarbonImmutable::parse($this->created_at)->addMinutes(self::UNDO_ADD_MINUTES);
+
+        return $until->isFuture() ? $until : null;
     }
 
     /**

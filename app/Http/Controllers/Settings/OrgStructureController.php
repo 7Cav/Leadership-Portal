@@ -145,6 +145,15 @@ class OrgStructureController extends Controller
                 ->contains(fn (Unit $at) => $addRoots->has($at->id) && $addRoots->get($at->id) <= $below->rank() - 2);
         };
 
+        $realAdmin = $scope->isAdmin($viewer);
+        $undoUntil = function (Unit $unit) use ($previewing, $realAdmin, $viewer, $byId, $byUnit, $tree, $mayAddUnder) {
+            $until = $previewing || $realAdmin ? null : $unit->undoAddUntil($viewer);
+            $parent = $byId->get($unit->parent_id);
+
+            return $until !== null && $parent !== null && $mayAddUnder($parent)
+                && $byUnit->get($unit->id, 0) === 0 && ! $tree->contains('parent_id', $unit->id) ? $until : null;
+        };
+
         $units = $tree->map(fn (Unit $unit) => [
             'id' => $unit->id,
             'parent_id' => $unit->parent_id,
@@ -165,6 +174,10 @@ class OrgStructureController extends Controller
             'can_set_game' => $mayGame($unit),
             // Whether the viewer may add a unit one echelon below this one (Add unit), by the same rule `store` applies.
             'can_add_child' => $mayAddUnder($unit),
+            // Until when the viewer may undo adding this unit (Undo add), by the rule `destroy` applies: their own add,
+            // under the hour, still empty, where they may still add it. Null for an Admin, who deletes instead, and
+            // while previewing. Whether nothing else happened in it is checked on the undo itself.
+            'undo_add_until' => $undoUntil($unit)?->toIso8601String(),
             // The unit's saved guidon (#446), drawn next to its name; null when it has none.
             'guidon' => $guidonOf->get($unit->id)?->design(),
             'path' => $unit->path,
@@ -486,10 +499,28 @@ class OrgStructureController extends Controller
     }
 
     /**
-     * Remove a node (AC #4). Refused, not a raw DB constraint error, when children remain.
+     * Remove a node (AC #4). Refused, not a raw DB constraint error, when children remain. An Admin removes any unit;
+     * the leader who added one may undo the add within the hour while it is still empty.
      */
     public function destroy(Request $request, int $unit, DeleteUnit $command): RedirectResponse
     {
+        // Anyone but an Admin may only undo adding a unit: their own add, within the hour, where they could still add it
+        // (ScopeResolver::mayUndoAddUnit), and only while it is empty (DeleteUnit, under its lock).
+        if (! $this->scope->isAdmin($request->user())) {
+            $found = $this->units->find($unit);
+            if ($found === null || ! $this->scope->mayUndoAddUnit($request->user(), $found)) {
+                abort(403, UnitHasDependentsException::UNDO_WINDOW);
+            }
+
+            try {
+                $command->handle($request->user(), $found, undoAdd: true);
+            } catch (UnitHasDependentsException) {
+                throw ValidationException::withMessages(['delete' => UnitHasDependentsException::UNDO_WINDOW]);
+            }
+
+            return redirect()->route('settings.org-structure');
+        }
+
         $unit = $this->adminUnit($request, $unit);
 
         try {

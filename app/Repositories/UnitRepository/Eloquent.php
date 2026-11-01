@@ -18,13 +18,27 @@ use Illuminate\Support\Facades\DB;
 
 class Eloquent implements UnitRepository
 {
+    /** Tables whose rows keep or record something about a unit and would go with it, for {@see hasHistory()}. */
+    private const HISTORY_TABLES = [
+        'trooper_placements' => 'unit_id',
+        'unit_guidons' => 'unit_id',
+        'section_practice_slots' => 'section_id',
+        'unit_oversights' => 'unit_id',
+        'unit_acting_leads' => 'unit_id',
+        'fireteam_assignments' => 'section_id',
+        'fireteam_settings' => 'unit_id',
+        'unit_template_choices' => 'unit_id',
+        'battalion_settings' => 'unit_id',
+        'staff_reports' => 'unit_id',
+    ];
+
     public function __construct(
         private readonly TrooperPlacementRepository $placements,
     ) {}
 
-    public function create(UnitType $type, string $name, ?string $callsign, ?int $parentId, UnitKind $kind = UnitKind::Line): Unit
+    public function create(UnitType $type, string $name, ?string $callsign, ?int $parentId, UnitKind $kind = UnitKind::Line, ?int $createdBy = null): Unit
     {
-        return DB::transaction(function () use ($type, $name, $callsign, $parentId, $kind) {
+        return DB::transaction(function () use ($type, $name, $callsign, $parentId, $kind, $createdBy) {
             $parentPath = $parentId !== null ? Unit::whereKey($parentId)->value('path') : '';
 
             // `forceFill`, not `create`: `parent_id` and `path` are deliberately outside
@@ -38,6 +52,7 @@ class Eloquent implements UnitRepository
                 'name' => $name,
                 'callsign' => $callsign,
                 'path' => '',
+                'created_by' => $createdBy,
             ])->save();
 
             $unit->forceFill(['path' => "{$parentPath}{$unit->id}/"])->save();
@@ -242,6 +257,33 @@ class Eloquent implements UnitRepository
 
             $unit->delete();
         });
+    }
+
+    public function hasHistory(Unit $unit): bool
+    {
+        if ($unit->label !== null || $unit->game_id !== null) {
+            return true;
+        }
+
+        $placed = Trooper::query()
+            ->where(fn ($query) => $query->where('primary_section_id', $unit->id)->orWhere('last_line_unit_id', $unit->id))
+            ->exists();
+
+        if ($placed) {
+            return true;
+        }
+
+        foreach (self::HISTORY_TABLES as $table => $column) {
+            if (DB::table($table)->where($column, $unit->id)->exists()) {
+                return true;
+            }
+        }
+
+        return DB::table('audit_log')
+            ->where('target_type', 'Unit')
+            ->where('target_id', (string) $unit->id)
+            ->where('action', '!=', 'unit.created')
+            ->exists();
     }
 
     public function withCallsign(string $callsign): Collection

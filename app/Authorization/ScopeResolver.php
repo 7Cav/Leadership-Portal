@@ -545,6 +545,22 @@ class ScopeResolver
     }
 
     /**
+     * Whether `$user` may undo adding `$unit` now: they added it themselves, less than {@see Unit::UNDO_ADD_MINUTES}
+     * minutes ago, and would still be allowed to add it there ({@see mayAddUnit()}). Whether it is still empty is the
+     * delete's own check, under its lock. Admins delete any unit anyway.
+     */
+    public function mayUndoAddUnit(User $user, Unit $unit): bool
+    {
+        if ($unit->undoAddUntil($user) === null) {
+            return false;
+        }
+
+        $parent = $unit->parent_id === null ? null : $this->units->find($unit->parent_id);
+
+        return $parent === null ? $this->isAdmin($user) : $this->mayAddUnit($user, $parent, $unit->type);
+    }
+
+    /**
      * The units whose subtree `$user` may add units in, short of being an Admin, each with the echelon it counts at:
      * a unit they command (billet, acting lead or a held billet) at its own, a unit they oversee while serving one
      * higher, since oversight is the regiment's over that battalion (an overseer of a battalion may add its

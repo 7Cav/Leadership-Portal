@@ -23,7 +23,8 @@ use App\Support\Audit\AuditEnvelope;
  * The path computation itself stays entirely in {@see UnitRepository::create()}, since Deptrac
  * keeps DB access there — duplicating it here would just be a second place for the two to
  * drift apart. The write itself is staged through `AuditEnvelope` (AD-16) — a reason is never
- * required for org-structure edits, only for personnel actions and report sends.
+ * required for org-structure edits, only for personnel actions and report sends. The unit keeps who added it, so they
+ * may undo the add ({@see DeleteUnit}).
  */
 class CreateUnit
 {
@@ -77,7 +78,7 @@ class CreateUnit
             action: 'unit.created',
             reason: null,
             reasonRequired: false,
-            mutation: fn () => $this->units->create($type, $name, $callsign, $parentId, $kind),
+            mutation: fn () => $this->units->create($type, $name, $callsign, $parentId, $kind, $actor->id),
         );
     }
 
