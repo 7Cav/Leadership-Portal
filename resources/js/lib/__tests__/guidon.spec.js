@@ -44,6 +44,13 @@ function texts(svg, large = false) {
     return [...svg.querySelectorAll('[data-text]')].filter((g) => g.parentNode.hasAttribute('clip-path') === large);
 }
 
+// Where a text's ink starts on the left, in flag units.
+function inkLeft(g) {
+    const [, x, , s] = /translate\(([\d.-]+) ([\d.-]+)\) scale\(([\d.]+)\)/.exec(g.getAttribute('transform')).map(Number);
+
+    return x + inkBox(g.getAttribute('data-text')).minX * s;
+}
+
 // Where a text's group starts: its left edge and baseline.
 function origin(g) {
     const [, x, y] = /translate\(([\d.-]+) ([\d.-]+)\)/.exec(g.getAttribute('transform'));
@@ -80,9 +87,9 @@ describe('guidonSvg', () => {
 
         expect(svg.querySelectorAll('text')).toHaveLength(0);
         expect(guidonSvg(design)).not.toContain('font-family');
-        // One path per glyph: 2, / and 7.
+        // One path per glyph: 2, / and 7; the same cap height as the A it pairs with.
         expect(topLeft.querySelectorAll('path')).toHaveLength(3);
-        expect(Number(topLeft.getAttribute('data-cap'))).toBe(70);
+        expect(Number(topLeft.getAttribute('data-cap'))).toBe(64);
     });
 
     it('draws a plain guidon on request: the colors and split only, no texts and no large character', () => {
@@ -256,7 +263,8 @@ describe('formats', () => {
         expect(origin(top).x).toBeGreaterThan(24);
         expect(origin(top).y).toBe(54 + Number(top.getAttribute('data-cap')) / 2);
         expect(top.getAttribute('fill')).toBe('#ffffff');
-        expect(origin(bottom).x).toBe(24);
+        // Left aligned: the 7's ink, not its glyph box, starts 24 in.
+        expect(origin(bottom).x + inkBox('7').minX * (Number(bottom.getAttribute('data-cap')) / CAP_HEIGHT)).toBeCloseTo(24, 0);
         expect(origin(bottom).y).toBe(162 + Number(bottom.getAttribute('data-cap')) / 2);
         expect(bottom.getAttribute('fill')).toBe('#b22234');
     });
@@ -283,18 +291,18 @@ describe('formats', () => {
             ['7', '#ffffff'],
             ['7', '#f47a20'],
         ]);
-        // About 72% of the flag's height.
-        expect(Number(sevens[0].getAttribute('data-cap'))).toBe(156);
+        // About 68% of the flag's height.
+        expect(Number(sevens[0].getAttribute('data-cap'))).toBe(147);
         expect(top.getAttribute('data-text')).toBe('ACD');
         expect(top.getAttribute('fill')).toBe('#ffffff');
         // The 7 hugs the hoist; both texts start just right of it, at the same x, about a third of the way across.
-        expect(origin(sevens[0]).x).toBe(9);
-        expect(origin(top).x).toBe(95);
+        expect(inkLeft(sevens[0])).toBeCloseTo(12, 1);
+        expect(origin(top).x).toBeGreaterThanOrEqual(95);
         expect(origin(top).y).toBeLessThanOrEqual(66);
         expect(bottom.getAttribute('data-text')).toBe('B');
         expect(bottom.getAttribute('fill')).toBe('#f47a20');
         // The B starts at the same x unless the diagonal is closer there: it keeps clear of the split.
-        expect(origin(bottom).x).toBeGreaterThanOrEqual(origin(top).x);
+        expect(inkLeft(bottom)).toBeGreaterThanOrEqual(inkLeft(top) - 0.01);
     });
 
     it('starts the texts just right of the large character, left aligned at the same x whatever their placement', () => {
@@ -304,12 +312,13 @@ describe('formats', () => {
             topAlign: 'center',
             bottomAlign: 'center',
         };
-        const at = (large) => texts(parse(guidonSvg({ ...centered, large }))).map((g) => origin(g).x);
+        const at = (large) => texts(parse(guidonSvg({ ...centered, large }))).map(inkLeft);
 
-        expect(at('7')).toEqual([95, 95]);
-        // Measured from the glyphs: a 1 pulls the texts closer, a 2 is wider, two characters further still.
-        expect(at('1')[0]).toBeLessThan(95);
-        expect(at('2')[0]).toBeGreaterThan(95);
+        const [top, bottom] = at('7');
+        expect(Math.abs(top - bottom)).toBeLessThan(0.5);
+        // A narrow 1 or 7 leaves them at about a third of the width; a wide 2 pushes them right, two characters further.
+        expect(at('1')[0]).toBeCloseTo(99, 0);
+        expect(top).toBeGreaterThanOrEqual(99);
         expect(at('12')[0]).toBeGreaterThan(at('2')[0]);
     });
 
@@ -367,8 +376,8 @@ describe('formats', () => {
 
         expect(clips).toEqual(['0,0 123,0 123,108 0,108', '0,108 123,108 123,216 0,216']);
         expect(sevens.map((g) => [g.getAttribute('fill'), g.getAttribute('data-cap')])).toEqual([
-            ['#ffffff', '156'],
-            ['#b22234', '156'],
+            ['#ffffff', '147'],
+            ['#b22234', '147'],
         ]);
         // Centered on the left quarters: the 7 is about 80 wide, so it starts about 20 in.
         expect(origin(sevens[0]).x).toBeGreaterThan(15);
@@ -376,8 +385,8 @@ describe('formats', () => {
         // Top right is white, so the top text is red; bottom right is red, so the bottom text is white.
         expect([top.getAttribute('data-text'), top.getAttribute('fill')]).toEqual(['ACD', '#b22234']);
         expect([bottom.getAttribute('data-text'), bottom.getAttribute('fill')]).toEqual(['B', '#ffffff']);
-        expect(origin(top).x).toBe(135);
-        expect(origin(bottom).x).toBe(135);
+        expect(inkLeft(top)).toBeCloseTo(135, 1);
+        expect(inkLeft(bottom)).toBeCloseTo(135, 1);
     });
 
     it('keeps black or white beside a large character when the other color would not read', () => {
@@ -642,5 +651,75 @@ describe('text fit', () => {
 
         expect(texts(svg).map((g) => g.getAttribute('data-text'))).toEqual(['DEV', 'A']);
         expect(texts(svg, true)[0].getAttribute('data-text')).toBe('B');
+    });
+});
+
+describe('text balance', () => {
+    const ink = (g) => {
+        const [, x, y, s] = /translate\(([\d.-]+) ([\d.-]+)\) scale\(([\d.]+)\)/.exec(g.getAttribute('transform')).map(Number);
+        const b = inkBox(g.getAttribute('data-text'));
+
+        return { x0: x + b.minX * s, x1: x + b.maxX * s, cap: Number(g.getAttribute('data-cap')) };
+    };
+    const hq = {
+        format: 'horizontal',
+        primary: '#800000',
+        secondary: '#ffffff',
+        topLeft: '7',
+        bottomRight: 'HQ',
+        large: '1',
+        topAlign: 'left',
+        bottomAlign: 'left',
+    };
+    const CASES = [
+        hq,
+        { ...hq, primary: '#ffc72c', secondary: '#2e5e3e', bottomRight: 'A' },
+        { ...hq, format: 'diagonal', primary: '#f47a20', topLeft: 'ACD', bottomRight: 'B', large: '7' },
+        { ...hq, large: '2', topLeft: 'DEV', bottomRight: 'COM' },
+        { ...hq, format: 'quartered', large: '2', topLeft: 'A', bottomRight: '7' },
+        { ...hq, large: '', topLeft: '2/7', bottomRight: 'A' },
+        { ...hq, format: 'diagonal', large: '', topLeft: '2/7', bottomRight: 'A' },
+        { ...hq, format: 'quartered', large: '', topLeft: 'WWWWWW', bottomRight: 'A', topAlign: 'center' },
+    ];
+
+    it('gives the top and bottom text one cap height in every format', () => {
+        for (const d of CASES) {
+            const [top, bottom] = texts(parse(guidonSvg(d))).map(ink);
+            expect(top.cap, JSON.stringify(d)).toBe(bottom.cap);
+        }
+    });
+
+    it('starts a 7 over HQ beside a large 1 on the same ink left edge, not the glyph box', () => {
+        const [top, bottom] = texts(parse(guidonSvg(hq))).map(ink);
+
+        expect(Math.abs(top.x0 - bottom.x0)).toBeLessThan(0.5);
+    });
+
+    it('centers the texts on one line only when both are a single character', () => {
+        const [a, b] = texts(parse(guidonSvg({ ...hq, bottomRight: 'A' }))).map(ink);
+        expect((a.x0 + a.x1) / 2).toBeCloseTo((b.x0 + b.x1) / 2, 1);
+
+        const [c, d] = texts(parse(guidonSvg({ ...hq, topLeft: '7', bottomRight: 'HQ' }))).map(ink);
+        expect(Math.abs((c.x0 + c.x1) / 2 - (d.x0 + d.x1) / 2)).toBeGreaterThan(1);
+    });
+
+    it('keeps a clear gap after a large character and does not pull short texts against a narrow 1', () => {
+        for (const d of [hq, { ...hq, bottomRight: 'A' }]) {
+            const svg = parse(guidonSvg(d));
+            const large = ink(texts(svg, true)[0]);
+            const [top, bottom] = texts(svg).map(ink);
+            for (const t of [top, bottom]) {
+                expect(t.x0 - large.x1).toBeGreaterThanOrEqual(WIDTH * 0.08);
+                expect(t.x0).toBeGreaterThanOrEqual(WIDTH * 0.3);
+            }
+        }
+    });
+
+    it('keeps the large character about two thirds of the height and the texts about a third', () => {
+        const svg = parse(guidonSvg(hq));
+        expect(Number(texts(svg, true)[0].getAttribute('data-cap')) / HEIGHT).toBeCloseTo(0.68, 1);
+        const top = Number(texts(svg)[0].getAttribute('data-cap')) / HEIGHT;
+        expect(top).toBeGreaterThan(0.2);
+        expect(top).toBeLessThanOrEqual(0.35);
     });
 });
