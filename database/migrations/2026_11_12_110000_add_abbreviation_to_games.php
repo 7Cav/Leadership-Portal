@@ -13,7 +13,9 @@ return new class extends Migration
     /**
      * A short code per game (2 to 6 uppercase letters or digits, unique), shown as the game chip on a battalion's row of
      * the org tree. Known games get theirs; any other is made from the name's initials, as `Game::abbreviationFor()`
-     * does for a new game, and kept unique with a digit.
+     * does for a new game, and kept unique with a digit. The column stays nullable so an older migration's raw insert
+     * (re-run on a rollback) still works; a game saved through the model always gets one (`Game::booted()`), and a
+     * NULL never collides with the unique index.
      */
     public function up(): void
     {
@@ -33,7 +35,6 @@ return new class extends Migration
         }
 
         Schema::table('games', function (Blueprint $table) {
-            $table->string('abbreviation', 6)->nullable(false)->change();
             $table->unique('abbreviation');
         });
     }

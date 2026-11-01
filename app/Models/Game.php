@@ -24,6 +24,19 @@ class Game extends Model
 
     protected static function booted(): void
     {
+        // Every game has a short code: one created without it (a seeder, a factory state) gets one made from its name,
+        // kept unique with a digit as `AddGame` does.
+        static::creating(function (Game $game): void {
+            if ($game->abbreviation === null || trim($game->abbreviation) === '') {
+                $base = self::abbreviationFor((string) $game->name);
+                $code = $base;
+                for ($n = 2; self::query()->where('abbreviation', $code)->exists(); $n++) {
+                    $code = substr($base, 0, 6 - strlen((string) $n)).$n;
+                }
+                $game->abbreviation = $code;
+            }
+        });
+
         // Routes and requests name a game by its slug, so changing one would break them. A query-builder update
         // bypasses this, as for any model event; `GameRepository::update()` has no slug to change.
         static::updating(function (Game $game): void {
