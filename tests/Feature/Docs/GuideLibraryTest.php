@@ -74,7 +74,7 @@ it('reads a guide\'s front matter and renders its body', function () {
         ->and($guide->checklist->order)->toBe(2)
         ->and($guide->url())->toBe('/docs/weekly-rollcall/run-rollcall')
         ->and($guide->html)->toContain('<h2 id="open-rollcall">Open Rollcall</h2>')
-        ->and($guide->html)->toContain('<ol>')
+        ->and($guide->html)->toContain('<ol type="A" class="docs-substeps">')
         ->and($guide->html)->toContain('<strong>Rollcall</strong>')
         ->and($guide->html)->toContain('<a href="/docs/basics/glossary">Glossary</a>');
 });

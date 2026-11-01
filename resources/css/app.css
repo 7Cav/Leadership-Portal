@@ -366,6 +366,10 @@
         font-weight: 600;
         font-variant-numeric: tabular-nums;
     }
+    /* Sub-steps of a numbered step (app/Docs marks them `type="A"`): lettered, so step 1 never shows 1, 2, 3 again. */
+    .docs-prose ol.docs-substeps > li::before {
+        content: counter(docs-li, upper-alpha);
+    }
     .docs-prose ol > li:not(:last-child)::after {
         content: '';
         position: absolute;

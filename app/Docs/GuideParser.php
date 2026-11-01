@@ -6,6 +6,7 @@ use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
 use League\CommonMark\Extension\CommonMark\Node\Block\BlockQuote;
 use League\CommonMark\Extension\CommonMark\Node\Block\Heading;
+use League\CommonMark\Extension\CommonMark\Node\Block\ListBlock;
 use League\CommonMark\Extension\CommonMark\Node\Inline\Image;
 use League\CommonMark\Extension\CommonMark\Node\Inline\Link;
 use League\CommonMark\Extension\CommonMark\Node\Inline\Strong;
@@ -95,6 +96,7 @@ final class GuideParser
 
         $headings = $this->anchorHeadings($document);
         $this->renderCallouts($document);
+        $this->letterSubsteps($document);
         [$links, $images] = $this->urls($document);
 
         if ($problems !== []) {
@@ -302,6 +304,24 @@ final class GuideParser
             $paragraph->prependChild($label);
 
             $quote->data->set('attributes/class', "callout callout-{$kind}");
+        }
+    }
+
+    /**
+     * A numbered list under a numbered step (a level-2 heading) is that step's sub-steps, lettered A, B, C so "1 Record
+     * the signatures" never reads as 1 then 1, 2, 3. A real `type="A"` on the list, so a screen reader announces the
+     * letters too; the CSS draws them in the same rings. A numbered list before the first step keeps its numbers.
+     */
+    private function letterSubsteps(Document $document): void
+    {
+        $inStep = false;
+        for ($node = $document->firstChild(); $node !== null; $node = $node->next()) {
+            if ($node instanceof Heading && $node->getLevel() <= 2) {
+                $inStep = $node->getLevel() === 2;
+            } elseif ($inStep && $node instanceof ListBlock && $node->getListData()->type === ListBlock::TYPE_ORDERED) {
+                $node->data->set('attributes/type', 'A');
+                $node->data->set('attributes/class', 'docs-substeps');
+            }
         }
     }
 
