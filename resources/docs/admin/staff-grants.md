@@ -13,8 +13,18 @@ page: /settings/staff-grants
 
 1. Open **Settings**, then **Staff grants**.
 2. Choose the user and the unit. The grant covers the unit and everything under it.
-3. Give a reason and choose **Grant scope**.
-4. To take a grant back, choose **Revoke** next to it under **Current grants**, with a reason. The holder loses read access to that unit on their next page load. To undo it, grant it again. Granting and revoking are both in the audit log.
+3. Under **End date**, leave **No end date**, or choose **Ends on a date** or **Needs renewing by a date** and pick 7, 30 or 90 days or a date.
+4. Give a reason and choose **Grant scope**.
+5. To take a grant back, choose **Revoke** next to it under **Current grants**, with a reason. The holder loses read access to that unit on their next page load. To undo it, grant it again. Granting and revoking are both in the audit log.
+
+## End dates and renewals
+
+A grant with an end date counts until 23 59Z on that day. From then on it gives no access.
+
+- **Ends on a date**: the grant is revoked for good, and the audit log records it. Give a new grant if they need it again.
+- **Needs renewing by a date**: the grant stops working and shows **Lapsed since** the date until someone renews it. Choose **Renew** next to it, with a reason. It moves on by the same number of days, counted from today if it had already lapsed. To pick another date, choose **End date** instead.
+
+To change or remove an end date, choose **End date** next to the grant, pick the new one or **No end date**, and give a reason. Grants that end or lapse within 7 days are listed first, marked in amber.
 
 > [!good-to-know] A grant only counts while its holder is a serving trooper. When they leave the Cav, it stops counting at once and is shown as lapsed.
 
