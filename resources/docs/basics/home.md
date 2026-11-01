@@ -11,11 +11,13 @@ page: /home
 
 ## Troopers missing a game identity
 
-If you lead a unit and one of your troopers has no identity for the game your unit plays, a warning at the top of Home names them. Link them on [Game identities](/docs/your-troopers/game-identities); until then the game server can't record their practice attendance.
+If you lead a unit and one of your troopers has no identity for the game your unit plays, a warning at the top of Home names them. Link them on [Game identities](/docs/your-troopers/game-identities); until then the game server can't record their practice attendance. For a game whose attendance is marked by hand (no training server set for it), the warning still names them but doesn't say that, since the server reads nothing there.
 
 ## Fix a missing practice slot
 
-If a section you lead plays a game and has no practice slot, a warning at the top of Home names it. Without a slot, its practices aren't captured automatically and make-ups aren't given from the game server. Choose the section's callsign, or **Set it on the section's roll call**, and set the slot there. The warning goes away once every section has one.
+If a section you lead plays a game and has no practice slot, a warning at the top of Home names it. Without a slot, its practices aren't captured automatically and make-ups aren't given from the game server. Choose the section's callsign, or **Set it on the section's roll call**, and set the slot there. The warning goes away once every section has one. When the section's game has its attendance marked by hand, the line about captures is left out.
+
+Both warnings are for leaders at battalion level and below. If you lead the regiment or a regimental HQ, Home doesn't show them; as an Admin you see them only while you view as or act as someone who would.
 
 ## Read the week bar
 

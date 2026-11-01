@@ -295,7 +295,7 @@ describe('previewing with a real section', function () {
         });
         // The card's attendance strip, its "Leave from" chip and its missing identity icon are the page's own; the post, and so the preview, does
         // not read them.
-        $rollcall['troopers'] = array_map(fn (array $row) => array_diff_key($row, ['history' => true, 'leaveFrom' => true, 'missingGame' => true]), $rollcall['troopers']);
+        $rollcall['troopers'] = array_map(fn (array $row) => array_diff_key($row, ['history' => true, 'leaveFrom' => true, 'missingGame' => true, 'missingGameAutomatic' => true]), $rollcall['troopers']);
         // So is the week whose report is still due, which only steers the page's own week links.
         unset($rollcall['week']['reporting']);
 

@@ -8,7 +8,8 @@ import WarningBanner from '@/components/WarningBanner.vue';
 // is never captured and nobody gets an automatic make-up there. Home and the roster; each callsign opens its roll call,
 // where the slot is set. Gone once every section has a slot.
 const props = defineProps({
-    // `[{ id, designation }]`, in tree order; empty when every section has a slot.
+    // `[{ id, designation, automatic }]`, in tree order; empty when every section has a slot. `automatic` is false for a
+    // section whose game's server is not read: a slot changes nothing the capture does there.
     sections: { type: Array, default: () => [] },
     // "of your sections" on Home; the roster speaks of the unit it shows.
     own: { type: Boolean, default: true },
@@ -18,6 +19,9 @@ const INLINE = 3;
 const expanded = ref(false);
 
 const shown = computed(() => (expanded.value ? props.sections : props.sections.slice(0, INLINE)));
+
+// Only the sections whose game is read automatically lose anything without a slot.
+const automatic = computed(() => props.sections.filter((section) => section.automatic !== false));
 
 const headline = computed(() => {
     const n = props.sections.length;
@@ -46,8 +50,8 @@ const headline = computed(() => {
                 {{ expanded ? 'Show fewer' : `Show all ${sections.length}` }}
             </button>
         </p>
-        <p>
-            Without a slot, {{ sections.length === 1 ? "its practices aren't" : "their practices aren't" }} captured automatically and make-ups aren't given from the game
+        <p v-if="automatic.length" data-testid="missing-slots-consequence">
+            Without a slot, {{ automatic.length === 1 ? "its practices aren't" : "their practices aren't" }} captured automatically and make-ups aren't given from the game
             server.
         </p>
         <template #action>

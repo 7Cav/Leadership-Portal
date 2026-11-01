@@ -146,3 +146,32 @@ it('flags the trooper row on the roll call and the roster', function () {
             ->and($rows[$linked->id]['missingGame'])->toBeNull();
     });
 });
+
+it('says on Home when a game is marked by hand', function () {
+    trooperIn($this->section);
+    $leader = User::factory()->commanding($this->platoon)->create();
+
+    $this->actingAs($leader)->get('/home')->assertInertia(fn (Assert $page) => $page->where('missingIdentities.0.automatic', false));
+});
+
+it('says on Home when a game is read automatically', function () {
+    trooperIn($this->section);
+    $leader = User::factory()->commanding($this->platoon)->create();
+    readFromServer('hll-vietnam');
+
+    $this->actingAs($leader)->get('/home')->assertInertia(fn (Assert $page) => $page->where('missingIdentities.0.automatic', true));
+});
+
+it('says on the roll call and roster rows whether the missing game is read automatically', function () {
+    $missing = trooperIn($this->section);
+    $leader = User::factory()->commanding($this->platoon)->create();
+    readFromServer('hll-vietnam');
+    $week = WeekOf::start(CarbonImmutable::now())->toDateString();
+
+    $this->actingAs($leader)->get("/rollcall/{$this->section->id}?week={$week}")->assertInertia(function (Assert $page) use ($missing) {
+        expect(collect($page->toArray()['props']['troopers'])->keyBy('id')[$missing->id]['missingGameAutomatic'])->toBeTrue();
+    });
+    $this->actingAs($leader)->get("/roster/{$this->section->id}")->assertInertia(function (Assert $page) use ($missing) {
+        expect(collect($page->toArray()['props']['troopers'])->keyBy('id')[$missing->id]['missingGameAutomatic'])->toBeTrue();
+    });
+});
