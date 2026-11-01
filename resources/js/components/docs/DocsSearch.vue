@@ -6,10 +6,10 @@ import { PhBookOpenText, PhMagnifyingGlass } from '@phosphor-icons/vue';
 import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { useDocsSearch } from '@/composables/useDocsSearch';
-import { searchGuides } from '@/lib/docsSearch';
+import { highlight, searchGuides } from '@/lib/docsSearch';
 
 // The docs search dialog (#413), after the trooper search's: type, move with the arrow keys, open a guide with Enter
-// or a click. The index is the page's, already limited to the guides this reader may read (view as included), so the
+// or a click. The words that matched are highlighted in each result's title and summary. The index is the page's, already limited to the guides this reader may read (view as included), so the
 // search runs here with no request. The input is a bare ListboxFilter, not CommandInput, which would filter the rows a
 // second time by their visible text.
 const props = defineProps({
@@ -81,8 +81,16 @@ function choose(guide) {
                         >
                             <PhBookOpenText class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                             <span class="min-w-0">
-                                <span class="block truncate font-medium">{{ guide.title }}</span>
-                                <small class="block truncate text-[12px] text-muted-foreground">{{ guide.summary }}</small>
+                                <span class="block truncate font-medium" data-testid="docs-search-title">
+                                    <template v-for="(piece, i) in highlight(guide.title, query)" :key="i">
+                                        <mark v-if="piece.hit" class="docs-hit">{{ piece.text }}</mark><template v-else>{{ piece.text }}</template>
+                                    </template>
+                                </span>
+                                <small class="block truncate text-[12px] text-muted-foreground">
+                                    <template v-for="(piece, i) in highlight(guide.summary, query)" :key="i">
+                                        <mark v-if="piece.hit" class="docs-hit">{{ piece.text }}</mark><template v-else>{{ piece.text }}</template>
+                                    </template>
+                                </small>
                             </span>
                             <span class="ml-auto shrink-0 text-[12px] text-muted-foreground">{{ guide.section }}</span>
                         </CommandItem>

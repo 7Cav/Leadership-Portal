@@ -15,6 +15,8 @@ defineProps({
     current: { type: String, default: null },
     // The page's search index (#413), only the guides this reader may read.
     search: { type: Array, required: true },
+    // `{ url, steps }` for the tree's "Getting started" entry, or null.
+    tutorial: { type: Object, default: null },
 });
 
 useDocsSearchShortcut();
@@ -43,7 +45,7 @@ const contentsOpen = ref(false);
                 <PhCaretDown class="ml-auto transition-transform" :class="contentsOpen ? 'rotate-180' : ''" />
             </Button>
             <div id="docs-contents" :class="contentsOpen ? 'mt-3' : 'hidden lg:block'">
-                <DocsTree :contents="contents" :current="current">
+                <DocsTree :contents="contents" :current="current" :tutorial="tutorial">
                     <template #top><DocsSearchBox class="mb-3.5" /></template>
                 </DocsTree>
             </div>
