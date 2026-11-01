@@ -26,6 +26,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Repositories\AuditLogRepository;
+use App\Repositories\AuditSubject;
 use App\Repositories\UnitRepository;
 use App\Support\Time\WeekLabel;
 use Closure;
@@ -100,6 +101,10 @@ class AuditLogController extends Controller
             'target_type' => $entry->target_type,
             'target_id' => $entry->target_id,
             'link' => $this->link($targets["{$entry->target_type}#{$entry->target_id}"] ?? null),
+            // What the entry is about and what it changed: as written with the entry, or for an older entry without
+            // them, the subject read from its target as it is now (null when the target is gone).
+            'subject' => $entry->details['subject'] ?? AuditSubject::describe($targets["{$entry->target_type}#{$entry->target_id}"] ?? null),
+            'changes' => $entry->details['changes'] ?? [],
             'reason' => $entry->reason,
             'content_digest' => $entry->content_digest,
             'created_at' => $entry->created_at->toIso8601String(),
