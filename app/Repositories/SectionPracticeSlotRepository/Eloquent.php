@@ -4,6 +4,7 @@ namespace App\Repositories\SectionPracticeSlotRepository;
 
 use App\Models\SectionPracticeSlot;
 use App\Repositories\SectionPracticeSlotRepository;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 class Eloquent implements SectionPracticeSlotRepository
@@ -27,11 +28,17 @@ class Eloquent implements SectionPracticeSlotRepository
         return SectionPracticeSlot::query()->with('section')->orderBy('section_id')->get()->toBase();
     }
 
-    public function set(int $sectionId, int $weekday, int $startMinute): SectionPracticeSlot
+    public function set(int $sectionId, int $weekday, int $startMinute, ?CarbonImmutable $effectiveFrom = null, ?array $previous = null): SectionPracticeSlot
     {
         return SectionPracticeSlot::query()->updateOrCreate(
             ['section_id' => $sectionId],
-            ['weekday' => $weekday, 'start_minute' => $startMinute],
+            [
+                'weekday' => $weekday,
+                'start_minute' => $startMinute,
+                'effective_from' => $effectiveFrom?->toDateString(),
+                'previous_weekday' => $effectiveFrom === null ? null : $previous[0] ?? null,
+                'previous_start_minute' => $effectiveFrom === null ? null : $previous[1] ?? null,
+            ],
         );
     }
 
