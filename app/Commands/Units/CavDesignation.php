@@ -177,7 +177,8 @@ final readonly class CavDesignation
 
         return match ($designation) {
             'ACD' => 'Auxiliary Combat Detachment',
-            // DEVCOM and anything Cav adds later keep their designation as their name; an Admin
+            'DEVCOM' => 'Development Command',
+            // Anything Cav adds later keeps its designation as its name; an Admin
             // can rename them and the rename survives every later import.
             default => $designation,
         };
