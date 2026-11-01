@@ -16,7 +16,7 @@ checklist:
 ## Open the roster
 
 1. Choose **Roster** in the sidebar.
-2. It opens on the unit you lead. To see another unit you can see, choose it in the unit picker at the top, or in the unit list at the top of the sidebar.
+2. It opens on the unit you lead. To see another unit you can see, choose it in the unit picker at the top, or in the unit list at the top of the sidebar. The picker opens on the unit you are looking at, highlighted.
 3. Opening a single unit from a row (**Show 1/1/A/1-7 only**) shows that unit's roster. To go back, choose **Return to** and the unit above it (left of the filters), the unit names above the title, or your browser's back button.
 
 ## Choose a view
@@ -30,6 +30,16 @@ checklist:
 6. A warning icon next to a section means it has no practice slot set (point at it to read why). When a unit you lead has such sections, a warning above the views lists them, each linking to its roll call where the slot is set.
 
 > [!good-to-know] A warning icon by a name means the trooper has no identity for their unit's game; the warning at the top of the page lists them all.
+
+## Set the practice presence minimum
+
+The presence minimum is how many minutes a trooper must be on the practice's server during its hour to count as attending. It is 40 minutes unless the battalion sets its own. It applies to every section in the battalion, for automatic marks and automatic make-ups.
+
+1. Open the battalion's roster. **Practice presence minimum** shows the current number.
+2. If you are on the battalion's HQ staff or an Admin, type a number from 1 to 60 under **Minutes** and choose **Save**.
+3. To go back to 40 minutes, choose **Use the default (40)**.
+
+> [!good-to-know] A new minimum applies to captures from then on. Weeks already read keep their marks. Every change is in the audit log.
 
 ## See strength over time
 
