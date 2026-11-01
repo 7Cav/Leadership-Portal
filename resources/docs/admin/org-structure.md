@@ -11,7 +11,7 @@ page: /settings/org-structure
 
 ## Read the page
 
-The page has two cards. **Chain of command** holds the regiment, its battalions (ACD and DEVCOM included) and everything under them. **Regimental staff** holds the portfolios, their departments and the holding groups. ACD and DEVCOM also show under Reserve & Development Command, and DEVCOM Staff under DEVCOM, as reference rows. Choose one to open the unit where it really sits.
+The page has two cards. **Chain of command** holds the regiment, its battalions (ACD and DEVCOM, Development Command, included) and everything under them. **Regimental staff** holds the portfolios, their departments and the holding groups. ACD and DEVCOM also show under Reserve & Development Command, and DEVCOM Staff under DEVCOM, as reference rows. Choose one to open the unit where it really sits.
 
 > [!good-to-know] A line unit with nobody in it or under it is hidden. Tick **Show empty units** to see it, for example to rename, move or delete it. It shows again on its own once someone is placed in it.
 
