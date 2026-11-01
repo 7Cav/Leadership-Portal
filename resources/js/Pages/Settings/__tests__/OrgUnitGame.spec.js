@@ -226,6 +226,17 @@ describe('Settings/OrgStructure add unit dialog', () => {
         return wrapper;
     }
 
+    it('shows Add unit to a leader only under a unit the server lets them add to', async () => {
+        const units = UNITS.map((unit) => ({ ...unit, can_add_child: unit.id === 2 }));
+        const wrapper = mountPage({ isAdmin: false }, units);
+
+        expect(wrapper.find('[data-testid="add-unit-open"]').exists()).toBe(false);
+        await wrapper.find('[data-testid="unit-row-6"]').trigger('click');
+        expect(wrapper.find('[data-testid="add-unit-open"]').exists()).toBe(false);
+        await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+        expect(wrapper.find('[data-testid="add-unit-open"]').text()).toBe('Add a section under 2nd Platoon');
+    });
+
     it('puts the echelon first, the parent right under it, then the pick', async () => {
         await openFor(6);
         const html = body('add-unit-dialog').innerHTML;

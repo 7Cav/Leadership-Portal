@@ -133,6 +133,18 @@ class OrgStructureController extends Controller
         $mayGame = fn (Unit $unit) => $gamesEverywhere
             || collect([$unit, ...$ancestorsOf($unit)])->contains(fn (Unit $at) => $gameRoots->has($at->id));
 
+        $addEverywhere = ! $previewing && $scope->isAdmin($viewer);
+        $addRoots = $previewing || $addEverywhere ? collect() : $scope->unitAddRoots($viewer);
+        $mayAddUnder = function (Unit $unit) use ($addEverywhere, $addRoots, $ancestorsOf): bool {
+            $below = collect(UnitType::cases())->first(fn (UnitType $type) => $type->isLine() && $unit->isLine() && $type->rank() === $unit->type->rank() + 1);
+            if ($below === null) {
+                return false;
+            }
+
+            return $addEverywhere || collect([$unit, ...$ancestorsOf($unit)])
+                ->contains(fn (Unit $at) => $addRoots->has($at->id) && $addRoots->get($at->id) <= $below->rank() - 2);
+        };
+
         $units = $tree->map(fn (Unit $unit) => [
             'id' => $unit->id,
             'parent_id' => $unit->parent_id,
@@ -151,6 +163,8 @@ class OrgStructureController extends Controller
             'sets_game' => ($lock = Unit::gameLockOf($ancestorsOf($unit))) === null,
             'game_locked_by' => $lock === null ? null : ($lock->callsign ?? $lock->name),
             'can_set_game' => $mayGame($unit),
+            // Whether the viewer may add a unit one echelon below this one (Add unit), by the same rule `store` applies.
+            'can_add_child' => $mayAddUnder($unit),
             // The unit's saved guidon (#446), drawn next to its name; null when it has none.
             'guidon' => $guidonOf->get($unit->id)?->design(),
             'path' => $unit->path,
@@ -257,8 +271,10 @@ class OrgStructureController extends Controller
      */
     public function store(Request $request, CreateUnit $command): RedirectResponse
     {
-        if (! $this->scope->isAdmin($request->user())) {
-            abort(403, 'Only an Admin may change the org structure.');
+        // Admins add anywhere; a leader adds a line unit inside the unit they command or oversee, at least two echelons
+        // below it (ScopeResolver::mayAddUnit). Checked again after validation, once the parent is known.
+        if (! $this->scope->isAdmin($request->user()) && $this->scope->unitAddRoots($request->user())->isEmpty()) {
+            abort(403, 'You may not add units.');
         }
 
         // Only where the unit goes and which one it is: the server derives the name and callsign (CreateUnit), so a
@@ -271,6 +287,11 @@ class OrgStructureController extends Controller
         ], self::UNIT_MESSAGES + ['ordinal.regex' => 'Pick which unit this is from the list.']);
 
         $type = UnitType::from($data['type']);
+        $parent = isset($data['parent_id']) ? $this->units->find((int) $data['parent_id']) : null;
+        $allowed = $parent === null ? $this->scope->isAdmin($request->user()) : $this->scope->mayAddUnit($request->user(), $parent, $type);
+        if (! $allowed) {
+            abort(403, 'You may not add this unit here.');
+        }
 
         try {
             $command->handle(

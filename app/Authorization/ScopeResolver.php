@@ -513,6 +513,56 @@ class ScopeResolver
     }
 
     /**
+     * Whether `$user` may add a `$type` unit under `$parent`: an Admin (the flag or an approved Regimental HQ billet,
+     * {@see isAdmin()}) anywhere; anyone else only
+     * a line unit inside a unit they command or oversee ({@see unitAddRoots()}) that sits at least two echelons above
+     * the new one. A section needs a company or above, a platoon a battalion or above, a company the regiment; a
+     * battalion and the regiment itself are left to Admins. Whether the echelon fits under the parent
+     * is the command's check. Real authority: a view-as preview is read only anyway.
+     */
+    public function mayAddUnit(User $user, Unit $parent, UnitType $type): bool
+    {
+        if ($this->isAdmin($user)) {
+            return true;
+        }
+
+        if (! $type->isLine() || $type === UnitType::Regiment) {
+            return false;
+        }
+
+        $need = $type->rank() - 2;
+
+        return $this->unitAddRoots($user)->contains(
+            fn (int $rank, int $rootId) => $rank <= $need
+                && ($root = $this->units->find($rootId)) !== null
+                && $this->units->subtreeIds($root)->contains($parent->id),
+        );
+    }
+
+    /**
+     * The units whose subtree `$user` may add units in, short of being an Admin, each with the echelon it counts at:
+     * a unit they command (billet, acting lead or a held billet) at its own, a unit they oversee while serving one
+     * higher, since oversight is the regiment's over that battalion (an overseer of a battalion may add its
+     * companies). {@see mayAddUnit()} decides which echelons below each one they may add.
+     *
+     * @return Collection<int, int> unit id => echelon rank it counts at
+     */
+    public function unitAddRoots(User $user): Collection
+    {
+        $roots = collect();
+        foreach ($this->commandedUnits($user) as $unit) {
+            if ($unit->type->isLine()) {
+                $roots[$unit->id] = min($roots->get($unit->id, PHP_INT_MAX), $unit->type->rank());
+            }
+        }
+        foreach ($this->oversights->unitsOverseenBy($user) as $unit) {
+            $roots[$unit->id] = min($roots->get($unit->id, PHP_INT_MAX), $unit->type->rank() - 1);
+        }
+
+        return $roots;
+    }
+
+    /**
      * Whether `$user` may set or clear the game of `$unit`: an Admin or Regimental HQ staff ({@see isRegimentalHqStaff()})
      * on any unit; anyone else on a unit at or under one of {@see gameUnitsOf()}. Whether a game may be set there at all
      * (no unit above has one, {@see Unit::setsOwnGame()}) is the command's check. Under a view-as preview the request is

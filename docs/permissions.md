@@ -6,7 +6,7 @@
   leadership billet gives you the unit it commands and everything under it. Nobody types in roles.
 - Admin comes from one of two places: the Admin flag on a portal user, set from the server console, or a Regimental HQ
   or S6 1IC or S6 2IC billet an existing Admin has approved (see [Admin by billet](#admin-by-billet)). Admins see and change everything, and
-  are the only ones who can edit the org structure, staff grants and the regiment default roll call template, or read the
+  are the only ones who can edit the org structure (leaders may add units below their own, see (13)), staff grants and the regiment default roll call template, or read the
   audit log and the activity log.
 - A company's command (and the command above it) manages that company's own roll call templates, and a section's command
   (and the command above it) manages the section's own.
@@ -223,7 +223,8 @@ their own plan unless they also command the company.
 
 | Action | Adm | Everyone else | VA |
 | --- | --- | --- | --- |
-| Org structure: create, rename or move a unit, delete an empty unit | Yes | No | No |
+| Org structure: add a unit (13) | Yes | A leader or overseer, inside the unit they command or oversee and at least two echelons below it (13) | No |
+| Org structure: rename or move a unit, delete an empty unit | Yes | No | No |
 | Org structure: Import from Cav roster | Yes | No | No |
 | Org structure: place a trooper the sync could not place | Yes | No | No |
 | Org structure: set or clear the game a unit plays (from the Games list, not a retired game; only while no unit above has one) (12) | Yes | Regimental HQ staff on any unit; an overseer on the units they oversee and those under them; DEVCOM's 1IC and 2IC on DEVCOM and the units under it (12) | No |
@@ -254,6 +255,14 @@ HQ staff (a serving trooper placed on the regiment node whose position is still 
 who read the whole regiment) on any unit; a serving overseer (Org structure's "Oversight") on the units they oversee and
 every unit under them; the serving holders of DEVCOM 1IC and DEVCOM 2IC on DEVCOM and every unit under it. Anyone else
 gets a 403 and sees no game control. Act as may change it as the person acted as would; view as is read only.
+
+(13) Admins add any unit. Anyone else adds a line unit only inside a unit they command (billet or acting lead) or
+oversee, and only at least two echelons below that unit: a section needs a company or above, a platoon a battalion or
+above, a company the regiment. An overseer counts one echelon higher than the unit they oversee, so the overseer of a
+battalion may add its companies. Battalions, the regiment and groups are Admin only. A section or platoon leader cannot
+add units. The parent must sit inside that unit. The unit's name and callsign are derived from the parent and the
+picked number or letter, never typed. Anyone else gets a 403 and sees no Add unit button. Every add is in the audit
+log. Act as may add as the person acted as would; view as is read only.
 
 ### Game identities and syncs
 

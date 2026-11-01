@@ -452,6 +452,10 @@ watch(
 );
 
 // The ordinals still free under the parent, gaps included; the regiment, as the root, has its one fixed designation.
+// Admins add anywhere; a leader only where the server says they may (`can_add_child`: inside the unit they command or
+// oversee, at least two echelons below it). The button and dialog hide otherwise; `store` checks again.
+const canAdd = computed(() => props.isAdmin || addTarget.value.parent?.can_add_child === true);
+
 const addOptions = computed(() => ordinalOptions(addTarget.value.type, addTarget.value.parent, props.units));
 const addPreview = computed(() =>
     addTarget.value.type === 'regiment'
@@ -1304,10 +1308,10 @@ function confirmDelete() {
                 </section>
 
                 <!--
-                  Add-node control, Admin-only (AC #2). Hidden for a non-Admin per the mockup; the
-                  server enforces the same gate on `store` regardless (AC #5, AD-6).
+                  Add-node control: Admins, and leaders two echelons above the new unit (`canAdd`). Hidden
+                  otherwise; the server enforces the same gate on `store` regardless (AC #5, AD-6).
                 -->
-                <template v-if="isAdmin">
+                <template v-if="canAdd">
                     <Separator class="my-4" />
                     <Button type="button" variant="outline" data-testid="add-unit-open" class="w-full" @click="addOpen = true">
                         <PhPlus aria-hidden="true" />{{ addButtonLabel }}
@@ -1317,7 +1321,7 @@ function confirmDelete() {
         </div>
 
         <!-- Add unit: its own dialog, apart from the details panel where the selected unit is edited. -->
-        <Dialog v-if="isAdmin" :open="addOpen" @update:open="(open) => !open && !form.processing && closeAdd()">
+        <Dialog v-if="canAdd" :open="addOpen" @update:open="(open) => !open && !form.processing && closeAdd()">
             <DialogContent class="sm:max-w-md" data-testid="add-unit-dialog">
                 <DialogHeader>
                     <DialogTitle>Add a unit</DialogTitle>
