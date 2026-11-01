@@ -108,7 +108,7 @@ describe('who is an Admin by billet', function () {
 
         // An org structure write, as any Admin's.
         $this->actingAs($this->chief)->post('/settings/org-structure', [
-            'type' => 'company', 'name' => 'Bravo Company', 'callsign' => 'B/1-7', 'parent_id' => $this->battalion->id,
+            'type' => 'company', 'ordinal' => 'B', 'parent_id' => $this->battalion->id,
         ])->assertRedirect(route('settings.org-structure'));
         expect(Unit::query()->where('callsign', 'B/1-7')->exists())->toBeTrue();
 
@@ -269,19 +269,23 @@ describe('act as and view as', function () {
         $this->actingAs($this->chief)->get('/settings/audit-log')->assertForbidden();
     });
 
-    it('gives an Admin acting as a billet Admin no Admin rights, only that person\'s own view', function () {
+    it('gives an Admin acting as a billet Admin no Admin rights, only what that person may do as Regimental HQ staff', function () {
         $this->actingAs($this->admin)->post('/act-as', ['kind' => 'user', 'id' => $this->chief->id])->assertRedirect('/home');
 
         $this->actingAs($this->admin)->get('/home')->assertInertia(fn (Assert $page) => $page
             ->where('auth.user.id', $this->chief->id)
             ->where('auth.user.is_admin', false));
         $this->actingAs($this->admin)->get('/settings/audit-log')->assertForbidden();
+        // Adding a unit is not Admin-only: the Chief of Staff, as Regimental HQ staff, may add a company, so acting as
+        // them may too.
         $this->actingAs($this->admin)->post('/settings/org-structure', [
-            'type' => 'company', 'name' => 'Bravo Company', 'callsign' => 'B/1-7', 'parent_id' => $this->battalion->id,
-        ])->assertForbidden();
+            'type' => 'company', 'ordinal' => 'B', 'parent_id' => $this->battalion->id,
+        ])->assertRedirect(route('settings.org-structure'));
+        expect(Unit::query()->where('callsign', 'B/1-7')->exists())->toBeTrue();
 
         $plain = app(ActAs::class)->withoutAdmin($this->chief->fresh());
-        expect(app(ScopeResolver::class)->isAdmin($plain))->toBeFalse()
+        expect(app(ScopeResolver::class)->isRegimentalHqStaff($plain))->toBeTrue()
+            ->and(app(ScopeResolver::class)->isAdmin($plain))->toBeFalse()
             ->and(app(ScopeResolver::class)->writeScope($plain)->all())->toBe([]);
     });
 

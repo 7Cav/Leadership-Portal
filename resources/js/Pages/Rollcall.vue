@@ -112,6 +112,8 @@ const props = defineProps({
     practiceSlotMissing: { type: Boolean, default: false },
     // The Cav week a slot saved now starts with when this week is held, or null.
     practiceSlotChangesFrom: { type: String, default: null },
+    // Whether the section's game is read from its server; the slot warning says what a slot changes only then.
+    practiceSlotAutomatic: { type: Boolean, default: true },
     // `{ source, capturedAt }` once a capture run stamped this practice, else null (7.7). Drives the
     // capture banner and the confirm action (7.8).
     capture: { type: Object, default: null },
@@ -1118,7 +1120,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
         <!-- Not dismissible: it goes away once the section has a slot. -->
         <WarningBanner v-if="slotMissing" class="mt-3" data-testid="slot-missing-banner">
             <p class="font-semibold">This section has no practice slot set</p>
-            <p>Without a slot, its practices aren't captured automatically and make-ups aren't given from the game server.</p>
+            <p v-if="practiceSlotAutomatic" data-testid="slot-missing-consequence">Without a slot, its practices aren't captured automatically and make-ups aren't given from the game server.</p>
             <template v-if="canWrite" #action>
                 <Button
                     size="sm"

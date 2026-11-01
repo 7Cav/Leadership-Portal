@@ -57,7 +57,7 @@ Until the import runs, none of those exist and those billets give no scope.
    `php artisan portal:sync-roster --now`.
 4. On the Org structure page, check the "Troopers the sync could not place" panel and place anyone left there.
 5. Assign acting leads where the roster names no lead (for example a `DEVCOM Lead` running DEVCOM starter platoons),
-   set the game each unit plays, and set team labels on units that need one.
+   set the game each unit plays, and set nicknames on units that need one.
 
 ## First install, Admin and seed
 

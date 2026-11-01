@@ -45,4 +45,13 @@ describe('PracticeSlotMissingIcon', () => {
         expect(icon.attributes('aria-label')).toBe('No practice slot set');
         expect(mount(PracticeSlotMissingIcon, { props: { missing: false } }).find('[data-testid="practice-slot-missing"]').exists()).toBe(false);
     });
+
+    it('leaves the consequence out when no listed section plays a game read automatically', () => {
+        const manual = sections(2).map((section) => ({ ...section, automatic: false }));
+        const wrapper = mount(MissingPracticeSlots, { props: { sections: manual } });
+
+        expect(wrapper.text()).toContain('2 of your sections have no practice slot set');
+        expect(wrapper.find('[data-testid="missing-slots-consequence"]').exists()).toBe(false);
+        expect(mount(MissingPracticeSlots, { props: { sections: [manual[0], { ...manual[1], automatic: true }] } }).find('[data-testid="missing-slots-consequence"]').exists()).toBe(true);
+    });
 });

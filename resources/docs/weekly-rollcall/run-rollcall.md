@@ -58,7 +58,7 @@ The header shows when your section practices, in Zulu, with your own time beside
 
 A week the game server already read, or whose report was sent, keeps its time. You can still set or change the slot then: the editor says which week it takes effect from, the new slot starts with the next Cav week, and the header shows it as, for example, "Practice Wed 23 59Z from 07NOV26". This week only can't be used on a week whose report was sent.
 
-If your section plays a game and has no slot, a warning sits at the top of the roll call: without a slot, its practices aren't captured automatically and make-ups aren't given from the game server. Choose **Set the practice slot** on the warning to open the same editor. It goes away once a slot is saved, even one that starts next week.
+If your section plays a game and has no slot, a warning sits at the top of the roll call. If your game's attendance is read from a game server, it also says why: without a slot, its practices aren't captured automatically and make-ups aren't given from the game server. Choose **Set the practice slot** on the warning to open the same editor. It goes away once a slot is saved, even one that starts next week.
 
 ## Check what the game server saw
 
