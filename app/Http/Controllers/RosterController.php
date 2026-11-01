@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffPracticeAccess;
+use App\Commands\Capture\AutomaticAttendance;
 use App\Commands\Practices\PracticeSchedule;
 use App\Commands\Practices\PresenceMinimum;
 use App\Commands\Practices\SectionsWithoutSlot;
@@ -91,6 +92,7 @@ class RosterController extends Controller
         private readonly StrengthTrends $strengthTrends,
         private readonly AutoExcused $autoExcused,
         private readonly MissingGameIdentities $missingIdentities,
+        private readonly AutomaticAttendance $automatic,
     ) {}
 
     /**
@@ -362,7 +364,13 @@ class RosterController extends Controller
         ))->values()->all();
         // The game each serving trooper has no identity linked for, so the capture cannot see them; read-only.
         $missingGame = $this->missingIdentities->forTroopers($placed);
-        $troopers = array_map(fn (array $row) => [...$row, 'missingGame' => ($missingGame[$row['id']] ?? null)?->name], $troopers);
+        // `missingGameAutomatic`: whether that game's server is read automatically, so the warning can leave out what
+        // the capture misses for a game marked by hand.
+        $troopers = array_map(fn (array $row) => [
+            ...$row,
+            'missingGame' => ($missingGame[$row['id']] ?? null)?->name,
+            'missingGameAutomatic' => isset($missingGame[$row['id']]) && $this->automatic->reads($missingGame[$row['id']]),
+        ], $troopers);
 
         return ['units' => $units, 'troopers' => $troopers];
     }

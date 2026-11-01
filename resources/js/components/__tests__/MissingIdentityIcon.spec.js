@@ -45,4 +45,12 @@ describe('MissingIdentityNotice', () => {
     it('stays hidden when everyone is linked', () => {
         expect(mount(MissingIdentityNotice, { props: { troopers: [row()] } }).find('[data-testid="missing-identities-banner"]').exists()).toBe(false);
     });
+
+    it('drops the consequence for a game the server does not read', () => {
+        const manual = mount(MissingIdentityNotice, { props: { troopers: [row({ missingGame: 'Arma Reforger', missingGameAutomatic: false })] } });
+        const read = mount(MissingIdentityNotice, { props: { troopers: [row({ missingGame: 'Arma Reforger', missingGameAutomatic: true })] } });
+
+        expect(manual.find('[data-testid="missing-identity-consequence"]').exists()).toBe(false);
+        expect(read.find('[data-testid="missing-identity-consequence"]').exists()).toBe(true);
+    });
 });
