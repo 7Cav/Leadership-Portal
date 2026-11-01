@@ -567,6 +567,32 @@ class ScopeResolver
     }
 
     /**
+     * Whether the user leads only above battalion level, as a read sees it: none of the units they command is a
+     * battalion or a unit below one. The regiment and the groups under it (Regimental HQ, its staff departments) are
+     * above; a battalion, company, platoon or section is not. The units are the ones the preview anchors to when one is
+     * active (the topmost units of its scope; a previewed Admin is above), else the user's own commands (billet, acting
+     * lead or a held billet, so act as counts the held one). An Admin with no command of their own is above. Home's
+     * leader warnings are about troopers and sections, so they skip a leader this high up.
+     */
+    public function leadsAboveBattalion(User $user): bool
+    {
+        $preview = $this->activeViewAs($user);
+
+        if ($preview !== null) {
+            if ($preview->admin) {
+                return true;
+            }
+
+            $scope = $preview->scope->flip();
+            $units = $this->units->tree()->filter(fn (Unit $unit) => $scope->has($unit->id) && ! $scope->has($unit->parent_id));
+        } else {
+            $units = $this->commandedUnits($user);
+        }
+
+        return ! $units->contains(fn (Unit $unit) => $unit->type->isLine() && $unit->type->rank() >= UnitType::Battalion->rank());
+    }
+
+    /**
      * Whether the user may see this trooper (AD-8, one gate for every screen that shows one): a trooper placed
      * in a section is visible when that section is in the user's effective scope, which a view-as preview
      * narrows (AD-9). A trooper the sync has not placed anywhere belongs to no scope, so only an Admin (as the
