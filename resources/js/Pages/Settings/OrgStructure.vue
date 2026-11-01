@@ -495,9 +495,47 @@ function submitAdd() {
             const revealed = added.empty && !showEmpty.value;
             pickUnit(added.id);
             const label = added.callsign ? `${added.name} (${added.callsign})` : added.name;
-            toast.success(`Added ${label}.${revealed ? ' Empty units are now shown.' : ''}`);
+            const message = `Added ${label}.${revealed ? ' Empty units are now shown.' : ''}`;
+            // The leader who added it may take it back within the hour (`undo_add_until`); an Admin deletes it instead.
+            if (added.undo_add_until) toast.success(message, { action: { label: 'Undo', onClick: () => undoAdd(added) } });
+            else toast.success(message);
         },
         onHttpException: onHttpException('The unit was not added', (message) => toast.error(message)),
+    });
+}
+
+// Undo add: the leader who added a unit may remove it again for an hour while it is still empty. The minutes left tick
+// down on the page; the server checks the window, the creator and the emptiness again on the undo itself.
+const now = ref(Date.now());
+const nowTimer = setInterval(() => {
+    now.value = Date.now();
+}, 15000);
+onBeforeUnmount(() => clearInterval(nowTimer));
+const undoProcessing = ref(false);
+
+function undoMinutesLeft(unit) {
+    if (!unit?.undo_add_until) return null;
+    const left = Math.ceil((Date.parse(unit.undo_add_until) - now.value) / 60000);
+    return left > 0 ? left : null;
+}
+
+function undoAdd(unit) {
+    if (undoProcessing.value) return;
+    const label = unit.callsign ? `${unit.name} (${unit.callsign})` : unit.name;
+    router.delete(`/settings/org-structure/${unit.id}`, {
+        preserveScroll: true,
+        onStart: () => {
+            undoProcessing.value = true;
+        },
+        onSuccess: () => {
+            if (selectedId.value === unit.id) selectedId.value = unit.parent_id;
+            toast.success(`Removed ${label}.`);
+        },
+        onError: (errors) => toast.error(errors.delete ?? Object.values(errors)[0] ?? 'The unit was not removed. Try again.'),
+        onHttpException: onHttpException('The unit was not removed', (message) => toast.error(message)),
+        onFinish: () => {
+            undoProcessing.value = false;
+        },
     });
 }
 
@@ -1148,6 +1186,11 @@ function confirmDelete() {
                             <dd class="tabular-nums">{{ selectedUnit.trooper_count }}</dd>
                         </div>
                     </dl>
+                    <div v-if="undoMinutesLeft(selectedUnit) !== null" class="mt-3">
+                        <Button type="button" variant="outline" data-testid="undo-add" :disabled="undoProcessing" @click="undoAdd(selectedUnit)">
+                            Undo add, {{ undoMinutesLeft(selectedUnit) }} min left
+                        </Button>
+                    </div>
                     <form v-if="isAdmin" data-testid="label-form" class="mb-4 mt-4 flex items-start gap-2 border-t border-border pt-4" @submit.prevent="submitLabel">
                         <div class="grid flex-1 gap-1.5">
                             <Label for="edit-label">Nickname</Label>

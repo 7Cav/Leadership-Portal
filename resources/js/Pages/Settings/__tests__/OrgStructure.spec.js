@@ -946,4 +946,93 @@ describe('Settings/OrgStructure', () => {
             expect(input.element.value).toBe('');
         });
     });
+
+    describe('Undo add', () => {
+        afterEach(() => vi.useRealTimers());
+
+        const fresh = (minutes) => ({
+            id: 3, parent_id: 2, type: 'company', name: 'Charlie Company', callsign: 'C/2-7', path: '1/2/3/', trooper_count: 0, empty: true,
+            undo_add_until: new Date(Date.now() + minutes * 60000).toISOString(),
+        });
+
+        it('shows an Undo add button with the minutes left to the leader who added the unit, and ticks down', async () => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2026-11-01T12:00:00Z'));
+            const wrapper = mount(OrgStructure, { props: { units: [...UNITS, fresh(42)], isAdmin: false } });
+            await wrapper.find('[data-testid="show-empty"]').setValue(true);
+            await wrapper.find('[data-testid="unit-row-3"]').trigger('click');
+
+            expect(wrapper.find('[data-testid="undo-add"]').text()).toBe('Undo add, 42 min left');
+
+            vi.advanceTimersByTime(60000);
+            await flushPromises();
+            expect(wrapper.find('[data-testid="undo-add"]').text()).toBe('Undo add, 41 min left');
+
+            vi.advanceTimersByTime(41 * 60000);
+            await flushPromises();
+            expect(wrapper.find('[data-testid="undo-add"]').exists()).toBe(false);
+            wrapper.unmount();
+        });
+
+        it('has no Undo add button on a unit the viewer may not undo', async () => {
+            const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: false } });
+            await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+
+            expect(wrapper.find('[data-testid="undo-add"]').exists()).toBe(false);
+        });
+
+        it('deletes the unit from the Undo add button and says so', async () => {
+            deleteSpy = vi.fn();
+            toastSuccess.mockReset();
+            const wrapper = mount(OrgStructure, { props: { units: [...UNITS, fresh(30)], isAdmin: false } });
+            await wrapper.find('[data-testid="show-empty"]').setValue(true);
+            await wrapper.find('[data-testid="unit-row-3"]').trigger('click');
+            await wrapper.find('[data-testid="undo-add"]').trigger('click');
+
+            expect(deleteSpy).toHaveBeenCalledWith('/settings/org-structure/3', expect.any(Object));
+            deleteSpy.mock.lastCall[1].onSuccess();
+            expect(toastSuccess).toHaveBeenCalledWith('Removed Charlie Company (C/2-7).');
+        });
+
+        it('shows the server reason when an undo is refused', async () => {
+            deleteSpy = vi.fn();
+            toastError.mockReset();
+            const wrapper = mount(OrgStructure, { props: { units: [...UNITS, fresh(30)], isAdmin: false } });
+            await wrapper.find('[data-testid="show-empty"]').setValue(true);
+            await wrapper.find('[data-testid="unit-row-3"]').trigger('click');
+            await wrapper.find('[data-testid="undo-add"]').trigger('click');
+            deleteSpy.mock.lastCall[1].onError({ delete: 'You can undo this for 60 minutes after adding it, while it is still empty.' });
+
+            expect(toastError).toHaveBeenCalledWith('You can undo this for 60 minutes after adding it, while it is still empty.');
+        });
+
+        it('offers Undo on the success toast right after adding, which deletes the new unit', async () => {
+            addFormState = { type: 'company', parent_id: 2, ordinal: '', processing: false, errors: {} };
+            toastSuccess.mockReset();
+            addSubmit.mockReset();
+            deleteSpy = vi.fn();
+            const units = UNITS.map((unit) => ({ ...unit, can_add_child: true }));
+            const wrapper = mount(OrgStructure, { props: { units, isAdmin: false }, attachTo: document.body });
+
+            await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+            await wrapper.find('[data-testid="add-unit-open"]').trigger('click');
+            await flushPromises();
+            const select = inDialog('add-ordinal');
+            select.value = 'C';
+            select.dispatchEvent(new Event('change'));
+            await flushPromises();
+            inDialog('add-unit-form').dispatchEvent(new Event('submit'));
+
+            await wrapper.setProps({ units: [...units, fresh(60)] });
+            addSubmit.mock.lastCall[1].onSuccess();
+            await flushPromises();
+
+            const [message, options] = toastSuccess.mock.lastCall;
+            expect(message).toBe('Added Charlie Company (C/2-7). Empty units are now shown.');
+            expect(options.action.label).toBe('Undo');
+            options.action.onClick();
+            expect(deleteSpy).toHaveBeenCalledWith('/settings/org-structure/3', expect.any(Object));
+            wrapper.unmount();
+        });
+    });
 });
