@@ -77,6 +77,9 @@ Your scope's units and troopers, from the cached Cav roster.
   regiment).
 - Guests at our practices: troopers from outside the unit recorded at its sections' practices, with visits, last week
   seen and their own section SP. Those who meet the JSAM thresholds are marked as candidates (see "JSAM guests").
+- Practice presence minimum (a battalion): how many minutes on a practice's server during its hour count as attending
+  it, 40 unless the battalion set its own. Its HQ staff and Admins can change it (1 to 60 minutes) or go back to the
+  default; every change is in the audit log, and it applies to captures from then on.
 - Sync: an Admin's "Sync now" refreshes the whole roster from Cav; a leader gets a sync of just the unit on screen. Both
   queue a job; reload after a minute. The page shows when the roster and the leave data last synced.
 - Leave sync problems (Admins): under the leave note, what the latest LOA sync could not read: the problems reading the
@@ -191,6 +194,21 @@ On the same page:
   only about its own server). On the server set in env with nothing selected, a player counts as present when one of
   their sessions overlaps the practice. The sessions come from each player's profile; if a profile cannot be read or
   has no sessions, the player's first and last seen times are used instead.
+  For a practice read over its slot's hour, CRCON also gives each player's minutes inside the hour (their stays added
+  up, so a reconnect counts once, and added across training servers). A trooper of the section counts as attended
+  only with at least the presence minimum, 40 minutes unless their battalion set its own. A player read through
+  BattleMetrics or Nightwatch, or through the first and last seen fallback, has no minutes and is marked as before.
+- Make-ups from the game server: a trooper from another section who was on the server for at least the presence
+  minimum during a practice's slot hour is recorded as a guest there ("seen on the game server") and gets an automatic
+  Make-up complete on their own section's roll call for that week. Their own row then says which practice it came from.
+  It is never given when their own section practises in the same window on the server they were seen on (a shared
+  slot: that was their own practice); time on a server their own practice does not read still counts. Nor is it given
+  from a capture of the week so far, from a source without minutes, to a trooper on leave, one who left, staff on no
+  roll call or an unlinked player, or into a week whose own report was sent (the sighting is still recorded there). A
+  leader's mark, Attended and LOA stay as they are; an empty row or an automatic Not attended becomes the make-up. A
+  leader can change it like any mark, and a later capture does not put it back. The capture's run counts the make-ups
+  it gave. Operators can run `php artisan portal:backfill-practice-captures` to capture past practices in unlocked weeks
+  again over their slot's hour; `--dry-run` lists who would be marked and writes nothing.
 - Unmatched players: players the capture saw that no trooper is linked to. Link one to a trooper (this also saves their
   game identity and marks them attended), dismiss them, or restore a dismissed one. An ID the server reports in two letter cases is one
   player (an Epic ID is taken in lower case). A player linked to a trooper who has left is listed
@@ -453,8 +471,9 @@ lists the section practices they attended, newest week first; the roster's troop
   themselves reads "Self-reported by".
 - Game server: when a practice capture sees a staff member through a linked game identity, the practice is listed as
   "Seen on the game server". The capture keeps them on that practice's own record of who it saw, as it does every
-  linked trooper from elsewhere; it credits nobody. Its window is the whole Cav week so far, so this means they were on
-  the server that week. A practice with an entry shows the entry.
+  linked trooper from elsewhere; it credits nobody. A capture over a practice's slot hour means they were on the server
+  during that hour; one over the week so far (a section with no slot) only that they were on it that week. A practice
+  with an entry shows the entry.
 - Remove one: the same people. A game server sighting cannot be removed by hand. An entry on a section that had no
   practice that week creates one; removing the last such entry removes it again when nothing else is on it (no mark,
   signature, guest, capture, or posted or confirmed roll call), so it never keeps an Admin from deleting the section.
@@ -640,8 +659,9 @@ All run on the queue; a queue worker must be running. Times are UTC.
 | Counseling document copy | When a DCS or LOR is filed with Google Drive set up | Copies the document to the 7Cav Google Drive folder. Tried up to 5 times, with pauses of 1, 5, 15 and 60 minutes; the record shows the outcome. | `GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_DRIVE_PRIVATE_KEY`, `GOOGLE_DRIVE_FOLDER_ID`. Skipped (record kept, "Portal only") while any is unset. |
 | Practice capture | When a leader clicks "Try again" on the roll call. That button only shows after a failed capture, and nothing in the code schedules a first capture. | Reads who was on the game server during the Cav week so far, pre-marks linked troopers in the section as Attended (a leader's mark always wins), lists unmatched players. | Each game's telemetry interface, picked on the Games page. CRCON (`CRCON_SERVERS` or `CRCON_BASE_URL`, `CRCON_API_KEY`; one CRCON per game server) falls back to BattleMetrics; BattleMetrics (`BATTLEMETRICS_API_KEY`, `BATTLEMETRICS_SERVER_ID`); Nightwatch (`NIGHTWATCH_API_KEY`, `NIGHTWATCH_SERVER_IDS`). A game reads the training servers an Admin selected for it on the Servers page. With none selected, Hell Let Loose (WW2) on CRCON, Arma Reforger on BattleMetrics and WARDOGS on Nightwatch read the server set in env; any other game, or one of those switched to another interface, reads nothing until a server is selected, and its roll call says so. A game with no keys, or interface "none", shows "not configured". |
 
-The capture does not record other sections' troopers as guests or makeups for now: without set practice times the
-window is the whole week and the servers are shared, so being online does not mean being at that practice.
+A capture over a practice's slot hour records other sections' troopers who were on the server for the presence
+minimum as guests, with an automatic makeup (see "Makeups"). A capture over the week so far (no slot) does not: the
+servers are shared, so being online that week does not mean being at that practice.
 
 Activity log pruning runs from the scheduler itself, not the queue: daily at 04:15 `portal:prune-page-visits` deletes
 page visits older than 30 days, in chunks.
@@ -679,6 +699,11 @@ cannot add one of its own troopers of that week as a guest.
   makeup is already on any section's practice that week.
 - Removing the guest takes the automatic makeup back, unless something else supports it or a leader has since changed
   or confirmed it. It is taken back from the section it was written to, even if the guest has moved section since.
+- The game server gives the same automatic makeup when a capture of another section's practice, over its slot hour,
+  saw them on the server for at least the presence minimum (40 minutes unless their battalion set its own), and their
+  own section does not practise in the same window on that server. The host practice lists them as a guest seen on the game server,
+  which no leader can remove. Their own roll call row says which practice the makeup came from and whether the server
+  saw them or a host leader added them.
 - A makeup counts for the trooper's SP. An automatic makeup alone does not make their own section's practice "held".
 
 ## KPIs

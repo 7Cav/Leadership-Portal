@@ -12,8 +12,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * practice; `week_start` repeats its week (AD-11). Two sources, one row per trooper and host practice: `manual` (the
  * host section's leader said so on their rollcall; no window, `recorded_by` is that leader), written by the audited
  * `RecordGuestAttendance` Command and removable only through `RemoveGuestAttendance`, and `capture` (the game server
- * saw them; `seen_from`/`seen_until` are the capture window). The capture does not record sightings until practice
- * time slots exist (its window is the whole Cav week), so new rows are `manual`; older `capture` rows stay. A hand
+ * saw them; `seen_from`/`seen_until` are the capture window). The capture records one only over a practice's slot hour,
+ * for a trooper on the server for the presence minimum (#558), never from a capture of the whole Cav week. A hand
  * entry a capture later sees becomes `capture`, with its window, and keeps `recorded_by`. Both go through
  * `CrossSectionSightingRepository`.
  *

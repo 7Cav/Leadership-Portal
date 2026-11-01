@@ -15,6 +15,7 @@ use App\Http\Controllers\RollcallGuestController;
 use App\Http\Controllers\RollcallPracticeSlotController;
 use App\Http\Controllers\RollcallTemplateController;
 use App\Http\Controllers\RosterController;
+use App\Http\Controllers\RosterPresenceMinimumController;
 use App\Http\Controllers\ScopeUnitsController;
 use App\Http\Controllers\Settings\ActivityLogController;
 use App\Http\Controllers\Settings\AuditLogController;
@@ -111,6 +112,8 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // The old strength trends address: redirects to the roster with the Strength tab open.
     Route::get('/roster/{unit}/strength', [StrengthTrendsController::class, 'show'])->name('roster.strength');
     Route::get('/roster/{unit?}', [RosterController::class, 'index'])->name('roster.index');
+    // A battalion's practice presence minimum (#558): an audited Command for its HQ staff and Admins.
+    Route::post('/roster/{unit}/presence-minimum', [RosterPresenceMinimumController::class, 'update'])->middleware('throttle:audited-writes')->name('roster.presence-minimum');
     // The shell's trooper search (JSON): troopers in the viewer's scope by username, for a jump to their milpac. It
     // offers only troopers the milpac below would open (ScopeResolver::canSee's rule), throttled per user.
     Route::get('/troopers/search', TrooperSearchController::class)->middleware('throttle:trooper-search')->name('troopers.search');

@@ -46,6 +46,7 @@ import OrbatView from "@/components/roster/OrbatView.vue";
 import StrengthView from "@/components/roster/StrengthView.vue";
 import GuidonGenerator from "@/components/roster/GuidonGenerator.vue";
 import PracticeGuestsPanel from "@/components/roster/PracticeGuestsPanel.vue";
+import PresenceMinimumPanel from "@/components/roster/PresenceMinimumPanel.vue";
 import TrooperSheet from "@/components/roster/TrooperSheet.vue";
 import { useNow } from "@/composables/useNow";
 import { useViewAs } from "@/composables/useViewAs";
@@ -79,6 +80,8 @@ const props = defineProps({
     // "Guests at our practices" for a section, platoon or company (JSAM evidence, 2026-10-23): `{ criteria, rows }`,
     // or null for a battalion or the regiment.
     guests: { type: Object, default: null },
+    // A battalion's practice presence minimum (#558): `{ minutes, isDefault, default, canEdit }`, null for other units.
+    presenceMinimum: { type: Object, default: null },
     // The Strength tab (`StrengthTrends`): `{ range, weeks, change, children }`, sent only while that tab is open.
     strengthTrends: { type: Object, default: null },
 });
@@ -649,6 +652,12 @@ function syncNow() {
                     >
                 </template>
             </MatrixView>
+
+            <PresenceMinimumPanel
+                v-if="presenceMinimum"
+                :minimum="presenceMinimum"
+                :unit-id="unit.id"
+            />
 
             <PracticeGuestsPanel
                 v-if="guests"

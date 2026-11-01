@@ -419,6 +419,22 @@ describe('Rollcall page', () => {
             expect(post).toHaveBeenCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 3, rollcall: 'makeup_requested' }] });
         });
 
+        it('names the practice an automatic make-up came from, until the leader changes the mark', async () => {
+            page.url = '/rollcall/12?step=2';
+            const wrapper = factory({
+                troopers: [
+                    trooper(3, 'unsigned', 'makeup', { source: 'auto', makeupFrom: { section: '1/2/A/1-7', fromServer: true } }),
+                    trooper(4, 'unsigned', 'makeup', { source: 'auto', makeupFrom: { section: '3/1/A/1-7', fromServer: false } }),
+                ],
+            });
+
+            expect(wrapper.get('[data-trooper="3"] [data-testid="makeup-from"]').text()).toBe('Make-up at 1/2/A/1-7, seen on the game server');
+            expect(wrapper.get('[data-trooper="4"] [data-testid="makeup-from"]').text()).toBe('Make-up at 3/1/A/1-7, added by its leader');
+
+            await button(wrapper, 3, 'missed').trigger('click');
+            expect(wrapper.find('[data-trooper="3"] [data-testid="makeup-from"]').exists()).toBe(false);
+        });
+
         it('lists who owes a make-up in the review step, earlier weeks from the server and this week live', async () => {
             page.url = '/rollcall/12?step=3';
             const wrapper = factory({

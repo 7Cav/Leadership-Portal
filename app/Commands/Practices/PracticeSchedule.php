@@ -39,6 +39,17 @@ class PracticeSchedule
             return PracticeWindow::between($practice->window_start, $practice->window_end);
         }
 
+        return $this->scheduledWindow($sectionId, $weekStart, $practice, $slot);
+    }
+
+    /**
+     * The week's scheduled hour as the slot and the week's move or cancellation place it now, whatever window an earlier
+     * capture read (#558: a week first captured over the week so far, before it had a slot, can be captured again over
+     * its hour). Null with no slot or a cancelled week.
+     */
+    public function scheduledWindow(int $sectionId, CarbonImmutable $weekStart, ?SectionPractice $practice = null, ?SectionPracticeSlot $slot = null): ?PracticeWindow
+    {
+        $practice ??= $this->practices->find($sectionId, $weekStart);
         $slot ??= $this->slots->forSection($sectionId);
 
         if ($slot === null || $practice?->slot_cancelled === true) {

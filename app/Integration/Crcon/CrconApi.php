@@ -113,11 +113,13 @@ class CrconApi
 
                 $platformId = $this->platformId($row);
 
-                if (! $this->wasPresent($row, $windowStart, $windowEnd)) {
+                [$present, $minutes] = $this->presence($row, $windowStart, $windowEnd);
+
+                if (! $present) {
                     continue;
                 }
 
-                $byPlatformId[$platformId] ??= new CrconPlayer($this->playerName($row, $platformId), $platformId);
+                $byPlatformId[$platformId] ??= new CrconPlayer($this->playerName($row, $platformId), $platformId, minutes: $minutes);
             }
 
             $seen += count($rows);
@@ -192,7 +194,8 @@ class CrconApi
      *
      * Each player's lines are paired into stays: a connect opens one, the next disconnect closes it. A disconnect with
      * no connect before it means they joined before the look-back, so the stay starts there; a connect never closed
-     * is still running at the window end. Anyone with a stay that touches the window was present.
+     * is still running at the window end. Anyone with a stay that touches the window was present, and carries the
+     * minutes their stays spent inside it ({@see StayMinutes}).
      */
     private function fetchServerPresence(string $serverId, DateTimeImmutable $windowStart, DateTimeImmutable $windowEnd): CrconPresence
     {
@@ -288,8 +291,8 @@ class CrconApi
 
         /** @var array<string, DateTimeImmutable> $open */
         $open = [];
-        /** @var array<string, CrconPlayer> $present */
-        $present = [];
+        /** @var array<string, list<array{0: DateTimeImmutable, 1: DateTimeImmutable|null}>> $stays */
+        $stays = [];
         $names = [];
 
         foreach ($events as $event) {
@@ -306,17 +309,25 @@ class CrconApi
             unset($open[$event['id']]);
 
             if ($from <= $end && $event['time'] >= $start) {
-                $present[$event['id']] ??= new CrconPlayer($names[$event['id']], $event['id']);
+                $stays[$event['id']][] = [$from, $event['time']];
             }
         }
 
         foreach ($open as $id => $from) {
             if ($from <= $end) {
-                $present[$id] ??= new CrconPlayer($names[$id], $id);
+                $stays[$id][] = [$from, null];
             }
         }
 
-        return new CrconPresence(array_values($present), $start, $end, CarbonImmutable::now()->toDateTimeImmutable());
+        $present = [];
+
+        // Each player's time inside the window (#558): their stays clipped and merged, so a reconnect counts once.
+        foreach ($stays as $id => $list) {
+            $id = (string) $id;
+            $present[] = new CrconPlayer($names[$id], $id, minutes: StayMinutes::within($list, $start, $end));
+        }
+
+        return new CrconPresence($present, $start, $end, CarbonImmutable::now()->toDateTimeImmutable());
     }
 
     /**
@@ -537,9 +548,13 @@ class CrconApi
      * only the fallback for a profile with no sessions or one that could not be read: one bad
      * profile must not fail the whole capture, and the span can only over-report, never miss.
      *
+     * With sessions, the player also carries their minutes inside the window ({@see StayMinutes}); on the span fallback
+     * the minutes are unknown (null), so the player counts as seen only and never earns an automatic make-up (#558).
+     *
      * @param  array<string, mixed>  $row
+     * @return array{0: bool, 1: int|null} whether present, and the minutes inside the window when known
      */
-    private function wasPresent(array $row, DateTimeImmutable $start, DateTimeImmutable $end): bool
+    private function presence(array $row, DateTimeImmutable $start, DateTimeImmutable $end): array
     {
         $sessions = $row['sessions'] ?? null;
 
@@ -548,13 +563,15 @@ class CrconApi
 
             // Someone last seen before the window opened cannot have been in it; skip the profile read.
             if ($last !== null && $last < $start) {
-                return false;
+                return [false, null];
             }
 
             $sessions = $this->profileSessions($this->platformId($row));
         }
 
         if (is_array($sessions) && $sessions !== []) {
+            $stays = [];
+
             foreach ($sessions as $session) {
                 if (! is_array($session)) {
                     throw CrconUnavailable::malformed('a session was not an object');
@@ -573,11 +590,11 @@ class CrconApi
                 }
 
                 if ($from <= $end && ($till === null || $till >= $start)) {
-                    return true;
+                    $stays[] = [$from, $till];
                 }
             }
 
-            return false;
+            return $stays === [] ? [false, null] : [true, StayMinutes::within($stays, $start, $end)];
         }
 
         $first = $this->moment($row['first_seen_timestamp_ms'] ?? null);
@@ -587,7 +604,7 @@ class CrconApi
             throw CrconUnavailable::malformed('a player carried neither sessions nor a first/last-seen span');
         }
 
-        return $first <= $end && $last >= $start;
+        return [$first <= $end && $last >= $start, null];
     }
 
     /**

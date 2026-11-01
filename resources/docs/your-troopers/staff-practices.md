@@ -24,7 +24,7 @@ audience: everyone
 ## Read the list
 
 1. Each entry names the week, the section and where it came from: **Self-reported by** the staff member, **Entered by** a leader or an Admin, or **Seen on the game server**.
-2. A game server entry comes from a practice capture that saw them through their game identity. The capture reads the whole Cav week so far, so it means they were on the server that week.
+2. A game server entry comes from a practice capture that saw them through their game identity. For a section with a practice slot it means they were on the server during that practice's hour; without a slot, only that they were on it that Cav week.
 3. The same list shows on the roster's trooper sheet, read only.
 
 > [!good-to-know] A staff entry lists the staff member on the host section's roll call, as a **Staff guest** in their own platoon or company and as a **Guest** elsewhere. It never counts in that section's numbers or reports, and gives no makeup. Platoon and company HQ staff say which practices they attended in their own staff report, which sets these entries for the week: see [Send your staff report](/docs/weekly-report/staff-report).

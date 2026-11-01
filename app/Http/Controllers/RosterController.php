@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffPracticeAccess;
 use App\Commands\Practices\PracticeSchedule;
+use App\Commands\Practices\PresenceMinimum;
 use App\Commands\Practices\SectionsWithoutSlot;
 use App\Commands\Units\SaveUnitGuidonHandler;
 use App\Kpi\AutoExcused;
@@ -75,6 +76,7 @@ class RosterController extends Controller
         private readonly KpiService $kpis,
         private readonly LoaProvenance $loaProvenance,
         private readonly PracticeGuests $practiceGuests,
+        private readonly PresenceMinimum $presenceMinimum,
         private readonly UnitLeadRepository $leads,
         private readonly UnitActingLeadRepository $actingLeads,
         private readonly PlacementHistory $placementHistory,
@@ -135,6 +137,8 @@ class RosterController extends Controller
             // each such section row also carries `practiceSlotMissing`. Leaders only, like Home.
             'sectionsWithoutSlot' => $missingSlots,
             'guests' => $selected ? $this->guestProps($selected, $week, $tree) : null,
+            // A battalion's practice presence minimum (#558), editable by its HQ staff and Admins.
+            'presenceMinimum' => $selected ? $this->presenceMinimum->props($user, $selected) : null,
             // The Strength tab: headcount and in roll call per Cav week. Read only when the tab is open (`?view=strength`);
             // the page asks for it with a partial reload when the tab is picked, so the other views never pay for it.
             'strengthTrends' => fn () => $this->strengthProps($request, $selected),
