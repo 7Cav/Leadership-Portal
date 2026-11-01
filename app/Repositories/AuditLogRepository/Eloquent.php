@@ -2,7 +2,12 @@
 
 namespace App\Repositories\AuditLogRepository;
 
+use App\Models\Attendance;
 use App\Models\AuditLogEntry;
+use App\Models\BattalionSetting;
+use App\Models\ChangelogEntry;
+use App\Models\CounselingRecord;
+use App\Models\CrossSectionSighting;
 use App\Models\FireteamAssignment;
 use App\Models\FireteamSetting;
 use App\Models\Game;
@@ -12,6 +17,8 @@ use App\Models\PlatoonTrainingTopic;
 use App\Models\PortalRoleGrant;
 use App\Models\PracticeCapturePlayer;
 use App\Models\SectionPractice;
+use App\Models\SectionPracticeSlot;
+use App\Models\StaffReport;
 use App\Models\Template;
 use App\Models\TemplateVersion;
 use App\Models\TrainingPlan;
@@ -19,12 +26,15 @@ use App\Models\Trooper;
 use App\Models\TrooperCourse;
 use App\Models\TrooperGameIdentity;
 use App\Models\Unit;
+use App\Models\UnitActingLead;
 use App\Models\UnitGuidon;
+use App\Models\UnitOversight;
 use App\Models\UnitTemplateChoice;
 use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Repositories\AuditedBatch;
 use App\Repositories\AuditLogRepository;
+use App\Repositories\AuditSubject;
 use Carbon\Carbon;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
@@ -70,6 +80,16 @@ class Eloquent implements AuditLogRepository
         // A dismissal belongs to no unit; it is linked through the latest practice that captured the player (see
         // {@see withLatestCaptures()}).
         'GamePlayerDismissal' => [GamePlayerDismissal::class, []],
+        // Read only for the subject ({@see AuditSubject}) of an entry written before it was stored with the entry.
+        'Attendance' => [Attendance::class, []],
+        'StaffReport' => [StaffReport::class, []],
+        'SectionPracticeSlot' => [SectionPracticeSlot::class, []],
+        'BattalionSetting' => [BattalionSetting::class, []],
+        'CounselingRecord' => [CounselingRecord::class, []],
+        'ChangelogEntry' => [ChangelogEntry::class, []],
+        'CrossSectionSighting' => [CrossSectionSighting::class, []],
+        'UnitActingLead' => [UnitActingLead::class, []],
+        'UnitOversight' => [UnitOversight::class, []],
     ];
 
     public function recordWithMutation(int $actorId, string $action, ?string $reason, Closure $mutation, ?int $onBehalfOf = null, ?int $onBehalfOfUnit = null): mixed
@@ -85,7 +105,7 @@ class Eloquent implements AuditLogRepository
                 ));
             }
 
-            $this->append($actorId, $action, $reason, $result, $this->sortedAttributes($result), $onBehalfOf, $onBehalfOfUnit);
+            $this->append($actorId, $action, $reason, $result, $this->sortedAttributes($result), $onBehalfOf, $onBehalfOfUnit, AuditSubject::details($result));
 
             return $result;
         });
@@ -105,6 +125,9 @@ class Eloquent implements AuditLogRepository
                 ));
             }
 
+            // What changed, read before the rows are re-read below: a re-read forgets the values from before the write.
+            $details = AuditSubject::details($batch->target, $batch->members);
+
             // Digest the rows as stored, not as the mutation's in-memory models happen to hold
             // them: a freshly created model lacks the columns it never set, so the same persisted
             // state would otherwise digest differently depending on whether it was created or found.
@@ -119,7 +142,7 @@ class Eloquent implements AuditLogRepository
             $this->append($actorId, $action, $reason, $batch->target, [
                 'target' => $this->sortedAttributes($batch->target),
                 'members' => $members,
-            ], $onBehalfOf, $onBehalfOfUnit);
+            ], $onBehalfOf, $onBehalfOfUnit, $details);
 
             return $batch;
         }, attempts: self::BATCH_ATTEMPTS);
@@ -154,8 +177,9 @@ class Eloquent implements AuditLogRepository
 
     /**
      * @param  array<mixed>  $digested  the content `content_digest` hashes
+     * @param  array<string, mixed>|null  $details  the subject and changes ({@see AuditSubject::details()}); not digested
      */
-    private function append(int $actorId, string $action, ?string $reason, Model $target, array $digested, ?int $onBehalfOf, ?int $onBehalfOfUnit): void
+    private function append(int $actorId, string $action, ?string $reason, Model $target, array $digested, ?int $onBehalfOf, ?int $onBehalfOfUnit, ?array $details): void
     {
         AuditLogEntry::query()->forceCreate([
             'actor_id' => $actorId,
@@ -166,6 +190,7 @@ class Eloquent implements AuditLogRepository
             'target_id' => (string) $target->getKey(),
             'reason' => $reason,
             'content_digest' => hash('sha256', json_encode($digested, JSON_THROW_ON_ERROR)),
+            'details' => $details,
             'created_at' => now(),
         ]);
     }
@@ -206,7 +231,7 @@ class Eloquent implements AuditLogRepository
         $targets = [];
         foreach ($idsByType as $type => $ids) {
             [$class, $with] = self::TARGETS[$type];
-            $models = $class::query()->with($with)->whereKey(array_values($ids))->get();
+            $models = $class::query()->with([...$with, ...AuditSubject::relationsOf($class)])->whereKey(array_values($ids))->get();
 
             if ($type === 'GamePlayerDismissal') {
                 $this->withLatestCaptures($models);

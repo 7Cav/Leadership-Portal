@@ -32,6 +32,7 @@ class AuditLogEntry extends Model
     {
         return [
             'created_at' => 'datetime',
+            'details' => 'array',
         ];
     }
 
