@@ -3,9 +3,9 @@ import { reactive } from 'vue';
 import { mount } from '@vue/test-utils';
 import OrgStructure from '../OrgStructure.vue';
 
-// The game a unit plays on the org page: a battalion-level unit picks it from the Games list, every unit under it
-// inherits it, and the tree shows it only on the battalion's row, as a chip with the game's abbreviation. Below
-// battalion level the details panel shows the game locked; a game set there before can only be cleared.
+// The game a unit plays on the org page: a unit with no game above it picks it from the Games list, every unit under it
+// inherits it, and the tree shows it only on that unit's row, as a chip with the game's abbreviation. Under a unit with
+// a game the details panel shows the game locked; a game set there before can only be cleared.
 
 const gamePatch = vi.fn();
 let gameForm = null;
@@ -34,14 +34,14 @@ const GAMES = [
     { id: 4, name: 'Squad', retired: true },
     { id: 5, name: 'Hell Let Loose: Vietnam', retired: false },
 ];
-const base = { kind: 'line', label: null, own_count: 0, trooper_count: 2, lead: null, lead_vacant: false, can_set_game: true };
+const base = { kind: 'line', label: null, own_count: 0, trooper_count: 2, lead: null, lead_vacant: false, can_set_game: true, game_locked_by: null };
 const UNITS = [
     { ...base, id: 1, parent_id: null, type: 'regiment', name: '7th Cavalry Regiment', callsign: '7CAV', game_id: null, game: null, path: '1/', sets_game: true },
     { ...base, id: 5, parent_id: 1, type: 'battalion', name: '2nd Battalion', callsign: '2-7', label: 'Team Bravo', game_id: 5, game: HLLV, path: '1/5/', sets_game: true },
-    { ...base, id: 6, parent_id: 5, type: 'company', name: 'Alpha Company', callsign: 'A/2-7', game_id: null, game: { ...HLLV, from: '2-7' }, path: '1/5/6/', sets_game: false },
+    { ...base, id: 6, parent_id: 5, type: 'company', name: 'Alpha Company', callsign: 'A/2-7', game_id: null, game: { ...HLLV, from: '2-7' }, path: '1/5/6/', sets_game: false, game_locked_by: '2-7' },
     // A platoon with a game of its own from before games were picked per battalion.
-    { ...base, id: 2, parent_id: 6, type: 'platoon', name: '2nd Platoon', callsign: '2/A/2-7', game_id: 3, game: WARDOGS, path: '1/5/6/2/', sets_game: false },
-    { ...base, id: 3, parent_id: 2, type: 'section', name: '1st Section', callsign: '1/2/A/2-7', game_id: null, game: { ...WARDOGS, from: '2/A/2-7' }, path: '1/5/6/2/3/', sets_game: false },
+    { ...base, id: 2, parent_id: 6, type: 'platoon', name: '2nd Platoon', callsign: '2/A/2-7', game_id: 3, game: WARDOGS, path: '1/5/6/2/', sets_game: false, game_locked_by: '2-7' },
+    { ...base, id: 3, parent_id: 2, type: 'section', name: '1st Section', callsign: '1/2/A/2-7', game_id: null, game: { ...WARDOGS, from: '2/A/2-7' }, path: '1/5/6/2/3/', sets_game: false, game_locked_by: '2/A/2-7' },
     { ...base, id: 7, parent_id: 1, type: 'battalion', name: '1st Battalion', callsign: '1-7', game_id: 4, game: { id: 4, name: 'Squad', abbreviation: 'SQD', retired: true, from: null }, path: '1/7/', sets_game: true },
     { ...base, id: 8, parent_id: 1, type: 'battalion', name: '3rd Battalion', callsign: '3-7', game_id: null, game: null, path: '1/8/', sets_game: true },
 ];
@@ -114,7 +114,7 @@ describe('Settings/OrgStructure unit game', () => {
         expect(wrapper.findAll('[data-testid="edit-game"] option').map((option) => option.text())).toContain('Squad (retired)');
     });
 
-    it('locks a unit below battalion level to the game it inherits, by name', async () => {
+    it('locks a unit under one with a game to the game it inherits, saying where it is set', async () => {
         const wrapper = mountPage();
 
         await wrapper.find('[data-testid="unit-row-6"]').trigger('click');
@@ -124,9 +124,20 @@ describe('Settings/OrgStructure unit game', () => {
         expect(select.attributes('disabled')).toBeDefined();
         expect(select.findAll('option').map((option) => option.text())).toEqual(['Hell Let Loose: Vietnam (from 2-7)']);
         expect(wrapper.find('[data-testid="clear-game"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="game-locked"]').text()).toContain('Set by 2-7. Clear the game there to pick one here.');
     });
 
-    it('shows a game set below battalion level before, and lets it be cleared, never changed', async () => {
+    it('lets a company pick its own game when no unit above it has one', async () => {
+        const units = UNITS.map((unit) => (unit.id === 6 ? { ...unit, game: null, sets_game: true, game_locked_by: null } : unit));
+        const wrapper = mountPage({}, units);
+
+        await wrapper.find('[data-testid="unit-row-6"]').trigger('click');
+
+        expect(wrapper.find('[data-testid="game-form"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="game-locked"]').exists()).toBe(false);
+    });
+
+    it('shows a game set under a unit that has one, and lets it be cleared, never changed', async () => {
         const wrapper = mountPage();
 
         await wrapper.find('[data-testid="unit-row-2"]').trigger('click');

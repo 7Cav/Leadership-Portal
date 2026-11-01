@@ -35,8 +35,8 @@ const childNameCh = computed(() => {
 // Only from `sm` up (the class reads the variable): on a phone the callsign sits under the name instead.
 const nameStyle = computed(() => (props.nameCh && props.node.callsign && !isHq(props.node) ? { '--name-ch': `${props.nameCh}ch` } : undefined));
 
-// The game chip: only on a row that picks its own game below the regiment (a battalion, or a top-level group such as
-// ACD), as the game's short code. Units under it show no game; the details panel says which one applies.
+// The game chip: only on a row below the regiment that has a game of its own and no unit above with one, as the game's
+// short code. Units under it show no game; the details panel says which one applies.
 const gameChip = computed(() => {
     const { node } = props;
     if (!node.game || !node.sets_game || node.type === 'regiment') return null;
@@ -124,7 +124,7 @@ const oversightText = computed(() => {
                 <span v-if="node.callsign" class="font-mono text-[11px] break-all text-muted-foreground sm:ml-1.5">{{ node.callsign }}</span>
             </span>
             <span v-if="hasMeta" class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 max-sm:order-last max-sm:basis-full max-sm:pl-[1.625rem] sm:ml-1.5">
-            <!-- The game chip, battalion level only: the game's short code, its full name on hover. -->
+            <!-- The game chip, on the unit that set it: the game's short code, its full name on hover. -->
             <span
                 v-if="gameChip"
                 :data-testid="`unit-game-${node.id}`"

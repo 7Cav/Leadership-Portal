@@ -148,9 +148,10 @@ const selectedMembers = computed(() => (selectedUnit.value ? (props.groupMembers
 
 // Team label (Admin): its own small form, audited on the server.
 const labelForm = useForm({ label: '' });
-// The game the unit plays, picked from the Games list by an Admin, Regimental HQ or the battalion's overseer
-// (`can_set_game`); null inherits the game of the nearest unit above. Only a unit at battalion level or above picks one
-// (`sets_game`): below that the picker is locked to the inherited game, and a game set there before can only be cleared.
+// The game the unit plays, picked from the Games list by an Admin, Regimental HQ, the unit's overseer or DEVCOM's command
+// team (`can_set_game`); null inherits the game of the nearest unit above. A unit picks one only while no unit above it
+// has one (`sets_game`): under one that does (`game_locked_by`) the picker is locked to the inherited game, and a game
+// set there before can only be cleared.
 const gameForm = useForm({ game_id: null });
 watch(
     selectedUnit,
@@ -1034,7 +1035,7 @@ function confirmDelete() {
                         </div>
                         <Button type="submit" variant="outline" data-testid="save-game" :disabled="gameForm.processing">Save game</Button>
                     </form>
-                    <!-- Below battalion level the game is the battalion's: shown locked. A game set here before stays until cleared. -->
+                    <!-- Under a unit with a game, the game is that unit's: shown locked. A game set here before stays until cleared. -->
                     <div v-else-if="selectedUnit.can_set_game" data-testid="game-locked" class="mb-4 grid gap-1.5">
                         <Label for="edit-game">Game</Label>
                         <div class="flex items-end gap-2">
@@ -1057,8 +1058,8 @@ function confirmDelete() {
                             >
                         </div>
                         <p class="text-xs text-muted-foreground">
-                            <template v-if="selectedUnit.game_id !== null">Set on this unit before games were picked per battalion. Clear it to play the battalion's game.</template>
-                            <template v-else>Only a battalion or a unit above it picks a game.</template>
+                            <template v-if="selectedUnit.game_id !== null">{{ selectedUnit.game_locked_by }} has a game too. Clear this one to play the game of {{ selectedUnit.game_locked_by }}.</template>
+                            <template v-else>Set by {{ selectedUnit.game_locked_by }}. Clear the game there to pick one here.</template>
                         </p>
                         <p v-if="gameForm.errors.game_id" class="text-xs text-destructive" data-testid="edit-error-game">{{ gameForm.errors.game_id }}</p>
                     </div>

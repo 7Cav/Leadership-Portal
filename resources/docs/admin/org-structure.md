@@ -42,12 +42,12 @@ The page has two cards. **Chain of command** holds the regiment, its battalions 
 
 ## Set the game a unit plays
 
-1. Select a battalion (or the regiment, ACD or DEVCOM), pick its **Game** from the list, and choose **Save game**. The list has the games kept on the Games page that are not retired.
-2. Every unit under it plays the same game. The battalion's row shows the game's abbreviation as a chip, such as HLLV; the units under it show no game in the tree, and their details panel shows it locked, such as "Hell Let Loose: Vietnam (from 2-7)".
+1. Select a unit, pick its **Game** from the list, and choose **Save game**. Any unit can have its own game while no unit above it has one. The list has the games kept on the Games page that are not retired.
+2. Every unit under it plays the same game. That unit's row shows the game's abbreviation as a chip, such as HLLV; the units under it show no game in the tree, and their details panel shows it locked, such as "Hell Let Loose: Vietnam (from 2-7)".
 
-Admins, Regimental HQ staff and the battalion's overseer can change a battalion's game. Nobody else sees the control.
+Admins and Regimental HQ staff can change any unit's game. An overseer can change the games of the units they oversee and those under them, and DEVCOM's 1IC and 2IC those of DEVCOM and its units. Nobody else sees the control.
 
-> [!good-to-know] What this changes, and how to undo it: Game identities opens Add identity on this game, and the practice capture reads the section's practice from it. Pick the inherited choice at the top of the list to clear it. A unit keeps a game that has since been retired, marked retired, until you change it. A company, platoon or section that had its own game before keeps it until you choose **Clear game**; no new one can be set below a battalion. Both are in the audit log.
+> [!good-to-know] What this changes, and how to undo it: Game identities opens Add identity on this game, and the practice capture reads the section's practice from it. Pick the inherited choice at the top of the list to clear it. A unit keeps a game that has since been retired, marked retired, until you change it. A unit under one with a game keeps a game of its own set before until you choose **Clear game**; no new one can be set there. A unit with units under it that have their own games cannot be given one until you clear those; the error names them. Both are in the audit log.
 
 ## Set a team label
 

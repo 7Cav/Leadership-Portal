@@ -17,7 +17,7 @@ page: /settings/games
 
 ## Edit or retire a game
 
-1. Choose **Edit** next to it, change it, and choose **Save changes**. The abbreviation is what Org structure shows on a battalion's row; two games cannot share one.
+1. Choose **Edit** next to it, change it, and choose **Save changes**. The abbreviation is what Org structure shows on the row of a unit that plays it; two games cannot share one.
 2. For a game no longer played, choose **Retire**. Its links stay, but no new ones can be made, and it stops being captured.
 3. Choose **Bring back** to reinstate it.
 
