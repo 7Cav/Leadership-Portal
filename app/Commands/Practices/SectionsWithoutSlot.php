@@ -2,6 +2,7 @@
 
 namespace App\Commands\Practices;
 
+use App\Commands\Capture\AutomaticAttendance;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Repositories\SectionPracticeSlotRepository;
@@ -24,14 +25,17 @@ class SectionsWithoutSlot
         private readonly UnitRepository $units,
         private readonly TrooperRepository $troopers,
         private readonly SectionPracticeSlotRepository $slots,
+        private readonly AutomaticAttendance $automatic,
     ) {}
 
     /**
-     * The sections among `$unitIds` with no slot, in tree order, as `{id, designation}`. Empty when every counted
-     * section has one.
+     * The sections among `$unitIds` with no slot, in tree order, as `{id, designation, automatic}`. `automatic` says
+     * whether the section's game is read from its server at all ({@see AutomaticAttendance}): when it is not, a slot
+     * changes nothing the capture does, and the warning leaves that consequence out. Empty when every counted section
+     * has one.
      *
      * @param  iterable<int>  $unitIds
-     * @return list<array{id: int, designation: string}>
+     * @return list<array{id: int, designation: string, automatic: bool}>
      */
     public function among(iterable $unitIds): array
     {
@@ -60,7 +64,11 @@ class SectionsWithoutSlot
 
         return $counted
             ->reject(fn (Unit $unit) => $withSlot->has($unit->id))
-            ->map(fn (Unit $unit) => ['id' => $unit->id, 'designation' => $unit->callsign ?? $unit->name])
+            ->map(fn (Unit $unit) => [
+                'id' => $unit->id,
+                'designation' => $unit->callsign ?? $unit->name,
+                'automatic' => $this->automatic->readsId($games[$unit->id]->gameId),
+            ])
             ->values()
             ->all();
     }

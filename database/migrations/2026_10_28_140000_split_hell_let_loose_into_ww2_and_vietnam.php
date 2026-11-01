@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -56,14 +57,20 @@ return new class extends Migration
         }
 
         if (! DB::table('games')->where('slug', self::VIETNAM_SLUG)->exists()) {
-            DB::table('games')->insert([
+            $vietnam = [
                 'slug' => self::VIETNAM_SLUG,
                 'name' => self::VIETNAM_NAME,
                 'id_kinds' => json_encode(self::KINDS),
                 'interface' => 'none',
                 'created_at' => $now,
                 'updated_at' => $now,
-            ]);
+            ];
+            // Re-run after games got a short code (a rollback past this migration and forward again): give Vietnam
+            // its own, unless another game already holds it.
+            if (Schema::hasColumn('games', 'abbreviation') && ! DB::table('games')->where('abbreviation', 'HLLV')->exists()) {
+                $vietnam['abbreviation'] = 'HLLV';
+            }
+            DB::table('games')->insert($vietnam);
         }
     }
 

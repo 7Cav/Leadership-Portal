@@ -91,6 +91,8 @@ it('puts the writes the 2026-10-28 review found unlimited on the right buckets',
         'game-identities.destroy' => 'audited-writes',
         // The Admin settings writes are audited too.
         'settings.org-structure.store' => 'audited-writes',
+        // An Admin's delete, and a leader's undo of their own add.
+        'settings.org-structure.destroy' => 'audited-writes',
         'settings.trooper-placement.store' => 'audited-writes',
         'settings.staff-grants.store' => 'audited-writes',
         'settings.games.store' => 'audited-writes',

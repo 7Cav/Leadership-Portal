@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Head, Link, router, usePage } from "@inertiajs/vue3";
 import { toast } from "vue-sonner";
 import {
@@ -199,6 +199,14 @@ const parentCrumb = computed(() => {
     return crumb?.inScope ? crumb : null;
 });
 
+// The unit picker opens on the unit being shown, so a long list starts where the reader already is.
+const scopeMenuOpen = ref(false);
+watch(scopeMenuOpen, async (open) => {
+    if (!open) return;
+    await nextTick();
+    document.querySelector('[data-testid="roster-scope-menu"] [aria-current="true"]')?.scrollIntoView({ block: 'center' });
+});
+
 function unitHref(id) {
     return `/roster/${id}?view=${view.value}`;
 }
@@ -360,9 +368,9 @@ function syncNow() {
                         class="ml-2"
                     /><span
                         v-if="unit?.label"
-                        class="ml-2 rounded-sm border border-border px-1.5 align-middle text-xs font-semibold tracking-wide text-muted-foreground"
+                        class="ml-2 align-middle text-sm font-normal text-muted-foreground"
                         data-testid="unit-label"
-                        >{{ unit.label }}</span
+                        >· {{ unit.label }}</span
                     >
                 </h1>
                 <p
@@ -401,7 +409,7 @@ function syncNow() {
                     />
                     Show New Recruits
                 </label>
-                <DropdownMenu v-if="scopeOptions.length">
+                <DropdownMenu v-if="scopeOptions.length" v-model:open="scopeMenuOpen">
                     <DropdownMenuTrigger as-child>
                         <Button
                             variant="outline"
@@ -419,6 +427,7 @@ function syncNow() {
                     <DropdownMenuContent
                         align="end"
                         class="max-h-[min(28rem,calc(100dvh-6rem))] w-72 overflow-y-auto"
+                        data-testid="roster-scope-menu"
                     >
                         <DropdownMenuLabel
                             class="text-xs font-normal text-muted-foreground"
@@ -438,6 +447,7 @@ function syncNow() {
                                 :aria-current="
                                     option.id === unit?.id ? 'true' : undefined
                                 "
+                                :class="option.id === unit?.id && 'bg-accent'"
                                 :data-testid="`scope-option-${option.id}`"
                             >
                                 <span class="font-medium">{{
@@ -447,11 +457,6 @@ function syncNow() {
                                 <span class="truncate text-muted-foreground">{{
                                     option.name
                                 }}</span>
-                                <span
-                                    v-if="option.label"
-                                    class="rounded-sm border border-border px-1 text-[10px] font-semibold text-muted-foreground"
-                                    >{{ option.label }}</span
-                                >
                                 <PhCheck
                                     v-if="option.id === unit?.id"
                                     class="ml-auto"

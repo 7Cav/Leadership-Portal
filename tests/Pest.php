@@ -1,5 +1,8 @@
 <?php
 
+use App\Commands\Capture\CaptureServer;
+use App\Commands\Capture\CaptureSource;
+use App\Commands\Capture\CaptureSources;
 use App\Integration\Forum\Requests\ExchangeCodeRequest;
 use App\Integration\Forum\Requests\FetchProfileRequest;
 use App\Models\Game;
@@ -220,4 +223,18 @@ function logInThroughTheForum(): string
         ->assertRedirect(route('home'));
 
     return session()->getId();
+}
+
+/**
+ * Bind a capture that reads the given game over CRCON from one configured training server (and no other game), so
+ * {@see CaptureSources::isConfigured()} is true for it. Nothing is ever fetched.
+ */
+function readFromServer(string $slug): void
+{
+    // A game read by no interface (`none`) is never read, whatever is selected; give it one.
+    game($slug)->forceFill(['interface' => 'crcon'])->save();
+    $gameId = game($slug)->id;
+    app()->instance(CaptureSources::class, new CaptureSources([], fn (Game $game) => $game->id === $gameId
+        ? [new CaptureServer(null, 'Training', [new CaptureSource('crcon', 'crcon:test', fn () => throw new LogicException('not fetched'))])]
+        : null));
 }

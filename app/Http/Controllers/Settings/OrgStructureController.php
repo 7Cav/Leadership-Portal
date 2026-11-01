@@ -11,6 +11,7 @@ use App\Commands\Units\DeleteUnit;
 use App\Commands\Units\ImportOrgStructure;
 use App\Commands\Units\InvalidActingLeadException;
 use App\Commands\Units\InvalidUnitGameException;
+use App\Commands\Units\InvalidUnitOrdinalException;
 use App\Commands\Units\InvalidUnitOversightException;
 use App\Commands\Units\InvalidUnitPlacementException;
 use App\Commands\Units\OrgStructureImportFailedException;
@@ -95,6 +96,7 @@ class OrgStructureController extends Controller
             ->map(fn (UnitGame $played) => [
                 'id' => $played->gameId,
                 'name' => $games->get($played->gameId)->name,
+                'abbreviation' => $games->get($played->gameId)->abbreviation,
                 'retired' => $games->get($played->gameId)->isRetired(),
                 'from' => $played->from === null ? null : ($played->from->callsign ?? $played->from->name),
             ]);
@@ -112,6 +114,45 @@ class OrgStructureController extends Controller
         // asked, so an Admin can still reach one to rename, move or delete it.
         $withTroopers = $headcount->withoutEmptyLineUnits($tree)->pluck('id')->flip();
         $oversightOf = $oversights->forUnits($tree->modelKeys());
+        // Who may change a unit's game, by `ScopeResolver::maySetUnitGame()`'s rule worked out once over the tree: an
+        // Admin or Regimental HQ staff anywhere, an overseer (or DEVCOM's 1IC and 2IC) on their units and those under
+        // them. None while previewing with view as, which is read-only.
+        $byId = $tree->keyBy('id');
+        $ancestorsOf = function (Unit $unit) use ($byId): array {
+            $chain = [];
+            for ($at = $byId->get($unit->parent_id), $depth = 0; $at !== null && $depth < 10; $depth++, $at = $byId->get($at->parent_id)) {
+                $chain[] = $at;
+            }
+
+            return $chain;
+        };
+        $viewer = $request->user();
+        $previewing = $scope->activeViewAs($viewer) !== null;
+        $gamesEverywhere = ! $previewing && ($scope->isAdmin($viewer) || $scope->isRegimentalHqStaff($viewer));
+        $gameRoots = $previewing || $gamesEverywhere ? collect() : $scope->gameUnitsOf($viewer)->pluck('id')->flip();
+        $mayGame = fn (Unit $unit) => $gamesEverywhere
+            || collect([$unit, ...$ancestorsOf($unit)])->contains(fn (Unit $at) => $gameRoots->has($at->id));
+
+        $addEverywhere = ! $previewing && ($scope->isAdmin($viewer) || $scope->isRegimentalHqStaff($viewer));
+        $addRoots = $previewing || $addEverywhere ? collect() : $scope->unitAddRoots($viewer);
+        $mayAddUnder = function (Unit $unit) use ($addEverywhere, $addRoots, $ancestorsOf): bool {
+            $below = collect(UnitType::cases())->first(fn (UnitType $type) => $type->isLine() && $unit->isLine() && $type->rank() === $unit->type->rank() + 1);
+            if ($below === null) {
+                return false;
+            }
+
+            return $addEverywhere || collect([$unit, ...$ancestorsOf($unit)])
+                ->contains(fn (Unit $at) => $addRoots->has($at->id) && $addRoots->get($at->id) <= $below->rank() - 2);
+        };
+
+        $realAdmin = $scope->isAdmin($viewer);
+        $undoUntil = function (Unit $unit) use ($previewing, $realAdmin, $viewer, $byId, $byUnit, $tree, $mayAddUnder) {
+            $until = $previewing || $realAdmin ? null : $unit->undoAddUntil($viewer);
+            $parent = $byId->get($unit->parent_id);
+
+            return $until !== null && $parent !== null && $mayAddUnder($parent)
+                && $byUnit->get($unit->id, 0) === 0 && ! $tree->contains('parent_id', $unit->id) ? $until : null;
+        };
 
         $units = $tree->map(fn (Unit $unit) => [
             'id' => $unit->id,
@@ -125,6 +166,18 @@ class OrgStructureController extends Controller
             // unit it comes from. Null when no unit on its chain has one.
             'game_id' => $unit->game_id,
             'game' => $gameOf->get($unit->id),
+            // Whether this unit may pick its own game (no unit above has one), the unit above whose game locks it
+            // otherwise, and whether the viewer may change it. Under a locked unit the only change is clearing a game
+            // set there before, back to the inherited one.
+            'sets_game' => ($lock = Unit::gameLockOf($ancestorsOf($unit))) === null,
+            'game_locked_by' => $lock === null ? null : ($lock->callsign ?? $lock->name),
+            'can_set_game' => $mayGame($unit),
+            // Whether the viewer may add a unit one echelon below this one (Add unit), by the same rule `store` applies.
+            'can_add_child' => $mayAddUnder($unit),
+            // Until when the viewer may undo adding this unit (Undo add), by the rule `destroy` applies: their own add,
+            // under the hour, still empty, where they may still add it. Null for an Admin, who deletes instead, and
+            // while previewing. Whether nothing else happened in it is checked on the undo itself.
+            'undo_add_until' => $undoUntil($unit)?->toIso8601String(),
             // The unit's saved guidon (#446), drawn next to its name; null when it has none.
             'guidon' => $guidonOf->get($unit->id)?->design(),
             'path' => $unit->path,
@@ -231,30 +284,44 @@ class OrgStructureController extends Controller
      */
     public function store(Request $request, CreateUnit $command): RedirectResponse
     {
-        if (! $this->scope->isAdmin($request->user())) {
-            abort(403, 'Only an Admin may change the org structure.');
+        // Admins add anywhere, Regimental HQ staff any line unit below the regiment; a leader adds a line unit inside the unit they command or oversee, at least two echelons
+        // below it (ScopeResolver::mayAddUnit). Checked again after validation, once the parent is known.
+        $adder = $request->user();
+        if (! $this->scope->isAdmin($adder) && ! $this->scope->isRegimentalHqStaff($adder) && $this->scope->unitAddRoots($adder)->isEmpty()) {
+            abort(403, 'You may not add units.');
         }
 
+        // Only where the unit goes and which one it is: the server derives the name and callsign (CreateUnit), so a
+        // request cannot hand it an arbitrary callsign. A name is read for a group only, which has no rule for one.
         $data = $request->validate([
             'type' => ['required', Rule::enum(UnitType::class)],
-            'name' => ['required', 'string', 'max:255'],
-            'callsign' => ['nullable', 'string', 'max:255'],
             'parent_id' => ['nullable', 'integer', 'exists:units,id'],
-        ], self::UNIT_MESSAGES);
+            'ordinal' => ['nullable', 'regex:/^([1-9]|[A-Za-z])$/'],
+            'name' => ['nullable', 'string', 'max:255'],
+        ], self::UNIT_MESSAGES + ['ordinal.regex' => 'Pick which unit this is from the list.']);
+
+        $type = UnitType::from($data['type']);
+        $parent = isset($data['parent_id']) ? $this->units->find((int) $data['parent_id']) : null;
+        $allowed = $parent === null ? $this->scope->isAdmin($request->user()) : $this->scope->mayAddUnit($request->user(), $parent, $type);
+        if (! $allowed) {
+            abort(403, 'You may not add this unit here.');
+        }
 
         try {
             $command->handle(
                 $request->user(),
-                UnitType::from($data['type']),
-                $data['name'],
-                $data['callsign'] ?? null,
+                $type,
                 $data['parent_id'] ?? null,
+                isset($data['ordinal']) ? (string) $data['ordinal'] : null,
+                $type === UnitType::Group ? ($data['name'] ?? null) : null,
             );
         } catch (InvalidUnitPlacementException $e) {
             // Echelon ordering is a domain rule the request-shape validation above can't
             // express (it needs the parent's own type) — surfaced as a form error on `type`
             // rather than a 500, so the Inertia form's `errors.type` renders it.
             throw ValidationException::withMessages(['type' => $e->getMessage()]);
+        } catch (InvalidUnitOrdinalException $e) {
+            throw ValidationException::withMessages([$type === UnitType::Group ? 'name' : 'ordinal' => $e->getMessage()]);
         }
 
         return redirect()->route('settings.org-structure');
@@ -305,13 +372,25 @@ class OrgStructureController extends Controller
     }
 
     /**
-     * Set the game a unit plays from the Games list, or clear it so the unit inherits again.
-     * Admin-only, server-side (AD-6); audited by {@see SetUnitGame} (AD-16). A game that is gone or retired comes back
-     * as a form error on `game_id`.
+     * Set the game a unit plays from the Games list, or clear it so the unit inherits again. Server-side (AD-6): an
+     * Admin or Regimental HQ staff on any unit, an overseer on the units they oversee and those under them, DEVCOM's 1IC
+     * and 2IC on DEVCOM and the units under it (`ScopeResolver::maySetUnitGame()`); anyone else gets a 403, whether or
+     * not the unit exists, when they could set no game anywhere. Audited by {@see SetUnitGame} (AD-16). A game that is
+     * gone or retired, a new game under a unit that has one, or one over units with their own comes back as a form
+     * error on `game_id`.
      */
     public function game(Request $request, int $unit, SetUnitGame $command): RedirectResponse
     {
-        $unit = $this->adminUnit($request, $unit);
+        $user = $request->user();
+        $anywhere = $this->scope->isAdmin($user) || $this->scope->isRegimentalHqStaff($user) || $this->scope->gameUnitsOf($user)->isNotEmpty();
+        if (! $anywhere) {
+            abort(403, 'Only an Admin, Regimental HQ or someone who oversees this unit may change its game.');
+        }
+
+        $unit = $this->units->find($unit) ?? abort(404);
+        if (! $this->scope->maySetUnitGame($user, $unit)) {
+            abort(403, 'Only an Admin, Regimental HQ or someone who oversees this unit may change its game.');
+        }
 
         $data = $request->validate([
             'game_id' => ['nullable', 'integer'],
@@ -420,10 +499,28 @@ class OrgStructureController extends Controller
     }
 
     /**
-     * Remove a node (AC #4). Refused, not a raw DB constraint error, when children remain.
+     * Remove a node (AC #4). Refused, not a raw DB constraint error, when children remain. An Admin removes any unit;
+     * the leader who added one may undo the add within the hour while it is still empty.
      */
     public function destroy(Request $request, int $unit, DeleteUnit $command): RedirectResponse
     {
+        // Anyone but an Admin may only undo adding a unit: their own add, within the hour, where they could still add it
+        // (ScopeResolver::mayUndoAddUnit), and only while it is empty (DeleteUnit, under its lock).
+        if (! $this->scope->isAdmin($request->user())) {
+            $found = $this->units->find($unit);
+            if ($found === null || ! $this->scope->mayUndoAddUnit($request->user(), $found)) {
+                abort(403, UnitHasDependentsException::UNDO_WINDOW);
+            }
+
+            try {
+                $command->handle($request->user(), $found, undoAdd: true);
+            } catch (UnitHasDependentsException) {
+                throw ValidationException::withMessages(['delete' => UnitHasDependentsException::UNDO_WINDOW]);
+            }
+
+            return redirect()->route('settings.org-structure');
+        }
+
         $unit = $this->adminUnit($request, $unit);
 
         try {

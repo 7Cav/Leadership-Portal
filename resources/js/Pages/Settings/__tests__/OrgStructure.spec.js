@@ -10,7 +10,7 @@ const addSubmit = vi.fn();
 const editSubmit = vi.fn();
 let deleteSpy = vi.fn();
 let postSpy = vi.fn();
-let addFormState = { type: 'battalion', name: '', callsign: '', parent_id: null, processing: false, errors: {} };
+let addFormState = { type: 'battalion', parent_id: null, ordinal: '', processing: false, errors: {} };
 let editFormState = { name: '', callsign: '', parent_id: null, processing: false, errors: {} };
 
 const toastSuccess = vi.fn();
@@ -25,7 +25,7 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     Head: { template: '<head></head>' },
     router: { delete: (...args) => deleteSpy(...args), post: (...args) => postSpy(...args) },
     useForm: (initial) => ('type' in initial
-        ? { ...addFormState, post: addSubmit }
+        ? { ...addFormState, post: addSubmit, reset: vi.fn(), clearErrors: vi.fn() }
         : { ...editFormState, patch: editSubmit, clearErrors: vi.fn() }),
 }));
 
@@ -50,12 +50,39 @@ describe('Settings/OrgStructure', () => {
         const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: false } });
 
         expect(wrapper.find('[data-testid="add-unit-form"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="add-unit-open"]').exists()).toBe(false);
     });
 
-    it('shows the add-node control for an Admin', () => {
+    it('opens Add unit in its own dialog, apart from the details panel, from a button named for where the unit goes', async () => {
+        const wrapper = mountAttached();
+
+        expect(inDialog('add-unit-form')).toBeNull();
+        expect(wrapper.find('[data-testid="add-unit-open"]').text()).toBe('Add a battalion under 7th Cavalry Regiment');
+
+        await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+        expect(wrapper.find('[data-testid="add-unit-open"]').text()).toBe('Add a company under 2nd Battalion');
+
+        await wrapper.find('[data-testid="add-unit-open"]').trigger('click');
+        await flushPromises();
+        expect(inDialog('add-unit-dialog').textContent).toContain('Add a unit');
+        expect(wrapper.find('[data-testid="add-unit-form"]').exists()).toBe(false);
+        expect(inDialog('add-unit-dialog').querySelector('#edit-name')).toBeNull();
+
+        inDialog('add-unit-cancel').click();
+        await flushPromises();
+        expect(inDialog('add-unit-form')).toBeNull();
+        wrapper.unmount();
+    });
+
+    it("lists the unit's own fields before its nickname, and both before Add unit", async () => {
         const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
 
-        expect(wrapper.find('[data-testid="add-unit-form"]').exists()).toBe(true);
+        await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+        const html = wrapper.html();
+
+        expect(html.indexOf('data-testid="edit-unit-form"')).toBeLessThan(html.indexOf('data-testid="label-form"'));
+        expect(html.indexOf('data-testid="label-form"')).toBeLessThan(html.indexOf('data-testid="add-unit-open"'));
+        expect(wrapper.find('label[for="edit-label"]').text()).toBe('Nickname');
     });
 
     it('shows the detail panel for the selected unit', async () => {
@@ -109,36 +136,83 @@ describe('Settings/OrgStructure', () => {
     // The single most breakable behaviour on this page is the write — assert the submit path
     // is actually wired to the server route, not just that the form renders.
     it('submits the add-node form to the org-structure store route', async () => {
-        addFormState = { type: 'battalion', name: 'New Battalion', callsign: '9-7', parent_id: 1, processing: false, errors: {} };
-        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+        addFormState = { type: 'battalion', parent_id: 1, ordinal: '3', processing: false, errors: {} };
+        const wrapper = mountAttached();
 
-        await wrapper.find('[data-testid="add-unit-form"]').trigger('submit');
+        await wrapper.find('[data-testid="add-unit-open"]').trigger('click');
+        await flushPromises();
+        inDialog('add-unit-form').dispatchEvent(new Event('submit'));
+        wrapper.unmount();
 
         expect(addSubmit).toHaveBeenCalledWith('/settings/org-structure', expect.objectContaining({ onSuccess: expect.any(Function) }));
     });
 
     it('says why an add was refused instead of showing the raw error page', async () => {
         toastError.mockReset();
-        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+        const wrapper = mountAttached();
 
-        await wrapper.find('[data-testid="add-unit-form"]').trigger('submit');
+        await wrapper.find('[data-testid="add-unit-open"]').trigger('click');
+        await flushPromises();
+        inDialog('add-unit-form').dispatchEvent(new Event('submit'));
+        wrapper.unmount();
 
         expect(addSubmit.mock.lastCall[1].onHttpException({ status: 403 })).toBe(false);
         expect(toastError).toHaveBeenCalledWith('The unit was not added. You are not allowed to do that; reload the page, or exit view as first.');
     });
 
-    it('renders a server-side validation error next to its field', () => {
+    it('selects the new unit after an add and shows empty units so it does not vanish', async () => {
+        addFormState = { type: 'battalion', parent_id: 1, ordinal: '', processing: false, errors: {} };
+        toastSuccess.mockReset();
+        addSubmit.mockReset();
+        const wrapper = mountAttached();
+
+        await wrapper.find('[data-testid="add-unit-open"]').trigger('click');
+        await flushPromises();
+        const select = inDialog('add-ordinal');
+        select.value = '3';
+        select.dispatchEvent(new Event('change'));
+        await flushPromises();
+        inDialog('add-unit-form').dispatchEvent(new Event('submit'));
+
+        // The Inertia reload brings the new, empty unit in with the page props before `onSuccess` runs.
+        const added = { id: 3, parent_id: 1, type: 'battalion', name: '3rd Battalion', callsign: '3-7', path: '1/3/', trooper_count: 0, empty: true };
+        await wrapper.setProps({ units: [...UNITS, added] });
+        addSubmit.mock.lastCall[1].onSuccess();
+        await flushPromises();
+
+        expect(toastSuccess).toHaveBeenCalledWith('Added 3rd Battalion (3-7). Empty units are now shown.');
+        expect(wrapper.find('[data-testid="show-empty"]').element.checked).toBe(true);
+        expect(wrapper.find('[data-testid="unit-row-3"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="detail-panel"]').text()).toContain('3rd Battalion');
+        wrapper.unmount();
+    });
+
+    it('never hides the selected unit for being empty', async () => {
+        const units = [...UNITS, { id: 3, parent_id: 1, type: 'battalion', name: '3rd Battalion', callsign: '3-7', path: '1/3/', trooper_count: 0, empty: true }];
+        const wrapper = mount(OrgStructure, { props: { units, isAdmin: true } });
+        expect(wrapper.find('[data-testid="unit-row-3"]').exists()).toBe(false);
+
+        await wrapper.find('[data-testid="show-empty"]').setValue(true);
+        await wrapper.find('[data-testid="unit-row-3"]').trigger('click');
+        await wrapper.find('[data-testid="show-empty"]').setValue(false);
+
+        expect(wrapper.find('[data-testid="unit-row-3"]').exists()).toBe(true);
+    });
+
+    it('renders a server-side validation error next to its field', async () => {
         addFormState = {
             type: 'section',
-            name: '',
-            callsign: '',
             parent_id: null,
+            ordinal: '',
             processing: false,
             errors: { type: 'A section cannot be placed under a regiment.' },
         };
-        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+        const wrapper = mountAttached();
+        await wrapper.find('[data-testid="add-unit-open"]').trigger('click');
+        await flushPromises();
 
-        expect(wrapper.find('[data-testid="error-type"]').text()).toBe('A section cannot be placed under a regiment.');
+        expect(inDialog('error-type').textContent).toBe('A section cannot be placed under a regiment.');
+        wrapper.unmount();
     });
 
     // Story 1.9 AC #1, #2 — the detail panel becomes an editable form for an Admin, pre-filled
@@ -870,6 +944,95 @@ describe('Settings/OrgStructure', () => {
 
             await input.trigger('keydown', { key: 'Escape' });
             expect(input.element.value).toBe('');
+        });
+    });
+
+    describe('Undo add', () => {
+        afterEach(() => vi.useRealTimers());
+
+        const fresh = (minutes) => ({
+            id: 3, parent_id: 2, type: 'company', name: 'Charlie Company', callsign: 'C/2-7', path: '1/2/3/', trooper_count: 0, empty: true,
+            undo_add_until: new Date(Date.now() + minutes * 60000).toISOString(),
+        });
+
+        it('shows an Undo add button with the minutes left to the leader who added the unit, and ticks down', async () => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2026-11-01T12:00:00Z'));
+            const wrapper = mount(OrgStructure, { props: { units: [...UNITS, fresh(42)], isAdmin: false } });
+            await wrapper.find('[data-testid="show-empty"]').setValue(true);
+            await wrapper.find('[data-testid="unit-row-3"]').trigger('click');
+
+            expect(wrapper.find('[data-testid="undo-add"]').text()).toBe('Undo add, 42 min left');
+
+            vi.advanceTimersByTime(60000);
+            await flushPromises();
+            expect(wrapper.find('[data-testid="undo-add"]').text()).toBe('Undo add, 41 min left');
+
+            vi.advanceTimersByTime(41 * 60000);
+            await flushPromises();
+            expect(wrapper.find('[data-testid="undo-add"]').exists()).toBe(false);
+            wrapper.unmount();
+        });
+
+        it('has no Undo add button on a unit the viewer may not undo', async () => {
+            const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: false } });
+            await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+
+            expect(wrapper.find('[data-testid="undo-add"]').exists()).toBe(false);
+        });
+
+        it('deletes the unit from the Undo add button and says so', async () => {
+            deleteSpy = vi.fn();
+            toastSuccess.mockReset();
+            const wrapper = mount(OrgStructure, { props: { units: [...UNITS, fresh(30)], isAdmin: false } });
+            await wrapper.find('[data-testid="show-empty"]').setValue(true);
+            await wrapper.find('[data-testid="unit-row-3"]').trigger('click');
+            await wrapper.find('[data-testid="undo-add"]').trigger('click');
+
+            expect(deleteSpy).toHaveBeenCalledWith('/settings/org-structure/3', expect.any(Object));
+            deleteSpy.mock.lastCall[1].onSuccess();
+            expect(toastSuccess).toHaveBeenCalledWith('Removed Charlie Company (C/2-7).');
+        });
+
+        it('shows the server reason when an undo is refused', async () => {
+            deleteSpy = vi.fn();
+            toastError.mockReset();
+            const wrapper = mount(OrgStructure, { props: { units: [...UNITS, fresh(30)], isAdmin: false } });
+            await wrapper.find('[data-testid="show-empty"]').setValue(true);
+            await wrapper.find('[data-testid="unit-row-3"]').trigger('click');
+            await wrapper.find('[data-testid="undo-add"]').trigger('click');
+            deleteSpy.mock.lastCall[1].onError({ delete: 'You can undo this for 60 minutes after adding it, while it is still empty.' });
+
+            expect(toastError).toHaveBeenCalledWith('You can undo this for 60 minutes after adding it, while it is still empty.');
+        });
+
+        it('offers Undo on the success toast right after adding, which deletes the new unit', async () => {
+            addFormState = { type: 'company', parent_id: 2, ordinal: '', processing: false, errors: {} };
+            toastSuccess.mockReset();
+            addSubmit.mockReset();
+            deleteSpy = vi.fn();
+            const units = UNITS.map((unit) => ({ ...unit, can_add_child: true }));
+            const wrapper = mount(OrgStructure, { props: { units, isAdmin: false }, attachTo: document.body });
+
+            await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+            await wrapper.find('[data-testid="add-unit-open"]').trigger('click');
+            await flushPromises();
+            const select = inDialog('add-ordinal');
+            select.value = 'C';
+            select.dispatchEvent(new Event('change'));
+            await flushPromises();
+            inDialog('add-unit-form').dispatchEvent(new Event('submit'));
+
+            await wrapper.setProps({ units: [...units, fresh(60)] });
+            addSubmit.mock.lastCall[1].onSuccess();
+            await flushPromises();
+
+            const [message, options] = toastSuccess.mock.lastCall;
+            expect(message).toBe('Added Charlie Company (C/2-7). Empty units are now shown.');
+            expect(options.action.label).toBe('Undo');
+            options.action.onClick();
+            expect(deleteSpy).toHaveBeenCalledWith('/settings/org-structure/3', expect.any(Object));
+            wrapper.unmount();
         });
     });
 });
