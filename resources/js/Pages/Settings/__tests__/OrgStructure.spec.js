@@ -160,6 +160,45 @@ describe('Settings/OrgStructure', () => {
         expect(toastError).toHaveBeenCalledWith('The unit was not added. You are not allowed to do that; reload the page, or exit view as first.');
     });
 
+    it('selects the new unit after an add and shows empty units so it does not vanish', async () => {
+        addFormState = { type: 'battalion', parent_id: 1, ordinal: '', processing: false, errors: {} };
+        toastSuccess.mockReset();
+        addSubmit.mockReset();
+        const wrapper = mountAttached();
+
+        await wrapper.find('[data-testid="add-unit-open"]').trigger('click');
+        await flushPromises();
+        const select = inDialog('add-ordinal');
+        select.value = '3';
+        select.dispatchEvent(new Event('change'));
+        await flushPromises();
+        inDialog('add-unit-form').dispatchEvent(new Event('submit'));
+
+        // The Inertia reload brings the new, empty unit in with the page props before `onSuccess` runs.
+        const added = { id: 3, parent_id: 1, type: 'battalion', name: '3rd Battalion', callsign: '3-7', path: '1/3/', trooper_count: 0, empty: true };
+        await wrapper.setProps({ units: [...UNITS, added] });
+        addSubmit.mock.lastCall[1].onSuccess();
+        await flushPromises();
+
+        expect(toastSuccess).toHaveBeenCalledWith('Added 3rd Battalion (3-7). Empty units are now shown.');
+        expect(wrapper.find('[data-testid="show-empty"]').element.checked).toBe(true);
+        expect(wrapper.find('[data-testid="unit-row-3"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="detail-panel"]').text()).toContain('3rd Battalion');
+        wrapper.unmount();
+    });
+
+    it('never hides the selected unit for being empty', async () => {
+        const units = [...UNITS, { id: 3, parent_id: 1, type: 'battalion', name: '3rd Battalion', callsign: '3-7', path: '1/3/', trooper_count: 0, empty: true }];
+        const wrapper = mount(OrgStructure, { props: { units, isAdmin: true } });
+        expect(wrapper.find('[data-testid="unit-row-3"]').exists()).toBe(false);
+
+        await wrapper.find('[data-testid="show-empty"]').setValue(true);
+        await wrapper.find('[data-testid="unit-row-3"]').trigger('click');
+        await wrapper.find('[data-testid="show-empty"]').setValue(false);
+
+        expect(wrapper.find('[data-testid="unit-row-3"]').exists()).toBe(true);
+    });
+
     it('renders a server-side validation error next to its field', async () => {
         addFormState = {
             type: 'section',

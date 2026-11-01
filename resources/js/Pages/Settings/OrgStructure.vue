@@ -66,7 +66,10 @@ const recruitIds = computed(() => {
 const hiddenIds = computed(() => {
     const hidden = new Set(showRecruits.value ? [] : recruitIds.value);
     if (!showEmpty.value) {
-        props.units.filter((unit) => unit.empty).forEach((unit) => hidden.add(unit.id));
+        // The selected unit and the units above it stay, empty or not, so a selection never vanishes from the tree.
+        const selected = selectedUnit.value;
+        const kept = new Set(selected ? [selected.id, ...ancestorIds(selected)] : []);
+        props.units.filter((unit) => unit.empty && !kept.has(unit.id)).forEach((unit) => hidden.add(unit.id));
     }
     return hidden;
 });
@@ -476,9 +479,24 @@ function closeAdd() {
     form.clearErrors();
 }
 
+// A new unit has nobody in it yet, so it is empty and Show empty units would hide it the moment it is added: after the
+// reload, find it under its parent by the callsign it was given, turn empty units on and select it in the tree.
 function submitAdd() {
+    const parentId = form.parent_id;
+    // Read fresh rather than through `addPreview`: the pick is what is being sent now.
+    const preview = addTarget.value.type === 'regiment' ? addPreview.value : addOptions.value.find((option) => option.value === form.ordinal);
     form.post('/settings/org-structure', {
-        onSuccess: closeAdd,
+        onSuccess: () => {
+            closeAdd();
+            const added = props.units.find(
+                (unit) => preview && unit.parent_id === parentId && (preview.callsign ? unit.callsign === preview.callsign : unit.name === preview.name),
+            );
+            if (!added) return;
+            const revealed = added.empty && !showEmpty.value;
+            pickUnit(added.id);
+            const label = added.callsign ? `${added.name} (${added.callsign})` : added.name;
+            toast.success(`Added ${label}.${revealed ? ' Empty units are now shown.' : ''}`);
+        },
         onHttpException: onHttpException('The unit was not added', (message) => toast.error(message)),
     });
 }
