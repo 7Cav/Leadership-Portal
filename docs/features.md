@@ -178,7 +178,11 @@ On the same page:
   placed in the Cav week of its start (a Wednesday 2359Z practice ends on Thursday, a Friday 2330Z one still belongs
   to the week it starts in). Sections can share a slot. The section's leaders, the command above them and Admins set,
   change or remove it, and can move or cancel one week's practice without changing the slot; a week already captured,
-  or whose report was sent, cannot be moved. Every change is in the audit log. A captured practice keeps the window
+  or whose report was sent, cannot be moved. The slot itself can always be set or changed: when the current week is
+  held (its report sent or its practice captured), the new slot starts with the next Cav week and the current week
+  keeps the slot it had, or none. The editor says "Takes effect from week 07NOV26 to 13NOV26", the header shows
+  "Practice Wed 23 59Z from 07NOV26" and "Starts next week", and capture uses the slot in effect for each week.
+  Every change is in the audit log. A captured practice keeps the window
   it was read for, so changing the slot later does not rewrite it. A section without a slot works as before. The slot
   is also shown under the section on the roster matrix and on Home's unit table.
 - No practice slot warning: a section that plays a game (its own or the one above it) and has someone serving in it,
