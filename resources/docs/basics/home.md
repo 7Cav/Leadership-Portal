@@ -3,6 +3,7 @@ title: Home
 summary: See where your units stand this week, what needs attention, and how your numbers are trending.
 section: basics
 order: 6
+updated: 2026-10-31
 audience: everyone
 page: /home
 ---

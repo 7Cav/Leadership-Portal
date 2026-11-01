@@ -3,6 +3,7 @@ title: Plan a month of training
 summary: Give each week of a month a training subject, have your company approve it, and let it fill in the section reports.
 section: weekly-report
 order: 3
+updated: 2026-10-31
 audience: leader
 page: /reports/{unit}/plans/{month?}
 ---

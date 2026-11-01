@@ -3,6 +3,7 @@ title: Record a practice a staff member attended
 summary: Keep the section practices HQ and department staff attend on their milpac page.
 section: your-troopers
 order: 5
+updated: 2026-10-31
 audience: everyone
 ---
 

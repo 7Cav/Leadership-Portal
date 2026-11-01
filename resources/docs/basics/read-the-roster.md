@@ -3,6 +3,7 @@ title: Read the roster
 summary: See your units and troopers by order of battle, by their attendance week by week, or your unit's strength over time.
 section: basics
 order: 3
+updated: 2026-11-01
 audience: everyone
 page: /roster
 checklist:

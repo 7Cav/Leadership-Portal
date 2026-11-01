@@ -3,6 +3,7 @@ title: Run this week's roll call
 summary: Record who signed, mark section practice, copy the roll call post and mark it posted.
 section: weekly-rollcall
 order: 1
+updated: 2026-11-01
 audience: leader
 page: /rollcall
 weekly: true

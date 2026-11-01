@@ -3,6 +3,7 @@ title: Link a trooper's in-game identity
 summary: Record each trooper's in-game name and ID, one per game, so the game server's data finds them.
 section: your-troopers
 order: 1
+updated: 2026-10-31
 audience: leader
 page: /game-identities
 checklist:
