@@ -1,8 +1,8 @@
 import { computed, reactive } from 'vue';
 
-// The getting started tutorial's progress: which steps this viewer has finished. Kept in this browser, like Start
-// here (useStartHere): keyed by user id so two people on one computer never share it, held for the visit only during a
-// view-as preview, and still working for the visit when browser storage is unavailable.
+// The getting started tutorial's progress: which steps this viewer has finished. Kept in this browser, keyed by user
+// id so two people on one computer never share it, held for the visit only during a view-as preview, and still working
+// for the visit when browser storage is unavailable.
 
 const store = reactive({ key: null, done: [], saving: true });
 

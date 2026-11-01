@@ -44,7 +44,7 @@ it('answers 404 on every docs route while the docs are switched off, even for an
     $this->actingAs($this->admin)->get($url)->assertNotFound();
 })->with(['/docs', '/docs/basics/sign-in', '/docs/admin/games']);
 
-it('opens docs home with the viewer\'s own sections and Start here items', function () {
+it('opens docs home with the viewer\'s own sections and no Start here list', function () {
     $this->actingAs($this->leader)->get('/docs')->assertOk()->assertInertia(fn (Assert $page) => $page
         ->component('Docs/Index')
         ->where('audience', 'leader')
@@ -52,10 +52,7 @@ it('opens docs home with the viewer\'s own sections and Start here items', funct
         ->where('contents.0.key', 'basics')
         ->where('contents.1.key', 'weekly-rollcall')
         ->where('contents.1.guides.0', ['title' => "Run this week's rollcall", 'summary' => 'Mark attendance, confirm, post.', 'url' => '/docs/weekly-rollcall/run-rollcall', 'audience' => 'leader', 'weekly' => true])
-        ->where('checklist', [
-            ['id' => 'basics/sign-in', 'label' => 'Sign in with your 7cav.us account', 'url' => '/docs/basics/sign-in'],
-            ['id' => 'weekly-rollcall/run-rollcall', 'label' => 'Run your first rollcall', 'url' => '/docs/weekly-rollcall/run-rollcall'],
-        ]));
+        ->missing('checklist'));
 });
 
 it('opens a guide with its body, steps, neighbors and breadcrumb', function () {
@@ -68,7 +65,7 @@ it('opens a guide with its body, steps, neighbors and breadcrumb', function () {
         ->where('guide.weekly', true)
         ->where('guide.minutes', 5)
         ->where('feedbackUrl', null)
-        ->where('guide.checklist', 'weekly-rollcall/run-rollcall')
+        ->missing('guide.checklist')
         ->where('guide.headings.0.id', 'open-rollcall-and-pick-your-section')
         ->where('guide.html', fn (string $html) => str_contains($html, '<strong>Why this matters.</strong>'))
         ->where('previous.url', '/docs/basics/sign-in')

@@ -38,11 +38,9 @@ use League\CommonMark\Renderer\HtmlRenderer;
  */
 final class GuideParser
 {
-    private const KEYS = ['title', 'summary', 'section', 'order', 'audience', 'page', 'weekly', 'minutes', 'checklist', 'updated', 'try'];
+    private const KEYS = ['title', 'summary', 'section', 'order', 'audience', 'page', 'weekly', 'minutes', 'updated', 'try'];
 
     private const REQUIRED = ['title', 'summary', 'section', 'order', 'audience'];
-
-    private const CHECKLIST_KEYS = ['label', 'audience', 'order'];
 
     private const CALLOUTS = ['why' => 'Why this matters.', 'good-to-know' => 'Good to know.', 'warning' => 'Watch out.'];
 
@@ -104,10 +102,6 @@ final class GuideParser
         }
 
         $audience = Audience::from($meta['audience']);
-        $checklist = isset($meta['checklist'])
-            ? new ChecklistItem($meta['checklist']['label'], Audience::from($meta['checklist']['audience']), $meta['checklist']['order'])
-            : null;
-
         $guide = new Guide(
             section: $section,
             slug: $slug,
@@ -118,7 +112,6 @@ final class GuideParser
             page: $meta['page'] ?? null,
             weekly: $meta['weekly'] ?? false,
             minutes: $meta['minutes'] ?? null,
-            checklist: $checklist,
             updated: self::date($meta['updated'] ?? null),
             try: $meta['try'] ?? null,
             html: $this->renderer->renderDocument($document)->getContent(),
@@ -175,43 +168,6 @@ final class GuideParser
         }
         if (array_key_exists('try', $meta) && ! array_key_exists('page', $meta)) {
             $problems[] = '`try` needs a `page` to open';
-        }
-
-        if (array_key_exists('checklist', $meta)) {
-            $problems = [...$problems, ...$this->checkChecklist($meta['checklist'], $this->audience($meta['audience'] ?? null))];
-        }
-
-        return $problems;
-    }
-
-    /** @return list<string> */
-    private function checkChecklist(mixed $item, ?Audience $guide): array
-    {
-        if (! is_array($item) || array_is_list($item)) {
-            return ['`checklist` must have a label, an audience and an order'];
-        }
-
-        $problems = [];
-        foreach (array_diff(array_keys($item), self::CHECKLIST_KEYS) as $unknown) {
-            $problems[] = "unknown `checklist` key `{$unknown}`";
-        }
-        foreach (array_diff(self::CHECKLIST_KEYS, array_keys($item)) as $missing) {
-            $problems[] = "missing `checklist` key `{$missing}`";
-        }
-        if (array_key_exists('label', $item) && (! is_string($item['label']) || trim($item['label']) === '')) {
-            $problems[] = '`checklist.label` must be text';
-        }
-        if (array_key_exists('order', $item) && ! is_int($item['order'])) {
-            $problems[] = '`checklist.order` must be a whole number';
-        }
-        if (array_key_exists('audience', $item)) {
-            $listed = $this->audience($item['audience']);
-            if ($listed === null) {
-                $problems[] = '`checklist.audience` must be everyone, leader or admin';
-            } elseif ($guide !== null && ! $listed->reads($guide)) {
-                // Listing a leader guide for everyone would put an item on a trooper's list they could not open.
-                $problems[] = "`checklist.audience` cannot be wider than the guide's own audience, `{$guide->value}`";
-            }
         }
 
         return $problems;

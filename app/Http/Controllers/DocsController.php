@@ -77,7 +77,7 @@ class DocsController extends Controller
     }
 
     /**
-     * What the portal knows the reader has done, for the tutorial and Start here to tick off. The reader is whoever the
+     * What the portal knows the reader has done, for the tutorial to tick off. The reader is whoever the
      * page is for: the viewer, or the person a view-as preview shows (their account, or the roster account of a trooper
      * who never signed in). A unit preview names no person, so only "signed in" is ticked there.
      *

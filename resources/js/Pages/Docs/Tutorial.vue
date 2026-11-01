@@ -14,10 +14,9 @@ import { openablePage } from '@/lib/docs';
 const props = defineProps({
     audience: { type: String, required: true },
     contents: { type: Array, required: true },
-    checklist: { type: Array, required: true },
     feedbackUrl: { type: String, default: null },
-    // `{ tutorial: [step id], checklist: [item id] }`: what the portal ticks off by itself (app/Docs/PortalProgress).
-    portalDone: { type: Object, default: null },
+    // The tutorial step ids the portal ticks off by itself (app/Docs/PortalProgress).
+    portalDone: { type: Array, default: () => [] },
     search: { type: Array, required: true },
     // The step, shaped as a guide: `{ title, summary, url, page, try, minutes, html, headings, ... }`.
     guide: { type: Object, required: true },
@@ -31,7 +30,7 @@ const props = defineProps({
 const page = usePage();
 const progress = useTutorialProgress(
     () => props.steps,
-    () => ({ userId: page.props.auth?.user?.id ?? null, previewing: page.props.viewAs != null, portal: page.props.portalDone?.tutorial ?? [] }),
+    () => ({ userId: page.props.auth?.user?.id ?? null, previewing: page.props.viewAs != null, portal: page.props.portalDone ?? [] }),
 );
 
 const index = computed(() => props.steps.findIndex((step) => step.url === props.guide.url));

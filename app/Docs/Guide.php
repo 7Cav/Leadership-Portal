@@ -26,7 +26,6 @@ final readonly class Guide
         public ?string $page,
         public bool $weekly,
         public ?int $minutes,
-        public ?ChecklistItem $checklist,
         public string $html,
         public array $headings,
         public ?string $updated = null,

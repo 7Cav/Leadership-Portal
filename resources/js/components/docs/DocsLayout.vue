@@ -8,7 +8,7 @@ import DocsSearchBox from './DocsSearchBox.vue';
 import DocsTree from './DocsTree.vue';
 
 // The three columns of every docs page (#410, agreed design): contents on the left, the page in the middle, and a
-// right rail (Start here, and "On this page" on a guide). On a narrow screen the page comes first: the contents sit
+// right rail ("On this page" on a guide, the step list on a tutorial step). On a narrow screen the page comes first: the contents sit
 // behind a "Contents" button above it and the rail drops below it.
 defineProps({
     contents: { type: Array, required: true },

@@ -8,10 +8,6 @@ audience: leader
 page: /rollcall
 weekly: true
 minutes: 10
-checklist:
-  label: Run your first roll call
-  audience: leader
-  order: 3
 ---
 
 > [!why] Your section's weekly report is built from this roll call. A roll call left unfinished leaves your section's numbers wrong in every report above it.

@@ -17,7 +17,7 @@ const props = defineProps({
 const page = usePage();
 const progress = useTutorialProgress(
     () => props.tutorial?.steps ?? [],
-    () => ({ userId: page.props.auth?.user?.id ?? null, previewing: page.props.viewAs != null, portal: page.props.portalDone?.tutorial ?? [] }),
+    () => ({ userId: page.props.auth?.user?.id ?? null, previewing: page.props.viewAs != null, portal: page.props.portalDone ?? [] }),
 );
 const inTutorial = () => props.tutorial?.steps.some((step) => step.url === props.current) ?? false;
 

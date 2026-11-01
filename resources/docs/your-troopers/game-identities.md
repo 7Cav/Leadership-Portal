@@ -6,10 +6,6 @@ order: 1
 updated: 2026-10-31
 audience: leader
 page: /game-identities
-checklist:
-  label: Link your troopers' in-game names
-  audience: leader
-  order: 5
 ---
 
 > [!why] The game server only knows players by their in-game name and ID. Once a trooper is linked, their attendance at a captured practice is marked for you.

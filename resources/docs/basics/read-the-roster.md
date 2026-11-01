@@ -6,10 +6,6 @@ order: 3
 updated: 2026-11-01
 audience: everyone
 page: /roster
-checklist:
-  label: Find your troopers on the roster
-  audience: everyone
-  order: 2
 ---
 
 > [!why] The roster is the portal's copy of the Cav roster for the units you lead. It shows who is in your unit, who is on leave and who has been missing practice.

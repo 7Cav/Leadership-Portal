@@ -71,8 +71,6 @@ final class DocsPages
                 'readingMinutes' => self::readingMinutes($guide->html),
                 'updated' => $guide->updated,
                 'try' => $guide->try,
-                // The guide's Start here item id when it is on this reader's list, for "Tick it off" (#412).
-                'checklist' => $guide->checklist !== null && $reader->reads($guide->checklist->audience) ? "{$guide->section}/{$guide->slug}" : null,
             ],
             'previous' => $previous ? $this->link($previous) : null,
             'next' => $next ? $this->link($next) : null,
@@ -94,7 +92,7 @@ final class DocsPages
     private function shared(Audience $reader, array $facts): array
     {
         return [
-            // The tutorial steps and Start here items the portal ticks off by itself: `{ tutorial: [slug], checklist: [id] }`.
+            // The tutorial steps the portal ticks off by itself, by step id.
             'portalDone' => PortalProgress::done($facts),
             'audience' => $reader->value,
             'feedbackUrl' => config('portal.docs_feedback_url') ?: null,
@@ -117,11 +115,6 @@ final class DocsPages
                 'headings' => array_column($guide->headings, 'text'),
                 'text' => self::plainText($guide->html),
             ], $group['guides']))->values()->all(),
-            'checklist' => array_map(fn (Guide $guide) => [
-                'id' => "{$guide->section}/{$guide->slug}",
-                'label' => $guide->checklist->label,
-                'url' => $guide->url(),
-            ], $this->library->checklist($reader)),
         ];
     }
 

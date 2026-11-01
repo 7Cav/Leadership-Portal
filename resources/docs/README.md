@@ -42,10 +42,6 @@ page: /rollcall                          # optional: the portal path it explains
 weekly: true                             # optional: a weekly task, listed under "Every week" on docs home
 minutes: 5                               # optional: about how long it takes
 updated: 2026-10-31                      # optional: when it last changed in a way readers should know; lists it under "Recently updated"
-checklist:                               # optional: put it on the "Start here" list
-  label: Run your first roll call
-  audience: leader                       # never wider than the guide's own audience
-  order: 3
 ---
 ```
 

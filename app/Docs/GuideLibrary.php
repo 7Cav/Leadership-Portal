@@ -130,20 +130,6 @@ final class GuideLibrary
     }
 
     /**
-     * The reader's "Start here" list: guides with a `checklist` entry listed for their audience, in the list's order.
-     *
-     * @return list<Guide>
-     */
-    public function checklist(Audience $reader): array
-    {
-        return collect($this->readable($reader))
-            ->filter(fn (Guide $guide) => $guide->checklist !== null && $reader->reads($guide->checklist->audience))
-            ->sortBy([fn (Guide $a, Guide $b) => $a->checklist->order <=> $b->checklist->order, fn (Guide $a, Guide $b) => $a->url() <=> $b->url()])
-            ->values()
-            ->all();
-    }
-
-    /**
      * For the "?" help (#411): each portal path a readable guide explains, mapped to that guide's URL. Where two guides
      * explain the same page, the one written for the narrowest audience the reader holds wins (an Admin on a Settings
      * page gets the Admin guide), then the first in contents order.

@@ -39,12 +39,11 @@ const GUIDE = {
         { id: 'open-rollcall', text: 'Open Rollcall' },
         { id: 'mark-each-trooper', text: 'Mark each trooper' },
     ],
-    checklist: null,
 };
 
 const show = (props = {}) =>
     mount(Show, {
-        props: { audience: 'leader', contents: CONTENTS, checklist: [], search: [], feedbackUrl: null, guide: GUIDE, previous: CONTENTS[0].guides[0], next: CONTENTS[1].guides[1], ...props },
+        props: { audience: 'leader', contents: CONTENTS, search: [], feedbackUrl: null, guide: GUIDE, previous: CONTENTS[0].guides[0], next: CONTENTS[1].guides[1], ...props },
     });
 
 describe('DocsTree', () => {
@@ -68,7 +67,7 @@ describe('DocsTree', () => {
 
 describe('Docs home', () => {
     it('asks what the reader needs to do, names their role and groups their guides', () => {
-        const home = mount(Index, { props: { audience: 'leader', contents: CONTENTS, checklist: [], search: [] } });
+        const home = mount(Index, { props: { audience: 'leader', contents: CONTENTS, search: [] } });
 
         expect(home.find('h1').text()).toBe('What do you need to do?');
         expect(home.get('[data-testid="docs-role"]').text()).toBe('Leadership billet');
@@ -76,8 +75,16 @@ describe('Docs home', () => {
         expect(home.get('[data-testid="docs-group-weekly"]').text()).toContain('Run this week\'s rollcall summary');
     });
 
+    it('points to S6 for help and shows no Start here list beside the tutorial', () => {
+        const home = mount(Index, { props: { audience: 'leader', contents: CONTENTS, search: [] } });
+
+        expect(home.get('[data-testid="docs-help"]').text()).toContain('open a ticket with S6');
+        expect(home.find('[data-testid="start-here"]').exists()).toBe(false);
+        expect(home.text()).not.toContain('Start here');
+    });
+
     it('shows a trooper only For everyone, and no Admin group', () => {
-        const home = mount(Index, { props: { audience: 'everyone', contents: [CONTENTS[0]], checklist: [], search: [] } });
+        const home = mount(Index, { props: { audience: 'everyone', contents: [CONTENTS[0]], search: [] } });
 
         expect(home.get('[data-testid="docs-role"]').text()).toBe('Trooper');
         expect(home.findAll('[data-testid^="docs-group-"]').map((g) => g.find('h3').text())).toEqual(['For everyone']);
@@ -139,7 +146,7 @@ describe('Guide page', () => {
         const unset = show();
         await unset.get('[data-testid="guide-feedback"]').findAll('button')[1].trigger('click');
         expect(open).not.toHaveBeenCalled();
-        expect(unset.get('[data-testid="guide-feedback"]').text()).toContain('Ask your chain of command, or S6');
+        expect(unset.get('[data-testid="guide-feedback"]').text()).toContain('open a ticket with S6');
         open.mockRestore();
     });
 });

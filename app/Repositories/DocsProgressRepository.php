@@ -3,8 +3,8 @@
 namespace App\Repositories;
 
 /**
- * What the portal already knows a person has done, for the getting started tutorial and Start here to tick off by
- * themselves. Read-only, and a few small queries per page whatever the number of steps: one over the audit log, and
+ * What the portal already knows a person has done, for the getting started tutorial to tick off by itself.
+ * Read-only, and a few small queries per page whatever the number of steps: one over the audit log, and
  * one existence check each for the roster visit, the section's practice slot and the staff report.
  */
 interface DocsProgressRepository

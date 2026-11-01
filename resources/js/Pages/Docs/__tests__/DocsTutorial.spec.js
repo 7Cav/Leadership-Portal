@@ -34,14 +34,13 @@ const STEPS = [
 const TUTORIAL = { url: STEPS[0].url, steps: STEPS };
 
 const home = (props = {}) =>
-    mount(Index, { props: { audience: 'leader', contents: [], checklist: [], search: [], paths: PATHS, recent: [], tutorial: TUTORIAL, ...props } });
+    mount(Index, { props: { audience: 'leader', contents: [], search: [], paths: PATHS, recent: [], tutorial: TUTORIAL, ...props } });
 
 const step = (index, props = {}) =>
     mount(Tutorial, {
         props: {
             audience: 'leader',
             contents: [],
-            checklist: [],
             search: [],
             guide: { title: STEPS[index].title, summary: 'Summary.', url: STEPS[index].url, page: '/roster', try: 'Open the roster', minutes: 2, html: '<p>Body.</p>', headings: [] },
             previous: STEPS[index - 1] ?? null,
@@ -184,7 +183,6 @@ describe('Guide page table of contents', () => {
             props: {
                 audience: 'leader',
                 contents: [],
-                checklist: [],
                 search: [],
                 guide: {
                     title: 'Run roll call',
@@ -201,7 +199,6 @@ describe('Guide page table of contents', () => {
                         { id: 'one', text: 'One' },
                         { id: 'two', text: 'Two' },
                     ],
-                    checklist: null,
                 },
             },
         });
@@ -227,7 +224,7 @@ describe('search highlight', () => {
 
 describe('steps the portal knows are done', () => {
     it('ticks a step the portal knows is done, says so, and will not untick it', async () => {
-        page.props = { ...page.props, portalDone: { tutorial: ['second'], checklist: [] } };
+        page.props = { ...page.props, portalDone: ['second'] };
         const wrapper = step(1);
 
         const box = wrapper.get('[data-testid="tutorial-done"]');
@@ -243,7 +240,7 @@ describe('steps the portal knows are done', () => {
 
     it('merges the portal ticks with the ones saved in this browser, and keeps manual ticks for the rest', async () => {
         localStorage.setItem('docs-tutorial:7', JSON.stringify(['third']));
-        page.props = { ...page.props, portalDone: { tutorial: ['first'], checklist: [] } };
+        page.props = { ...page.props, portalDone: ['first'] };
         resetTutorialProgress();
         const wrapper = step(1);
 

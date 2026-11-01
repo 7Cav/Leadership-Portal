@@ -6,8 +6,6 @@ import { Button } from '@/components/ui/button';
 import DocsLayout from '@/components/docs/DocsLayout.vue';
 import GuideFeedback from '@/components/docs/GuideFeedback.vue';
 import OnThisPage from '@/components/docs/OnThisPage.vue';
-import StartHere from '@/components/docs/StartHere.vue';
-import TickItOff from '@/components/docs/TickItOff.vue';
 import { locate } from '@/Layouts/navigation';
 import { audienceLabel, cameFrom, cavDate, openablePage } from '@/lib/docs';
 
@@ -18,16 +16,13 @@ const props = defineProps({
     audience: { type: String, required: true },
     // `[{ key, title, guides: [{ title, summary, url, audience, weekly }] }]`
     contents: { type: Array, required: true },
-    // `[{ id, label, url }]`: the Start here items for this viewer (#412).
-    checklist: { type: Array, required: true },
     // Where "Was this helpful? No" sends the reader, or null.
     feedbackUrl: { type: String, default: null },
-    // `{ tutorial: [step id], checklist: [item id] }`: what the portal ticks off by itself (app/Docs/PortalProgress).
-    portalDone: { type: Object, default: null },
+    // The tutorial step ids the portal ticks off by itself (app/Docs/PortalProgress).
+    portalDone: { type: Array, default: () => [] },
     // `[{ title, summary, url, section, headings, text }]`: the search index (#413).
     search: { type: Array, required: true },
-    // `{ title, summary, url, section: { key, title }, audience, page, weekly, minutes, html, headings, checklist }`;
-    // `checklist` is the guide's Start here item id when it is on this reader's list, else null.
+    // `{ title, summary, url, section: { key, title }, audience, page, weekly, minutes, html, headings }`.
     guide: { type: Object, required: true },
     previous: { type: Object, default: null },
     next: { type: Object, default: null },
@@ -113,7 +108,6 @@ const open = computed(() => {
             <!-- eslint-disable-next-line vue/no-v-html -- server-rendered markdown, raw HTML stripped (#408) -->
             <div class="docs-prose" data-testid="guide-body" v-html="guide.html" />
 
-            <TickItOff v-if="guide.checklist" :id="guide.checklist" :checklist="checklist" />
 
             <GuideFeedback :url="feedbackUrl" />
 
@@ -136,7 +130,6 @@ const open = computed(() => {
         </article>
 
         <template #rail>
-            <StartHere :checklist="checklist" :audience="audience" :current="guide.url" />
             <OnThisPage :headings="guide.headings" :open="open" />
         </template>
     </DocsLayout>

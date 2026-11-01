@@ -1,11 +1,10 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
-import { PhArrowRight, PhBookOpenText, PhCheckCircle, PhClipboardText, PhFileText, PhFlagPennant, PhUsersThree } from '@phosphor-icons/vue';
+import { PhArrowRight, PhBookOpenText, PhCheckCircle, PhClipboardText, PhFileText, PhFlagPennant, PhLifebuoy, PhUsersThree } from '@phosphor-icons/vue';
 import { Button } from '@/components/ui/button';
 import DocsLayout from '@/components/docs/DocsLayout.vue';
 import DocsSearchBox from '@/components/docs/DocsSearchBox.vue';
-import StartHere from '@/components/docs/StartHere.vue';
 import { useTutorialProgress } from '@/composables/useTutorialProgress';
 import { cavDate, homeGroups, initialPath, roleLabel } from '@/lib/docs';
 
@@ -17,11 +16,9 @@ const props = defineProps({
     audience: { type: String, required: true },
     // `[{ key, title, guides: [{ title, summary, url, audience, weekly }] }]`, only sections the viewer has a guide in.
     contents: { type: Array, required: true },
-    // `[{ id, label, url }]`: the Start here items for this viewer (#412).
-    checklist: { type: Array, required: true },
     feedbackUrl: { type: String, default: null },
-    // `{ tutorial: [step id], checklist: [item id] }`: what the portal ticks off by itself (app/Docs/PortalProgress).
-    portalDone: { type: Object, default: null },
+    // The tutorial step ids the portal ticks off by itself (app/Docs/PortalProgress).
+    portalDone: { type: Array, default: () => [] },
     // `[{ title, summary, url, section, headings, text }]`: the search index (#413).
     search: { type: Array, required: true },
     // `[{ key, title, blurb, guides: [{ title, summary, url }] }]`: the role paths this viewer can follow.
@@ -59,7 +56,7 @@ watch(role, (key) => {
 
 const progress = useTutorialProgress(
     () => props.tutorial?.steps ?? [],
-    () => ({ userId: page.props.auth?.user?.id ?? null, previewing: page.props.viewAs != null, portal: page.props.portalDone?.tutorial ?? [] }),
+    () => ({ userId: page.props.auth?.user?.id ?? null, previewing: page.props.viewAs != null, portal: page.props.portalDone ?? [] }),
 );
 // Where "Start the tutorial" goes: the first step not done yet, or the first step once all are done.
 const resume = computed(() => {
@@ -226,10 +223,14 @@ function moveRole(event, index) {
 
                 <p v-if="!groups.length" class="text-sm text-muted-foreground">No guides have been written for your role yet.</p>
             </section>
-        </div>
 
-        <template v-if="checklist.length" #rail>
-            <StartHere :checklist="checklist" :audience="audience" />
-        </template>
+            <aside class="mt-10 flex items-start gap-3 rounded-lg border border-border bg-card p-4" aria-labelledby="docs-help-title" data-testid="docs-help">
+                <PhLifebuoy class="mt-0.5 size-5 flex-none text-[var(--nav-active-icon)]" aria-hidden="true" />
+                <div>
+                    <h2 id="docs-help-title" class="text-sm font-semibold">Something not working, or a question?</h2>
+                    <p class="text-[13px] text-muted-foreground">For any technical issue, question or concern, open a ticket with S6.</p>
+                </div>
+            </aside>
+        </div>
     </DocsLayout>
 </template>

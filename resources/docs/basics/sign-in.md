@@ -4,10 +4,6 @@ summary: The portal uses your forum account. There is no separate password.
 section: basics
 order: 1
 audience: everyone
-checklist:
-  label: Sign in with your 7cav.us account
-  audience: everyone
-  order: 1
 ---
 
 > [!why] The portal knows who you are from your forum account and your milpac. Your billet on the Cav roster decides what you can see and change, so nobody has to set up your access by hand.
