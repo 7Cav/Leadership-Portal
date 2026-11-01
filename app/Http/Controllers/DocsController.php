@@ -59,6 +59,15 @@ class DocsController extends Controller
         $props = $this->pages->guide($this->audience->of($request->user()), $section, $slug);
         abort_if($props === null, 404);
 
-        return Inertia::render('Docs/Show', $props);
+        // A tutorial step has its own page: progress, the step list and "Try it" in place of the guide's rail.
+        return Inertia::render($props['steps'] === null ? 'Docs/Show' : 'Docs/Tutorial', $props);
+    }
+
+    /** `/docs/tutorial`: the first step of the getting started tutorial, or docs home when this reader has none. */
+    public function tutorial(Request $request): RedirectResponse
+    {
+        abort_unless((bool) config('portal.docs'), 404);
+
+        return redirect($this->pages->tutorialStart($this->audience->of($request->user())) ?? '/docs');
     }
 }

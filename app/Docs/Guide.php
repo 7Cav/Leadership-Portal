@@ -13,6 +13,8 @@ final readonly class Guide
      * @param  bool  $weekly  a task done every week: docs home lists it under "Every week", the guide says "Once a week"
      * @param  ?int  $minutes  about how long the task takes, shown on the guide
      * @param  list<array{id: string, text: string}>  $headings  the level-2 headings, for "On this page"
+     * @param  ?string  $updated  when the guide last changed in a way worth telling readers (`Y-m-d`), for "Recently updated"
+     * @param  ?string  $try  a tutorial step's "Try it" button label, opening `$page`
      */
     public function __construct(
         public string $section,
@@ -27,6 +29,8 @@ final readonly class Guide
         public ?ChecklistItem $checklist,
         public string $html,
         public array $headings,
+        public ?string $updated = null,
+        public ?string $try = null,
     ) {}
 
     public function url(): string

@@ -30,18 +30,20 @@ use League\CommonMark\Renderer\HtmlRenderer;
  *     > [!why] The weekly report is built from your confirmed rollcall.
  *     > [!good-to-know] Troopers on leave are already marked.
  *
- * They render as `<blockquote class="callout callout-why">` (or `callout-good-to-know`) led by "Why this matters." or
- * "Good to know.", in text, not CSS, so a screen reader reads the label too.
+ * A third, `> [!warning]`, is for a step that cannot be undone or is easy to get wrong.
+ *
+ * They render as `<blockquote class="callout callout-why">` (or `callout-good-to-know`, `callout-warning`) led by "Why
+ * this matters.", "Good to know." or "Watch out.", in text, not CSS, so a screen reader reads the label too.
  */
 final class GuideParser
 {
-    private const KEYS = ['title', 'summary', 'section', 'order', 'audience', 'page', 'weekly', 'minutes', 'checklist'];
+    private const KEYS = ['title', 'summary', 'section', 'order', 'audience', 'page', 'weekly', 'minutes', 'checklist', 'updated', 'try'];
 
     private const REQUIRED = ['title', 'summary', 'section', 'order', 'audience'];
 
     private const CHECKLIST_KEYS = ['label', 'audience', 'order'];
 
-    private const CALLOUTS = ['why' => 'Why this matters.', 'good-to-know' => 'Good to know.'];
+    private const CALLOUTS = ['why' => 'Why this matters.', 'good-to-know' => 'Good to know.', 'warning' => 'Watch out.'];
 
     /** Lowercase words joined by hyphens: what a section folder and a guide file may be called. */
     public const SLUG = '/^[a-z0-9]+(?:-[a-z0-9]+)*$/';
@@ -115,6 +117,8 @@ final class GuideParser
             weekly: $meta['weekly'] ?? false,
             minutes: $meta['minutes'] ?? null,
             checklist: $checklist,
+            updated: self::date($meta['updated'] ?? null),
+            try: $meta['try'] ?? null,
             html: $this->renderer->renderDocument($document)->getContent(),
             headings: $headings,
         );
@@ -161,6 +165,16 @@ final class GuideParser
             $problems[] = '`minutes` must be a whole number of minutes';
         }
 
+        if (array_key_exists('updated', $meta) && self::date($meta['updated']) === null) {
+            $problems[] = '`updated` must be a date written as 2026-10-30';
+        }
+        if (array_key_exists('try', $meta) && (! is_string($meta['try']) || trim($meta['try']) === '')) {
+            $problems[] = '`try` must be text';
+        }
+        if (array_key_exists('try', $meta) && ! array_key_exists('page', $meta)) {
+            $problems[] = '`try` needs a `page` to open';
+        }
+
         if (array_key_exists('checklist', $meta)) {
             $problems = [...$problems, ...$this->checkChecklist($meta['checklist'], $this->audience($meta['audience'] ?? null))];
         }
@@ -199,6 +213,16 @@ final class GuideParser
         }
 
         return $problems;
+    }
+
+    /** `updated` as `Y-m-d`: YAML reads a bare date as a Unix timestamp, a quoted one as text. Null when it is neither. */
+    private static function date(mixed $value): ?string
+    {
+        if (is_int($value)) {
+            return gmdate('Y-m-d', $value);
+        }
+
+        return is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1 && strtotime($value) !== false ? $value : null;
     }
 
     private function audience(mixed $value): ?Audience
@@ -253,7 +277,7 @@ final class GuideParser
                     break;
                 }
             }
-            if (preg_match('/^\[!(why|good-to-know)\]/i', $lead, $marker) !== 1) {
+            if (preg_match('/^\[!(why|good-to-know|warning)\]/i', $lead, $marker) !== 1) {
                 continue;
             }
 

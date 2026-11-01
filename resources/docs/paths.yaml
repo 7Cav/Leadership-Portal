@@ -1,0 +1,54 @@
+# Docs home's role paths, in the order they are offered: `key: { title, blurb, audience, guides }`.
+# `audience` is who sees the path (everyone, leader or admin); `guides` are `section/slug`, 3 to 6 of them, in reading
+# order. A reader only sees the guides on a path that they may read. See README.md.
+section-leader:
+  title: Section Leader
+  blurb: Run roll call, mark section practice and send your section's report every week.
+  audience: leader
+  guides:
+    - weekly-rollcall/run-rollcall
+    - weekly-report/send-your-report
+    - your-troopers/game-identities
+    - weekly-rollcall/add-a-guest
+    - weekly-rollcall/unmatched-players
+    - basics/home
+platoon-company:
+  title: Platoon or company leader
+  blurb: Follow your sections' week, plan training and send the report for your unit.
+  audience: leader
+  guides:
+    - basics/home
+    - weekly-report/send-your-report
+    - weekly-report/training-plan
+    - weekly-report/platoon-training-topic
+    - your-troopers/training-readiness
+    - basics/act-as
+hq-staff:
+  title: HQ staff
+  blurb: Send your weekly staff report and read the reports of the staff under you.
+  audience: everyone
+  guides:
+    - weekly-report/staff-report
+    - weekly-report/staff-reports
+    - your-troopers/staff-practices
+    - basics/read-the-roster
+admin:
+  title: Admin
+  blurb: Set up the org structure, games, servers and access, and check the logs.
+  audience: admin
+  guides:
+    - admin/org-structure
+    - admin/staff-grants
+    - admin/games
+    - admin/servers
+    - admin/syncs
+    - admin/audit-log
+trooper:
+  title: Any trooper
+  blurb: Sign in, find your unit and know who to ask.
+  audience: everyone
+  guides:
+    - basics/sign-in
+    - basics/read-the-roster
+    - basics/find-a-trooper
+    - start-here/what-others-can-do

@@ -41,6 +41,7 @@ audience: leader                         # required: everyone, leader or admin
 page: /rollcall                          # optional: the portal path it explains, for the "?" help
 weekly: true                             # optional: a weekly task, listed under "Every week" on docs home
 minutes: 5                               # optional: about how long it takes
+updated: 2026-10-31                      # optional: when it last changed in a way readers should know; lists it under "Recently updated"
 checklist:                               # optional: put it on the "Start here" list
   label: Run your first roll call
   audience: leader                       # never wider than the guide's own audience
@@ -57,12 +58,15 @@ best guide for the page the reader is on.
   single step needs no heading of its own: fold it into the step before or after it.
 - Write for the reader's task, in plain sentence-case language. Explain jargon or link to the glossary. The copy rules
   are in `docs/copywriting.md`.
-- Two call-outs, as a block quote that starts with a marker:
+- Three call-outs, as a block quote that starts with a marker:
 
   ```markdown
   > [!why] The weekly report is built from your confirmed roll call.
   > [!good-to-know] Troopers on leave are already marked for you.
+  > [!warning] Sending freezes the numbers.
   ```
+
+  Keep `warning` for a step that cannot be undone or is easy to get wrong.
 
 - Link another guide as `/docs/{section}/{slug}`, and the screen as its portal path.
 - Raw HTML is not rendered.
@@ -81,3 +85,16 @@ alt text that says what it shows.
 - `resources/js/Layouts/__tests__/guideCoverage.spec.js` fails when a screen in the sidebar has no guide (a `page`
   pointing at it) and is not listed there as having none on purpose. A new screen ships with its guide, or with a
   line in that list saying why not.
+
+## Role paths on docs home
+
+`paths.yaml` lists the roles docs home offers ("Section Leader", "HQ staff"...), each with a title, a one-line blurb,
+the `audience` that sees it and 3 to 6 guides as `section/slug`, in reading order. A reader sees only the paths for
+their audience, and only the guides on them they may read. A listed guide that does not exist fails the build.
+
+## The tutorial
+
+`tutorial/` holds the getting started tutorial: one step per file, in `order`, at `/docs/tutorial/{slug}` (and
+`/docs/tutorial` opens the first). Steps use the same front matter and body as a guide, plus `try`, the label of the
+button that opens the step's `page` so the reader can try it there. Steps are left out of the contents and the
+previous and next links of the guides, and the "?" help never opens one; they are in the search.
