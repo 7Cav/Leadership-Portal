@@ -11,11 +11,11 @@ page: /home
 
 ## Troopers missing a game identity
 
-If you lead a unit and one of your troopers has no identity for the game your unit plays, a warning at the top of Home names them. Link them on [Game identities](/docs/your-troopers/game-identities); until then the game server can't record their practice attendance.
+If you lead a unit and one of your troopers has no identity for the game your unit plays, a warning at the top of Home names them. Link them on [Game identities](/docs/your-troopers/game-identities); until then the game server cannot record their practice attendance.
 
 ## Fix a missing practice slot
 
-If a section you lead plays a game and has no practice slot, a warning at the top of Home names it. Without a slot, its practices aren't captured automatically and make-ups aren't given from the game server. Choose the section's callsign, or **Set it on the section's roll call**, and set the slot there. The warning goes away once every section has one.
+If a section you lead plays a game and has no practice slot, a warning at the top of Home names it. Without a slot, its practices are not captured automatically and make-ups are not given from the game server. Choose the section's callsign, or **Set it on the section's roll call**, and set the slot there. The warning goes away once every section has one.
 
 ## Read the week bar
 
@@ -35,4 +35,4 @@ If a section you lead plays a game and has no practice slot, a warning at the to
 2. For a trooper at risk, use the makeup link to send them a message about a makeup practice.
 3. An LOA post that needs review is one the leave sync could not read. Choose the trooper to mark them on your roll call, or open the post on the forum and ask them to fix it. For the week it was posted and the week after, the portal neither counts them as on leave nor flags them at risk.
 
-> [!good-to-know] Home counts the line units only: sections, platoons, companies, battalions and the regiment. Staff groups have no report chain, and a unit with nobody in it is left out until someone is placed there. The week shown stays the closing one until its report is due, 23:59 UTC on the Saturday after it ends.
+> [!good-to-know] Home counts the line units only: sections, platoons, companies, battalions and the regiment. Staff groups have no report chain, and a unit with nobody in it is left out until someone is placed there. The week shown stays the closing one until its report is due, 2359Z on the Saturday after it ends.

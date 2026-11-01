@@ -16,7 +16,7 @@ page: /settings/activity-log
 
 ## Read a visit
 
-1. Each row is one page they opened: its address and the time, in UTC.
+1. Each row is one page they opened: its address and the time, in Zulu.
 2. If they were viewing as someone, or an Admin was acting as someone, the row says who.
 
 > [!good-to-know] Only page addresses and times are kept, never what anyone typed. Sign-in addresses and anything that looks like a token are left out. Visits are deleted after 30 days.

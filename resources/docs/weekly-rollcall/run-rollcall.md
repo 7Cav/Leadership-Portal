@@ -27,7 +27,7 @@ checklist:
 1. Choose **Roll call** in the sidebar. It opens on the section you opened last, or the one you lead. It skips sections with no troopers.
 2. To open another section, choose **Switch section** at the top. Sections with no troopers are listed too, marked **No troopers**.
 3. Use the arrows beside the week to go back or forward a week, and **This week** to come back. An arrow is flagged when a week it leads to is unfinished.
-4. On the Saturday after a week ends, until the report is due at 23:59 UTC, roll call opens on that closing week if your section has not sent its report yet. Choose **This week** for the new week.
+4. On the Saturday after a week ends, until the report is due at 2359Z, roll call opens on that closing week if your section has not sent its report yet. Choose **This week** for the new week.
 
 > [!good-to-know] A past week lists the troopers who were in your section when that week ended, so you can still finish it after a move or a departure. Their rows say **Moved out** or **Departed**, and **Joined** marks someone who moved in partway through the week. A trooper who joined the Cav after that week is not on it. The current week lists who is in your section now.
 
@@ -58,7 +58,7 @@ The header shows when your section practices, in Zulu, with your own time beside
 
 A week the game server already read, or whose report was sent, keeps its time.
 
-If your section plays a game and has no slot, a warning sits at the top of the roll call: without a slot, its practices aren't captured automatically and make-ups aren't given from the game server. Choose **Set the practice slot** on the warning to open the same editor. It goes away once a slot is saved.
+If your section plays a game and has no slot, a warning sits at the top of the roll call: without a slot, its practices are not captured automatically and make-ups are not given from the game server. Choose **Set the practice slot** on the warning to open the same editor. It goes away once a slot is saved.
 
 ## Check what the game server saw
 
@@ -67,7 +67,7 @@ If your section plays a game and has no slot, a warning sits at the top of the r
 3. If the banner says the server could not be read, mark by hand, or choose **Try again** to read it again.
 4. Players the server saw who are linked to no trooper are listed for you to link or dismiss. See [Link or dismiss an unmatched player](/docs/weekly-rollcall/unmatched-players).
 
-> [!good-to-know] A trooper with no identity for the section's game has a warning icon by their name, and a warning at the top of the page lists them. The capture can't see them, so mark them by hand and link them on [Game identities](/docs/your-troopers/game-identities).
+> [!good-to-know] A trooper with no identity for the section's game has a warning icon by their name, and a warning at the top of the page lists them. The capture cannot see them, so mark them by hand and link them on [Game identities](/docs/your-troopers/game-identities).
 
 ## Guests and make-ups
 
