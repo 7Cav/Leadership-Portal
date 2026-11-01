@@ -226,7 +226,7 @@ their own plan unless they also command the company.
 | Org structure: create, rename or move a unit, delete an empty unit | Yes | No | No |
 | Org structure: Import from Cav roster | Yes | No | No |
 | Org structure: place a trooper the sync could not place | Yes | No | No |
-| Org structure: set or clear the game a unit plays (from the Games list, not a retired game) | Yes | No | No |
+| Org structure: set or clear the game a unit plays (from the Games list, not a retired game; battalion level and above only) (12) | Yes | Regimental HQ staff, and a battalion's overseer for that battalion (12) | No |
 | Org structure: set or clear a unit's team label | Yes | No | No |
 | Org structure: assign or remove an acting lead (10) | Yes | No | No |
 | Org structure: set, change or clear a unit's overseer | Yes | No | No |
@@ -245,6 +245,14 @@ yourself: another Admin assigns an Admin. A unit with only its XO, PSG or ASL se
 (11) Being an Admin gives nothing here: only the changelog editors write the changelog, whatever their billet. The
 one changelog setting, whether technical entries are sent to everyone, is the other way round: Admins only, and an
 editor who is not an Admin cannot change it. The editors always see technical entries.
+
+(12) Only a unit at battalion level or above picks a game: the regiment, each battalion, and each unit directly under
+the regiment that stands at battalion level (ACD, DEVCOM). Every unit below plays the game it inherits, shown locked. A
+game set on a company, platoon or section before this rule stays until it is cleared, and clearing it back to the
+inherited game is the only change allowed there. Who may: an Admin; Regimental HQ staff (a serving trooper placed on
+the regiment node whose position is still a Regimental HQ billet, the same people who read the whole regiment); and
+the serving overseer of a battalion, for that battalion and the units under it. Anyone else gets a 403 and sees no
+game control. Act as may change it as the person acted as would; view as is read only.
 
 ### Game identities and syncs
 

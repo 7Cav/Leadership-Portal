@@ -24,8 +24,8 @@ The page has two cards. **Chain of command** holds the regiment, its battalions 
 
 ## Add, rename or move a unit
 
-1. Choose **Add unit**, or select a unit to edit it.
-2. Set its **Name**, **Callsign**, **Echelon** and **Parent**, and choose **Save unit**.
+1. To add a unit, select the unit it goes under; the form adds one echelon below it and shows its **Parent**. With nothing selected it adds a battalion under the regiment.
+2. Set its **Name** and **Callsign**, and choose **Save unit**. To rename or move a unit, select it and change it in the details panel.
 
 > [!good-to-know] What this changes, and how to undo it: moving a unit moves everyone's access with it on the next page load. Move it back the same way. A unit with troopers, reports or anything else attached cannot be deleted.
 
@@ -42,10 +42,12 @@ The page has two cards. **Chain of command** holds the regiment, its battalions 
 
 ## Set the game a unit plays
 
-1. Select the unit, pick its **Game** from the list, and choose **Save game**. The list has the games kept on the Games page that are not retired.
-2. Every unit under it plays the same game, unless it has its own. The game shows next to each unit's name; one a unit inherits is muted, with the unit it comes from, such as "WARDOGS from 2/A/1-7".
+1. Select a battalion (or the regiment, ACD or DEVCOM), pick its **Game** from the list, and choose **Save game**. The list has the games kept on the Games page that are not retired.
+2. Every unit under it plays the same game. The battalion's row shows the game's abbreviation as a chip, such as HLLV; the units under it show no game in the tree, and their details panel shows it locked, such as "Hell Let Loose: Vietnam (from 2-7)".
 
-> [!good-to-know] What this changes, and how to undo it: Game identities opens Add identity on this game, and the practice capture reads the section's practice from it. Pick **None (inherits)** to clear it, and the unit plays the game of the nearest unit above it again. A unit keeps a game that has since been retired, marked retired, until you change it. Both are in the audit log.
+Admins, Regimental HQ staff and the battalion's overseer can change a battalion's game. Nobody else sees the control.
+
+> [!good-to-know] What this changes, and how to undo it: Game identities opens Add identity on this game, and the practice capture reads the section's practice from it. Pick the inherited choice at the top of the list to clear it. A unit keeps a game that has since been retired, marked retired, until you change it. A company, platoon or section that had its own game before keeps it until you choose **Clear game**; no new one can be set below a battalion. Both are in the audit log.
 
 ## Set a team label
 
