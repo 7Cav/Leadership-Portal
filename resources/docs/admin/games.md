@@ -21,4 +21,13 @@ page: /settings/games
 2. For a game no longer played, choose **Retire**. Its links stay, but no new ones can be made, and it stops being captured.
 3. Choose **Bring back** to reinstate it.
 
+## Apply existing Steam or Epic links
+
+When a game asks for a Steam ID or an Epic ID, troopers may already have that account linked on another game.
+
+1. On **Games**, the game shows **Apply existing Steam links** (or Epic) and how many troopers it would link.
+2. Choose it to link each of those troopers on this game with the ID they already have. It is recorded in the audit log, and it only runs when you choose it.
+
+A trooper who already has an identity on the game is left out, and so is one with two different IDs of that account on other games, or one whose ID another trooper holds on this game. Link those on **Game identities**.
+
 > [!good-to-know] A game that is in use, with linked identities, captured practices or a unit that plays it, can only be retired, never deleted; **Delete** is offered only for a game nothing uses.
