@@ -21,7 +21,8 @@ use App\Support\Audit\AuditEnvelope;
  * row the other wrote and rolls back without an entry (see {@see GrantUnchangedException}).
  * Otherwise the write is staged through `AuditEnvelope` (AD-16) with a reason always
  * required — a role grant is the kind of high-authority mutation CONTRIBUTING §4 reserves that
- * for.
+ * for. An optional {@see GrantExpiry} gives the new grant an end date; on an existing grant the date is changed with
+ * {@see SetStaffGrantExpiry} instead.
  */
 class GrantStaffScope
 {
@@ -34,7 +35,7 @@ class GrantStaffScope
     /**
      * @throws GrantTargetIsAdminException when `$target` already holds the admin flag.
      */
-    public function handle(User $actor, User $target, Unit $unit, ?string $reason): PortalRoleGrant
+    public function handle(User $actor, User $target, Unit $unit, ?string $reason, ?GrantExpiry $expiry = null): PortalRoleGrant
     {
         if ($this->scope->isAdmin($target)) {
             throw GrantTargetIsAdminException::forUser($target);
@@ -52,8 +53,8 @@ class GrantStaffScope
                 action: 'portal_role_grant.granted',
                 reason: $reason,
                 reasonRequired: true,
-                mutation: function () use ($target, $unit) {
-                    $grant = $this->grants->grant($target, $unit);
+                mutation: function () use ($actor, $target, $unit, $expiry) {
+                    $grant = $this->grants->grant($target, $unit, $expiry?->expiresAt, $expiry?->renewEveryDays, $expiry === null ? null : $actor->id);
 
                     // A racing grant for the same node committed between the check above and this
                     // write: the node is already granted, so this is the same no-op as above.

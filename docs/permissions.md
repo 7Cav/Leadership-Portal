@@ -11,7 +11,8 @@
 - A company's command (and the command above it) manages that company's own roll call templates, and a section's command
   (and the command above it) manages the section's own.
 - A staff grant (given by an Admin) lets someone read a unit and everything under it. It never lets them change
-  anything there.
+  anything there. A grant with an end date gives no access from the moment the date has passed (after 23 59Z that
+  day): one set to end is then revoked for good, one set to renew stays listed as lapsed until an Admin renews it.
 - Regimental HQ staff (the Chief of Staff, the Adjutants General, the Finance Officer and any other billet in the
   `Regimental HQ` group) read the whole regiment, as a staff grant on the regiment would, while they are placed on the
   regiment and their billet is still in that group. No Admin has to give it.
@@ -233,6 +234,7 @@ their own plan unless they also command the company.
 | Org structure: assign or remove an acting lead (10) | Yes | No | No |
 | Org structure: set, change or clear a unit's overseer | Yes | No | No |
 | Staff grants: grant or revoke | Yes | No | No |
+| Staff grants: set, change or clear an end date, or renew a grant | Yes | No | No |
 | Games: add, edit, retire, reinstate or delete a game (a game in use can only be retired) | Yes | No | No |
 | Changelog: add (a date's batch), edit, delete (reason required) or bulk import entries, delete all entries and restore them within 72 hours, dismiss the "Changelog outdated" bar (only the usernames in `changelog_editors` in `config/portal.php`, signed in as themselves, never while acted as; reading it is open to everyone) | Editors only (11) | Editors only (11) | No |
 | Changelog: make technical and security items available to everyone, or to the changelog editors only (signed in as yourself, never while acting as someone or during View as) | Yes | No | No |
@@ -421,7 +423,8 @@ reads it.
    unit that billet commands. The Import from Cav roster step writes that billet to unit mapping (see
    [operations.md](operations.md)). Your scope is that unit and everything under it.
 3. Acting leads: every unit an Admin made you acting lead of is added, each with its subtree.
-4. Staff grants: every unit you were granted is added to your read scope, each with its subtree.
+4. Staff grants: every unit you were granted is added to your read scope, each with its subtree, unless the grant's end
+   date has passed.
 5. Regimental HQ staff: if your milpac is placed directly on the regiment and your billet is one Cav lists under
    Regimental HQ now (the org import records each in `admin_billets`, approved or not), the whole regiment is added to
    your read scope. A move to a billet the sync cannot place leaves you on the regiment, but the read ends with the

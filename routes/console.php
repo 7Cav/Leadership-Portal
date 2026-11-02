@@ -8,6 +8,7 @@ use App\Commands\Demo\GenerateDemoHistory;
 use App\Commands\Demo\GenerateDemoHistoryHandler;
 use App\Commands\Demo\PurgeDemoHistory;
 use App\Commands\Demo\PurgeDemoHistoryHandler;
+use App\Commands\PortalRoleGrants\ExpireEndedStaffGrants;
 use App\Commands\Users\SetAdminFlag;
 use App\Jobs\CaptureSectionPracticeJob;
 use App\Jobs\SyncLoasJob;
@@ -151,6 +152,19 @@ Artisan::command('portal:purge-changelog', function (ChangelogRepository $change
 })->purpose('Remove changelog entries deleted more than '.ChangelogEntry::RESTORE_HOURS.' hours ago');
 
 Schedule::command('portal:purge-changelog')->hourlyAt(40);
+
+// Staff grants set to end are revoked for good once their end date passes, each with an audited entry. They already
+// gave no scope from that moment (the scope leaves them out); this removes the row on the record. Grants that renew are
+// kept, lapsed, until someone renews them.
+Artisan::command('portal:expire-staff-grants', function (ExpireEndedStaffGrants $expire) {
+    $revoked = $expire->handle(now());
+
+    $this->info("Revoked {$revoked} staff ".($revoked === 1 ? 'grant' : 'grants').' past their end date.');
+
+    return 0;
+})->purpose('Revoke staff grants whose end date has passed');
+
+Schedule::command('portal:expire-staff-grants')->everyFiveMinutes()->withoutOverlapping();
 
 // Bootstrap or remove an Admin without SQL (story 2.9). The user must already exist — i.e. have
 // signed in once via 7Cav SSO. Audited through `SetAdminFlag` (AD-16); see its docblock for why
