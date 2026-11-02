@@ -104,6 +104,7 @@ describe('Changelog page', () => {
             'Second on the day',
         ]);
         expect(wrapper.find('[data-testid="changelog-add"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="changelog-export"]').exists()).toBe(false);
         expect(wrapper.find('[data-testid="changelog-edit-3"]').exists()).toBe(false);
     });
 
@@ -283,6 +284,39 @@ describe('Changelog page', () => {
 
         await wrapper.get('[data-testid="changelog-import-save"]').trigger('click');
         expect(routerPost).toHaveBeenCalledWith('/changelog/import', { markdown: expect.any(String), skip_duplicates: true }, expect.any(Object));
+    });
+
+    it('counts new, updated and unchanged lines in the preview and imports the changes', async () => {
+        postJson.mockResolvedValue({
+            ok: true,
+            data: {
+                entries: [
+                    { line: 2, date: '2026-10-01', body: 'Brand new', details: null, id: null, status: 'new', duplicate: false },
+                    { line: 3, date: '2026-10-01', body: 'The *Roll call* page', details: null, id: 7, status: 'updated', duplicate: false },
+                    { line: 4, date: '2026-10-01', body: 'Same', details: null, id: 8, status: 'unchanged', duplicate: false },
+                ],
+                errors: [],
+            },
+        });
+        mountPage({ isEditor: true });
+
+        await wrapper.get('[data-testid="changelog-import"]').trigger('click');
+        await wrapper.get('[data-testid="changelog-import-markdown"]').setValue('## 2026-10-01\n- Brand new');
+        await wrapper.get('[data-testid="changelog-import-preview"]').trigger('click');
+        await flushPromises();
+
+        expect(wrapper.get('[data-testid="changelog-import-summary"]').text()).toBe('1 new, 1 updated, 1 unchanged');
+        expect(wrapper.get('[data-testid="preview-updated-3"]').text()).toBe('Updated');
+        expect(wrapper.get('[data-testid="preview-entry-3"]').html()).toContain('<em>Roll call</em>');
+        expect(wrapper.find('[data-testid="preview-unchanged-4"]').exists()).toBe(true);
+        expect(wrapper.get('[data-testid="changelog-import-save"]').text()).toBe('Import 2 entries');
+    });
+
+    it('offers Export to an editor with entries, as a download', () => {
+        mountPage({ isEditor: true });
+        const link = wrapper.get('[data-testid="changelog-export"]');
+        expect(link.attributes('href')).toBe('/changelog/export');
+        expect(link.attributes('download')).toBeDefined();
     });
 
     it('lists the errors of a bad paste and offers no import', async () => {

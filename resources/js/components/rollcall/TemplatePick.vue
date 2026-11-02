@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { Label } from '@/components/ui/label';
-import { NativeSelect } from '@/components/ui/native-select';
+import SearchSelect from '@/components/SearchSelect.vue';
 
 // The section's choice of rollcall template (#375): one of the section's own templates, one of those its company switched
 // on, the regiment default, or none, which follows the company default. `picker` is `TemplateResolver::pickerFor()`'s answer and `template` the
@@ -34,8 +34,10 @@ const optionLabel = (option) => {
 // off, the section is told what its post uses now.
 const moved = computed(() => props.picker.moved ?? null);
 
-function choose(event) {
-    const id = event.target.value === '' ? null : Number(event.target.value);
+const rows = computed(() => props.picker.options.map((option) => ({ value: String(option.id), label: optionLabel(option) })));
+
+function choose(picked) {
+    const id = picked === '' || picked === null ? null : Number(picked);
     if (id !== props.picker.picked) emit('pick', id);
 }
 </script>
@@ -44,19 +46,20 @@ function choose(event) {
     <div class="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-testid="template-pick">
         <Label for="rollcall-template" class="text-[13px]">Template</Label>
         <div class="min-w-0 flex-1 sm:max-w-xs">
-            <NativeSelect
+            <SearchSelect
                 id="rollcall-template"
-                data-testid="template-pick-select"
-                class="text-[13px]"
+                testid="template-pick-select"
                 :model-value="value"
+                :options="rows"
+                any-label="Company default"
+                any-value=""
+                search-placeholder="Search templates"
+                empty-text="No template matches that search."
                 :disabled="Boolean(disabledReason) || saving"
                 :title="disabledReason ?? undefined"
                 :aria-busy="saving"
-                @change="choose"
-            >
-                <option value="">Company default</option>
-                <option v-for="option in picker.options" :key="option.id" :value="String(option.id)">{{ optionLabel(option) }}</option>
-            </NativeSelect>
+                @update:model-value="choose"
+            />
         </div>
         <p v-if="template?.name" class="text-xs text-muted-foreground" data-testid="template-pick-note">
             Using {{ template.name }}. {{ note }}

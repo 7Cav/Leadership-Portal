@@ -192,11 +192,16 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/game-identities', [GameIdentityController::class, 'index'])->name('game-identities.index');
     Route::put('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'update'])->middleware('throttle:audited-writes')->name('game-identities.update');
     Route::delete('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'destroy'])->middleware('throttle:audited-writes')->name('game-identities.destroy');
+    Route::post('/game-identities/import/preview', [GameIdentityController::class, 'importPreview'])->middleware('throttle:audited-writes')->name('game-identities.import.preview');
+    Route::post('/game-identities/import', [GameIdentityController::class, 'import'])->middleware('throttle:audited-writes')->name('game-identities.import');
+    Route::post('/game-identities/{trooper}/{platform}/account', [GameIdentityController::class, 'linkAccount'])->middleware('throttle:audited-writes')->name('game-identities.account.store');
+    Route::delete('/game-identities/{trooper}/{platform}/account', [GameIdentityController::class, 'destroyAccount'])->middleware('throttle:audited-writes')->name('game-identities.account.destroy');
 
     // The changelog: open to everyone signed in; only the changelog editors write it (an Admin changes its one setting), each write audited and on the
     // shared audited-writes throttle. The import preview writes nothing but shares the throttle, as every POST does.
     Route::get('/changelog', [ChangelogController::class, 'index'])->name('changelog.index');
     Route::post('/changelog', [ChangelogController::class, 'store'])->middleware('throttle:audited-writes')->name('changelog.store');
+    Route::get('/changelog/export', [ChangelogController::class, 'export'])->middleware('throttle:audited-writes')->name('changelog.export');
     Route::post('/changelog/import/preview', [ChangelogController::class, 'preview'])->middleware('throttle:audited-writes')->name('changelog.import.preview');
     Route::post('/changelog/import', [ChangelogController::class, 'import'])->middleware('throttle:audited-writes')->name('changelog.import');
     Route::post('/changelog/settings', [ChangelogController::class, 'settings'])->middleware('throttle:audited-writes')->name('changelog.settings');
@@ -306,6 +311,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::patch('/settings/games/{game}', [GamesController::class, 'update'])->middleware('throttle:audited-writes')->name('settings.games.update');
     Route::post('/settings/games/{game}/retire', [GamesController::class, 'retire'])->middleware('throttle:audited-writes')->name('settings.games.retire');
     Route::delete('/settings/games/{game}/retire', [GamesController::class, 'reinstate'])->middleware('throttle:audited-writes')->name('settings.games.reinstate');
+    Route::post('/settings/games/{game}/account-links', [GamesController::class, 'applyAccountLinks'])->middleware('throttle:audited-writes')->name('settings.games.account-links');
     Route::delete('/settings/games/{game}', [GamesController::class, 'destroy'])->middleware('throttle:audited-writes')->name('settings.games.destroy');
 
     // The game servers the telemetry APIs list (#389). The whole screen is Admin-only, gated in the controller (AD-6).

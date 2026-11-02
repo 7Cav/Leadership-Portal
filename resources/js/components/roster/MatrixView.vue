@@ -1,5 +1,6 @@
 <script setup>
 import { slotLabel } from '@/lib/practiceSlot';
+import RankInsignia from '@/components/RankInsignia.vue';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import { PhArrowSquareIn, PhArrowsOutLineVertical, PhArrowsInLineVertical, PhCaretDown, PhCaretRight, PhCaretUpDown, PhLockSimple, PhMagnifyingGlass, PhSortAscending, PhWarning } from '@phosphor-icons/vue';
@@ -417,6 +418,7 @@ function clearAll() {
                                     @click.stop="emit('open', row.trooper.id)"
                                 >
                                     <span class="flex items-center gap-1">
+                                        <RankInsignia :rank="row.trooper.rank" />
                                         <span class="rank">{{ row.trooper.rank }}</span>
                                         <span class="nm-name truncate font-medium">{{ displayName(row.trooper) }}</span>
                                         <PhLockSimple v-if="row.trooper.kpis?.onLoa" class="text-muted-foreground" aria-label="On LOA" />

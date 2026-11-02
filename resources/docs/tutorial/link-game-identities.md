@@ -1,6 +1,6 @@
 ---
 title: Link game identities
-summary: Link each trooper's in-game name so the game server can find them.
+summary: Link each trooper's player ID so the game server can find them.
 section: tutorial
 order: 5
 audience: leader
@@ -9,13 +9,23 @@ try: Open Game identities
 minutes: 5
 ---
 
-The game server only knows players by their in-game name and ID. Until a trooper is linked, their practice attendance and make-ups are not recorded for you.
+The game server knows players by their player ID. Until a trooper is linked, their practice attendance and make-ups are not recorded for you.
 
 ## Link a trooper
 
 1. Choose **Game identities** in the sidebar. **Needs a link** shows the troopers with no link yet.
-2. Choose a trooper, then enter their **Player name** and the game's ID for them. The page says which ID the game uses.
+2. Choose a trooper, then enter the game's ID for them. The page says which ID the game uses.
 3. Choose **Save identity**.
+
+## Import many identities at once
+
+1. On **Game identities**, choose **Import identities**.
+2. Choose a .txt or .csv file, or paste the lines. Each line is one identity: trooper, game, ID kind and ID, separated by commas or tabs. For example `Novak.E, HLL, Steam ID, 76561198012345678`. You can leave the ID kind out to use the game's first kind. **Download example** gives you a file to start from.
+3. Choose **Preview**. Each line says whether it will add or change an identity, or why it is skipped or refused.
+4. To change identities a trooper already has, tick **Replace existing identities**. Without it, those lines are skipped.
+5. Choose the import button, such as **Import 3 identities**, to save every line that adds or changes an identity. If anything changed since the preview, nothing is saved and you preview again.
+
+> [!good-to-know] The file can hold up to 500 lines. Steam IDs are checked with Steam where possible; a line marked "Not checked with Steam" is still saved.
 
 ## Check the warnings are gone
 

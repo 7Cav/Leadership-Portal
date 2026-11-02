@@ -270,6 +270,7 @@ describe('act as and view as', function () {
     });
 
     it('gives an Admin acting as a billet Admin no Admin rights, only what that person may do as Regimental HQ staff', function () {
+        config(['portal.unit_add_scope' => 'leaders']);
         $this->actingAs($this->admin)->post('/act-as', ['kind' => 'user', 'id' => $this->chief->id])->assertRedirect('/home');
 
         $this->actingAs($this->admin)->get('/home')->assertInertia(fn (Assert $page) => $page

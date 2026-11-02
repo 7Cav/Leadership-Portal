@@ -8,7 +8,7 @@ import MilpacPanel from '@/components/milpac/MilpacPanel.vue';
 import StaffPracticesPanel from '@/components/milpac/StaffPracticesPanel.vue';
 import TransferList from '@/components/roster/TransferList.vue';
 import TimeAgo from '@/components/TimeAgo.vue';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import RankAvatar from '@/components/RankAvatar.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -169,9 +169,8 @@ const staleNotice = computed(() => {
             <div class="flex min-w-0 flex-col gap-4" data-testid="column-profile">
                 <Card class="w-full gap-0 overflow-hidden py-0" data-testid="id-block">
                     <div class="flex flex-col items-center gap-1 px-5 pt-4 pb-3 text-center">
-                        <Avatar class="mb-1 size-12 border-2 border-primary">
-                            <AvatarFallback class="bg-transparent text-lg font-semibold text-primary" aria-hidden="true">{{ initials }}</AvatarFallback>
-                        </Avatar>
+                        <!-- Decorative: the rank is in the page's heading. -->
+                        <RankAvatar :rank="trooper.rankShort ?? trooper.rank" :initials="initials" size="lg" class="mb-1 border-2 border-primary" fallback-class="bg-transparent text-primary" />
                         <!-- The page's h1 is the name; this card's heading is the billet, so a screen reader does not hear the name twice. -->
                         <h2 class="text-base font-semibold text-primary" data-testid="billet">{{ trooper.billet ?? 'No billet on record' }}</h2>
                         <p class="text-xs text-muted-foreground">

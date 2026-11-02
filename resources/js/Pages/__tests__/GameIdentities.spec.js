@@ -26,7 +26,7 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => {
                 },
                 processing: false,
                 put(...args) {
-                    Object.assign(sent, { player_name: this.player_name, platform_id: this.platform_id, id_kind: this.id_kind });
+                    Object.assign(sent, { platform_id: this.platform_id, id_kind: this.id_kind });
                     return put(...args);
                 },
                 clearErrors() {
@@ -45,9 +45,9 @@ const PLATFORMS = [
 ];
 const trooper = (id, name, identities = {}, editable = true) => ({ id, displayName: name, billet: 'Rifleman', section: '1/A', editable, identities });
 const TROOPERS = [
-    trooper(1, 'SGT Ortega.M', { hll: { playerName: 'OrtegaCav', platformId: '7656' } }),
+    trooper(1, 'SGT Ortega.M', { hll: { platformId: '7656' } }),
     trooper(2, 'PFC Dube.R'),
-    trooper(3, 'SPC Halvorsen.K', { hll: { playerName: 'Halvy', platformId: '8765' }, arma: { playerName: 'Halvy_7Cav', platformId: 'a41f' } }),
+    trooper(3, 'SPC Halvorsen.K', { hll: { platformId: '8765' }, arma: { platformId: 'a41f' } }),
 ];
 
 const factory = (troopers = TROOPERS) => mount(GameIdentities, { props: { platforms: PLATFORMS, troopers } });
@@ -75,8 +75,8 @@ describe('GameIdentities page', () => {
             { value: 'hll-vietnam', label: 'Hell Let Loose: Vietnam', idKinds: kinds },
         ];
         const troopers = [
-            trooper(1, 'SGT Ortega.M', { hll: { playerName: 'OrtegaCav', platformId: '7656', idKind: 'Steam ID' } }),
-            trooper(2, 'PFC Austin.C', { hll: { playerName: 'Austin', platformId: '7657', idKind: 'Steam ID' }, 'hll-vietnam': { playerName: 'Austin', platformId: '0002105c', idKind: 'Epic ID' } }),
+            trooper(1, 'SGT Ortega.M', { hll: { platformId: '7656', idKind: 'Steam ID' } }),
+            trooper(2, 'PFC Austin.C', { hll: { platformId: '7657', idKind: 'Steam ID' }, 'hll-vietnam': { platformId: '0002105c', idKind: 'Epic ID' } }),
         ];
         const wrapper = mount(GameIdentities, { props: { platforms, troopers } });
 
@@ -91,7 +91,7 @@ describe('GameIdentities page', () => {
 
     it('offers a retired game for no new link and leaves it out of coverage, but lists and removes its links (#388)', async () => {
         const platforms = [...PLATFORMS, { value: 'squad', label: 'Squad', idKinds: ['EOS ID'], retired: true }];
-        const troopers = [trooper(1, 'SGT Ortega.M', { hll: { playerName: 'OrtegaCav', platformId: '7656' }, squad: { playerName: 'Old', platformId: 'eos' } })];
+        const troopers = [trooper(1, 'SGT Ortega.M', { hll: { platformId: '7656' }, squad: { platformId: 'eos' } })];
         const wrapper = mount(GameIdentities, { props: { platforms, troopers } });
 
         expect(wrapper.get('[data-testid="coverage-linked"]').text()).toBe('1');
@@ -153,7 +153,6 @@ describe('GameIdentities page', () => {
         expect(wrapper.get('[data-testid="identity-game"]').element.value).toBe('arma');
         expect(wrapper.get('label[for="identity-id"]').text()).toBe('Player ID');
 
-        await wrapper.get('[data-testid="identity-name"]').setValue('Ortega_7Cav');
         await wrapper.get('[data-testid="identity-id"]').setValue('b2c3');
         await wrapper.get('[data-testid="identity-form"]').trigger('submit');
 
@@ -164,7 +163,7 @@ describe('GameIdentities page', () => {
         const wardogs = [...PLATFORMS, { value: 'wardogs', label: 'WARDOGS', idKinds: ['Steam ID'] }];
         const troopers = [
             { ...trooper(2, 'PFC Dube.R'), game: 'arma' },
-            { ...trooper(1, 'SGT Ortega.M', { arma: { playerName: 'OrtegaCav', platformId: 'a1' } }), game: 'arma' },
+            { ...trooper(1, 'SGT Ortega.M', { arma: { platformId: 'a1' } }), game: 'arma' },
             { ...trooper(3, 'SPC Halvorsen.K'), game: null },
         ];
         const wrapper = mount(GameIdentities, { props: { platforms: wardogs, troopers } });
@@ -182,7 +181,6 @@ describe('GameIdentities page', () => {
     it('says why a save was refused in the notice instead of showing the raw error page', async () => {
         const wrapper = factory();
         await wrapper.get('[data-testid="open-1"]').trigger('click');
-        await wrapper.get('[data-testid="identity-name"]').setValue('Ortega_7Cav');
         await wrapper.get('[data-testid="identity-id"]').setValue('b2c3');
         await wrapper.get('[data-testid="identity-form"]').trigger('submit');
 
@@ -208,7 +206,6 @@ describe('GameIdentities page', () => {
         await wrapper.get('[data-testid="open-3"]').trigger('click');
         await wrapper.get('[data-testid="edit-hll"]').trigger('click');
 
-        expect(wrapper.get('[data-testid="identity-name"]').element.value).toBe('Halvy');
         expect(wrapper.get('[data-testid="identity-id"]').element.value).toBe('8765');
         expect(wrapper.get('[data-testid="identity-save"]').text()).toBe('Save changes');
     });
@@ -227,24 +224,31 @@ describe('GameIdentities page', () => {
 
     it('wraps a linked identity instead of cutting it off, keeping Edit and Remove reachable (#429)', async () => {
         const id = 'a'.repeat(32);
-        const troopers = [trooper(1, 'SGT Ortega.M', { hll: { playerName: '=7Cav=PFC.Austin.C', platformId: id } })];
+        const troopers = [trooper(1, 'SGT Ortega.M', { hll: { platformId: id } })];
         const wrapper = mount(GameIdentities, { props: { platforms: PLATFORMS, troopers } });
         await wrapper.get('[data-testid="view-everyone"]').trigger('click');
         await wrapper.get('[data-testid="open-1"]').trigger('click');
 
         const box = wrapper.get('[data-testid="identity-hll"]');
-        const [name, platformId] = box.findAll('p').slice(1);
+        const platformId = box.get('[data-testid="id-hll"]');
 
-        expect(name.text()).toBe('=7Cav=PFC.Austin.C');
         expect(platformId.text()).toBe(id);
-        for (const text of [name, platformId]) {
-            expect(text.classes()).not.toContain('truncate');
-            expect(text.classes().some((c) => c === 'break-words' || c === 'break-all')).toBe(true);
-        }
+        expect(platformId.classes()).not.toContain('truncate');
+        expect(platformId.classes()).toContain('break-all');
         // The row wraps, so the actions drop below the text rather than being squeezed out.
         expect(box.get('div').classes()).toContain('flex-wrap');
         expect(box.get('[data-testid="edit-hll"]').element.parentElement.classList.contains('shrink-0')).toBe(true);
         expect(box.find('[data-testid="remove-hll"]').exists()).toBe(true);
+    });
+
+    it('shows each identity by its ID, with no player name field (#174)', async () => {
+        const wrapper = factory();
+        await wrapper.get('[data-testid="view-everyone"]').trigger('click');
+
+        expect(wrapper.get('[data-testid="row-3"]').text()).toContain('Hell Let Loose: 8765');
+        await wrapper.get('[data-testid="open-3"]').trigger('click');
+        expect(wrapper.get('[data-testid="id-hll"]').text()).toBe('8765');
+        expect(wrapper.find('[data-testid="identity-name"]').exists()).toBe(false);
     });
 
     it('closes the panel on Cancel', async () => {
@@ -265,7 +269,7 @@ describe('GameIdentities page', () => {
     });
 
     it('is read-only for a trooper the viewer only sees through a staff grant', async () => {
-        const wrapper = factory([trooper(1, 'SGT Ortega.M', { hll: { playerName: 'OrtegaCav', platformId: '7656' } }, false), trooper(2, 'PFC Dube.R')]);
+        const wrapper = factory([trooper(1, 'SGT Ortega.M', { hll: { platformId: '7656' } }, false), trooper(2, 'PFC Dube.R')]);
         await wrapper.get('[data-testid="open-1"]').trigger('click');
 
         expect(wrapper.get('[data-testid="read-only"]').text()).toContain('a staff grant lets you view this trooper');
@@ -288,7 +292,7 @@ describe('GameIdentities page', () => {
 // #427: the panel follows the leader instead of being hunted for.
 describe('GameIdentities panel in view', () => {
     const scrolled = vi.fn();
-    const FULL = { hll: { playerName: 'B', platformId: '1' }, arma: { playerName: 'B', platformId: '2' } };
+    const FULL = { hll: { platformId: '1' }, arma: { platformId: '2' } };
     let wide = false;
     let host;
 
@@ -439,9 +443,25 @@ describe('GameIdentities panel in view', () => {
     it('does not jump away while a save carries on to the trooper next game', async () => {
         const wrapper = mountAttached();
         await openAndReset(wrapper, 2);
-        await saveWith(wrapper, [TROOPERS[0], trooper(2, 'PFC Dube.R', { hll: { playerName: 'D', platformId: '1' } }), TROOPERS[2]]);
+        await saveWith(wrapper, [TROOPERS[0], trooper(2, 'PFC Dube.R', { hll: { platformId: '1' } }), TROOPERS[2]]);
 
         expect(wrapper.find('[data-testid="identity-form"]').exists()).toBe(true);
         expect(scrolled).not.toHaveBeenCalled();
+    });
+});
+
+describe('Import identities', () => {
+    afterEach(() => {
+        page.props.viewAs = null;
+    });
+
+    it('is offered when the viewer may change someone, and not during a view-as preview', async () => {
+        const mounted = (canImport) => mount(GameIdentities, { props: { platforms: PLATFORMS, troopers: TROOPERS, canImport } });
+
+        expect(mounted(false).find('[data-testid="identity-import-open"]').exists()).toBe(false);
+        expect(mounted(true).find('[data-testid="identity-import-open"]').exists()).toBe(true);
+
+        page.props.viewAs = { name: 'Someone' };
+        expect(mounted(true).find('[data-testid="identity-import-open"]').exists()).toBe(false);
     });
 });

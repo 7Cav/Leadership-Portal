@@ -163,14 +163,17 @@ class ChangelogEntries
     }
 
     /**
-     * Save every entry the pasted Markdown holds, in one audited batch. With `$skipDuplicates`, an entry whose date and
-     * change text (without case) already exist is left out.
+     * Save what the pasted Markdown holds, in one audited batch. A change without an id is added (with `$skipDuplicates`,
+     * one whose date and change text, without case, already exist is left out). A change with an id (`{#42}`, as the
+     * export writes it) updates that entry's date, text, details and flags in place, keeping its id and when it was
+     * first written, so it does not count as new; one that already reads the same is left alone. Only an import that
+     * adds something clears the "Changelog outdated" bar: rewording is not a new change.
      *
-     * @return int how many entries were saved
+     * @return array{created: int, updated: int, unchanged: int}
      *
-     * @throws InvalidArgumentException when the Markdown has an error, or nothing is left to save.
+     * @throws InvalidArgumentException when the Markdown has an error (an unknown id among them), or nothing would change.
      */
-    public function import(User $actor, string $markdown, bool $skipDuplicates): int
+    public function import(User $actor, string $markdown, bool $skipDuplicates): array
     {
         $this->authorize($actor);
 
@@ -179,11 +182,14 @@ class ChangelogEntries
             throw new InvalidArgumentException($preview['errors'][0]['message']);
         }
 
-        $entries = array_values(array_filter($preview['entries'], fn (array $entry) => ! ($skipDuplicates && $entry['duplicate'])));
-        if ($entries === []) {
-            throw new InvalidArgumentException('Every entry already exists. Nothing was imported.');
+        $new = array_values(array_filter($preview['entries'], fn (array $entry) => $entry['status'] === 'new' && ! ($skipDuplicates && $entry['duplicate'])));
+        $updated = array_values(array_filter($preview['entries'], fn (array $entry) => $entry['status'] === 'updated'));
+        $unchanged = count(array_filter($preview['entries'], fn (array $entry) => $entry['status'] === 'unchanged'));
+        if ($new === [] && $updated === []) {
+            throw new InvalidArgumentException('Every entry already exists as written. Nothing was imported.');
         }
 
+        $current = $this->changelog->findMany(array_map(fn (array $entry) => $entry['id'], $updated));
         $deployId = $this->access->deployId();
 
         $this->audit->recordBatch(
@@ -191,18 +197,25 @@ class ChangelogEntries
             action: 'changelog.imported',
             reason: null,
             reasonRequired: false,
-            mutation: function () use ($actor, $entries, $deployId) {
+            mutation: function () use ($actor, $new, $updated, $current, $deployId) {
+                $changed = array_map(function (array $entry) use ($actor, $current) {
+                    [$body, $details] = $this->cleanEntry($entry['body'], $entry['details']);
+
+                    return $this->changelog->update($current[$entry['id']], $entry['date'], $body, $details, $actor->id, $entry['major'], $entry['technical']);
+                }, $updated);
                 // Oldest first, so ids follow the dates.
                 $saved = array_map(
                     fn (array $entry) => $this->changelog->create($entry['date'], $entry['body'], $entry['details'], $actor->id, $entry['major'], $entry['technical']),
-                    array_reverse($entries),
+                    array_reverse($new),
                 );
 
-                return new AuditedBatch($this->changelog->acknowledge($deployId), ...$saved);
+                $target = $saved === [] ? array_shift($changed) : $this->changelog->acknowledge($deployId);
+
+                return new AuditedBatch($target, ...$changed, ...$saved);
             },
         );
 
-        return count($entries);
+        return ['created' => count($new), 'updated' => count($updated), 'unchanged' => $unchanged];
     }
 
     public function dismissOutdated(User $actor): void
@@ -220,24 +233,68 @@ class ChangelogEntries
     }
 
     /**
-     * The parsed import, each entry marked `duplicate` when its date and change text already exist (or appear earlier in
-     * the same paste). Writes nothing.
+     * The parsed import. Each entry has a `status`: `new` (no id), `updated` (its id names an entry that reads
+     * differently) or `unchanged` (its id names an entry that already reads the same). A new entry is marked `duplicate`
+     * when its date and change text already exist (or appear earlier in the same paste). An id no entry has, or one
+     * given twice, is a line error. Writes nothing.
      *
-     * @return array{entries: list<array{line: int, date: string, body: string, details: ?string, major: bool, technical: bool, duplicate: bool}>, errors: list<array{line: int, message: string}>}
+     * @return array{entries: list<array{line: int, date: string, body: string, details: ?string, major: bool, technical: bool, id: ?int, status: string, duplicate: bool}>, errors: list<array{line: int, message: string}>}
      */
     public function preview(string $markdown): array
     {
         $parsed = $this->parser->parse($markdown);
+        $errors = $parsed['errors'];
         $known = $this->changelog->existingKeys();
+        $ids = array_values(array_unique(array_filter(array_column($parsed['entries'], 'id'), fn ($id) => $id !== null)));
+        $existing = $this->changelog->findMany($ids);
 
         $entries = [];
+        $seen = [];
         foreach ($parsed['entries'] as $entry) {
-            $key = $this->changelog::key($entry['date'], $entry['body']);
-            $entries[] = [...$entry, 'duplicate' => isset($known[$key])];
-            $known[$key] = true;
+            $id = $entry['id'];
+            if ($id === null) {
+                $key = $this->changelog::key($entry['date'], $entry['body']);
+                $entries[] = [...$entry, 'status' => 'new', 'duplicate' => isset($known[$key])];
+                $known[$key] = true;
+
+                continue;
+            }
+            if (isset($seen[$id])) {
+                $errors[] = ['line' => $entry['line'], 'message' => "Line {$entry['line']}: the id {#{$id}} is also on line {$seen[$id]}. Each entry can appear once."];
+
+                continue;
+            }
+            $seen[$id] = $entry['line'];
+            $current = $existing[$id] ?? null;
+            if ($current === null) {
+                $errors[] = ['line' => $entry['line'], 'message' => "Line {$entry['line']}: no entry has the id {#{$id}}. Remove the id to add it as a new entry."];
+
+                continue;
+            }
+            $entries[] = [...$entry, 'status' => $this->same($current, $entry) ? 'unchanged' : 'updated', 'duplicate' => false];
         }
 
-        return ['entries' => $entries, 'errors' => $parsed['errors']];
+        usort($errors, fn (array $a, array $b) => $a['line'] <=> $b['line']);
+
+        return ['entries' => $entries, 'errors' => $errors];
+    }
+
+    /**
+     * Whether the imported change already reads like the entry. Details are compared without trailing spaces on a line
+     * and with any line ending, the way the import reads them back from an export.
+     *
+     * @param  array{date: string, body: string, details: ?string, major: bool, technical: bool}  $entry
+     */
+    private function same(ChangelogEntry $current, array $entry): bool
+    {
+        $details = fn (?string $text) => $text === null ? null : implode("\n", array_map('rtrim', preg_split('/\r\n|\r|\n/', trim($text)) ?: []));
+        $body = trim(preg_replace('/\s+/u', ' ', $entry['body']) ?? '');
+
+        return $current->date->toDateString() === $entry['date']
+            && $current->body === $body
+            && $details($current->details) === $details($entry['details'])
+            && (bool) $current->major === $entry['major']
+            && (bool) $current->technical === $entry['technical'];
     }
 
     private function authorize(User $actor): void

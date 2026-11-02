@@ -24,6 +24,14 @@ interface ChangelogRepository
 
     public function find(int $id): ?ChangelogEntry;
 
+    /**
+     * The entries with these ids that still exist, keyed by id. A deleted one (even a restorable one) is left out.
+     *
+     * @param  list<int>  $ids
+     * @return Collection<int, ChangelogEntry>
+     */
+    public function findMany(array $ids): Collection;
+
     public function create(string $date, string $body, ?string $details, int $userId, bool $major = false, bool $technical = false): ChangelogEntry;
 
     public function update(ChangelogEntry $entry, string $date, string $body, ?string $details, int $userId, bool $major = false, bool $technical = false): ChangelogEntry;

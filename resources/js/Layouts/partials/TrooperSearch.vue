@@ -1,7 +1,9 @@
 <script setup>
 import { onBeforeUnmount, ref, watch } from 'vue';
+import RankInsignia from '@/components/RankInsignia.vue';
 import { router } from '@inertiajs/vue3';
 import { ListboxFilter } from 'reka-ui';
+import { selectTopOnTab } from '@/lib/listboxTab';
 import { PhMagnifyingGlass, PhSignOut, PhWarningCircle } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -143,6 +145,7 @@ function choose(trooper) {
                         autocomplete="off"
                         spellcheck="false"
                         data-testid="trooper-search-input"
+                        @keydown="selectTopOnTab"
                         class="flex h-10 w-full rounded-md bg-transparent py-3 text-[14px] outline-hidden placeholder:text-muted-foreground"
                     />
                 </div>
@@ -191,6 +194,7 @@ function choose(trooper) {
                             class="gap-2.5 py-2 text-[13.5px]"
                             @select="choose(trooper)"
                         >
+                            <RankInsignia :rank="trooper.rank" />
                             <RankBadge :rank="trooper.rank" :title="trooper.rankFull" />
                             <span class="min-w-0 truncate font-medium" :class="trooper.departed && 'text-muted-foreground'">{{ trooper.name }}</span>
                             <Badge v-if="trooper.departed" variant="outline" class="shrink-0 text-[11px]"><PhSignOut />Departed</Badge>

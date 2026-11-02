@@ -87,7 +87,7 @@ it('points every existing identity, capture player and dismissal at the game its
     rollBackToPlatformEnum();
 
     foreach (['hll', 'arma', 'wardogs'] as $platform) {
-        DB::table('trooper_game_identities')->insert(['trooper_id' => $trooper->id, 'platform' => $platform, 'player_name' => 'P', 'platform_id' => "id-{$platform}"]);
+        DB::table('trooper_game_identities')->insert(['trooper_id' => $trooper->id, 'platform' => $platform, 'platform_id' => "id-{$platform}"]);
         DB::table('practice_capture_players')->insert(['section_practice_id' => $practice->id, 'platform' => $platform, 'player_name' => 'C', 'platform_id' => "id-{$platform}"]);
         DB::table('game_player_dismissals')->insert(['platform' => $platform, 'platform_id' => "id-{$platform}", 'player_name' => 'D', 'dismissed_by' => $user->id]);
     }
@@ -108,17 +108,17 @@ it('points every existing identity, capture player and dismissal at the game its
 it('keeps one identity per game identifier, and one per trooper per game', function () {
     $hll = Game::query()->where('slug', 'hll')->firstOrFail();
     $trooper = Trooper::factory()->create();
-    DB::table('trooper_game_identities')->insert(['trooper_id' => $trooper->id, 'game_id' => $hll->id, 'id_kind' => 'Steam ID', 'player_name' => 'A', 'platform_id' => '1']);
+    DB::table('trooper_game_identities')->insert(['trooper_id' => $trooper->id, 'game_id' => $hll->id, 'id_kind' => 'Steam ID', 'platform_id' => '1']);
 
-    expect(fn () => DB::table('trooper_game_identities')->insert(['trooper_id' => Trooper::factory()->create()->id, 'game_id' => $hll->id, 'id_kind' => 'Steam ID', 'player_name' => 'B', 'platform_id' => '1']))
+    expect(fn () => DB::table('trooper_game_identities')->insert(['trooper_id' => Trooper::factory()->create()->id, 'game_id' => $hll->id, 'id_kind' => 'Steam ID', 'platform_id' => '1']))
         ->toThrow(UniqueConstraintViolationException::class)
-        ->and(fn () => DB::table('trooper_game_identities')->insert(['trooper_id' => $trooper->id, 'game_id' => $hll->id, 'id_kind' => 'Steam ID', 'player_name' => 'C', 'platform_id' => '2']))
+        ->and(fn () => DB::table('trooper_game_identities')->insert(['trooper_id' => $trooper->id, 'game_id' => $hll->id, 'id_kind' => 'Steam ID', 'platform_id' => '2']))
         ->toThrow(UniqueConstraintViolationException::class);
 });
 
 it('rolls back to the platform enum and forward again, keeping every row on its game', function () {
     $wardogs = Game::query()->where('slug', 'wardogs')->firstOrFail();
-    DB::table('trooper_game_identities')->insert(['trooper_id' => Trooper::factory()->create()->id, 'game_id' => $wardogs->id, 'id_kind' => 'Steam ID', 'player_name' => 'W', 'platform_id' => '7656']);
+    DB::table('trooper_game_identities')->insert(['trooper_id' => Trooper::factory()->create()->id, 'game_id' => $wardogs->id, 'id_kind' => 'Steam ID', 'platform_id' => '7656']);
 
     rollBackToPlatformEnum();
 
@@ -133,7 +133,7 @@ it('rolls back to the platform enum and forward again, keeping every row on its 
 
 it('refuses to roll back while a row in any of the three tables uses a game added since, and changes nothing', function () {
     $added = Game::factory()->create(['slug' => 'squad']);
-    DB::table('trooper_game_identities')->insert(['trooper_id' => Trooper::factory()->create()->id, 'game_id' => $added->id, 'id_kind' => 'Player ID', 'player_name' => 'S', 'platform_id' => 'eos']);
+    DB::table('trooper_game_identities')->insert(['trooper_id' => Trooper::factory()->create()->id, 'game_id' => $added->id, 'id_kind' => 'Player ID', 'platform_id' => 'eos']);
     DB::table('practice_capture_players')->insert(['section_practice_id' => SectionPractice::factory()->create()->id, 'game_id' => $added->id, 'player_name' => 'S', 'platform_id' => 'eos']);
     DB::table('game_player_dismissals')->insert(['game_id' => $added->id, 'platform_id' => 'eos', 'player_name' => 'S', 'dismissed_by' => User::factory()->create()->id]);
 
@@ -177,7 +177,7 @@ it('turns each game\'s id label into its one kind and gives every identity its g
         ->and(DB::table('games')->where('slug', 'arma')->value('id_label'))->toBe('Player ID');
 
     foreach (['hll', 'arma'] as $slug) {
-        DB::table('trooper_game_identities')->insert(['trooper_id' => Trooper::factory()->create()->id, 'game_id' => game($slug)->id, 'player_name' => 'P', 'platform_id' => "id-{$slug}"]);
+        DB::table('trooper_game_identities')->insert(['trooper_id' => Trooper::factory()->create()->id, 'game_id' => game($slug)->id, 'platform_id' => "id-{$slug}"]);
     }
 
     idKindsMigration()->up();
@@ -204,8 +204,8 @@ it('rolls back to the first kind as the game\'s label, keeping every identity li
 it('keeps one owner per id on a game whichever kind either was entered as', function () {
     $hll = game('hll');
     $hll->update(['id_kinds' => ['Steam ID', 'Epic ID']]);
-    DB::table('trooper_game_identities')->insert(['trooper_id' => Trooper::factory()->create()->id, 'game_id' => $hll->id, 'id_kind' => 'Steam ID', 'player_name' => 'A', 'platform_id' => '0002105c']);
+    DB::table('trooper_game_identities')->insert(['trooper_id' => Trooper::factory()->create()->id, 'game_id' => $hll->id, 'id_kind' => 'Steam ID', 'platform_id' => '0002105c']);
 
-    expect(fn () => DB::table('trooper_game_identities')->insert(['trooper_id' => Trooper::factory()->create()->id, 'game_id' => $hll->id, 'id_kind' => 'Epic ID', 'player_name' => 'B', 'platform_id' => '0002105c']))
+    expect(fn () => DB::table('trooper_game_identities')->insert(['trooper_id' => Trooper::factory()->create()->id, 'game_id' => $hll->id, 'id_kind' => 'Epic ID', 'platform_id' => '0002105c']))
         ->toThrow(UniqueConstraintViolationException::class);
 });

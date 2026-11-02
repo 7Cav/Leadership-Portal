@@ -11,7 +11,8 @@ use App\Repositories\UnitRepository;
 use Illuminate\Support\Facades\DB;
 
 // The leader who added a unit may undo the add (delete it) for 60 minutes, while it is still empty and while they
-// could still add it there. Admins keep their own delete.
+// could still add it there. Admins keep their own delete. Only while `portal.unit_add_scope` is 'leaders': with adding
+// Admin only (the default) nobody gets an undo.
 
 const UNDO_REFUSED = 'You can undo this for 60 minutes after adding it, while it is still empty.';
 
@@ -34,6 +35,8 @@ function uaAdd(object $test, User $as): Unit
 }
 
 beforeEach(function () {
+    // The scoped rule these tests cover is kept behind `portal.unit_add_scope`; Admin only is the default.
+    config(['portal.unit_add_scope' => 'leaders']);
     $units = app(UnitRepository::class);
     $this->regiment = $units->create(UnitType::Regiment, '7th Cavalry Regiment', '7CAV', null);
     $this->battalion = $units->create(UnitType::Battalion, '3rd Battalion', '3-7', $this->regiment->id);
@@ -159,4 +162,14 @@ it('throttles the undo with the shared audited-writes bucket', function () {
     $this->actingAs($this->co)->delete("/settings/org-structure/{$section->id}")->assertTooManyRequests();
 
     expect(Unit::find($section->id))->not->toBeNull();
+});
+
+it('offers no undo while adding is Admin only', function () {
+    $section = uaAdd($this, $this->co);
+    config(['portal.unit_add_scope' => 'admin']);
+
+    expect(collect($this->actingAs($this->co)->get('/settings/org-structure')->viewData('page')['props']['units'])
+        ->firstWhere('id', $section->id)['undo_add_until'])->toBeNull();
+    $this->actingAs($this->co)->delete("/settings/org-structure/{$section->id}")->assertForbidden();
+    expect(Unit::whereKey($section->id)->exists())->toBeTrue();
 });

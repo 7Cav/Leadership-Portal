@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import { ListboxFilter } from 'reka-ui';
+import { selectTopOnTab } from '@/lib/listboxTab';
 import { PhBookOpenText, PhMagnifyingGlass } from '@phosphor-icons/vue';
 import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -56,6 +57,7 @@ function choose(guide) {
                         aria-label="Search the guides"
                         autocomplete="off"
                         data-testid="docs-search-input"
+                        @keydown="selectTopOnTab"
                         class="flex h-10 w-full rounded-md bg-transparent py-3 text-[14px] outline-hidden placeholder:text-muted-foreground"
                     />
                 </div>

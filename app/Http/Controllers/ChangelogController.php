@@ -6,6 +6,7 @@ use App\Authorization\ActAs;
 use App\Authorization\ChangelogAccess;
 use App\Authorization\ScopeResolver;
 use App\Commands\Changelog\ChangelogEntries;
+use App\Commands\Changelog\ChangelogExport;
 use App\Commands\Changelog\ChangelogSettings;
 use App\Docs\SafeMarkdown;
 use App\Models\ChangelogEntry;
@@ -14,6 +15,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -175,12 +177,47 @@ class ChangelogController extends Controller
         ]);
 
         try {
-            $count = $command->import($request->user(), $data['markdown'], (bool) $data['skip_duplicates']);
+            $counts = $command->import($request->user(), $data['markdown'], (bool) $data['skip_duplicates']);
         } catch (InvalidArgumentException $e) {
             throw ValidationException::withMessages(['markdown' => $e->getMessage()]);
         }
 
-        return redirect()->route('changelog.index')->with('notice', $count === 1 ? '1 entry imported' : "{$count} entries imported");
+        return redirect()->route('changelog.index')->with('notice', self::importNotice($counts));
+    }
+
+    /**
+     * What an import did, such as "Imported: 2 new, 1 updated, 40 unchanged".
+     *
+     * @param  array{created: int, updated: int, unchanged: int}  $counts
+     */
+    private static function importNotice(array $counts): string
+    {
+        $parts = [];
+        if ($counts['created'] > 0 || $counts['updated'] === 0) {
+            $parts[] = "{$counts['created']} new";
+        }
+        if ($counts['updated'] > 0) {
+            $parts[] = "{$counts['updated']} updated";
+        }
+        if ($counts['unchanged'] > 0) {
+            $parts[] = "{$counts['unchanged']} unchanged";
+        }
+
+        return 'Imported: '.implode(', ', $parts);
+    }
+
+    /**
+     * Every entry as Markdown the bulk import reads, each change ending with its id (`{#42}`), as a file download.
+     * Editors only. An import of the edited file updates the entries whose text changed instead of adding them again.
+     */
+    public function export(Request $request, ChangelogExport $export): HttpResponse
+    {
+        $this->authorizeEditor($request);
+
+        return response($export->markdown(), 200, [
+            'Content-Type' => 'text/markdown; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="changelog-'.now()->utc()->format('Y-m-d').'.md"',
+        ]);
     }
 
     public function dismiss(Request $request, ChangelogEntries $command): RedirectResponse

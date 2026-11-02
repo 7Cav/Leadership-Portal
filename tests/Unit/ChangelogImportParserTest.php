@@ -17,9 +17,9 @@ it('reads each bullet under a date as one entry, with an indented block as its d
 
     expect($result['errors'])->toBe([])
         ->and($result['entries'])->toBe([
-            ['line' => 4, 'date' => '2026-10-30', 'body' => 'First change', 'details' => "More about it.\n\n- a nested list", 'major' => false, 'technical' => false],
-            ['line' => 8, 'date' => '2026-10-30', 'body' => 'Second change', 'details' => null, 'major' => false, 'technical' => false],
-            ['line' => 11, 'date' => '2026-10-29', 'body' => 'Older change', 'details' => null, 'major' => false, 'technical' => false],
+            ['line' => 4, 'date' => '2026-10-30', 'body' => 'First change', 'details' => "More about it.\n\n- a nested list", 'major' => false, 'technical' => false, 'id' => null],
+            ['line' => 8, 'date' => '2026-10-30', 'body' => 'Second change', 'details' => null, 'major' => false, 'technical' => false, 'id' => null],
+            ['line' => 11, 'date' => '2026-10-29', 'body' => 'Older change', 'details' => null, 'major' => false, 'technical' => false, 'id' => null],
         ]);
 });
 
@@ -77,4 +77,14 @@ it('flags a [technical] change in any case, drops the marker, and refuses [major
         ->and($both['errors'][0]['message'])->toBe('Line 2: a change cannot be both [major] and [technical].');
 
     expect(parseChangelog("## 2026-10-30\n- [technical]")['errors'][0]['message'])->toBe('Line 2: the change has no text after [technical].');
+});
+
+it('takes a trailing {#id} off the change as its id, after the markers', function () {
+    $result = parseChangelog("## 2026-10-30\n- [major] The *Roll call* page {#42}\n- No id\n- {#7}\n- Braces {#x} stay");
+
+    expect(array_map(fn ($entry) => [$entry['body'], $entry['major'], $entry['id']], $result['entries']))->toBe([
+        ['The *Roll call* page', true, 42],
+        ['No id', false, null],
+        ['Braces {#x} stay', false, null],
+    ])->and($result['errors'][0]['message'])->toBe('Line 4: the change has no text.');
 });

@@ -14,6 +14,7 @@ use App\Models\FireteamAssignment;
 use App\Models\FireteamSetting;
 use App\Models\Game;
 use App\Models\GameServer;
+use App\Models\IdentitySource;
 use App\Models\Loa;
 use App\Models\PlatoonTrainingTopic;
 use App\Models\PortalRoleGrant;
@@ -183,7 +184,7 @@ final class AuditSubject
             $target instanceof CounselingRecord => ($target->type?->short() ?? 'Counseling record').' for '.$trooper($rel($target, 'trooper'))
                 .($target->counseled_on !== null ? ' dated '.WeekLabel::date($target->counseled_on) : ''),
             $target instanceof ChangelogEntry => 'Changelog entry '.($target->date !== null ? WeekLabel::date($target->date).' ' : '')
-                .'"'.Str::limit((string) $target->body, 60).'"',
+                .'"'.Str::limit(ChangelogEntry::plainText((string) $target->body), 60).'"',
             $target instanceof ChangelogState => 'Changelog settings',
             $target instanceof UnitGuidon => 'Guidon of '.$unit($rel($target, 'unit')),
             $target instanceof TemplateVersion => self::template($rel($target, 'template'), $unit).', version '.$target->version,
@@ -234,6 +235,19 @@ final class AuditSubject
             };
         }
 
+        // How an identity was made (#174): shown when the row is made, removed, or made again from another source.
+        if ($model instanceof TrooperGameIdentity) {
+            $label = fn (mixed $source) => ($source instanceof IdentitySource ? $source : IdentitySource::tryFrom((string) $source) ?? IdentitySource::Typed)->label();
+            $previous = $model->getPrevious();
+
+            return match (true) {
+                ! $model->exists => [['field' => 'Source', 'from' => $label($model->source), 'to' => 'none']],
+                $model->wasRecentlyCreated => [['field' => 'Source', 'from' => 'none', 'to' => $label($model->source)]],
+                array_key_exists('source', $model->getChanges()) && $label($previous['source'] ?? null) !== $label($model->source) => [['field' => 'Source', 'from' => $label($previous['source'] ?? null), 'to' => $label($model->source)]],
+                default => [],
+            };
+        }
+
         $fields = self::FIELDS[$model::class] ?? [];
         if ($fields === [] || ! $model->exists) {
             return [];
@@ -268,6 +282,11 @@ final class AuditSubject
     /** A member row's short name in a batch's change list: the trooper it is about, when it is about one. */
     private static function short(Model $model): ?string
     {
+        // An identity in a batch reads as whose and on which game (#174), for a fan-out over games or a backfill of troopers.
+        if ($model instanceof TrooperGameIdentity) {
+            return (self::rel($model, 'trooper')?->display_name ?? 'A trooper').' on '.(self::rel($model, 'game')?->name ?? 'a game');
+        }
+
         $trooper = self::rel($model, 'trooper');
 
         return $trooper instanceof Trooper ? $trooper->display_name : self::describe($model);

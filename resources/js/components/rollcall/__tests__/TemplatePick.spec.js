@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { enableAutoUnmount, mount } from '@vue/test-utils';
 import TemplatePick from '../TemplatePick.vue';
+import { chooseSearch, searchLabels } from '@/testing/searchSelect';
 
 enableAutoUnmount(afterEach);
 
@@ -15,31 +16,23 @@ const factory = (picker = {}, props = {}) =>
 
 describe('TemplatePick', () => {
     it("marks the regiment default and the section's own, and lists a copy from a move like any company template", () => {
-        const labels = factory().findAll('option').map((option) => option.text());
+        const labels = searchLabels(factory(), 'template-pick-select');
 
         expect(labels).toEqual(['Company default', 'Regiment default (regiment)', 'Our own (this section)', 'Bravo standard', 'Training (from A/1-7)']);
     });
 
     it("emits a pick of the section's own template", async () => {
         const wrapper = factory();
-        const select = wrapper.get('[data-testid="template-pick-select"]');
-
-        select.element.value = '11';
-        await select.trigger('change');
+        await chooseSearch(wrapper, 'template-pick-select', '11');
 
         expect(wrapper.emitted('pick')).toEqual([[11]]);
     });
 
     it('emits the pick, or null for the company default, and not a pick that changes nothing', async () => {
         const wrapper = factory({ picked: 9 });
-        const select = wrapper.get('[data-testid="template-pick-select"]');
-
-        select.element.value = '7';
-        await select.trigger('change');
-        select.element.value = '';
-        await select.trigger('change');
-        select.element.value = '9';
-        await select.trigger('change');
+        await chooseSearch(wrapper, 'template-pick-select', '7');
+        await chooseSearch(wrapper, 'template-pick-select', '');
+        await chooseSearch(wrapper, 'template-pick-select', '9');
 
         expect(wrapper.emitted('pick')).toEqual([[7], [null]]);
     });

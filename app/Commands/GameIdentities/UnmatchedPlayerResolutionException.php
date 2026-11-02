@@ -13,9 +13,9 @@ use RuntimeException;
  * message is shown to them.
  *
  * `reason` marks the one refusal the leader can answer on the spot: `has_other_identity`, with the
- * identity the trooper holds now in `current` (`playerName`, `platformId`), so the screen asks
+ * identity the trooper holds now in `current` (`platformId`), so the screen asks
  * "replace or cancel" instead of only showing the message (#176). The others have no reason.
- * The name, and the ID inside the message, are shown with any hidden character written out
+ * The ID inside the message is shown with any hidden character written out
  * ({@see GameIdentityText::reveal()}), so a direction override cannot reorder the sentence; the
  * `current` platform ID stays as stored, since the screen sends it back as `replacing`.
  */
@@ -24,7 +24,7 @@ class UnmatchedPlayerResolutionException extends RuntimeException
     public const HAS_OTHER_IDENTITY = 'has_other_identity';
 
     /**
-     * @param  array{playerName: string, platformId: string}|null  $current
+     * @param  array{platformId: string}|null  $current
      */
     public function __construct(string $message, public readonly ?string $reason = null, public readonly ?array $current = null)
     {
@@ -47,15 +47,14 @@ class UnmatchedPlayerResolutionException extends RuntimeException
         return new self("Choose a trooper from this section: a pre-mark counts only in a trooper's own section.");
     }
 
-    public static function alreadyHasIdentity(string $playerName, string $platformId, string $gameLabel): self
+    public static function alreadyHasIdentity(string $platformId, string $gameLabel): self
     {
-        $name = GameIdentityText::reveal($playerName);
         $shownId = GameIdentityText::reveal($platformId);
 
         return new self(
-            "That trooper is already linked to {$name} ({$shownId}) on {$gameLabel}. Replace it, or cancel to keep it.",
+            "That trooper is already linked to {$shownId} on {$gameLabel}. Replace it, or cancel to keep it.",
             self::HAS_OTHER_IDENTITY,
-            ['playerName' => $name, 'platformId' => $platformId],
+            ['platformId' => $platformId],
         );
     }
 

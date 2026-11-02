@@ -81,5 +81,8 @@ export function useIdentity() {
     // Avatar monogram: two letters from the username (`HS` for Hale.S).
     const initials = computed(() => initialsOf(username.value));
 
-    return { username, isAdmin, name, billet, identity, provenance, provenanceDetail, initials };
+    // The rank abbreviation for the card's rank avatar (`RankAvatar`), or null: initials then.
+    const rank = computed(() => profile.value?.rank_short ?? null);
+
+    return { username, isAdmin, name, billet, identity, provenance, provenanceDetail, initials, rank };
 }

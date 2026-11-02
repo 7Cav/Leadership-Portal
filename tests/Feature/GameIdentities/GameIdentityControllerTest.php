@@ -40,18 +40,18 @@ function identityUrl(Trooper $trooper, string $platform = 'hll'): string
 }
 
 it('lists only the troopers in scope with their identities and every platform slot', function () {
-    TrooperGameIdentity::factory()->create(['trooper_id' => $this->mine->id, 'player_name' => 'OrtegaCav', 'platform_id' => '76561198000000656']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->mine->id, 'platform_id' => '76561198000000656']);
     placedTrooper($this->section, ['status' => TrooperStatus::Inactive]);
 
     $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
         ->component('GameIdentities')
         ->has('platforms', 4)
-        ->where('platforms.0', ['value' => 'hll', 'label' => 'Hell Let Loose (WW2)', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID'], 'idHints' => ['Steam ID' => 'A Steam ID is 17 digits starting 7656119, for example 76561198012345678.', 'Epic ID' => 'An Epic ID is 32 characters, the digits 0 to 9 and the letters a to f.'], 'retired' => false])
+        ->where('platforms.0', ['value' => 'hll', 'label' => 'Hell Let Loose (WW2)', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID'], 'idHints' => ['Steam ID' => 'A Steam ID is 17 digits starting 7656119, for example 76561198012345678.', 'Epic ID' => 'An Epic ID is 32 characters, the digits 0 to 9 and the letters a to f.'], 'accounts' => ['Steam ID' => 'steam', 'Epic ID' => 'epic'], 'retired' => false])
         ->has('troopers', 1)
         ->where('troopers.0.id', $this->mine->id)
         ->where('troopers.0.displayName', 'SGT Ortega.M')
         ->where('troopers.0.section', '1/A')
-        ->where('troopers.0.identities.hll', ['playerName' => 'OrtegaCav', 'platformId' => '76561198000000656', 'idKind' => 'Steam ID', 'mixedScripts' => false])
+        ->where('troopers.0.identities.hll', ['platformId' => '76561198000000656', 'idKind' => 'Steam ID', 'source' => 'typed'])
         ->missing('troopers.0.identities.arma'));
 });
 
@@ -65,7 +65,7 @@ it('shows an Admin the whole roster and a user with no scope nobody', function (
 
 it('links a trooper through the audited Command', function () {
     $this->actingAs($this->leader)
-        ->put(identityUrl($this->mine), ['player_name' => 'OrtegaCav', 'platform_id' => ' 76561198000000656 '])
+        ->put(identityUrl($this->mine), ['platform_id' => ' 76561198000000656 '])
         ->assertRedirect();
 
     $row = TrooperGameIdentity::query()->sole();
@@ -78,28 +78,28 @@ it('links a trooper through the audited Command', function () {
         ->and($log->target_id)->toBe((string) $row->id);
 });
 
-it('renames an identity in place and audits it as an update', function () {
-    $this->actingAs($this->leader)->put(identityUrl($this->mine), ['player_name' => 'Old', 'platform_id' => '76561198000000656']);
-    $this->actingAs($this->leader)->put(identityUrl($this->mine), ['player_name' => 'New', 'platform_id' => '76561198000000656'])->assertRedirect();
+it('changes an identity in place and audits it as an update', function () {
+    $this->actingAs($this->leader)->put(identityUrl($this->mine), ['platform_id' => '76561198000000656']);
+    $this->actingAs($this->leader)->put(identityUrl($this->mine), ['platform_id' => '76561198000000657'])->assertRedirect();
 
-    expect(TrooperGameIdentity::query()->sole()->player_name)->toBe('New')
+    expect(TrooperGameIdentity::query()->sole()->platform_id)->toBe('76561198000000657')
         ->and(AuditLogEntry::query()->pluck('action')->all())->toBe(['game_identity.linked', 'game_identity.updated']);
 });
 
 it('records nothing when the identity is saved unchanged', function () {
-    $this->actingAs($this->leader)->put(identityUrl($this->mine), ['player_name' => 'Same', 'platform_id' => '76561198000000656']);
-    $this->actingAs($this->leader)->put(identityUrl($this->mine), ['player_name' => 'Same', 'platform_id' => '76561198000000656'])->assertRedirect();
+    $this->actingAs($this->leader)->put(identityUrl($this->mine), ['platform_id' => '76561198000000656']);
+    $this->actingAs($this->leader)->put(identityUrl($this->mine), ['platform_id' => '76561198000000656'])->assertRedirect();
 
     expect(AuditLogEntry::query()->count())->toBe(1);
 });
 
 it('reports an identifier already linked elsewhere by the owner\'s name, writing nothing', function () {
-    $this->actingAs($this->leader)->put(identityUrl($this->mine), ['player_name' => 'OrtegaCav', 'platform_id' => '76561198000000656']);
+    $this->actingAs($this->leader)->put(identityUrl($this->mine), ['platform_id' => '76561198000000656']);
     $second = placedTrooper($this->section, ['username' => 'Dube.R']);
 
     $this->actingAs($this->leader)
         ->from('/game-identities')
-        ->put(identityUrl($second), ['player_name' => 'Dubes', 'platform_id' => '76561198000000656'])
+        ->put(identityUrl($second), ['platform_id' => '76561198000000656'])
         ->assertRedirect('/game-identities')
         ->assertSessionHasErrors(['platform_id' => 'Already linked to SGT Ortega.M on Hell Let Loose (WW2).']);
 
@@ -107,16 +107,16 @@ it('reports an identifier already linked elsewhere by the owner\'s name, writing
 });
 
 it('allows the same identifier on a different platform', function () {
-    $this->actingAs($this->leader)->put(identityUrl($this->mine, 'hll'), ['player_name' => 'A', 'platform_id' => '76561198000000777']);
-    $this->actingAs($this->leader)->put(identityUrl($this->mine, 'arma'), ['player_name' => 'A', 'platform_id' => '76561198000000777'])->assertRedirect();
+    $this->actingAs($this->leader)->put(identityUrl($this->mine, 'hll'), ['platform_id' => '76561198000000777']);
+    $this->actingAs($this->leader)->put(identityUrl($this->mine, 'arma'), ['platform_id' => '76561198000000777'])->assertRedirect();
 
     expect(TrooperGameIdentity::query()->count())->toBe(2);
 });
 
 it('validates the fields and the platform', function () {
-    $this->actingAs($this->leader)->put(identityUrl($this->mine), ['player_name' => '', 'platform_id' => ''])
-        ->assertSessionHasErrors(['player_name', 'platform_id']);
-    $this->actingAs($this->leader)->put(identityUrl($this->mine, 'quake'), ['player_name' => 'A', 'platform_id' => 'B'])->assertNotFound();
+    $this->actingAs($this->leader)->put(identityUrl($this->mine), ['platform_id' => ''])
+        ->assertSessionHasErrors(['platform_id']);
+    $this->actingAs($this->leader)->put(identityUrl($this->mine, 'quake'), ['platform_id' => 'B'])->assertNotFound();
 });
 
 it('links a trooper on a game an Admin added, by its slug (#388)', function () {
@@ -124,27 +124,27 @@ it('links a trooper on a game an Admin added, by its slug (#388)', function () {
 
     $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
         ->has('platforms', 5)
-        ->where('platforms.4', ['value' => 'squad', 'label' => 'Squad', 'idKinds' => ['EOS ID'], 'idHints' => [], 'retired' => false]));
+        ->where('platforms.4', ['value' => 'squad', 'label' => 'Squad', 'idKinds' => ['EOS ID'], 'idHints' => [], 'accounts' => [], 'retired' => false]));
 
-    $this->actingAs($this->leader)->put(identityUrl($this->mine, 'squad'), ['player_name' => 'Ortega', 'platform_id' => 'eos-1'])->assertRedirect();
+    $this->actingAs($this->leader)->put(identityUrl($this->mine, 'squad'), ['platform_id' => 'eos-1'])->assertRedirect();
 
     expect(TrooperGameIdentity::query()->sole()->game_id)->toBe($squad->id);
 });
 
 it('refuses a new link on a retired game, writing nothing, and still lists and removes the links it has (#388)', function () {
     $retired = Game::factory()->retired()->create(['slug' => 'squad']);
-    TrooperGameIdentity::factory()->create(['trooper_id' => $this->mine->id, 'game_id' => $retired->id, 'player_name' => 'Old', 'platform_id' => 'eos-old']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->mine->id, 'game_id' => $retired->id, 'platform_id' => 'eos-old']);
 
     $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
         ->where('platforms.4.retired', true)
-        ->where('troopers.0.identities.squad', ['playerName' => 'Old', 'platformId' => 'eos-old', 'idKind' => 'Player ID', 'mixedScripts' => false]));
+        ->where('troopers.0.identities.squad', ['platformId' => 'eos-old', 'idKind' => 'Player ID', 'source' => 'typed']));
 
-    $this->actingAs($this->leader)->put(identityUrl(placedTrooper($this->section), 'squad'), ['player_name' => 'New', 'platform_id' => 'eos-new'])
+    $this->actingAs($this->leader)->put(identityUrl(placedTrooper($this->section), 'squad'), ['platform_id' => 'eos-new'])
         ->assertSessionHasErrors(['platform_id' => "{$retired->name} is retired, so no identity can be linked to it."]);
-    $this->actingAs($this->leader)->put(identityUrl($this->mine, 'squad'), ['player_name' => 'Renamed', 'platform_id' => 'eos-old'])
+    $this->actingAs($this->leader)->put(identityUrl($this->mine, 'squad'), ['platform_id' => 'eos-old'])
         ->assertSessionHasErrors(['platform_id' => "{$retired->name} is retired, so no identity can be linked to it."]);
 
-    expect(TrooperGameIdentity::query()->sole()->player_name)->toBe('Old')
+    expect(TrooperGameIdentity::query()->sole()->platform_id)->toBe('eos-old')
         ->and(AuditLogEntry::query()->count())->toBe(0);
 
     $this->actingAs($this->leader)->delete(identityUrl($this->mine, 'squad'))->assertRedirect();
@@ -153,7 +153,7 @@ it('refuses a new link on a retired game, writing nothing, and still lists and r
 });
 
 it('removes an identity, audited, leaving attendance untouched', function () {
-    $this->actingAs($this->leader)->put(identityUrl($this->mine), ['player_name' => 'OrtegaCav', 'platform_id' => '76561198000000656']);
+    $this->actingAs($this->leader)->put(identityUrl($this->mine), ['platform_id' => '76561198000000656']);
     $attendance = Attendance::factory()->create(['trooper_id' => $this->mine->id]);
 
     $this->actingAs($this->leader)->delete(identityUrl($this->mine))->assertRedirect();
@@ -172,15 +172,15 @@ it('records nothing when removing a link that is not there', function () {
 it('denies every write for a trooper outside the scope, whatever the UI offered', function () {
     TrooperGameIdentity::factory()->create(['trooper_id' => $this->theirs->id, 'platform_id' => '9']);
 
-    $this->actingAs($this->leader)->put(identityUrl($this->theirs), ['player_name' => 'X', 'platform_id' => '1'])->assertForbidden();
+    $this->actingAs($this->leader)->put(identityUrl($this->theirs), ['platform_id' => '1'])->assertForbidden();
     $this->actingAs($this->leader)->delete(identityUrl($this->theirs))->assertForbidden();
-    $this->actingAs($this->leader)->put('/game-identities/999999/hll', ['player_name' => 'X', 'platform_id' => '1'])->assertForbidden();
+    $this->actingAs($this->leader)->put('/game-identities/999999/hll', ['platform_id' => '1'])->assertForbidden();
 
     expect(TrooperGameIdentity::query()->sole()->platform_id)->toBe('9')->and(AuditLogEntry::query()->count())->toBe(0);
 });
 
 it('refuses an out-of-scope write at the Command as an AuthorizationException, like every other forbidden write', function () {
-    expect(fn () => app(SetTrooperGameIdentityHandler::class)->handle($this->leader, new SetTrooperGameIdentity($this->theirs->id, game('hll'), 'X', '1')))
+    expect(fn () => app(SetTrooperGameIdentityHandler::class)->handle($this->leader, new SetTrooperGameIdentity($this->theirs->id, game('hll'), '1')))
         ->toThrow(AuthorizationException::class, 'That trooper is outside your scope.');
 });
 
@@ -189,8 +189,8 @@ it('denies an unplaced or departed trooper', function () {
     $departed = placedTrooper($this->section, ['status' => TrooperStatus::Inactive]);
 
     $admin = User::factory()->serving()->create(['is_admin' => true]);
-    $this->actingAs($admin)->put(identityUrl($unplaced), ['player_name' => 'X', 'platform_id' => '1'])->assertForbidden();
-    $this->actingAs($admin)->put(identityUrl($departed), ['player_name' => 'X', 'platform_id' => '1'])->assertForbidden();
+    $this->actingAs($admin)->put(identityUrl($unplaced), ['platform_id' => '1'])->assertForbidden();
+    $this->actingAs($admin)->put(identityUrl($departed), ['platform_id' => '1'])->assertForbidden();
 });
 
 it('requires a signed-in user', function () {
@@ -203,7 +203,7 @@ it('refuses writes during a view-as preview, and the index narrows to the previe
     $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->section->id]);
 
     $this->get('/game-identities')->assertInertia(fn (Assert $page) => $page->has('troopers', 1));
-    $this->put(identityUrl($this->mine), ['player_name' => 'X', 'platform_id' => '1'])->assertForbidden();
+    $this->put(identityUrl($this->mine), ['platform_id' => '1'])->assertForbidden();
     $this->delete(identityUrl($this->mine))->assertForbidden();
 
     expect(TrooperGameIdentity::query()->count())->toBe(0);
@@ -212,16 +212,16 @@ it('refuses writes during a view-as preview, and the index narrows to the previe
 it('denies writes to a user holding no scope at all', function () {
     $nobody = User::factory()->serving()->create();
 
-    $this->actingAs($nobody)->put(identityUrl($this->mine), ['player_name' => 'X', 'platform_id' => '1'])->assertForbidden();
+    $this->actingAs($nobody)->put(identityUrl($this->mine), ['platform_id' => '1'])->assertForbidden();
     $this->actingAs($nobody)->delete(identityUrl($this->mine))->assertForbidden();
 
     expect(TrooperGameIdentity::query()->count())->toBe(0);
 });
 
 it('corrects a platform id in place, freeing the old one', function () {
-    $this->actingAs($this->leader)->put(identityUrl($this->mine), ['player_name' => 'A', 'platform_id' => '76561198000000656']);
-    $this->actingAs($this->leader)->put(identityUrl($this->mine), ['player_name' => 'A', 'platform_id' => '76561198000000657'])->assertRedirect();
-    $this->actingAs($this->leader)->put(identityUrl(placedTrooper($this->section)), ['player_name' => 'B', 'platform_id' => '76561198000000656'])->assertRedirect();
+    $this->actingAs($this->leader)->put(identityUrl($this->mine), ['platform_id' => '76561198000000656']);
+    $this->actingAs($this->leader)->put(identityUrl($this->mine), ['platform_id' => '76561198000000657'])->assertRedirect();
+    $this->actingAs($this->leader)->put(identityUrl(placedTrooper($this->section)), ['platform_id' => '76561198000000656'])->assertRedirect();
 
     expect(TrooperGameIdentity::query()->count())->toBe(2)
         ->and(TrooperGameIdentity::query()->where('trooper_id', $this->mine->id)->sole()->platform_id)->toBe('76561198000000657');
@@ -231,7 +231,7 @@ it('names the owner of a collision even when they are outside the leader\'s scop
     TrooperGameIdentity::factory()->create(['trooper_id' => $this->theirs->id, 'platform_id' => '76561198000000656']);
 
     $this->actingAs($this->leader)->from('/game-identities')
-        ->put(identityUrl($this->mine), ['player_name' => 'A', 'platform_id' => '76561198000000656'])
+        ->put(identityUrl($this->mine), ['platform_id' => '76561198000000656'])
         ->assertSessionHasErrors(['platform_id' => 'Already linked to '.$this->theirs->display_name.' on Hell Let Loose (WW2).']);
 });
 
@@ -239,7 +239,7 @@ it('shows a platoon leader the troopers of every section beneath', function () {
     $platoonLeader = User::factory()->commanding($this->platoon)->create();
 
     $this->actingAs($platoonLeader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page->has('troopers', 2));
-    $this->actingAs($platoonLeader)->put(identityUrl($this->theirs), ['player_name' => 'N', 'platform_id' => '76561198000000005'])->assertRedirect();
+    $this->actingAs($platoonLeader)->put(identityUrl($this->theirs), ['platform_id' => '76561198000000005'])->assertRedirect();
 });
 
 // Since HQ staff and groups are placed off the sections (2026-10-24), the page lists everyone placed in scope.
@@ -254,8 +254,8 @@ it('lists HQ staff placed on a platoon for the platoon leader, and lets them be 
         ->where('troopers', fn ($rows) => collect($rows)->firstWhere('id', $psg->id)['section'] === '1/A/1-7'
             && collect($rows)->firstWhere('id', $psg->id)['editable'] === true));
 
-    $this->actingAs($platoonLeader)->put(identityUrl($psg), ['player_name' => 'Hale', 'platform_id' => '76561198000000656'])->assertRedirect();
-    $this->actingAs($platoonLeader)->put(identityUrl($psg), ['player_name' => 'Hale', 'platform_id' => '76561198000000657'])->assertRedirect();
+    $this->actingAs($platoonLeader)->put(identityUrl($psg), ['platform_id' => '76561198000000656'])->assertRedirect();
+    $this->actingAs($platoonLeader)->put(identityUrl($psg), ['platform_id' => '76561198000000657'])->assertRedirect();
     expect(TrooperGameIdentity::query()->sole()->platform_id)->toBe('76561198000000657');
 
     $this->actingAs($platoonLeader)->delete(identityUrl($psg))->assertRedirect();
@@ -267,7 +267,7 @@ it('keeps HQ staff above a section leader off their page and out of their reach'
 
     $this->actingAs($this->leader)->get('/game-identities')
         ->assertInertia(fn (Assert $page) => $page->has('troopers', 1)->where('troopers.0.id', $this->mine->id));
-    $this->actingAs($this->leader)->put(identityUrl($psg), ['player_name' => 'X', 'platform_id' => '1'])->assertForbidden();
+    $this->actingAs($this->leader)->put(identityUrl($psg), ['platform_id' => '1'])->assertForbidden();
 
     expect(TrooperGameIdentity::query()->count())->toBe(0);
 });
@@ -285,20 +285,20 @@ it('lists group members (ELOA, Reservists, New Recruits, staff departments) when
     $this->actingAs($admin)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
         ->has('troopers', 6)
         ->where('troopers', fn ($rows) => $members->every(fn (Trooper $m) => collect($rows)->firstWhere('id', $m->id)['editable'] === true)));
-    $this->actingAs($admin)->put(identityUrl($members->first()), ['player_name' => 'E', 'platform_id' => '76561198000000009'])->assertRedirect();
+    $this->actingAs($admin)->put(identityUrl($members->first()), ['platform_id' => '76561198000000009'])->assertRedirect();
 
     // A section leader's scope holds none of the groups.
     $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page->has('troopers', 1));
-    $this->actingAs($this->leader)->put(identityUrl($members->last()), ['player_name' => 'X', 'platform_id' => '1'])->assertForbidden();
+    $this->actingAs($this->leader)->put(identityUrl($members->last()), ['platform_id' => '1'])->assertForbidden();
 
     expect(TrooperGameIdentity::query()->count())->toBe(1);
 });
 
 it('links the same ID on Hell Let Loose (WW2) and Vietnam, one identity per game per trooper (#431)', function () {
     $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
-        ->where('platforms.3', ['value' => 'hll-vietnam', 'label' => 'Hell Let Loose: Vietnam', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID'], 'idHints' => ['Steam ID' => 'A Steam ID is 17 digits starting 7656119, for example 76561198012345678.', 'Epic ID' => 'An Epic ID is 32 characters, the digits 0 to 9 and the letters a to f.'], 'retired' => false]));
+        ->where('platforms.3', ['value' => 'hll-vietnam', 'label' => 'Hell Let Loose: Vietnam', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID'], 'idHints' => ['Steam ID' => 'A Steam ID is 17 digits starting 7656119, for example 76561198012345678.', 'Epic ID' => 'An Epic ID is 32 characters, the digits 0 to 9 and the letters a to f.'], 'accounts' => ['Steam ID' => 'steam', 'Epic ID' => 'epic'], 'retired' => false]));
 
-    $body = ['player_name' => 'Austin', 'platform_id' => '0002105c01b748ada8d8cf5b32e70093', 'id_kind' => 'Epic ID'];
+    $body = ['platform_id' => '0002105c01b748ada8d8cf5b32e70093', 'id_kind' => 'Epic ID'];
     $this->actingAs($this->leader)->put(identityUrl($this->mine, 'hll'), $body)->assertRedirect()->assertSessionHasNoErrors();
     $this->actingAs($this->leader)->put(identityUrl($this->mine, 'hll-vietnam'), $body)->assertRedirect()->assertSessionHasNoErrors();
     // The same ID for another trooper on the same game is still a collision.

@@ -12,7 +12,8 @@ use App\Models\User;
 use App\Repositories\UnitRepository;
 use Illuminate\Support\Facades\DB;
 
-// Who may add a unit on Org structure: an Admin anywhere; a leader only inside the unit they command or oversee, and at
+// Who may add a unit on Org structure. For now only Admins (`portal.unit_add_scope` is 'admin'); the scoped rule kept
+// behind 'leaders', which most tests here switch on: an Admin anywhere; a leader only inside the unit they command or oversee, and at
 // least two echelons below it (a section needs a company or above, a platoon a battalion or above, a company the
 // regiment). Everyone else is refused, server-side.
 
@@ -37,6 +38,8 @@ function oaUnits($response): array
 }
 
 beforeEach(function () {
+    // The scoped rule these tests cover is kept behind `portal.unit_add_scope`; Admin only is the default.
+    config(['portal.unit_add_scope' => 'leaders']);
     $units = app(UnitRepository::class);
     $this->regiment = $units->create(UnitType::Regiment, '7th Cavalry Regiment', '7CAV', null);
     $this->battalion = $units->create(UnitType::Battalion, '3rd Battalion', '3-7', $this->regiment->id);
@@ -153,4 +156,23 @@ it('flags the units a leader may add under, and none while previewing', function
 
     $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->platoon->id]);
     expect(oaUnits($this->actingAs($admin)->get('/settings/org-structure'))[$this->regiment->id]['can_add_child'])->toBeFalse();
+});
+
+it('leaves adding to Admins while the scope is admin, the default', function () {
+    config(['portal.unit_add_scope' => 'admin']);
+
+    $co = oaLeaderOf($this->company);
+    oaAdd($this, $co, $this->platoon, 'section', '2')->assertForbidden();
+    expect(Unit::where('callsign', '2/1/A/3-7')->exists())->toBeFalse()
+        ->and(collect(oaUnits($this->actingAs($co)->get('/settings/org-structure')))->pluck('can_add_child')->filter()->all())->toBe([]);
+
+    $staff = oaLeaderOf($this->regiment);
+    oaAdd($this, $staff, $this->battalion, 'company', 'C')->assertForbidden();
+
+    oaAdd($this, User::factory()->admin()->create(), $this->platoon, 'section', '2')->assertRedirect('/settings/org-structure');
+    expect(Unit::where('callsign', '2/1/A/3-7')->exists())->toBeTrue();
+});
+
+it('defaults the add scope to admin', function () {
+    expect(require base_path('config/portal.php'))->toHaveKey('unit_add_scope', 'admin');
 });

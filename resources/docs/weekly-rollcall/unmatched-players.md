@@ -15,7 +15,7 @@ audience: leader
 
 ## Link a player
 
-1. Choose the trooper the player is, or choose **Choose a trooper** to pick someone else.
+1. Open **Choose a trooper** and pick the trooper the player is. The closest names are listed first. To find someone else, type part of their name, such as "Dube.R" or "dube".
 2. Choose **Link and mark attended**. This saves their game identity and marks them attended.
 
 > [!good-to-know] If the trooper already has a different ID for that game, the portal asks before replacing it. Choose **Keep** to leave the old one.

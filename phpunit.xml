@@ -60,6 +60,7 @@
         <env name="NIGHTWATCH_BASE_URL" value="https://nightwatch.to/api/public/stats"/>
         <env name="NIGHTWATCH_API_KEY" value=""/>
         <env name="NIGHTWATCH_SERVER_IDS" value=""/>
+        <env name="STEAM_WEB_API_KEY" value=""/>
         <!-- Google Drive copy of counseling documents (#381): unset, so no test can reach Google. -->
         <env name="GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL" value=""/>
         <env name="GOOGLE_DRIVE_PRIVATE_KEY" value=""/>
