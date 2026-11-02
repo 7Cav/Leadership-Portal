@@ -24,7 +24,7 @@ async function openPicker(props = {}) {
 }
 
 const shownNames = (popover) =>
-    [...popover.querySelectorAll('[data-user]')].filter((item) => item.style.display !== 'none').map((item) => item.querySelector('[data-name]').textContent.trim());
+    [...popover.querySelectorAll('[data-option]')].filter((item) => item.style.display !== 'none').map((item) => item.querySelector('[data-name]').textContent.trim());
 
 async function search(popover, text) {
     const input = popover.querySelector('input');
@@ -59,7 +59,7 @@ describe('UserFilterPicker', () => {
 
     it('picks a user, and Any user clears the choice', async () => {
         let popover = await openPicker();
-        popover.querySelector('[data-user="3"]').click();
+        popover.querySelector('[data-option="3"]').click();
         await nextTick();
         expect(wrapper.emitted('update:modelValue').at(-1)).toEqual([3]);
 
@@ -69,7 +69,7 @@ describe('UserFilterPicker', () => {
             await nextTick();
             return document.body.querySelector('[data-testid="user-filter-popover"]');
         })();
-        popover.querySelector('[data-user=""]').click();
+        popover.querySelector('[data-option=""]').click();
         await nextTick();
         expect(wrapper.emitted('update:modelValue').at(-1)).toEqual([null]);
     });
