@@ -28,15 +28,22 @@ class UpdateUnit
     ) {}
 
     /**
+     * A name or callsign sent back unchanged takes what the move derived: the edit form sends both with every save, so
+     * a move alone would otherwise put the old designation back over the rebuilt one.
+     *
      * @param  int|null  $parentId  the parent the unit should have; its current one leaves it in place
      *
      * @throws InvalidUnitPlacementException when the re-parent breaks echelon ordering or
      *                                       introduces a cycle; nothing is written.
+     * @throws UnitDesignationClashException when the moved unit's new designation is taken and not settled.
      */
-    public function handle(User $actor, Unit $unit, string $name, ?string $callsign, ?int $parentId): Unit
+    public function handle(User $actor, Unit $unit, string $name, ?string $callsign, ?int $parentId, ?ClashResolution $resolution = null, ?string $ordinal = null): Unit
     {
-        if ($name === $unit->name && $callsign === $unit->callsign) {
-            return $this->move->handle($actor, $unit, $parentId);
+        $keepName = $name === $unit->name;
+        $keepCallsign = $callsign === $unit->callsign;
+
+        if ($keepName && $keepCallsign) {
+            return $this->move->handle($actor, $unit, $parentId, $resolution, $ordinal);
         }
 
         return $this->audit->record(
@@ -44,7 +51,11 @@ class UpdateUnit
             action: 'unit.renamed',
             reason: null,
             reasonRequired: false,
-            mutation: fn () => $this->units->rename($this->move->handle($actor, $unit, $parentId), $name, $callsign),
+            mutation: function () use ($actor, $unit, $parentId, $resolution, $ordinal, $name, $callsign, $keepName, $keepCallsign) {
+                $moved = $this->move->handle($actor, $unit, $parentId, $resolution, $ordinal);
+
+                return $this->units->rename($moved, $keepName ? $moved->name : $name, $keepCallsign ? $moved->callsign : $callsign);
+            },
         );
     }
 }

@@ -6,6 +6,7 @@ use App\Authorization\ScopeResolver;
 use App\Commands\Units\ActingLeadForbiddenException;
 use App\Commands\Units\AssignActingLead;
 use App\Commands\Units\AssignActingLeadHandler;
+use App\Commands\Units\ClashResolution;
 use App\Commands\Units\CreateUnit;
 use App\Commands\Units\DeleteUnit;
 use App\Commands\Units\ImportOrgStructure;
@@ -22,6 +23,7 @@ use App\Commands\Units\SetUnitLabel;
 use App\Commands\Units\SetUnitOversight;
 use App\Commands\Units\SetUnitOversightHandler;
 use App\Commands\Units\StaffBillet;
+use App\Commands\Units\UnitDesignationClashException;
 use App\Commands\Units\UnitHasDependentsException;
 use App\Commands\Units\UnitOversightForbiddenException;
 use App\Commands\Units\UpdateUnit;
@@ -146,6 +148,8 @@ class OrgStructureController extends Controller
         };
 
         $realAdmin = $scope->isAdmin($viewer);
+        // Units the viewer may renumber when a move clashes with them (the unit already there must be in write scope).
+        $writable = $previewing ? collect() : $scope->writeScope($viewer)->flip();
         $undoUntil = function (Unit $unit) use ($previewing, $realAdmin, $viewer, $byId, $byUnit, $tree, $mayAddUnder) {
             $until = $previewing || $realAdmin ? null : $unit->undoAddUntil($viewer);
             $parent = $byId->get($unit->parent_id);
@@ -174,6 +178,8 @@ class OrgStructureController extends Controller
             'can_set_game' => $mayGame($unit),
             // Whether the viewer may add a unit one echelon below this one (Add unit), by the same rule `store` applies.
             'can_add_child' => $mayAddUnder($unit),
+            // Whether a move that clashes with this unit may swap or renumber it, by the rule `MoveUnit` applies.
+            'can_renumber' => $writable->has($unit->id),
             // Until when the viewer may undo adding this unit (Undo add), by the rule `destroy` applies: their own add,
             // under the hour, still empty, where they may still add it. Null for an Admin, who deletes instead, and
             // while previewing. Whether nothing else happened in it is checked on the undo itself.
@@ -343,14 +349,30 @@ class OrgStructureController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'callsign' => ['nullable', 'string', 'max:255'],
             'parent_id' => ['nullable', 'integer', 'exists:units,id'],
-        ], self::UNIT_MESSAGES);
+            // How a move settles a designation already held under the new parent, and the free number or letter a
+            // renumber takes. The server rebuilds every designation itself; none is taken from the request.
+            'clash' => ['nullable', Rule::enum(ClashResolution::class)],
+            'clash_ordinal' => ['nullable', 'string', 'max:2'],
+        ], self::UNIT_MESSAGES + ['clash.enum' => 'Choose how to settle the clash from the list.']);
 
         try {
-            $command->handle($request->user(), $unit, $data['name'], $data['callsign'] ?? null, $data['parent_id'] ?? null);
+            $command->handle(
+                $request->user(),
+                $unit,
+                $data['name'],
+                $data['callsign'] ?? null,
+                $data['parent_id'] ?? null,
+                isset($data['clash']) ? ClashResolution::from($data['clash']) : null,
+                $data['clash_ordinal'] ?? null,
+            );
         } catch (InvalidUnitPlacementException $e) {
             // Cycle and echelon-rank violations are domain rules the request-shape validation
             // above can't express — surfaced as a form error on `parent_id` (AC #3).
             throw ValidationException::withMessages(['parent_id' => $e->getMessage()]);
+        } catch (UnitDesignationClashException $e) {
+            throw ValidationException::withMessages(['clash' => $e->getMessage()]);
+        } catch (InvalidUnitOrdinalException $e) {
+            throw ValidationException::withMessages(['clash_ordinal' => $e->getMessage()]);
         }
 
         return redirect()->route('settings.org-structure');

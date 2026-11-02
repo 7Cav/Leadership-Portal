@@ -31,7 +31,7 @@ use Carbon\CarbonImmutable;
 // template it now uses. A section's own templates move with it and are never copied.
 // Tree: 7CAV ─ 1-7 ─┬─ A/1-7 ─ 1/A/1-7 ─┬─ 1/1/A/1-7 (picks Training)
 //                   │                  └─ 2/1/A/1-7 (company default: Company template)
-//                   └─ B/1-7 ─ 1/B/1-7 ─ 1/1/B/1-7 (company default: Company template)
+//                   └─ B/1-7 ─ 2/B/1-7 ─ 3/2/B/1-7 (company default: Company template)
 
 /** A user whose synced billet commands `$unit`. */
 function moveCommander(Unit $unit, int $positionId): User
@@ -55,10 +55,10 @@ beforeEach(function () {
     $this->alpha = $units->create(UnitType::Company, 'Alpha Company', 'A/1-7', $this->battalion->id);
     $this->bravo = $units->create(UnitType::Company, 'Bravo Company', 'B/1-7', $this->battalion->id);
     $this->platoon = $units->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', $this->alpha->id);
-    $this->bravoPlatoon = $units->create(UnitType::Platoon, '1st Platoon', '1/B/1-7', $this->bravo->id);
+    $this->bravoPlatoon = $units->create(UnitType::Platoon, '2nd Platoon', '2/B/1-7', $this->bravo->id);
     $this->picker = $units->create(UnitType::Section, '1st Section', '1/1/A/1-7', $this->platoon->id);
     $this->follower = $units->create(UnitType::Section, '2nd Section', '2/1/A/1-7', $this->platoon->id);
-    $this->bravoSection = $units->create(UnitType::Section, '1st Section', '1/1/B/1-7', $this->bravoPlatoon->id);
+    $this->bravoSection = $units->create(UnitType::Section, '3rd Section', '3/2/B/1-7', $this->bravoPlatoon->id);
 
     $this->admin = User::factory()->admin()->create();
     $this->author = User::factory()->create();
@@ -111,7 +111,7 @@ it('copies the templates its sections used into the new company and points their
 it('never makes a copy the active template of a company that had none, so its other sections keep theirs', function () {
     $units = app(UnitRepository::class);
     $charlie = $units->create(UnitType::Company, 'Charlie Company', 'C/1-7', $this->battalion->id);
-    $charlieSection = $units->create(UnitType::Section, '1st Section', '1/1/C/1-7', $units->create(UnitType::Platoon, '1st Platoon', '1/C/1-7', $charlie->id)->id);
+    $charlieSection = $units->create(UnitType::Section, '1st Section', '1/2/C/1-7', $units->create(UnitType::Platoon, '2nd Platoon', '2/C/1-7', $charlie->id)->id);
 
     ($this->move)($this->platoon, $charlie);
 

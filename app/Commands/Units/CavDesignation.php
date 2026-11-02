@@ -143,6 +143,27 @@ final readonly class CavDesignation
     }
 
     /**
+     * The ordinal a unit holds under its parent, read back from its own callsign: the number of a battalion (`3-7`),
+     * platoon (`1/A/1-7`) or section (`2/1/A/1-7`), the letter of a company (`A/1-7`). What {@see childOf()} takes, so
+     * a unit moved under another parent is rebuilt from the new parent with the number or letter it already had. Null
+     * when the callsign does not have its echelon's shape (a battalion such as `ACD`, a group, a callsign typed by hand).
+     */
+    public static function ordinalOf(UnitType $type, ?string $callsign): ?string
+    {
+        $callsign = strtoupper(trim((string) $callsign));
+
+        $pattern = match ($type) {
+            UnitType::Battalion => '#^(?<ordinal>[1-9])-7$#',
+            UnitType::Company => '#^(?<ordinal>[A-Z])/[A-Z0-9]+(?:-[A-Z0-9]+)*$#',
+            UnitType::Platoon => '#^(?<ordinal>[1-9])/[A-Z]/[A-Z0-9]+(?:-[A-Z0-9]+)*$#',
+            UnitType::Section => '#^(?<ordinal>[1-9])/[1-9]\d*/[A-Z]/[A-Z0-9]+(?:-[A-Z0-9]+)*$#',
+            default => null,
+        };
+
+        return $pattern !== null && preg_match($pattern, $callsign, $m) === 1 ? $m['ordinal'] : null;
+    }
+
+    /**
      * The echelon one rank up. Null only for the regiment.
      */
     public function parent(): ?self
