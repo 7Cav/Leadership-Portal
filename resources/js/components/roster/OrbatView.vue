@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
+import RankInsignia from '@/components/RankInsignia.vue';
 import {
     PhArrowDown,
     PhArrowsInLineVertical,
@@ -473,6 +474,7 @@ function clearAll() {
                         >
                             <td class="sticky left-0">
                                 <div class="flex items-center gap-2.5" :class="root.type !== 'section' && 'pl-6'">
+                                    <RankInsignia :rank="row.trooper.rank" />
                                     <RankBadge :rank="row.trooper.rank" :title="row.trooper.rankFull" />
                                     <span class="nm font-medium">
                                         <template v-for="(part, i) in highlightParts(displayName(row.trooper), query)" :key="i"><mark v-if="part.hit" class="hl">{{ part.text }}</mark><template v-else>{{ part.text }}</template></template>

@@ -142,6 +142,14 @@ interface UnitRepository
      */
     public function lockForDelete(Unit $unit): void;
 
+    /**
+     * The units directly under `$parent`, locked for the rest of the caller's transaction, in id order. A move that
+     * renumbers checks the designations under the new parent with these, so a unit added there meanwhile is seen.
+     *
+     * @return Collection<int, Unit>
+     */
+    public function lockedChildren(Unit $parent): Collection;
+
     public function hasChildren(Unit $unit): bool;
 
     /**

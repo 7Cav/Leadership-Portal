@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
+import RankInsignia from '@/components/RankInsignia.vue';
 import { PhBuildings, PhCaretDown, PhCircleNotch, PhUsersFour } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import { NativeSelect } from '@/components/ui/native-select';
@@ -186,6 +187,7 @@ const segment =
                     :data-testid="`fireteam-${trooper.id}`"
                 >
                     <span class="flex min-w-[11rem] flex-1 items-center gap-2">
+                        <RankInsignia :rank="trooper.rankShort ?? null" />
                         <span class="truncate">{{ fullName(trooper) }}</span>
                         <Badge v-if="commands(trooper)" variant="outline" class="shrink-0 font-normal">{{ ROLE_LABELS[trooper.role] }}</Badge>
                         <Badge v-if="names.has(trooper.id)" variant="secondary" class="shrink-0 font-normal" data-testid="fireteam-name">{{ names.get(trooper.id) }}</Badge>

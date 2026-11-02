@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import RankInsignia from '@/components/RankInsignia.vue';
 import { PhMedal, PhUsers } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import EmptyState from '@/components/EmptyState.vue';
@@ -77,6 +78,7 @@ const candidates = computed(() => rows.value.filter((row) => row.candidate).leng
                     <tr v-for="row in rows" :key="row.trooperId" :data-testid="`practice-guest-${row.trooperId}`">
                         <td class="px-4 py-2">
                             <span class="flex items-center gap-2">
+                                <RankInsignia :rank="row.rank" />
                                 <RankBadge :rank="row.rank" :title="row.rankFull" />
                                 <span class="truncate font-medium">{{ row.name }}</span>
                             </span>

@@ -2138,3 +2138,16 @@ describe('jumping to a trooper from their milpac (?focus=)', () => {
         expect(spotlit(wrapper)).toEqual([]);
     });
 });
+
+describe('Rollcall step 2 rank avatars', () => {
+    it('gives every trooper card a rank avatar, with initials for a rank that has none', () => {
+        page.url = '/rollcall/12?step=2';
+        const wrapper = factory({
+            troopers: [trooper(1, 'will_attend', 'present', { rankShort: 'PVT', name: 'Haddad.Y' }), trooper(2, 'unsigned', null, { rankShort: 'RCT', name: 'New.R' })],
+        });
+
+        expect(wrapper.findAll('[data-trooper] [data-rank-avatar]')).toHaveLength(2);
+        expect(wrapper.find('[data-trooper="2"] [data-slot="avatar-fallback"]').text()).toBe('NR');
+        wrapper.unmount();
+    });
+});
