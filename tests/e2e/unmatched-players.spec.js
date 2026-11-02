@@ -31,14 +31,14 @@ test('a section leader links unmatched players to troopers, replacing an old ID 
     const dubeCard = page.locator('[data-trooper]').filter({ hasText: 'Dube.R' });
     await expect(dubeCard.getByRole('button', { name: /^Attended/ })).toHaveAttribute('aria-pressed', 'true');
 
-    // Halvorsen.K is linked to HalvoOld: the leader is asked, and Cancel changes nothing.
+    // Halvorsen.K is linked to another ID: the leader is asked, and Cancel changes nothing.
     const halvo = page.getByTestId('unmatched-76561198000009003');
     await halvo.getByTestId('unmatched-trooper').click();
     await page.getByRole('option', { name: 'SPC Halvorsen.K', exact: true }).click();
     await halvo.getByTestId('unmatched-link').click();
     const question = page.getByTestId('replace-dialog');
     await expect(question).toContainText(
-        'SPC Halvorsen.K is linked to HalvoOld (76561198000009099) on Hell Let Loose (WW2). Replace it with Halvorsen (76561198000009003)?',
+        'SPC Halvorsen.K is linked to 76561198000009099 on Hell Let Loose (WW2). Replace it with Halvorsen (76561198000009003)?',
     );
     await question.getByTestId('replace-cancel').click();
     await expect(question).toHaveCount(0);
