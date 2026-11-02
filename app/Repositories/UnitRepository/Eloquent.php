@@ -201,6 +201,11 @@ class Eloquent implements UnitRepository
         Unit::query()->whereKey($unit->id)->lockForUpdate()->firstOrFail(['id']);
     }
 
+    public function lockedChildren(Unit $parent): Collection
+    {
+        return Unit::query()->where('parent_id', $parent->id)->orderBy('id')->lockForUpdate()->get();
+    }
+
     public function hasChildren(Unit $unit): bool
     {
         return $unit->children()->exists();

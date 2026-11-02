@@ -63,3 +63,49 @@ export function ordinalOptions(type, parent, units) {
         .map((value) => ({ value, ...childDesignation(type, parent.callsign, value) }))
         .filter((option) => option.callsign && !taken.has(option.callsign.toUpperCase()));
 }
+
+/**
+ * The number or letter a unit holds under its parent, read from its own callsign, as `CavDesignation::ordinalOf()`.
+ * Null when the callsign does not have its echelon's shape.
+ */
+export function ordinalOf(type, callsign) {
+    const value = String(callsign ?? '').trim().toUpperCase();
+    const pattern = {
+        battalion: /^([1-9])-7$/,
+        company: /^([A-Z])\/[A-Z0-9]+(?:-[A-Z0-9]+)*$/,
+        platoon: /^([1-9])\/[A-Z]\/[A-Z0-9]+(?:-[A-Z0-9]+)*$/,
+        section: /^([1-9])\/[1-9]\d*\/[A-Z]\/[A-Z0-9]+(?:-[A-Z0-9]+)*$/,
+    }[type];
+    const match = pattern ? value.match(pattern) : null;
+    return match ? match[1] : null;
+}
+
+/**
+ * What moving `unit` under `parent` does to designations, as `MoveUnit` works it out: `{ from, to, below, clash,
+ * oldParent, options, swap, swapBlocked }`. `to` is null when there is nothing to rebuild (the unit keeps its callsign).
+ * `below` counts the units under it that are renumbered with it. `clash` is the unit already holding `to` under the new
+ * parent; `options` are the free numbers or letters there (for either renumber); `swap` says whether the two may trade
+ * places, and `swapBlocked` why not. The server works all of it out again on save.
+ */
+export function movePreview(unit, parent, units) {
+    const empty = { from: unit?.callsign ?? null, to: null, below: 0, clash: null, oldParent: null, options: [], swap: false, swapBlocked: null };
+    if (!unit || !parent) return empty;
+
+    const own = ordinalOf(unit.type, unit.callsign);
+    const next = own === null ? null : childDesignation(unit.type, parent.callsign, own);
+    if (!next) return empty;
+
+    const oldParent = units.find((candidate) => candidate.id === unit.parent_id) ?? null;
+    const below = units.filter((candidate) => candidate.id !== unit.id && candidate.path?.startsWith(unit.path) && ordinalOf(candidate.type, candidate.callsign) !== null).length;
+    const same = (candidate, callsign) => String(candidate.callsign ?? '').toUpperCase() === callsign.toUpperCase();
+    const clash = units.find((candidate) => candidate.parent_id === parent.id && candidate.id !== unit.id && same(candidate, next.callsign)) ?? null;
+    const options = ordinalOptions(unit.type, parent, units);
+
+    let swapBlocked = null;
+    if (clash && !oldParent) swapBlocked = `${clash.callsign} has no old parent to take.`;
+    else if (clash && units.some((candidate) => candidate.parent_id === oldParent.id && ![unit.id, clash.id].includes(candidate.id) && same(candidate, unit.callsign ?? ''))) {
+        swapBlocked = `${unit.callsign} is taken under ${oldParent.callsign ?? oldParent.name} too, so the two cannot swap.`;
+    }
+
+    return { from: unit.callsign, to: next.callsign, toName: next.name, below, clash, oldParent, options, swap: !!clash && swapBlocked === null, swapBlocked };
+}

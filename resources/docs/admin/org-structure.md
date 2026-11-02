@@ -29,7 +29,13 @@ The page has two cards. **Chain of command** holds the regiment, its battalions 
 > [!good-to-know] Who can add: Admins anywhere, and Regimental HQ staff any unit below the regiment. A leader or overseer can add units inside their own unit, at least two echelons below it: a company commander adds sections, a battalion commander platoons, and the overseer of a battalion its companies. Without that, the button is not shown.
 > [!good-to-know] Added the wrong unit? Right after adding, choose **Undo** on the message that confirms it. Until an hour has passed, the unit's details also show **Undo add** with the minutes left. It works only for the person who added the unit, and only while nothing has happened in it yet: no troopers, units under it, nickname, game, practice slot or other change. After that, ask an Admin to delete it.
 
-3. To rename or move a unit, select it and change it in the details panel.
+3. To rename or move a unit, select it and change it in the details panel. To move it, pick its new **Parent** and choose **Save unit**. A window shows its callsign before and after, and you confirm with **Move unit**.
+
+> [!good-to-know] A moved unit takes its callsign from its new parent and keeps its number or letter: 1st Platoon 1/A/1-7 moved under Golf Company becomes 1/G/1-7, and its sections follow, so 1/1/A/1-7 becomes 1/1/G/1-7. A name that was the standard one, such as 1st Platoon, follows a new number; a name you chose is kept. Units without a callsign of that shape, such as groups or ACD, keep theirs.
+
+> [!good-to-know] If the new parent already has that callsign, the window says so, such as "1/G/1-7 already exists under G/1-7", and the move waits until you pick one way to settle it: swap the two, so the unit already there takes the old place and callsign of the one you move; give the unit already there another free number; or give the unit you move another free number. The free numbers are listed like in **Add a unit**. Swapping or renumbering the unit already there needs it in your write scope; otherwise only the last choice is offered and the window says why. Everything is saved together or not at all, and the move is refused if a callsign was taken in the meantime. The audit log lists each callsign before and after.
+
+> [!warning] The import from the Cav roster finds units by callsign. If Cav still lists the old designation, the next import adds a unit with the old callsign again and moves the billets Cav lists there to it. Change the billets on the Cav roster too, or move the unit back.
 
 > [!good-to-know] What this changes, and how to undo it: moving a unit moves everyone's access with it on the next page load. Move it back the same way. A unit with troopers, reports or anything else attached cannot be deleted.
 

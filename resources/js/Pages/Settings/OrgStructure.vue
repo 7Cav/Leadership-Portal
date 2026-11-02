@@ -25,7 +25,7 @@ import SearchSelect from '@/components/SearchSelect.vue';
 import ReasonDialog from '@/components/ReasonDialog.vue';
 import { onHttpException } from '@/lib/httpError';
 import { ancestorIds, searchUnits } from '@/lib/orgSearch';
-import { ordinalOptions } from '@/lib/unitDesignation';
+import { movePreview, ordinalOptions } from '@/lib/unitDesignation';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import OrgTreeNode from './OrgTreeNode.vue';
 
@@ -546,7 +546,7 @@ function prefillAddChild({ parentId }) {
     addOpen.value = true;
 }
 
-const editForm = useForm({ name: '', callsign: '', parent_id: null });
+const editForm = useForm({ name: '', callsign: '', parent_id: null, clash: null, clash_ordinal: '' });
 
 watch(
     selectedUnit,
@@ -581,11 +581,51 @@ const editLegalParents = computed(() => {
     return props.units.filter((unit) => RANK[unit.type] === RANK[selectedUnit.value.type] - 1);
 });
 
-function submitEdit() {
+// A move rebuilds the unit's designation from the new parent, and everything under it with it. Before it saves, the
+// Move dialog shows the designation before and after and, when a unit there already holds it, how to settle that. The
+// server works all of it out again and refuses what is taken by then.
+const moveOpen = ref(false);
+const moveParent = computed(() => props.units.find((unit) => unit.id === editForm.parent_id) ?? null);
+const movePlan = computed(() =>
+    selectedUnit.value && moveParent.value && editForm.parent_id !== selectedUnit.value.parent_id
+        ? movePreview(selectedUnit.value, moveParent.value, props.units)
+        : null,
+);
+const clashRenumberable = computed(() => !!movePlan.value?.clash?.can_renumber);
+const moveReady = computed(() => {
+    const plan = movePlan.value;
+    if (!plan?.clash) return true;
+    if (editForm.clash === 'swap') return plan.swap && clashRenumberable.value;
+    if (editForm.clash === 'renumber_existing') return clashRenumberable.value && !!editForm.clash_ordinal;
+    if (editForm.clash === 'renumber_moved') return !!editForm.clash_ordinal;
+    return false;
+});
+
+function pickClash(option) {
+    editForm.clash = option;
+    editForm.clash_ordinal = '';
+}
+
+function saveEdit() {
     editForm.patch(`/settings/org-structure/${selectedUnit.value.id}`, {
         preserveScroll: true,
+        onSuccess: () => {
+            moveOpen.value = false;
+            editForm.clash = null;
+            editForm.clash_ordinal = '';
+        },
         onHttpException: onHttpException('The unit was not saved', (message) => toast.error(message)),
     });
+}
+
+function submitEdit() {
+    if (movePlan.value?.to) {
+        editForm.clash = null;
+        editForm.clash_ordinal = '';
+        moveOpen.value = true;
+        return;
+    }
+    saveEdit();
 }
 
 function cancelEdit() {
@@ -1390,6 +1430,93 @@ function confirmDelete() {
         </div>
 
         <!-- Add unit: its own dialog, apart from the details panel where the selected unit is edited. -->
+        <Dialog v-if="isAdmin && selectedUnit" :open="moveOpen" @update:open="(open) => !open && !editForm.processing && (moveOpen = false)">
+            <DialogContent class="sm:max-w-md" data-testid="move-dialog">
+                <DialogHeader>
+                    <DialogTitle>Move {{ selectedUnit.name }}</DialogTitle>
+                    <DialogDescription data-testid="move-summary">
+                        {{ movePlan?.from }} becomes {{ movePlan?.to }}<template v-if="movePlan?.below"
+                            >, and the {{ movePlan.below === 1 ? 'unit' : `${movePlan.below} units` }} under it follow</template
+                        >.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div v-if="movePlan?.clash" class="space-y-3 text-sm" data-testid="move-clash">
+                    <p class="font-medium" data-testid="move-clash-message">
+                        {{ movePlan.to }} already exists under {{ moveParent?.callsign ?? moveParent?.name }}.
+                    </p>
+                    <p v-if="!clashRenumberable" class="text-xs text-muted-foreground" data-testid="move-clash-out-of-scope">
+                        {{ movePlan.clash.callsign }} is outside your write scope, so you may not swap or renumber it.
+                    </p>
+
+                    <fieldset class="space-y-2">
+                        <legend class="sr-only">How to settle it</legend>
+                        <label v-if="clashRenumberable" class="flex items-start gap-2" :class="{ 'opacity-60': !movePlan.swap }">
+                            <input
+                                type="radio"
+                                name="clash"
+                                value="swap"
+                                data-testid="clash-swap"
+                                :disabled="!movePlan.swap"
+                                :checked="editForm.clash === 'swap'"
+                                @change="pickClash('swap')"
+                            />
+                            <span>
+                                Swap: {{ movePlan.clash.callsign }} moves to {{ movePlan.oldParent?.callsign ?? movePlan.oldParent?.name }} as
+                                {{ movePlan.from }}
+                                <span v-if="movePlan.swapBlocked" class="block text-xs text-muted-foreground" data-testid="clash-swap-blocked">{{
+                                    movePlan.swapBlocked
+                                }}</span>
+                            </span>
+                        </label>
+                        <label v-if="clashRenumberable" class="flex items-start gap-2">
+                            <input
+                                type="radio"
+                                name="clash"
+                                value="renumber_existing"
+                                data-testid="clash-renumber-existing"
+                                :checked="editForm.clash === 'renumber_existing'"
+                                @change="pickClash('renumber_existing')"
+                            />
+                            <span>Give {{ movePlan.clash.callsign }} another number</span>
+                        </label>
+                        <label class="flex items-start gap-2">
+                            <input
+                                type="radio"
+                                name="clash"
+                                value="renumber_moved"
+                                data-testid="clash-renumber-moved"
+                                :checked="editForm.clash === 'renumber_moved'"
+                                @change="pickClash('renumber_moved')"
+                            />
+                            <span>Give {{ selectedUnit.name }} another number instead</span>
+                        </label>
+                    </fieldset>
+
+                    <div v-if="editForm.clash === 'renumber_existing' || editForm.clash === 'renumber_moved'" class="grid gap-1.5">
+                        <Label for="clash-ordinal">{{ editForm.clash === 'renumber_existing' ? movePlan.clash.callsign : selectedUnit.name }} becomes</Label>
+                        <NativeSelect id="clash-ordinal" v-model="editForm.clash_ordinal" data-testid="clash-ordinal" :disabled="movePlan.options.length === 0">
+                            <option value="" disabled>{{ movePlan.options.length ? 'Choose one' : 'None free' }}</option>
+                            <option v-for="option in movePlan.options" :key="option.value" :value="option.value">
+                                {{ option.callsign }} ({{ option.name }})
+                            </option>
+                        </NativeSelect>
+                    </div>
+                </div>
+
+                <p v-if="editForm.errors.clash" class="text-xs text-destructive" data-testid="move-error-clash">{{ editForm.errors.clash }}</p>
+                <p v-if="editForm.errors.clash_ordinal" class="text-xs text-destructive" data-testid="move-error-clash_ordinal">
+                    {{ editForm.errors.clash_ordinal }}
+                </p>
+                <p v-if="editForm.errors.parent_id" class="text-xs text-destructive" data-testid="move-error-parent_id">{{ editForm.errors.parent_id }}</p>
+
+                <DialogFooter class="flex-row justify-end gap-2">
+                    <Button type="button" variant="ghost" data-testid="move-cancel" @click="moveOpen = false">Cancel</Button>
+                    <Button type="button" data-testid="move-confirm" :disabled="editForm.processing || !moveReady" @click="saveEdit">Move unit</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
         <Dialog v-if="canAdd" :open="addOpen" @update:open="(open) => !open && !form.processing && closeAdd()">
             <DialogContent class="sm:max-w-md" data-testid="add-unit-dialog">
                 <DialogHeader>
