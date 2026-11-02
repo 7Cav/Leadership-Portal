@@ -181,7 +181,7 @@ describe('the identities an Admin is asked to check', function () {
             'upper' => TrooperGameIdentity::factory()->create(['platform_id' => strtoupper(FORMATS_EPIC), 'id_kind' => 'Epic ID']),
             'hidden' => TrooperGameIdentity::factory()->create(['platform_id' => "any\u{200B}thing", 'id_kind' => 'Xbox ID']),
             'fine' => TrooperGameIdentity::factory()->create(['platform_id' => '76561198000000003']),
-            'xbox' => TrooperGameIdentity::factory()->create(['platform_id' => 'anything', 'id_kind' => 'Xbox ID']),
+            'xbox' => TrooperGameIdentity::factory()->create(['platform_id' => 'unrelated-xbox-id', 'id_kind' => 'Xbox ID']),
         ];
         $this->before = TrooperGameIdentity::query()->orderBy('id')->get()->map->only(['platform_id', 'id_kind', 'updated_at'])->all();
     });
