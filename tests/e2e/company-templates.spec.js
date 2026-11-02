@@ -26,16 +26,18 @@ test('a company commander adds a template and a section leader picks it for the 
     const leader = await (await browser.newContext()).newPage();
     await leader.goto('/__e2e/login/Vasquez.R?to=/rollcall');
     await leader.getByRole('button', { name: /^Step 3, Review and post/ }).click();
-    await leader.getByTestId('template-pick-select').selectOption({ label: NAME });
+    await leader.getByTestId('template-pick-select').click();
+    await leader.getByRole('option', { name: NAME, exact: true }).click();
     await expect(leader.getByTestId('forum-bbcode')).toContainText(`${NAME} 2/1/A/1-7`);
 
     // The pick persists: the next load renders from it too.
     await leader.reload();
     await leader.getByRole('button', { name: /^Step 3, Review and post/ }).click();
-    await expect(leader.getByTestId('template-pick-select')).toHaveValue(/\d+/);
+    await expect(leader.getByTestId('template-pick-select')).toHaveAttribute('data-value', /\d+/);
     await expect(leader.getByTestId('forum-bbcode')).toContainText(`${NAME} 2/1/A/1-7`);
 
-    await leader.getByTestId('template-pick-select').selectOption({ label: 'Company default' });
+    await leader.getByTestId('template-pick-select').click();
+    await leader.getByRole('option', { name: 'Company default', exact: true }).click();
     await expect(leader.getByTestId('forum-bbcode')).not.toContainText(NAME);
 });
 

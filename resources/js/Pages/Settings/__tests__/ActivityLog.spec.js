@@ -83,7 +83,7 @@ describe('Settings/ActivityLog', () => {
 
         await wrapper.get('[data-testid="filter-user_id"]').trigger('click');
         await nextTick();
-        document.body.querySelector('[data-testid="user-filter-popover"] [data-user="10"]').click();
+        document.body.querySelector('[data-testid="user-filter-popover"] [data-option="10"]').click();
         await nextTick();
         await wrapper.get('[data-testid="filter-date_from"]').setValue('2026-10-01');
         await wrapper.get('[data-testid="filter-date_to"]').setValue('2026-10-28');

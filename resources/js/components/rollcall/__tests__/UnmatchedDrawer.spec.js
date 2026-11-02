@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import UnmatchedDrawer from '../UnmatchedDrawer.vue';
+import { chooseSearch, hasSearchSelect, searchSelect, searchValue } from '@/testing/searchSelect';
 
 enableAutoUnmount(afterEach);
 const post = vi.fn();
@@ -30,7 +31,7 @@ describe('UnmatchedDrawer', () => {
         const first = card(wrapper, '7656119000000001');
         expect(first.find('[data-testid="unmatched-name"]').text()).toBe('Dubes');
         expect(first.find('[data-testid="unmatched-id"]').text()).toBe('7656119000000001');
-        expect(first.find('select').element.value).toBe('');
+        expect(searchValue(first, 'unmatched-trooper')).toBe('');
         expect(first.find('[data-testid="unmatched-link"]').attributes('disabled')).toBeDefined();
     });
 
@@ -46,7 +47,7 @@ describe('UnmatchedDrawer', () => {
         expect(row.text()).toContain('Departed');
         expect(row.find('[data-testid="departed-note"]').text()).toBe('Linked to PFC Gone.A, who has left. Not marked on any roll call.');
         expect(row.find('button').exists()).toBe(false);
-        expect(row.find('select').exists()).toBe(false);
+        expect(hasSearchSelect(row, 'unmatched-trooper')).toBe(false);
     });
 
     it('offers no Link for a player of a retired game, says why, and still lets them be dismissed', () => {
@@ -55,7 +56,7 @@ describe('UnmatchedDrawer', () => {
 
         expect(row.find('[data-testid="unmatched-blocked"]').text()).toBe('Hell Let Loose is retired, so no new links can be made. Mark the trooper by hand.');
         expect(row.find('[data-testid="unmatched-link"]').exists()).toBe(false);
-        expect(row.find('select').exists()).toBe(false);
+        expect(hasSearchSelect(row, 'unmatched-trooper')).toBe(false);
         expect(row.find('[data-testid="unmatched-dismiss"]').exists()).toBe(true);
     });
 
@@ -74,9 +75,9 @@ describe('UnmatchedDrawer', () => {
         const wrapper = factory();
         const first = card(wrapper, '7656119000000001');
 
-        expect(first.find('optgroup[label="Closest by name"]').text()).toContain('PFC Dube.R');
-        expect(first.find('select').element.value).toBe('');
-        expect(card(wrapper, '7656119000000002').find('optgroup[label="Closest by name"]').exists()).toBe(false);
+        expect(searchSelect(first, 'unmatched-trooper').props('options').filter((o) => o.group === 'Closest by name').map((o) => o.label)).toContain('PFC Dube.R');
+        expect(searchValue(first, 'unmatched-trooper')).toBe('');
+        expect(searchSelect(card(wrapper, '7656119000000002'), 'unmatched-trooper').props('options').some((o) => o.group === 'Closest by name')).toBe(false);
     });
 
     it('enables Link only once a trooper is chosen, then posts the choice and emits the answer', async () => {
@@ -84,7 +85,7 @@ describe('UnmatchedDrawer', () => {
         const wrapper = factory();
         const first = card(wrapper, '7656119000000001');
 
-        await first.find('select').setValue('1');
+        await chooseSearch(first, 'unmatched-trooper', '1');
         expect(first.find('[data-testid="unmatched-link"]').attributes('disabled')).toBeUndefined();
         await first.find('[data-testid="unmatched-link"]').trigger('click');
         await flushPromises();
@@ -98,7 +99,7 @@ describe('UnmatchedDrawer', () => {
         const wrapper = factory({ beforeLink });
         const first = card(wrapper, '7656119000000001');
 
-        await first.find('select').setValue('1');
+        await chooseSearch(first, 'unmatched-trooper', '1');
         await first.find('[data-testid="unmatched-link"]').trigger('click');
         await flushPromises();
 
@@ -113,7 +114,7 @@ describe('UnmatchedDrawer', () => {
         const wrapper = factory();
         const first = card(wrapper, '7656119000000001');
 
-        await first.find('select').setValue('2');
+        await chooseSearch(first, 'unmatched-trooper', '2');
         await first.find('[data-testid="unmatched-link"]').trigger('click');
         await flushPromises();
 
@@ -138,7 +139,7 @@ describe('UnmatchedDrawer', () => {
         async function askToReplace() {
             wrapper = mount(UnmatchedDrawer, { props: { sectionId: 12, week: '2026-10-03', players: PLAYERS, troopers: TROOPERS }, attachTo: document.body });
             const first = card(wrapper, '7656119000000001');
-            await first.find('select').setValue('1');
+            await chooseSearch(first, 'unmatched-trooper', '1');
             await first.find('[data-testid="unmatched-link"]').trigger('click');
             await flushPromises();
 
@@ -242,7 +243,7 @@ describe('UnmatchedDrawer', () => {
             expect(post).toHaveBeenCalledTimes(1);
             expect(wrapper.emitted('linked')).toBeUndefined();
             expect(first.find('[data-testid="unmatched-error"]').exists()).toBe(false);
-            expect(first.find('select').element.value).toBe('1');
+            expect(searchValue(first, 'unmatched-trooper')).toBe('1');
             expect(first.find('[data-testid="unmatched-link"]').attributes('disabled')).toBeUndefined();
         });
 
@@ -335,7 +336,7 @@ describe('UnmatchedDrawer', () => {
         const wrapper = factory({ editable: false, disabledReason: 'Read-only while viewing as Ortega.M' });
         const first = card(wrapper, '7656119000000001');
 
-        expect(first.find('select').attributes('disabled')).toBeDefined();
+        expect(searchSelect(first, 'unmatched-trooper').get('button').attributes('disabled')).toBeDefined();
         expect(first.find('[data-testid="unmatched-dismiss"]').attributes('disabled')).toBeDefined();
         expect(wrapper.text()).toContain('Read-only while viewing as Ortega.M');
     });

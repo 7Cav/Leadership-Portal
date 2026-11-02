@@ -10,9 +10,11 @@ import { focusNextAfter, isPlainTab } from '@/lib/listboxTab';
 // you type. The search ignores case, and a Cav name's dot also matches a space ("pike s" finds Pike.S). Enter or Tab
 // in the search box picks the top row; Tab then moves on to the next field.
 //
-// `options` are `{ value, label, keywords?, group?, disabled? }`, listed in the order given (rows sharing a `group`
-// sit under that heading). `anyLabel` adds a first row that sets `anyValue` (a filter's "Any user", a form's "No
+// `options` are `{ value, label, keywords?, group?, depth?, disabled? }`, listed in the order given (rows sharing a
+// `group` sit under that heading; `depth` indents a row under its parent, for a unit tree). `anyLabel` adds a first row that sets `anyValue` (a filter's "Any user", a form's "No
 // game"). With `name`, a hidden input carries the value for a plain form submit.
+defineOptions({ inheritAttrs: false });
+
 const props = defineProps({
     options: { type: Array, required: true },
     anyLabel: { type: String, default: null },
@@ -112,6 +114,7 @@ function onCloseAutoFocus(event) {
                 ]"
                 :data-testid="testid"
                 :data-value="model ?? ''"
+                v-bind="$attrs"
             >
                 <span class="truncate" :class="selected ? '' : 'text-muted-foreground'">{{ shown }}</span>
                 <PhCaretUpDown class="opacity-50" aria-hidden="true" />
@@ -136,6 +139,7 @@ function onCloseAutoFocus(event) {
                             :value="String(option.value)"
                             :disabled="option.disabled"
                             :data-option="String(option.value)"
+                            :style="option.depth ? { paddingLeft: `${0.5 + option.depth * 0.875}rem` } : undefined"
                             @select="pick(option.value)"
                         >
                             <span data-name>{{ option.label }}</span>

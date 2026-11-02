@@ -1,5 +1,5 @@
 <script setup>
-import { reactive } from 'vue';
+import { computed, reactive } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { PhCaretLeft, PhCaretRight, PhListMagnifyingGlass, PhLockSimple } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { NativeSelect } from '@/components/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import EmptyState from '@/components/EmptyState.vue';
+import SearchSelect from '@/components/SearchSelect.vue';
 import UserFilterPicker from '@/components/UserFilterPicker.vue';
 import { forumDateTime } from '@/lib/forumDate';
 
@@ -27,9 +27,9 @@ const props = defineProps({
     unitOptions: { type: Array, default: () => [] },
 });
 
-// Indents a unit under its parent in the filter's list.
-const INDENT = String.fromCharCode(160).repeat(3);
-const unitOptionLabel = (unit) => `${INDENT.repeat(unit.depth)}${unit.label}`;
+// The unit filter's rows, each indented under its parent.
+const unitRows = computed(() => props.unitOptions.map((unit) => ({ value: unit.id, label: unit.label, depth: unit.depth })));
+const actionRows = computed(() => props.actionOptions.map((action) => ({ value: action, label: action })));
 
 const filters = reactive({
     actor_id: props.filters.actor_id ?? null,
@@ -88,18 +88,30 @@ function goTo(url) {
 
                 <div class="grid gap-1.5">
                     <Label for="filter-action">Action</Label>
-                    <NativeSelect id="filter-action" v-model="filters.action" data-testid="filter-action">
-                        <option :value="null">Any action</option>
-                        <option v-for="action in actionOptions" :key="action" :value="action">{{ action }}</option>
-                    </NativeSelect>
+                    <SearchSelect
+                        id="filter-action"
+                        v-model="filters.action"
+                        :options="actionRows"
+                        any-label="Any action"
+                        search-placeholder="Search actions"
+                        empty-text="No action matches that search."
+                        testid="filter-action"
+                    />
                 </div>
 
                 <div class="grid gap-1.5">
                     <Label for="filter-unit">Unit</Label>
-                    <NativeSelect id="filter-unit" v-model="filters.unit_id" data-testid="filter-unit_id" aria-describedby="filter-unit-help">
-                        <option :value="null">Any unit</option>
-                        <option v-for="unit in unitOptions" :key="unit.id" :value="unit.id">{{ unitOptionLabel(unit) }}</option>
-                    </NativeSelect>
+                    <SearchSelect
+                        id="filter-unit"
+                        v-model="filters.unit_id"
+                        :options="unitRows"
+                        any-label="Any unit"
+                        search-placeholder="Search units"
+                        empty-text="No unit matches that search."
+                        testid="filter-unit_id"
+                        aria-describedby="filter-unit-help"
+                        content-class="w-96 max-w-[calc(100vw-2rem)]"
+                    />
                     <span id="filter-unit-help" class="sr-only">Includes every unit under the one chosen.</span>
                 </div>
 

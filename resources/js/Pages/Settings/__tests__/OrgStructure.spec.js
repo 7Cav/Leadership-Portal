@@ -1,6 +1,7 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import OrgStructure from '../OrgStructure.vue';
+import { chooseSearch, searchLabels, searchSelect } from '@/testing/searchSelect';
 
 // `useForm` needs a real Inertia page context; stub the adapter surface this page touches
 // while keeping enough behaviour to assert the submit call it makes (Story 1.8 AC #2, #5;
@@ -671,9 +672,9 @@ describe('Settings/OrgStructure', () => {
                 const wrapper = mountAdmin();
                 await open(wrapper);
 
-                const options = wrapper.findAll('[data-testid="assign-section"] option').map((option) => option.text());
+                const options = searchLabels(wrapper, 'assign-section');
+                expect(searchSelect(wrapper, 'assign-section').text()).toBe('Select a unit');
                 expect(options).toEqual([
-                    'Select a unit',
                     '7th Cavalry Regiment',
                     '2-7 · 2nd Battalion',
                     'A/2-7 · Alpha Company (2nd Battalion)',
@@ -698,7 +699,7 @@ describe('Settings/OrgStructure', () => {
                 const submit = () => wrapper.find('[data-testid="assign-submit"]');
                 expect(submit().attributes('disabled')).toBeDefined();
 
-                await wrapper.find('[data-testid="assign-section"]').setValue('4');
+                await chooseSearch(wrapper, 'assign-section', 4);
                 expect(submit().attributes('disabled')).toBeDefined();
 
                 await wrapper.find('[data-testid="assign-reason"]').setValue('   ');
@@ -712,7 +713,7 @@ describe('Settings/OrgStructure', () => {
                 postSpy = vi.fn();
                 const wrapper = mountAdmin();
                 await open(wrapper);
-                await wrapper.find('[data-testid="assign-section"]').setValue('4');
+                await chooseSearch(wrapper, 'assign-section', 4);
                 await wrapper.find('[data-testid="assign-reason"]').setValue('  Confirmed by the section leader  ');
 
                 await wrapper.find('[data-testid="assign-form"]').trigger('submit');
@@ -731,7 +732,7 @@ describe('Settings/OrgStructure', () => {
                 });
                 const wrapper = mountAdmin();
                 await open(wrapper);
-                await wrapper.find('[data-testid="assign-section"]').setValue('4');
+                await chooseSearch(wrapper, 'assign-section', 4);
                 await wrapper.find('[data-testid="assign-reason"]').setValue('Confirmed');
 
                 await wrapper.find('[data-testid="assign-form"]').trigger('submit');
@@ -747,7 +748,7 @@ describe('Settings/OrgStructure', () => {
                 });
                 const wrapper = mountAdmin();
                 await open(wrapper);
-                await wrapper.find('[data-testid="assign-section"]').setValue('4');
+                await chooseSearch(wrapper, 'assign-section', 4);
                 await wrapper.find('[data-testid="assign-reason"]').setValue('Confirmed');
                 await wrapper.find('[data-testid="assign-form"]').trigger('submit');
 
@@ -764,7 +765,7 @@ describe('Settings/OrgStructure', () => {
                 });
                 const wrapper = mountAdmin();
                 await open(wrapper);
-                await wrapper.find('[data-testid="assign-section"]').setValue('4');
+                await chooseSearch(wrapper, 'assign-section', 4);
                 await wrapper.find('[data-testid="assign-reason"]').setValue('Confirmed');
 
                 await wrapper.find('[data-testid="assign-form"]').trigger('submit');
@@ -780,7 +781,7 @@ describe('Settings/OrgStructure', () => {
                 });
                 const wrapper = mountAdmin();
                 await open(wrapper);
-                await wrapper.find('[data-testid="assign-section"]').setValue('4');
+                await chooseSearch(wrapper, 'assign-section', 4);
                 await wrapper.find('[data-testid="assign-reason"]').setValue('Confirmed');
                 await wrapper.find('[data-testid="assign-form"]').trigger('submit');
                 expect(wrapper.find('[data-testid="assign-error"]').text()).toBe('The reason field is required.');

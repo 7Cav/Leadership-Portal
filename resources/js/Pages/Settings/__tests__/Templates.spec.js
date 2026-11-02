@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import { nextTick, reactive } from 'vue';
 import Templates from '../Templates.vue';
+import { chooseSearch, searchLabels, searchValue } from '@/testing/searchSelect';
 import { FILTERS, LISTS, ROW_FLAGS, ROW_STRINGS, TOP_STRINGS } from '@/lib/bbcode';
 
 const post = vi.fn();
@@ -90,26 +91,21 @@ const typeReason = async (text) => {
 
 describe('Settings/Templates', () => {
     it('lists the companies, labelled with their callsign when they have one', () => {
-        const options = page().findAll('[data-testid="company-select"] option').map((o) => o.text());
+        const options = searchLabels(page(), 'company-select');
 
         expect(options).toEqual(['E/2-7 Echo Company', 'Foxtrot Company']);
     });
 
     it('asks the server for another company when one is chosen', async () => {
         const wrapper = page();
-        const select = wrapper.get('[data-testid="company-select"]');
-
-        select.element.value = '2';
-        await select.trigger('change');
+        await chooseSearch(wrapper, 'company-select', '2');
 
         expect(routerGet).toHaveBeenCalledWith('/settings/templates', { company: '2' }, { preserveScroll: true });
     });
 
     describe('switching company with unsaved changes', () => {
         const switchTo = async (wrapper, id) => {
-            const select = wrapper.get('[data-testid="company-select"]');
-            select.element.value = id;
-            await select.trigger('change');
+            await chooseSearch(wrapper, 'company-select', id);
         };
 
         it('does not ask when nothing was changed', async () => {
@@ -136,7 +132,7 @@ describe('Settings/Templates', () => {
 
             expect(confirm).toHaveBeenCalledOnce();
             expect(routerGet).not.toHaveBeenCalled();
-            expect(wrapper.get('[data-testid="company-select"]').element.value).toBe('1');
+            expect(searchValue(wrapper, 'company-select')).toBe('1');
             expect(formState[field]).toBe(value);
         });
 
@@ -767,7 +763,7 @@ describe('Settings/Templates', () => {
             const respond = (status, body = {}) => vi.fn(async () => ({ ok: status < 300, status, json: async () => body }));
             const real = (overrides = {}) => page({ active: { ...VERSION_2, body: TABLE }, previewSections: SECTIONS, ...overrides });
             const pick = async (wrapper, id) => {
-                await wrapper.get('[data-testid="template-preview-with"]').setValue(id);
+                await chooseSearch(wrapper, 'template-preview-with', id);
                 await flushPromises();
             };
 
@@ -775,10 +771,8 @@ describe('Settings/Templates', () => {
                 const fetch = respond(200, ROLLCALL);
                 vi.stubGlobal('fetch', fetch);
                 const wrapper = real();
-                const options = wrapper.findAll('[data-testid="template-preview-with"] option');
-
-                expect(options.map((option) => option.text())).toEqual(['Sample section', '2/1/E/2-7 2nd Section, this week', '3/1/E/2-7 3rd Section, this week']);
-                expect(wrapper.get('[data-testid="template-preview-with"]').element.value).toBe('7');
+                expect(searchLabels(wrapper, 'template-preview-with')).toEqual(['Sample section', '2/1/E/2-7 2nd Section, this week', '3/1/E/2-7 3rd Section, this week']);
+                expect(searchValue(wrapper, 'template-preview-with')).toBe('7');
                 // The sample stands in while the section loads.
                 expect(wrapper.get('[data-testid="template-preview-post"] strong').text()).toBe('1/E/2-7');
 
@@ -869,7 +863,7 @@ describe('Settings/Templates', () => {
                 vi.stubGlobal('fetch', fetch);
                 const wrapper = real();
 
-                await wrapper.get('[data-testid="template-preview-with"]').setValue('7');
+                await chooseSearch(wrapper, 'template-preview-with', '7');
                 await pick(wrapper, '8');
                 answerFirst({ ok: true, status: 200, json: async () => ROLLCALL });
                 await flushPromises();
@@ -898,7 +892,7 @@ describe('Settings/Templates', () => {
                 await flushPromises();
 
                 expect(fetch).toHaveBeenLastCalledWith('/settings/templates/preview/30?company=2', expect.anything());
-                expect(wrapper.get('[data-testid="template-preview-with"]').element.value).toBe('30');
+                expect(searchValue(wrapper, 'template-preview-with')).toBe('30');
             });
         });
     });
@@ -1017,10 +1011,10 @@ describe("Settings/Templates: a section's own templates", () => {
         page({ sections: SECTIONS, section: 31, templates: OWN, template: 40, canManageCompany: false, canManageSection: true, ...overrides });
 
     it("offers the company and each of its sections the viewer reads, on the company's by default", () => {
-        const select = page({ sections: SECTIONS }).get('[data-testid="owner-select"]');
+        const wrapper = page({ sections: SECTIONS });
 
-        expect(select.findAll('option').map((o) => o.text())).toEqual(['The company', '1/1/E/2-7 1st Section', '2/1/E/2-7 2nd Section']);
-        expect(select.element.value).toBe('');
+        expect(searchLabels(wrapper, 'owner-select')).toEqual(['The company', '1/1/E/2-7 1st Section', '2/1/E/2-7 2nd Section']);
+        expect(searchValue(wrapper, 'owner-select')).toBe('');
     });
 
     it("offers no section choice when the viewer reads none of the company's sections", () => {
@@ -1029,12 +1023,8 @@ describe("Settings/Templates: a section's own templates", () => {
 
     it("opens a section's templates through the server, and back to the company's", async () => {
         const wrapper = page({ sections: SECTIONS });
-        const select = wrapper.get('[data-testid="owner-select"]');
-
-        select.element.value = '32';
-        await select.trigger('change');
-        select.element.value = '';
-        await select.trigger('change');
+        await chooseSearch(wrapper, 'owner-select', '32');
+        await chooseSearch(wrapper, 'owner-select', '');
 
         expect(routerGet).toHaveBeenNthCalledWith(1, '/settings/templates', { section: '32' }, { preserveScroll: true });
         expect(routerGet).toHaveBeenNthCalledWith(2, '/settings/templates', { company: 1 }, { preserveScroll: true });
@@ -1046,9 +1036,7 @@ describe("Settings/Templates: a section's own templates", () => {
         const wrapper = page({ sections: SECTIONS });
 
         formState.body = '[B]half-written[/B]';
-        const select = wrapper.get('[data-testid="owner-select"]');
-        select.element.value = '32';
-        await select.trigger('change');
+        await chooseSearch(wrapper, 'owner-select', '32');
 
         expect(confirm).toHaveBeenCalled();
         expect(routerGet).not.toHaveBeenCalled();
@@ -1057,7 +1045,7 @@ describe("Settings/Templates: a section's own templates", () => {
     it("lists the section's own templates with no switch or company default, and says only its rollcall uses them", () => {
         const wrapper = sectionPage();
 
-        expect(wrapper.get('[data-testid="owner-select"]').element.value).toBe('31');
+        expect(searchValue(wrapper, 'owner-select')).toBe('31');
         expect(wrapper.get('[data-testid="section-note"]').text()).toContain("1/1/E/2-7 1st Section's own templates. Only this section's roll call can use them");
         expect(wrapper.find('[data-testid="template-row-40"]').exists()).toBe(true);
         expect(wrapper.find('[data-testid="switch-40"]').exists()).toBe(false);

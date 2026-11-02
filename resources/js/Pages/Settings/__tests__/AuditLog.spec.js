@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import AuditLog from '../AuditLog.vue';
+import { chooseSearch, searchLabels, searchSelect, searchValue } from '@/testing/searchSelect';
 
 const getSpy = vi.fn();
 
@@ -173,11 +174,10 @@ describe('Settings/AuditLog', () => {
                 { id: 2, label: '1/A/1-7 1st Platoon', depth: 1 },
             ],
         });
-        const select = wrapper.get('[data-testid="filter-unit_id"]');
+        expect(searchLabels(wrapper, 'filter-unit_id')).toEqual(['Any unit', 'A/1-7 Alpha Company', '1/A/1-7 1st Platoon']);
+        expect(searchSelect(wrapper, 'filter-unit_id').props('options').map((option) => option.depth)).toEqual([0, 1]);
 
-        expect(select.findAll('option').map((option) => option.element.textContent)).toEqual(['Any unit', 'A/1-7 Alpha Company', `${String.fromCharCode(160).repeat(3)}1/A/1-7 1st Platoon`]);
-
-        await select.setValue('2');
+        await chooseSearch(wrapper, 'filter-unit_id', 2);
         await wrapper.find('[data-testid="filter-form"]').trigger('submit');
 
         expect(getSpy).toHaveBeenLastCalledWith('/settings/audit-log', expect.objectContaining({ unit_id: 2 }), expect.objectContaining({ preserveState: true }));
@@ -186,6 +186,7 @@ describe('Settings/AuditLog', () => {
     it('opens with the unit filter it was given', () => {
         const wrapper = makeWrapper({ filters: { unit_id: 2 }, unitOptions: [{ id: 1, label: 'Alpha', depth: 0 }, { id: 2, label: 'Bravo', depth: 0 }] });
 
-        expect(wrapper.get('[data-testid="filter-unit_id"]').element.value).toBe('2');
+        expect(searchValue(wrapper, 'filter-unit_id')).toBe('2');
+        expect(wrapper.get('[data-testid="filter-unit_id"]').text()).toBe('Bravo');
     });
 });

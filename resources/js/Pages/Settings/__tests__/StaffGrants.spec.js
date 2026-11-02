@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import { nextTick, reactive } from 'vue';
 import StaffGrants from '../StaffGrants.vue';
+import { searchLabels } from '@/testing/searchSelect';
 
 const grantSubmit = vi.fn();
 const toastError = vi.fn();
@@ -83,8 +84,7 @@ describe('Settings/StaffGrants', () => {
         const grants = [{ ...GRANTS[0], unit_id: 4, unit_name: '1st Platoon', unit_label: 'Bravo Company › 1st Platoon' }];
         const wrapper = mount(StaffGrants, { props: { grants, units, users: USERS, isAdmin: true } });
 
-        const options = wrapper.findAll('[data-testid="grant-unit_id"] option').map((o) => o.text());
-        expect(options).toEqual(['Choose a unit', 'Alpha Company › 1st Platoon', 'Bravo Company › 1st Platoon']);
+        expect(searchLabels(wrapper, 'grant-unit_id')).toEqual(['Alpha Company › 1st Platoon', 'Bravo Company › 1st Platoon']);
         expect(wrapper.find('[data-testid="grant-row-100"]').text()).toContain('Bravo Company › 1st Platoon');
     });
 

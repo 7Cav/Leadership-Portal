@@ -12,11 +12,11 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { NativeSelect } from '@/components/ui/native-select';
 import { messageFor, unreachable } from '@/composables/useRollcallAutosave';
 import { postJson } from '@/lib/postJson';
 import { fullName } from '@/lib/rollcall';
 import { suggestTroopers } from '@/lib/unmatched';
+import SearchSelect from '@/components/SearchSelect.vue';
 
 // The "Not matched to a trooper" drawer (Story 7.7), binding design mockups/v2/capture-review.html
 // variant C: every player the capture saw but no trooper is linked to, each with a trooper picker
@@ -57,6 +57,15 @@ const keyOf = (player) => `${player.platform}:${player.platformId}`;
 // Per player: the chosen trooper id ('' = none), a request in flight, the inline error, and
 // whether the dismissal is waiting for its confirmation.
 const state = reactive({});
+// The trooper picker's rows: the closest names first under their own heading, then everyone else in the section.
+function trooperRows(player) {
+    const { suggested, rest } = options.value[keyOf(player)];
+    const row = (group) => (t) => ({ value: String(t.id), label: fullName(t), group });
+    if (!suggested.length) return rest.map(row(null));
+
+    return [...suggested.map(row('Closest by name')), ...rest.map(row('Everyone in this section'))];
+}
+
 const of = (player) => (state[keyOf(player)] ??= { trooperId: '', busy: false, error: null, confirming: false });
 
 const options = computed(() =>
@@ -200,24 +209,17 @@ async function dismiss(player) {
 
                 <p v-if="linkBlocked(player)" class="text-xs text-muted-foreground" data-testid="unmatched-blocked">{{ linkBlocked(player) }}</p>
 
-                <NativeSelect
+                <SearchSelect
                     v-else
                     v-model="of(player).trooperId"
+                    :options="trooperRows(player)"
+                    placeholder="Choose a trooper"
+                    search-placeholder="Search troopers"
+                    empty-text="No trooper matches that search."
                     :aria-label="`Trooper for ${player.playerName}`"
-                    data-testid="unmatched-trooper"
+                    testid="unmatched-trooper"
                     :disabled="!editable || of(player).busy"
-                >
-                    <option value="">Choose a trooper</option>
-                    <optgroup v-if="options[keyOf(player)].suggested.length" label="Closest by name">
-                        <option v-for="t in options[keyOf(player)].suggested" :key="t.id" :value="String(t.id)">{{ fullName(t) }}</option>
-                    </optgroup>
-                    <optgroup v-if="options[keyOf(player)].suggested.length && options[keyOf(player)].rest.length" label="Everyone in this section">
-                        <option v-for="t in options[keyOf(player)].rest" :key="t.id" :value="String(t.id)">{{ fullName(t) }}</option>
-                    </optgroup>
-                    <template v-else>
-                        <option v-for="t in options[keyOf(player)].rest" :key="t.id" :value="String(t.id)">{{ fullName(t) }}</option>
-                    </template>
-                </NativeSelect>
+                />
 
                 <p
                     v-if="of(player).error"
