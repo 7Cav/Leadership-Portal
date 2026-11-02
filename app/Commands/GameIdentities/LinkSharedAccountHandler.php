@@ -24,7 +24,8 @@ use Illuminate\Support\Collection;
  * like a single link (AD-8).
  *
  * All or nothing: when the ID already belongs to another trooper on any of those games, or the trooper already holds a
- * different ID of that account on one, nothing is written and the refusal names each trooper and game. A game where
+ * different ID of that account on one, nothing is written and the refusal names each trooper and game. A Steam ID is
+ * asked about on Steam first ({@see SteamAccountCheck}), and one Steam has no account for is refused. A game where
  * the trooper already holds this same ID is left as it is. A game with no server feed yet is covered too: the
  * identity also helps a leader mark by hand.
  */
@@ -39,6 +40,7 @@ class LinkSharedAccountHandler
         private readonly GamePlayerDismissalRepository $dismissals,
         private readonly GameRepository $games,
         private readonly AuditEnvelope $audit,
+        private readonly SteamAccountCheck $steam,
     ) {}
 
     /**
@@ -50,7 +52,7 @@ class LinkSharedAccountHandler
      * @throws GameRetiredException when the form's game is retired.
      * @throws UnknownIdKindException when the form's game does not have the kind.
      * @throws SharedAccountException when the kind is not a Steam or Epic ID, or a game is refused.
-     * @throws InvalidGameIdentityException when the name or ID is empty once cleaned, or the ID lacks its kind's shape.
+     * @throws InvalidGameIdentityException when the ID is empty once cleaned, lacks its kind's shape, or Steam has no such account.
      * @throws GameIdentityLinkException when another trooper claims the ID on a game meanwhile; nothing stays written.
      */
     public function handle(User $actor, LinkSharedAccount $command): Collection
@@ -66,10 +68,6 @@ class LinkSharedAccountHandler
         }
 
         $account = SharedAccount::of($command->idKind) ?? throw SharedAccountException::notShared($command->idKind);
-
-        if ($command->playerName === '') {
-            throw InvalidGameIdentityException::emptyName();
-        }
 
         if ($command->platformId === '') {
             throw InvalidGameIdentityException::emptyId();
@@ -113,6 +111,8 @@ class LinkSharedAccountHandler
             return new Collection;
         }
 
+        $this->steam->check($command->idKind, $platformId);
+
         $batch = $this->audit->recordBatch(
             actorId: $actor->id,
             action: 'game_identity.account_linked',
@@ -130,7 +130,7 @@ class LinkSharedAccountHandler
                         throw UnknownIdKindException::for($stored, $command->idKind);
                     }
 
-                    $row = $this->identities->link($trooper->id, $stored, $command->playerName, $platformId, $kind, IdentitySource::FromAccount);
+                    $row = $this->identities->link($trooper->id, $stored, $platformId, $kind, IdentitySource::FromAccount);
                     $row->setRelation('game', $stored)->setRelation('trooper', $trooper);
                     $this->dismissals->forget($stored, $platformId);
                     $rows[] = $row;

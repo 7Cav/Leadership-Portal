@@ -103,12 +103,10 @@ class GameIdentityController extends Controller
                 'game' => $gameOf->get((int) $trooper->primary_section_id),
                 'identities' => ($identities->get($trooper->id) ?? collect())
                     ->mapWithKeys(fn (TrooperGameIdentity $identity) => [$identity->game->slug => [
-                        'playerName' => $identity->player_name,
                         'platformId' => $identity->platform_id,
                         'idKind' => $identity->id_kind,
                         // How the row was made (#174): typed, from_account or from_rollcall.
                         'source' => $identity->source->value,
-                        'mixedScripts' => $identity->nameMixesScripts(),
                     ]])->all(),
             ])->sortBy(fn (array $row) => mb_strtolower($row['displayName']))->values()->all(),
         ]);
@@ -118,26 +116,24 @@ class GameIdentityController extends Controller
      * Link the trooper on the game `$platform` names (its slug), or correct the identity they
      * already hold there. An identifier another trooper already owns, or a retired game, comes
      * back as a validation error on `platform_id`, and a kind the game does not have on `id_kind`; no kind
-     * keeps the identity's kind, or takes the game's first for a new one. A name or ID with nothing left once its hidden
-     * characters are removed, or an ID without its kind's shape (#450), comes back on its field. An unknown game is a 404.
+     * keeps the identity's kind, or takes the game's first for a new one. An ID with nothing left once its hidden
+     * characters are removed, an ID without its kind's shape (#450), or a Steam ID Steam has no account for (#174), comes
+     * back on `platform_id`. An unknown game is a 404.
      */
     public function update(Request $request, int $trooper, string $platform, SetTrooperGameIdentityHandler $handler): RedirectResponse
     {
         $game = $this->games->findBySlug($platform) ?? abort(404);
 
         $data = $request->validate([
-            'player_name' => ['required', 'string', 'max:255'],
             'platform_id' => ['required', 'string', 'max:255'],
             'id_kind' => ['nullable', 'string', 'max:50'],
         ], [
-            'player_name.required' => 'Enter the player name as it shows in the game.',
-            'player_name.max' => 'Keep the player name to :max characters.',
             'platform_id.required' => 'Enter the player ID.',
             'platform_id.max' => 'Keep the player ID to :max characters.',
         ]);
 
         try {
-            $handler->handle($request->user(), new SetTrooperGameIdentity($trooper, $game, $data['player_name'], $data['platform_id'], idKind: $data['id_kind'] ?? null));
+            $handler->handle($request->user(), new SetTrooperGameIdentity($trooper, $game, $data['platform_id'], idKind: $data['id_kind'] ?? null));
         } catch (GameIdentityForbiddenException $e) {
             abort(403, $e->getMessage());
         } catch (GameRetiredException $e) {
@@ -163,18 +159,15 @@ class GameIdentityController extends Controller
         $game = $this->games->findBySlug($platform) ?? abort(404);
 
         $data = $request->validate([
-            'player_name' => ['required', 'string', 'max:255'],
             'platform_id' => ['required', 'string', 'max:255'],
             'id_kind' => ['required', 'string', 'max:50'],
         ], [
-            'player_name.required' => 'Enter the player name as it shows in the game.',
-            'player_name.max' => 'Keep the player name to :max characters.',
             'platform_id.required' => 'Enter the player ID.',
             'platform_id.max' => 'Keep the player ID to :max characters.',
         ]);
 
         try {
-            $handler->handle($request->user(), new LinkSharedAccount($trooper, $game, $data['id_kind'], $data['player_name'], $data['platform_id']));
+            $handler->handle($request->user(), new LinkSharedAccount($trooper, $game, $data['id_kind'], $data['platform_id']));
         } catch (GameIdentityForbiddenException $e) {
             abort(403, $e->getMessage());
         } catch (UnknownIdKindException $e) {
@@ -190,7 +183,7 @@ class GameIdentityController extends Controller
         return back();
     }
 
-    /** Remove the rows the trooper's account on `$platform` made on every game (#174); the page confirms first. */
+    /** Remove the trooper's Steam or Epic ID on `$platform` from every game it is linked on (#174); the page confirms first. */
     public function destroyAccount(Request $request, int $trooper, string $platform, RemoveSharedAccountHandler $handler): RedirectResponse
     {
         $game = $this->games->findBySlug($platform) ?? abort(404);

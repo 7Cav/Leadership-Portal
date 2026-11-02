@@ -1,6 +1,6 @@
 ---
 title: Link a trooper's in-game identity
-summary: Record each trooper's in-game name and ID, one per game, so the game server's data finds them.
+summary: Record each trooper's player ID, one per game, so the game server's data finds them.
 section: your-troopers
 order: 1
 updated: 2026-11-02
@@ -8,7 +8,7 @@ audience: leader
 page: /game-identities
 ---
 
-> [!why] The game server only knows players by their in-game name and ID. Once a trooper is linked, their attendance at a captured practice is marked for you.
+> [!why] The game server knows players by their player ID. Once a trooper is linked, their attendance at a captured practice is marked for you.
 
 ## Open Game identities
 
@@ -18,7 +18,7 @@ page: /game-identities
 ## Link a trooper
 
 1. Choose the trooper. Their games show beside the list.
-2. For a game, enter their **Player name** and the game's ID for them. The page says which ID that game uses.
+2. For a game, enter the game's ID for them. The page says which ID that game uses. Their identity is shown by that ID.
 3. Choose **Save identity**. Each trooper has one identity per game.
 
 ## Link a Steam or Epic account to every game
@@ -26,8 +26,10 @@ page: /game-identities
 A Steam ID is the same in every Steam game, and an Epic ID the same in every Epic game, so you can enter it once.
 
 1. Choose the trooper, a game, and **Steam ID** or **Epic ID** as the ID kind if the game asks for more than one.
-2. Enter the **Player name** and the ID, and tick **Link to every game**. The line under it names the other games it covers.
+2. Enter the ID, and tick **Link to every game**. The line under it names the other games it covers.
 3. Choose **Save identity**. Every active game that asks for that kind of ID is linked in one go, including a game whose server is not read yet.
+
+A Steam ID is checked with Steam when you save it, on one game or on every game. If Steam has no account with that ID, nothing is saved and the page says so. If Steam cannot be reached, the ID is saved without the check.
 
 Nothing is linked at all if the ID already belongs to another trooper on one of those games, or if this trooper already has a different ID of that kind on one. The message names each trooper and game, so you know what to fix first. A game where the trooper already has the same ID is left as it is.
 
@@ -43,6 +45,6 @@ When a trooper you lead has no identity for the game their unit plays, a warning
 
 1. Choose **Edit** next to the game, change it, and choose **Save changes**.
 2. Or choose **Remove**. Only that game's identity goes, even if it came from an account, and their past attendance stays as it is.
-3. For an identity that came from an account, choose **Remove from every game** to take it off every game the account linked. The page names each game first; choose **Remove from every game** again to confirm. An identity with the same ID that was typed on its own game stays.
+3. When the same Steam or Epic ID is linked on more than one game, the identity offers to remove it everywhere, named after its kind, such as **Remove Steam ID everywhere**. The page names each game first; choose the button again to confirm. Every identity of the trooper's with that ID goes, however it was made.
 
 > [!good-to-know] You can also link a player straight from a captured practice's roll call: see [Link or dismiss an unmatched player](/docs/weekly-rollcall/unmatched-players).

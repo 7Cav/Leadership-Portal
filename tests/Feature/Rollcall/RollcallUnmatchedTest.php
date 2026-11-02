@@ -88,14 +88,13 @@ it('writes out hidden characters in a captured player name, so an override canno
         ->where('unmatched.0.platformId', '76561190000000001'));
 });
 
-it('writes out hidden characters in the name of the identity a trooper already holds, keeping its ID as stored for the replace', function () {
-    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'game_id' => game('hll')->id, 'player_name' => 'OrtegaMain', 'platform_id' => '76561190000000099']);
-    TrooperGameIdentity::query()->toBase()->update(['player_name' => "Ortega\u{202E}Main"]);
+it('writes out hidden characters in the ID of the identity a trooper already holds, keeping it as stored for the replace', function () {
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'game_id' => game('hll')->id, 'platform_id' => "7656119000000\u{202E}0099"]);
 
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this))
         ->assertStatus(422)
-        ->assertJsonPath('current', ['playerName' => 'Ortega[U+202E]Main', 'platformId' => '76561190000000099'])
-        ->assertJsonPath('message', 'That trooper is already linked to Ortega[U+202E]Main (76561190000000099) on Hell Let Loose (WW2). Replace it, or cancel to keep it.');
+        ->assertJsonPath('current', ['platformId' => "7656119000000\u{202E}0099"])
+        ->assertJsonPath('message', 'That trooper is already linked to 7656119000000[U+202E]0099 on Hell Let Loose (WW2). Replace it, or cancel to keep it.');
 });
 
 it('shows no drawer data for a practice that was never captured', function () {
@@ -113,7 +112,6 @@ it('links the player to the chosen trooper and pre-marks them present as auto', 
 
     $identity = TrooperGameIdentity::query()->sole();
     expect($identity->trooper_id)->toBe($this->ortega->id)
-        ->and($identity->player_name)->toBe('Ortega')
         // #174: a row made from the rollcall says so.
         ->and($identity->source)->toBe(IdentitySource::FromRollcall)
         ->and(AuditLogEntry::query()->where('action', 'game_identity.linked')->count())->toBe(1)
@@ -122,10 +120,10 @@ it('links the player to the chosen trooper and pre-marks them present as auto', 
     $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")->assertInertia(fn (Assert $page) => $page->where('unmatched', []));
 });
 
-it('takes the player name from the stored capture, not from the request', function () {
+it('takes the ID from the stored capture, not from the request', function () {
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this, ['player_name' => 'Forged']))->assertOk();
 
-    expect(TrooperGameIdentity::query()->sole()->player_name)->toBe('Ortega');
+    expect(TrooperGameIdentity::query()->sole()->platform_id)->toBe('76561190000000001');
 });
 
 it('never overwrites a manual mark when linking (manual wins)', function () {
@@ -268,14 +266,14 @@ it('surfaces "Already linked to <trooper> on <game>" instead of reassigning', fu
 });
 
 it('does not replace a different identity the chosen trooper already holds on that game, and says which so the leader can choose', function () {
-    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'game_id' => game('hll')->id, 'player_name' => 'OrtegaMain', 'platform_id' => '76561190000000099']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'game_id' => game('hll')->id, 'platform_id' => '76561190000000099']);
     $before = AuditLogEntry::query()->count();
 
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this))
         ->assertStatus(422)
         ->assertJsonPath('reason', 'has_other_identity')
-        ->assertJsonPath('current', ['playerName' => 'OrtegaMain', 'platformId' => '76561190000000099'])
-        ->assertJsonPath('message', 'That trooper is already linked to OrtegaMain (76561190000000099) on Hell Let Loose (WW2). Replace it, or cancel to keep it.');
+        ->assertJsonPath('current', ['platformId' => '76561190000000099'])
+        ->assertJsonPath('message', 'That trooper is already linked to 76561190000000099 on Hell Let Loose (WW2). Replace it, or cancel to keep it.');
 
     expect(TrooperGameIdentity::query()->sole()->platform_id)->toBe('76561190000000099')
         ->and(AuditLogEntry::query()->count())->toBe($before)
@@ -285,7 +283,7 @@ it('does not replace a different identity the chosen trooper already holds on th
 // #176: "replace or cancel". Replacing goes through the 7.2 writer as an audited update, then the 7.7 pre-mark.
 
 it('replaces the trooper\'s identity on that game when the leader chose to, audited, and pre-marks them', function () {
-    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'game_id' => game('hll')->id, 'player_name' => 'OrtegaMain', 'platform_id' => '76561190000000099']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'game_id' => game('hll')->id, 'platform_id' => '76561190000000099']);
 
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this, ['replace' => true, 'replacing' => '76561190000000099']))
         ->assertOk()
@@ -293,7 +291,7 @@ it('replaces the trooper\'s identity on that game when the leader chose to, audi
         ->assertJsonPath('trooper', ['id' => $this->ortega->id, 'status' => 'present', 'source' => 'auto']);
 
     $identity = TrooperGameIdentity::query()->sole();
-    expect($identity->only(['trooper_id', 'player_name', 'platform_id']))->toBe(['trooper_id' => $this->ortega->id, 'player_name' => 'Ortega', 'platform_id' => '76561190000000001'])
+    expect($identity->only(['trooper_id', 'platform_id']))->toBe(['trooper_id' => $this->ortega->id, 'platform_id' => '76561190000000001'])
         ->and(AuditLogEntry::query()->where('action', 'game_identity.updated')->where('actor_id', $this->leader->id)->count())->toBe(1)
         ->and(AuditLogEntry::query()->where('action', 'game_identity.linked')->count())->toBe(0)
         ->and(AuditLogEntry::query()->where('action', 'attendance.auto_marked')->count())->toBe(1);
@@ -302,7 +300,7 @@ it('replaces the trooper\'s identity on that game when the leader chose to, audi
 });
 
 it('keeps a manual mark when replacing (manual wins)', function () {
-    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'game_id' => game('hll')->id, 'player_name' => 'OrtegaMain', 'platform_id' => '76561190000000099']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'game_id' => game('hll')->id, 'platform_id' => '76561190000000099']);
     Attendance::factory()->create([
         'trooper_id' => $this->ortega->id, 'section_practice_id' => $this->practice->id,
         'status' => AttendanceStatus::Missed, 'source' => AttendanceSource::Manual,
@@ -319,7 +317,7 @@ it('keeps a manual mark when replacing (manual wins)', function () {
 it('never reassigns an identifier another trooper owns, even with replace, and names that trooper', function () {
     $owner = unmatchedTrooper($this->section, ['username' => 'Nakamura.T', 'rank_short' => 'PFC']);
     TrooperGameIdentity::factory()->create(['trooper_id' => $owner->id, 'game_id' => game('hll')->id, 'platform_id' => '76561190000000001']);
-    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'game_id' => game('hll')->id, 'player_name' => 'OrtegaMain', 'platform_id' => '76561190000000099']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'game_id' => game('hll')->id, 'platform_id' => '76561190000000099']);
     $before = AuditLogEntry::query()->count();
 
     // Without replace it names the owner too, rather than asking to replace a link that could not be made.
@@ -338,7 +336,7 @@ it('never reassigns an identifier another trooper owns, even with replace, and n
 
 it('denies a replace for a trooper outside the leader\'s scope, server-side (AD-8)', function () {
     $outsider = unmatchedTrooper(Unit::factory()->create(['type' => UnitType::Section, 'path' => '931/']));
-    TrooperGameIdentity::factory()->create(['trooper_id' => $outsider->id, 'game_id' => game('hll')->id, 'player_name' => 'Theirs', 'platform_id' => '76561190000000099']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $outsider->id, 'game_id' => game('hll')->id, 'platform_id' => '76561190000000099']);
 
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this, ['trooper_id' => $outsider->id, 'replace' => true, 'replacing' => '76561190000000099']))
         ->assertForbidden();
@@ -350,31 +348,31 @@ it('denies a replace for a trooper outside the leader\'s scope, server-side (AD-
 
 it('refuses a replace whose ID changed since the leader was asked, with the new one, and changes nothing', function () {
     // The leader was shown OrtegaMain (…0099); another leader changed it to OrtegaAlt (…0077) before Replace landed.
-    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'game_id' => game('hll')->id, 'player_name' => 'OrtegaAlt', 'platform_id' => '76561190000000077']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'game_id' => game('hll')->id, 'platform_id' => '76561190000000077']);
     $before = AuditLogEntry::query()->count();
 
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this, ['replace' => true, 'replacing' => '76561190000000099']))
         ->assertStatus(422)
         ->assertJsonPath('reason', 'has_other_identity')
-        ->assertJsonPath('current', ['playerName' => 'OrtegaAlt', 'platformId' => '76561190000000077'])
-        ->assertJsonPath('message', 'That trooper is already linked to OrtegaAlt (76561190000000077) on Hell Let Loose (WW2). Replace it, or cancel to keep it.');
+        ->assertJsonPath('current', ['platformId' => '76561190000000077'])
+        ->assertJsonPath('message', 'That trooper is already linked to 76561190000000077 on Hell Let Loose (WW2). Replace it, or cancel to keep it.');
 
-    expect(TrooperGameIdentity::query()->sole()->only(['player_name', 'platform_id']))->toBe(['player_name' => 'OrtegaAlt', 'platform_id' => '76561190000000077'])
+    expect(TrooperGameIdentity::query()->sole()->only(['platform_id']))->toBe(['platform_id' => '76561190000000077'])
         ->and(AuditLogEntry::query()->count())->toBe($before)
         ->and(Attendance::query()->count())->toBe(0);
 });
 
 it('refuses a change landing between the link\'s check and its write, inside the audited transaction', function () {
     // The writer is what the link handler calls once its own check passed: by then the ID is …0077, not the …0099 shown.
-    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'game_id' => game('hll')->id, 'player_name' => 'OrtegaAlt', 'platform_id' => '76561190000000077']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'game_id' => game('hll')->id, 'platform_id' => '76561190000000077']);
     $before = AuditLogEntry::query()->count();
 
     try {
-        app(SetTrooperGameIdentityHandler::class)->handle($this->leader, new SetTrooperGameIdentity($this->ortega->id, game('hll'), 'Ortega', '76561190000000001', '76561190000000099'));
+        app(SetTrooperGameIdentityHandler::class)->handle($this->leader, new SetTrooperGameIdentity($this->ortega->id, game('hll'), '76561190000000001', '76561190000000099'));
         $this->fail('The stale replace was written.');
     } catch (UnmatchedPlayerResolutionException $e) {
         expect($e->reason)->toBe('has_other_identity')
-            ->and($e->current)->toBe(['playerName' => 'OrtegaAlt', 'platformId' => '76561190000000077']);
+            ->and($e->current)->toBe(['platformId' => '76561190000000077']);
     }
 
     expect(TrooperGameIdentity::query()->sole()->platform_id)->toBe('76561190000000077')
@@ -391,7 +389,7 @@ it('links when the identity the leader agreed to replace was removed in the mean
 });
 
 it('refuses a replace that does not say which ID it replaces, and changes nothing', function () {
-    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'game_id' => game('hll')->id, 'player_name' => 'OrtegaMain', 'platform_id' => '76561190000000099']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'game_id' => game('hll')->id, 'platform_id' => '76561190000000099']);
     $before = AuditLogEntry::query()->count();
 
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this, ['replace' => true]))
@@ -495,7 +493,7 @@ it('lists a dismissed player again once they are linked, then unlinked', functio
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/dismiss", linkBody($this))->assertOk();
 
     // Linked on the 7.2 screen: the dismissal is cleared by the identity writer.
-    $this->actingAs($this->leader)->put("/game-identities/{$this->ortega->id}/hll", ['player_name' => 'Ortega', 'platform_id' => '76561190000000001'])->assertRedirect();
+    $this->actingAs($this->leader)->put("/game-identities/{$this->ortega->id}/hll", ['platform_id' => '76561190000000001'])->assertRedirect();
     expect(GamePlayerDismissal::query()->count())->toBe(0);
 
     $this->actingAs($this->leader)->delete("/game-identities/{$this->ortega->id}/hll")->assertRedirect();

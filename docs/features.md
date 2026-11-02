@@ -399,10 +399,14 @@ The ID is checked against the shape of its kind when it is saved: a Steam ID is 
 32 characters of 0 to 9 and a to f (stored lower case, as the game server reports it). Other kinds, such as Xbox ID or
 Arma's Player ID, take any value. The hint under the ID field says what the chosen kind looks like. An identity saved
 with the same ID and kind it already has is not checked again, so an older one that does not fit its kind can still be
-renamed; changing its ID or kind checks it. Names and IDs are
-stored without hidden characters (zero-width spaces, direction marks and the like), normalised and trimmed; a value
-with nothing left is refused. A name that mixes alphabets, such as Latin and Cyrillic, is saved with a "Check this
-name" marker, since a letter may be a look-alike. Linking an unmatched player from the roll call takes the ID the server
+saved; changing its ID or kind checks it. IDs are stored without hidden characters (zero-width spaces, direction marks
+and the like), normalised and trimmed; a value with nothing left is refused. An identity holds no player name (#174):
+matching is by ID, so the page, Settings, Games and the replace question on the roll call show the ID. Player names stay
+where they describe what a game server saw (captured players, unmatched players, dismissals). A new or changed Steam ID
+(on one game or on every game) is looked up with Steam's Web API (ISteamUser/GetPlayerSummaries, key in
+`STEAM_WEB_API_KEY`); an ID Steam has no account for is refused with "Steam has no account with this ID." With no key,
+or Steam unreachable or slow (a few seconds), the ID is saved unchecked. Only kinds that are a Steam account are
+looked up, and an ID a game server reported is not. Linking an unmatched player from the roll call takes the ID the server
 reported as it is, saved as the first of the game's kinds whose shape it has (an Epic ID as an Epic ID), or as the
 game's default kind when it fits none.
 
@@ -413,11 +417,11 @@ server feed included, since an identity also helps marking by hand. It is all or
 trooper on any of those games, or the trooper already has a different ID of that account on one, nothing is written and
 the error names each trooper and game. A game where the trooper already has that same ID is left as it is. Each identity
 records how it was made (Typed, From account, or From rollcall for a link from an unmatched player); the page and the
-audit log show it. Removing one game's identity removes only that row. "Remove from every game", offered on a row made
-from an account, removes every row that account made for the trooper after a confirmation naming each game; a row with
-the same ID that was typed stays. On Settings, Games, a game that asks for a Steam or Epic ID shows an Admin "Apply
+audit log show it. Removing one game's identity removes only that row. "Remove <kind> everywhere" (such as "Remove
+Steam ID everywhere"), offered when the same Steam or Epic ID is linked on more than one game for the trooper, removes
+every identity of theirs with that ID and account after a confirmation naming each game, however each was made. On Settings, Games, a game that asks for a Steam or Epic ID shows an Admin "Apply
 existing Steam links" (or Epic) with how many troopers it would link: one click links each trooper whose account is
-already on another game, audited, and it never runs on its own. A trooper already linked on that game, one with two
+already on another game, audited, and it never runs on its own. It only adds rows, never changes one: a trooper already linked on that game, one with two
 different IDs of that account elsewhere, or one whose ID another trooper holds there, is left out.
 
 ### Counseling (DCS and LOR)

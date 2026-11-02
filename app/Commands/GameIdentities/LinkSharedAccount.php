@@ -11,18 +11,14 @@ use App\Models\GameIdentityText;
  */
 final readonly class LinkSharedAccount
 {
-    public string $playerName;
-
     public string $platformId;
 
     public function __construct(
         public int $trooperId,
         public Game $game,
         public string $idKind,
-        string $playerName,
         string $platformId,
     ) {
-        $this->playerName = GameIdentityText::clean($playerName);
         $this->platformId = GameIdentityText::clean($platformId);
     }
 }

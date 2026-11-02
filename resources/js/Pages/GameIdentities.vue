@@ -19,16 +19,16 @@ import { cn } from '@/lib/utils';
 // is offered for no new link and left out of the coverage; the links it already has stay listed and
 // can be removed. A game may ask for several kinds of player ID (#428: Steam, Epic, Xbox): with more than one, the
 // form asks for the kind first, and the ID field's label and placeholder follow it. A kind with a known shape (#450)
-// shows its hint under the ID field; the server checks it, this page never does. A name that mixes alphabets carries
-// a "check this name" marker. Names are shown in <bdi>, so a stored direction mark cannot reorder the text around them.
-// A Steam or Epic ID (#174) can be linked to every game that asks for that account in one save, and the rows that made
-// can be removed together after a confirmation naming each game. Each identity says how it was made.
+// shows its hint under the ID field; the server checks it (and asks Steam about a Steam ID), this page never does. An
+// identity is shown by its ID: matching is by ID, so no player name is kept (#174). A Steam or Epic ID can be linked
+// to every game that asks for that account in one save, and, once it is linked on more than one game, removed from
+// all of them after a confirmation naming each game. Each identity says how it was made.
 const props = defineProps({
     // `[{ value, label, idKinds, idHints, accounts, retired }]` — one per game an Admin keeps; `idKinds` lists its ID kinds, the
     // first being the default, `idHints` the shape of each kind the server checks, by kind, and `accounts` the shared
     // account (`steam` or `epic`) each kind is, by kind.
     platforms: { type: Array, required: true },
-    // `[{ id, displayName, billet, section, editable, game, identities: { [platform]: { playerName, platformId, idKind, source, mixedScripts } } }]`
+    // `[{ id, displayName, billet, section, editable, game, identities: { [platform]: { platformId, idKind, source } } }]`
     // — the troopers in the viewer's scope, by name. `editable` is false for one the viewer only sees
     // through a staff grant. `game` is the slug of their unit's usual game (the game the unit plays, else the one most of
     // the unit has linked), or null.
@@ -50,7 +50,7 @@ const removing = ref(null);
 const removeProcessing = ref(false);
 const notice = ref(null);
 
-const form = useForm({ player_name: '', platform_id: '', id_kind: '' });
+const form = useForm({ platform_id: '', id_kind: '' });
 // Link the ID to every game asking for the same Steam or Epic account (#174), not only this one.
 const everyGame = ref(false);
 
@@ -85,11 +85,15 @@ const ACCOUNT_LABELS = { steam: 'Steam', epic: 'Epic' };
 // The active games a link to every game would cover: each asks for the same account.
 const coveredGames = computed(() => (account.value ? active.value.filter((p) => Object.values(p.accounts ?? {}).includes(account.value)) : []));
 const otherCovered = computed(() => coveredGames.value.filter((p) => p.value !== platform.value));
-// The games whose row the trooper's account on `value` made: the ones Remove from every game takes away.
+// The games the trooper's Steam or Epic ID on `value` is linked on: the ones its Remove everywhere takes it from.
 const accountGames = (trooper, value) => {
     const held = trooper.identities[value];
-    if (held?.source !== 'from_account') return [];
-    return props.platforms.filter((p) => trooper.identities[p.value]?.source === 'from_account' && trooper.identities[p.value].platformId === held.platformId);
+    if (!held || !platformOf(value)?.accounts?.[held.idKind]) return [];
+    const account = platformOf(value).accounts[held.idKind];
+    return props.platforms.filter((p) => {
+        const row = trooper.identities[p.value];
+        return row?.platformId === held.platformId && p.accounts?.[row.idKind] === account;
+    });
 };
 const removingAccount = ref(null);
 
@@ -104,7 +108,6 @@ function fill(trooper, value) {
     removingAccount.value = null;
     everyGame.value = false;
     form.clearErrors();
-    form.player_name = trooper.identities[value]?.playerName ?? '';
     form.platform_id = trooper.identities[value]?.platformId ?? '';
     form.id_kind = trooper.identities[value]?.idKind ?? platformOf(value)?.idKinds[0] ?? '';
 }
@@ -199,7 +202,7 @@ function save() {
         onError: (errors) => {
             // Validation and collisions show on their fields; anything else (a refused or expired
             // request) gets a message of its own rather than a silent form.
-            if (!errors.player_name && !errors.platform_id && !errors.id_kind) notice.value = 'Could not save the game identity. Reload the page and try again.';
+            if (!errors.platform_id && !errors.id_kind) notice.value = 'Could not save the game identity. Reload the page and try again.';
         },
         // A refused or expired request is an HTTP exception, not a validation error: it says why in the same notice.
         onHttpException: onHttpException('Could not save the game identity', (message) => (notice.value = message)),
@@ -228,7 +231,7 @@ function remove(value) {
     });
 }
 
-// Remove the rows the trooper's account on `value` made, on every game, once the leader has confirmed the list.
+// Remove the trooper's Steam or Epic ID on `value` from every game, once the leader has confirmed the list.
 function removeAccount(value) {
     const trooper = selected.value;
     if (!trooper || !editable.value || removeProcessing.value) return;
@@ -327,7 +330,7 @@ function removeAccount(value) {
                                     <template v-if="view === 'needs'">Missing {{ joinNames(missingOf(trooper)) }}</template>
                                     <template v-else-if="linkedOf(trooper).length">
                                         <span v-for="(p, index) in linkedOf(trooper)" :key="p.value">
-                                            <template v-if="index">, </template>{{ p.label }}: <bdi>{{ trooper.identities[p.value].playerName }}</bdi><template v-if="trooper.identities[p.value].mixedScripts"> (check this name)</template><template v-if="hasKinds(p)"> ({{ trooper.identities[p.value].idKind }})</template>
+                                            <template v-if="index">, </template>{{ p.label }}: <bdi class="font-mono">{{ trooper.identities[p.value].platformId }}</bdi><template v-if="hasKinds(p)"> ({{ trooper.identities[p.value].idKind }})</template>
                                         </span>
                                         <template v-if="missingOf(trooper).length"> · Missing {{ joinNames(missingOf(trooper)) }}</template>
                                     </template>
@@ -379,26 +382,14 @@ function removeAccount(value) {
                                 class="rounded-md border border-border bg-card px-2.5 py-2"
                             >
                                 <div class="flex flex-wrap items-start justify-between gap-2">
-                                    <!-- Wraps, never truncates: the full name and ID must be checkable against the game. flex-wrap drops Edit/Remove below the text when it is too narrow. -->
+                                    <!-- Wraps, never truncates: the full ID must be checkable against the game. flex-wrap drops Edit/Remove below the text when it is too narrow. -->
                                     <div class="min-w-0 flex-1 basis-32">
                                         <p class="text-xs text-muted-foreground">
                                             {{ p.label }}<template v-if="p.retired"> (retired)</template> ·
                                             <span :data-testid="`source-${p.value}`">{{ sourceLabel(selected.identities[p.value].source) }}</span>
                                         </p>
                                         <p v-if="hasKinds(p)" class="text-xs text-muted-foreground" :data-testid="`kind-${p.value}`">{{ selected.identities[p.value].idKind }}</p>
-                                        <p class="text-[13px] font-medium break-words">
-                                            <bdi>{{ selected.identities[p.value].playerName }}</bdi>
-                                            <Badge
-                                                v-if="selected.identities[p.value].mixedScripts"
-                                                variant="outline"
-                                                class="ml-1.5 border-warning text-warning"
-                                                :data-testid="`check-name-${p.value}`"
-                                                title="This name mixes alphabets, so a letter may be a look-alike. Check it against the game."
-                                            >
-                                                Check this name
-                                            </Badge>
-                                        </p>
-                                        <p class="font-mono text-xs break-all text-muted-foreground">{{ selected.identities[p.value].platformId }}</p>
+                                        <p class="font-mono text-[13px] font-medium break-all" :data-testid="`id-${p.value}`">{{ selected.identities[p.value].platformId }}</p>
                                     </div>
                                     <div v-if="removing !== p.value && removingAccount !== p.value" class="flex shrink-0 flex-wrap gap-1">
                                         <Button v-if="!p.retired" variant="outline" size="xs" :data-testid="`edit-${p.value}`" @click="fill(selected, p.value)">Edit</Button>
@@ -421,7 +412,7 @@ function removeAccount(value) {
                                             :disabled="!editable"
                                             @click="removingAccount = p.value"
                                         >
-                                            Remove from every game
+                                            Remove {{ selected.identities[p.value].idKind }} everywhere
                                         </Button>
                                     </div>
                                 </div>
@@ -436,7 +427,7 @@ function removeAccount(value) {
                                     </span>
                                     <div class="flex gap-2">
                                         <Button variant="destructive" size="xs" :data-testid="`confirm-remove-account-${p.value}`" :disabled="removeProcessing" @click="removeAccount(p.value)">
-                                            Remove from every game
+                                            Remove {{ selected.identities[p.value].idKind }} everywhere
                                         </Button>
                                         <Button variant="outline" size="xs" @click="removingAccount = null">Keep</Button>
                                     </div>
@@ -453,11 +444,6 @@ function removeAccount(value) {
                                 <NativeSelect id="identity-game" :model-value="platform" data-testid="identity-game" @update:model-value="fill(selected, $event)">
                                     <option v-for="p in active" :key="p.value" :value="p.value">{{ p.label }}{{ selected.identities[p.value] ? ' (linked)' : '' }}</option>
                                 </NativeSelect>
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label for="identity-name">Player name</Label>
-                                <Input id="identity-name" v-model="form.player_name" data-testid="identity-name" autocomplete="off" :aria-invalid="!!form.errors.player_name" />
-                                <p v-if="form.errors.player_name" class="text-xs text-destructive" data-testid="error-player_name">{{ form.errors.player_name }}</p>
                             </div>
                             <div v-if="kinds.length > 1" class="grid gap-1.5">
                                 <Label for="identity-kind">ID kind</Label>

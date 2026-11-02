@@ -5,7 +5,7 @@ namespace App\Commands\GameIdentities;
 use App\Models\Game;
 
 /**
- * Remove every row a trooper's Steam or Epic account made (#174), found from their identity on `$game`. Handled by
+ * Remove a trooper's Steam or Epic ID from every game it is linked on (#174), found from their identity on `$game`. Handled by
  * {@see RemoveSharedAccountHandler}.
  */
 final readonly class RemoveSharedAccount

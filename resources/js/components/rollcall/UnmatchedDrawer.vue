@@ -77,7 +77,7 @@ const body = (player) => ({ week: props.week, platform: player.platform, platfor
 // leader answers: Replace sends the same link again with `replace: true` and `replacing`, the ID the dialog showed,
 // so the server overwrites only that one; Cancel leaves everything as it was. If the trooper's ID changed in the
 // meantime the server refuses the replace with the new `current`, and the dialog asks again with it.
-// `{ player, trooperId, current: { playerName, platformId } }` while the question is open, else null.
+// `{ player, trooperId, current: { platformId } }` while the question is open, else null.
 const replacing = ref(null);
 const trooperName = (id) => {
     const trooper = props.troopers.find((t) => t.id === id);
@@ -315,9 +315,7 @@ async function dismiss(player) {
                      the ID shown next to it: the ID the leader reads is the one that gets linked. -->
                 <AlertDialogDescription v-if="replacing" class="text-[13px] text-muted-foreground" data-testid="replace-question">
                     <bdi data-testid="replace-trooper">{{ trooperName(replacing.trooperId) }}</bdi> is linked to
-                    <bdi data-testid="replace-current-name">{{ replacing.current.playerName }}</bdi> (<bdi data-testid="replace-current-id">{{
-                        replacing.current.platformId
-                    }}</bdi>) on {{ replacing.player.platformLabel }}. Replace it with
+                    <bdi data-testid="replace-current-id">{{ replacing.current.platformId }}</bdi> on {{ replacing.player.platformLabel }}. Replace it with
                     <bdi data-testid="replace-new-name">{{ replacing.player.playerName }}</bdi> (<bdi data-testid="replace-new-id">{{
                         replacing.player.platformId
                     }}</bdi>)?

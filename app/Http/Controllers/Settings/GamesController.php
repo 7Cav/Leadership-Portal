@@ -84,7 +84,6 @@ class GamesController extends Controller
                     'game' => $row['identity']->game->name,
                     'idKind' => $row['identity']->id_kind,
                     // Hidden characters written out, so the Admin sees what is stored.
-                    'playerName' => GameIdentityText::reveal($row['identity']->player_name),
                     'platformId' => GameIdentityText::reveal($row['identity']->platform_id),
                     'problems' => $row['problems'],
                 ])->values()->all() : [],

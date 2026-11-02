@@ -3,7 +3,7 @@ import { reactive } from 'vue';
 import { mount } from '@vue/test-utils';
 import GameIdentities from '../GameIdentities.vue';
 
-// #174: a Steam or Epic ID can be linked to every game that asks for it, and the rows that made removed together.
+// #174: a Steam or Epic ID can be linked to every game that asks for it, and removed from every game it is linked on.
 
 const page = reactive({ url: '/game-identities', props: { viewAs: null } });
 const put = vi.fn();
@@ -39,10 +39,10 @@ const PLATFORMS = [
     { value: 'wardogs', label: 'WARDOGS', idKinds: ['SteamID64'], accounts: { SteamID64: 'steam' }, retired: false },
     { value: 'arma', label: 'Arma Reforger', idKinds: ['Player ID'], accounts: {}, retired: false },
 ];
-const fromAccount = { playerName: 'OrtegaCav', platformId: STEAM, idKind: 'Steam ID', source: 'from_account' };
+const fromAccount = { platformId: STEAM, idKind: 'Steam ID', source: 'from_account' };
 const trooper = (id, identities = {}) => ({ id, displayName: `Trooper ${id}`, billet: 'Rifleman', section: '1/A', editable: true, identities });
 const TROOPERS = [
-    trooper(1, { hll: fromAccount, wardogs: { ...fromAccount, idKind: 'SteamID64' }, arma: { playerName: 'O', platformId: 'a1', idKind: 'Player ID', source: 'from_rollcall' } }),
+    trooper(1, { hll: fromAccount, wardogs: { ...fromAccount, idKind: 'SteamID64' }, arma: { platformId: 'a1', idKind: 'Player ID', source: 'from_rollcall' } }),
     trooper(2),
 ];
 
@@ -96,10 +96,12 @@ describe('GameIdentities page, shared accounts', () => {
         expect(wrapper.get('[data-testid="source-arma"]').text()).toBe('From rollcall');
     });
 
-    it('confirms Remove from every game by naming each game, then removes them in one request', async () => {
+    it('confirms Remove <kind> everywhere by naming each game, then removes them in one request', async () => {
         const wrapper = await open(1);
 
         expect(wrapper.find('[data-testid="remove-account-arma"]').exists()).toBe(false);
+        expect(wrapper.get('[data-testid="remove-account-hll"]').text()).toBe('Remove Steam ID everywhere');
+        expect(wrapper.get('[data-testid="remove-account-wardogs"]').text()).toBe('Remove SteamID64 everywhere');
         await wrapper.get('[data-testid="remove-account-wardogs"]').trigger('click');
 
         expect(wrapper.get('[data-testid="remove-account-confirm"]').text()).toContain('Remove this ID from Hell Let Loose and WARDOGS? Past attendance is unchanged.');
@@ -107,5 +109,23 @@ describe('GameIdentities page, shared accounts', () => {
 
         await wrapper.get('[data-testid="confirm-remove-account-wardogs"]').trigger('click');
         expect(routerDelete).toHaveBeenCalledWith('/game-identities/1/wardogs/account', expect.any(Object));
+    });
+
+    it('offers Remove everywhere for a typed ID linked on more than one game, and not for one linked on a single game', async () => {
+        const typed = { platformId: STEAM, idKind: 'Steam ID', source: 'typed' };
+        const mount2 = async (identities) => {
+            const wrapper = mount(GameIdentities, { props: { platforms: PLATFORMS, troopers: [trooper(3, identities)] } });
+            await wrapper.get('[data-testid="view-everyone"]').trigger('click');
+            await wrapper.get('[data-testid="open-3"]').trigger('click');
+            return wrapper;
+        };
+
+        const both = await mount2({ hll: typed, wardogs: { ...typed, idKind: 'SteamID64' } });
+        expect(both.get('[data-testid="remove-account-hll"]').text()).toBe('Remove Steam ID everywhere');
+
+        const one = await mount2({ hll: { ...fromAccount }, wardogs: { ...fromAccount, platformId: '76561198000000999', idKind: 'SteamID64' }, arma: { platformId: STEAM, idKind: 'Player ID', source: 'typed' } });
+        expect(one.find('[data-testid="remove-account-hll"]').exists()).toBe(false);
+        expect(one.find('[data-testid="remove-account-wardogs"]').exists()).toBe(false);
+        expect(one.find('[data-testid="remove-account-arma"]').exists()).toBe(false);
     });
 });

@@ -28,6 +28,6 @@ When a game asks for a Steam ID or an Epic ID, troopers may already have that ac
 1. On **Games**, the game shows **Apply existing Steam links** (or Epic) and how many troopers it would link.
 2. Choose it to link each of those troopers on this game with the ID they already have. It is recorded in the audit log, and it only runs when you choose it.
 
-A trooper who already has an identity on the game is left out, and so is one with two different IDs of that account on other games, or one whose ID another trooper holds on this game. Link those on **Game identities**.
+It only adds identities and never changes one that exists. A trooper who already has an identity on the game is left out, and so is one with two different IDs of that account on other games, or one whose ID another trooper holds on this game. Link those on **Game identities**.
 
 > [!good-to-know] A game that is in use, with linked identities, captured practices or a unit that plays it, can only be retired, never deleted; **Delete** is offered only for a game nothing uses.

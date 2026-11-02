@@ -34,7 +34,7 @@ function accountTrooper(Unit $section, array $attributes = []): Trooper
 
 function linkAccount(Trooper $trooper, string $id = SHARED_STEAM_ID, string $kind = 'Steam ID', string $platform = 'hll'): array
 {
-    return ["/game-identities/{$trooper->id}/{$platform}/account", ['player_name' => 'OrtegaCav', 'platform_id' => $id, 'id_kind' => $kind]];
+    return ["/game-identities/{$trooper->id}/{$platform}/account", ['platform_id' => $id, 'id_kind' => $kind]];
 }
 
 function identityOn(Trooper $trooper, string $slug): ?TrooperGameIdentity
@@ -128,22 +128,25 @@ it('removes only one game\'s row when that game is removed', function () {
         ->and(identityOn($this->mine, 'hll-vietnam'))->not->toBeNull();
 });
 
-it('removes the rows the account made on every game, keeping a typed row with the same ID, in one audited action', function () {
+it('removes the ID from every game it is linked on, however each row was made, in one audited action', function () {
     TrooperGameIdentity::factory()->create(['trooper_id' => $this->mine->id, 'game_id' => game('hll')->id, 'platform_id' => SHARED_STEAM_ID, 'id_kind' => 'Steam ID']);
     $this->actingAs($this->leader)->post(...linkAccount($this->mine));
+    $other = accountTrooper($this->section, ['username' => 'Dube.R']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $other->id, 'game_id' => game('hll')->id, 'platform_id' => '76561198000000222', 'id_kind' => 'Steam ID']);
 
     $this->actingAs($this->leader)->delete("/game-identities/{$this->mine->id}/wardogs/account")->assertRedirect();
 
     expect(identityOn($this->mine, 'wardogs'))->toBeNull()
         ->and(identityOn($this->mine, 'hll-vietnam'))->toBeNull()
-        ->and(identityOn($this->mine, 'hll'))->not->toBeNull();
+        ->and(identityOn($this->mine, 'hll'))->toBeNull()
+        ->and(identityOn($other, 'hll'))->not->toBeNull();
 
     $entry = AuditLogEntry::query()->where('action', 'game_identity.account_removed')->sole();
     expect(json_encode($entry->details))->toContain('SGT Ortega.M on WARDOGS: Source');
 });
 
-it('removes nothing from every game when the row was typed', function () {
-    TrooperGameIdentity::factory()->create(['trooper_id' => $this->mine->id, 'game_id' => game('hll')->id, 'platform_id' => SHARED_STEAM_ID, 'id_kind' => 'Steam ID']);
+it('removes nothing from every game when the ID is not a Steam or Epic ID', function () {
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->mine->id, 'game_id' => game('hll')->id, 'platform_id' => '2535412345678901', 'id_kind' => 'Xbox ID']);
 
     $this->actingAs($this->leader)->delete("/game-identities/{$this->mine->id}/hll/account")->assertRedirect();
 
@@ -159,7 +162,7 @@ it('sends each identity\'s source and each game\'s shared kinds to the page', fu
 });
 
 it('records a typed link as typed, and shows its source in the audit details', function () {
-    $this->actingAs($this->leader)->put("/game-identities/{$this->mine->id}/hll", ['player_name' => 'A', 'platform_id' => SHARED_STEAM_ID, 'id_kind' => 'Steam ID']);
+    $this->actingAs($this->leader)->put("/game-identities/{$this->mine->id}/hll", ['platform_id' => SHARED_STEAM_ID, 'id_kind' => 'Steam ID']);
 
     expect(identityOn($this->mine, 'hll')->source)->toBe(IdentitySource::Typed)
         ->and(json_encode(AuditLogEntry::query()->sole()->details))->toContain('Typed');
@@ -169,7 +172,7 @@ describe('backfill on Settings, Games', function () {
     beforeEach(function () {
         $this->admin = User::factory()->admin()->create();
         game('wardogs')->update(['id_kinds' => ['Player ID']]);
-        TrooperGameIdentity::factory()->create(['trooper_id' => $this->mine->id, 'game_id' => game('hll')->id, 'platform_id' => SHARED_STEAM_ID, 'player_name' => 'OrtegaCav', 'id_kind' => 'Steam ID']);
+        TrooperGameIdentity::factory()->create(['trooper_id' => $this->mine->id, 'game_id' => game('hll')->id, 'platform_id' => SHARED_STEAM_ID, 'id_kind' => 'Steam ID']);
     });
 
     it('offers the backfill, with how many it would link, once a game asks for Steam', function () {
@@ -205,6 +208,24 @@ describe('backfill on Settings, Games', function () {
         // Nothing left to apply: a second click writes and logs nothing.
         $this->actingAs($this->admin)->post('/settings/games/'.game('wardogs')->id.'/account-links');
         expect(AuditLogEntry::query()->count())->toBe(1);
+    });
+
+    it('never changes an identity a trooper already has on the game, and skips an ID someone else holds there', function () {
+        game('wardogs')->update(['id_kinds' => ['Player ID', 'SteamID64']]);
+        $existing = TrooperGameIdentity::factory()->create(['trooper_id' => $this->mine->id, 'game_id' => game('wardogs')->id, 'platform_id' => '76561198000000555', 'id_kind' => 'SteamID64']);
+        $before = $existing->fresh()->only(['platform_id', 'id_kind', 'source', 'updated_at']);
+        $other = accountTrooper($this->section, ['username' => 'Dube.R']);
+        TrooperGameIdentity::factory()->create(['trooper_id' => $other->id, 'game_id' => game('hll')->id, 'platform_id' => '76561198000000222', 'id_kind' => 'Steam ID']);
+        $holder = accountTrooper($this->section, ['username' => 'Kim.J']);
+        TrooperGameIdentity::factory()->create(['trooper_id' => $holder->id, 'game_id' => game('wardogs')->id, 'platform_id' => '76561198000000222', 'id_kind' => 'SteamID64']);
+
+        $this->actingAs($this->admin)->post('/settings/games/'.game('wardogs')->id.'/account-links')->assertRedirect('/settings/games');
+
+        expect(identityOn($this->mine, 'wardogs')->only(['platform_id', 'id_kind', 'source', 'updated_at']))->toEqual($before)
+            ->and(identityOn($other, 'wardogs'))->toBeNull()
+            ->and(identityOn($holder, 'wardogs')->trooper_id)->toBe($holder->id)
+            ->and(TrooperGameIdentity::query()->where('game_id', game('wardogs')->id)->count())->toBe(2)
+            ->and(AuditLogEntry::query()->count())->toBe(0);
     });
 
     it('is Admin only', function () {

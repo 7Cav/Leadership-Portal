@@ -124,19 +124,17 @@ class LinkUnmatchedPlayerHandler
         }
 
         if ($held !== null && $held->platform_id !== $player->platform_id && $held->platform_id !== $replaceable) {
-            throw UnmatchedPlayerResolutionException::alreadyHasIdentity($held->player_name, $held->platform_id, $command->game->name);
+            throw UnmatchedPlayerResolutionException::alreadyHasIdentity($held->platform_id, $command->game->name);
         }
 
         if (! GameIdentityText::isClean($player->platform_id)) {
             throw InvalidGameIdentityException::reportedIdNotClean();
         }
 
-        $name = GameIdentityText::clean($player->player_name);
-
         // The check above answers the common case without a write; the writer repeats it under
         // lock inside its audited transaction, so a change landing between the two is refused too.
         $this->setIdentity->handle($actor, new SetTrooperGameIdentity(
-            $trooper->id, $command->game, $name === '' ? $player->platform_id : $name, $player->platform_id, $replaceable,
+            $trooper->id, $command->game, $player->platform_id, $replaceable,
             idKind: self::kindOf($command->game, $player->platform_id), reportedByServer: true, source: IdentitySource::FromRollcall,
         ));
 

@@ -26,7 +26,7 @@ const props = defineProps({
     // `[{ value, label }]`: the telemetry interfaces the portal has built in.
     interfaces: { type: Array, required: true },
     isAdmin: { type: Boolean, required: true },
-    // Admin only: `[{ id, trooper, game, idKind, playerName, platformId, problems }]`, hidden characters written out.
+    // Admin only: `[{ id, trooper, game, idKind, platformId, problems }]`, hidden characters written out.
     identitiesToCheck: { type: Array, default: () => [] },
 });
 
@@ -268,7 +268,7 @@ const applyAccountLinks = (game) => act('post', `/settings/games/${game.id}/acco
                     <TableRow class="hover:bg-transparent">
                         <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">Trooper</TableHead>
                         <TableHead class="h-8 text-xs font-medium text-muted-foreground">Game</TableHead>
-                        <TableHead class="h-8 text-xs font-medium text-muted-foreground">Player name and ID</TableHead>
+                        <TableHead class="h-8 text-xs font-medium text-muted-foreground">ID</TableHead>
                         <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">What to check</TableHead>
                     </TableRow>
                 </TableHeader>
@@ -277,8 +277,7 @@ const applyAccountLinks = (game) => act('post', `/settings/games/${game.id}/acco
                         <TableCell class="px-4 align-top font-medium">{{ row.trooper ?? 'Unknown trooper' }}</TableCell>
                         <TableCell class="align-top">{{ row.game }}<span class="block text-xs text-muted-foreground">{{ row.idKind }}</span></TableCell>
                         <TableCell class="align-top whitespace-normal">
-                            <bdi class="block break-words">{{ row.playerName }}</bdi>
-                            <bdi class="block font-mono text-xs break-all text-muted-foreground">{{ row.platformId }}</bdi>
+                            <bdi class="block font-mono text-xs break-all">{{ row.platformId }}</bdi>
                         </TableCell>
                         <TableCell class="px-4 align-top whitespace-normal">
                             <ul class="grid gap-0.5 text-xs">

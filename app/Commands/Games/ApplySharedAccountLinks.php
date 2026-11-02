@@ -21,7 +21,7 @@ use Illuminate\Support\Collection;
  * (AD-16). Never run on its own: Settings, Games offers it when there is something to apply. The caller checks the
  * actor is an Admin, as for the other game writes.
  *
- * A trooper is left out when they already have an identity on the game, when their other games hold more than one ID
+ * It only ever adds rows, never changes one: a trooper is left out when they already have an identity on the game, when their other games hold more than one ID
  * of that account (there is no telling which is right), or when another trooper already holds the ID on this game.
  * With a game that asks for both, the kind listed first is applied first.
  */
@@ -35,10 +35,10 @@ class ApplySharedAccountLinks
 
     /**
      * What a backfill on `$game` would write, from `$all` (every identity, with its game and trooper): one entry per
-     * trooper, the account's ID and name from their other game and the kind it is entered as here.
+     * trooper, the account's ID from their other game and the kind it is entered as here.
      *
      * @param  Collection<int, TrooperGameIdentity>  $all
-     * @return Collection<int, array{trooperId: int, playerName: string, platformId: string, idKind: string, trooper: ?Trooper}>
+     * @return Collection<int, array{trooperId: int, platformId: string, idKind: string, trooper: ?Trooper}>
      */
     public static function pending(Game $game, Collection $all): Collection
     {
@@ -70,7 +70,6 @@ class ApplySharedAccountLinks
 
                     $pending[$trooperId] = [
                         'trooperId' => (int) $trooperId,
-                        'playerName' => $rows->first()->player_name,
                         'platformId' => $ids->first(),
                         'idKind' => $kind,
                         'trooper' => $rows->first()->trooper,
@@ -105,7 +104,7 @@ class ApplySharedAccountLinks
                 // Worked out again under the game's lock, so a kind removed or a link made since is seen.
                 $stored = $this->games->lock($game->id, exclusive: false);
                 $rows = self::pending($stored, $this->identities->all())
-                    ->map(fn (array $link) => $this->identities->link($link['trooperId'], $stored, $link['playerName'], $link['platformId'], $link['idKind'], IdentitySource::FromAccount)
+                    ->map(fn (array $link) => $this->identities->link($link['trooperId'], $stored, $link['platformId'], $link['idKind'], IdentitySource::FromAccount)
                         ->setRelation('game', $stored)->setRelation('trooper', $link['trooper']));
 
                 return new AuditedBatch($stored, ...$rows->all());
