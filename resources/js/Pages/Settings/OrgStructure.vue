@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
+import RankInsignia from '@/components/RankInsignia.vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import {
     PhCaretDown,
@@ -960,7 +961,7 @@ function confirmDelete() {
                     </p>
                     <p v-if="selectedUnit.lead || selectedUnit.lead_vacant" data-testid="detail-lead" class="-mt-1.5 mb-3 text-[13px] text-muted-foreground">
                         <template v-if="selectedUnit.lead"
-                            >Lead: {{ selectedUnit.lead.displayName }}<template v-if="selectedUnit.lead.source === 'acting'"> (acting)</template></template
+                            >Lead: <RankInsignia :rank="selectedUnit.lead.rank ?? null" class="mr-1" />{{ selectedUnit.lead.displayName }}<template v-if="selectedUnit.lead.source === 'acting'"> (acting)</template></template
                         >
                         <template v-else>Lead: vacant</template>
                     </p>

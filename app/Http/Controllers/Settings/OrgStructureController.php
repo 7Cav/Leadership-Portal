@@ -192,6 +192,8 @@ class OrgStructureController extends Controller
             // of a previous holder is kept.
             'lead' => ($lead = $leads->get($unit->id)) === null ? null : [
                 'displayName' => $lead->trooper->display_name,
+                // The rank abbreviation, for the small rank insignia beside the name.
+                'rank' => $lead->trooper->rank_short,
                 'billet' => $lead->trooper->billet,
                 'source' => $lead->source,
             ],

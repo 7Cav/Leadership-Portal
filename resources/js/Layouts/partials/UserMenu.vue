@@ -1,7 +1,7 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
 import { PhArrowCounterClockwise, PhArrowsClockwise, PhDotsThreeVertical, PhMoon, PhSignOut, PhSun, PhUserFocus, PhUserSwitch } from '@phosphor-icons/vue';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import RankAvatar from '@/components/RankAvatar.vue';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -20,7 +20,7 @@ import { useViewAs } from '@/composables/useViewAs';
 
 // The identity cluster (Story 1.5–1.7, moved here from Home.vue in Story 1.15): who is signed in,
 // where their rank and billet came from (AD-20), the theme, and Sign out.
-const { name, billet, identity, provenance, provenanceDetail, initials, avatarUrl } = useIdentity();
+const { name, billet, identity, provenance, provenanceDetail, initials, rank } = useIdentity();
 const { theme, setTheme } = useTheme();
 const { active: viewingAs, openPicker, exit: exitViewAs } = useViewAs();
 const { canActAs, openPicker: openActAsPicker } = useActAs();
@@ -32,11 +32,8 @@ const { canActAs, openPicker: openActAsPicker } = useActAs();
             <DropdownMenu>
                 <DropdownMenuTrigger as-child>
                     <SidebarMenuButton size="lg" class="h-auto min-h-12 py-1.5" data-testid="user-menu" :aria-label="`Account menu for ${identity}`">
-                        <Avatar class="border border-border bg-muted">
-                            <!-- Decorative: the rank is written next to it. Reka shows the initials until it loads, and if it fails. -->
-                            <AvatarImage v-if="avatarUrl" :src="avatarUrl" alt="" data-testid="rank-avatar" />
-                            <AvatarFallback class="bg-muted text-xs font-semibold" aria-hidden="true">{{ initials }}</AvatarFallback>
-                        </Avatar>
+                        <!-- Decorative: the rank is written next to it. -->
+                        <RankAvatar :rank="rank" :initials="initials" size="sm" />
                         <span class="grid min-w-0 flex-1 leading-tight">
                             <span class="truncate text-[13px] font-medium">{{ name }}</span>
                             <span v-if="billet" class="truncate text-xs text-muted-foreground">{{ billet }}</span>

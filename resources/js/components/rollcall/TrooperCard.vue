@@ -4,6 +4,7 @@ import { PhClockCounterClockwise, PhLockSimple, PhSignature } from '@phosphor-ic
 import AttendanceSourceIndicator from '@/components/attendance/AttendanceSourceIndicator.vue';
 import LoaBadge from '@/components/LoaBadge.vue';
 import MissingIdentityIcon from '@/components/MissingIdentityIcon.vue';
+import RankAvatar from '@/components/RankAvatar.vue';
 import AttendanceStrip from '@/components/rollcall/AttendanceStrip.vue';
 import { Badge } from '@/components/ui/badge';
 import { forumDate } from '@/lib/forumDate';
@@ -156,12 +157,8 @@ const TONE = {
         >
             <div class="flex flex-col gap-3 sm:@4xl:flex-row sm:@4xl:items-center">
                 <div class="flex min-w-0 flex-1 items-center gap-3">
-                    <span
-                        class="grid size-10 flex-none place-items-center rounded-full border border-border bg-muted text-xs font-semibold"
-                        aria-hidden="true"
-                    >
-                        {{ initials(trooper) }}
-                    </span>
+                    <!-- Decorative: the rank is part of the name beside it. -->
+                    <RankAvatar :rank="trooper.rankShort ?? null" :initials="initials(trooper)" />
                     <div class="min-w-0 flex-1">
                         <p class="flex min-w-0 items-center gap-1.5 text-sm leading-tight font-semibold">
                             <span class="truncate">{{ name }}</span>

@@ -320,6 +320,11 @@ leaves the Cav; one who left before it began doing so has no date and is on no p
 - User menu (bottom of the sidebar): your rank, name, billet and where they came from, drawn with the 7Cav standard
   rank avatar for your rank (from the 7Cav wiki). A recruit, a trooper with no Cav profile, an unknown rank, an image
   that fails to load and act as (which shows no profile) get your initials instead.
+- The same rank avatar, with the same initials fallback, sits on each trooper card in step 2 of roll call and on a
+  trooper's page.
+- The small rank insignia the roll call post prints before each name also sits before a trooper's rank in the roster
+  (ORBAT and matrix), practice guests, the fireteams list in roll call, trooper search results and the lead line of a
+  unit on Org structure. The portal serves its own copy of the forum's insignia images.
 - Act as (user menu): runs the portal as another person, writes included, under a red bar. A leader's picker lists the
   serving billet holders below them and the billets junior to theirs in their own command team (an SL their ASL, a PL
   their PSG, a company CO their XO and 1SG, the RCO the RXO and RCSM), never anyone above or beside them. The full

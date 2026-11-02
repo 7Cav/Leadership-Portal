@@ -53,7 +53,11 @@ const MIN_WIDTH = 3;
 // The measurements of a known rank insignia and the scale that gives it the same weight as every other, or null.
 function scaled(src) {
     const match = RANK_IMAGE.exec(String(src));
-    const measured = match ? MEASURED[match[1]] : undefined;
+
+    return scaledMeasure(match ? MEASURED[match[1]] : undefined);
+}
+
+function scaledMeasure(measured) {
     if (!measured) return null;
 
     const [, , , , width, height, , , ink] = measured;
@@ -85,7 +89,10 @@ export function insigniaWidth(src) {
  * @returns {{width: number, height: number, left: number, top: number} | null}
  */
 export function insigniaPlacement(src) {
-    const found = scaled(src);
+    return placementOf(scaled(src));
+}
+
+function placementOf(found) {
     if (!found) return null;
 
     const { measured, scale } = found;
@@ -106,4 +113,43 @@ export function insigniaPlacement(src) {
         left: round(fit(cx, x, width)),
         top: round(fit(cy, y, height)),
     };
+}
+
+// The Cav roster's image number for each rank abbreviation, the key of MEASURED.
+const RANK_IMAGE_IDS = {
+    GOA: 1, GEN: 2, LTG: 3, MG: 4, BG: 5, COL: 6, LTC: 7, MAJ: 8, CPT: 9, '1LT': 10, '2LT': 11,
+    CSM: 12, SGM: 13, '1SG': 14, MSG: 15, SFC: 16, SSG: 17, SGT: 18, CPL: 19, SPC: 20, PFC: 21, PVT: 22, RCT: 23,
+    CW5: 26, CW4: 27, CW3: 28, CW2: 29, WO1: 30,
+};
+
+function rankKey(rank) {
+    const key = String(rank ?? '').trim().toUpperCase();
+
+    return Object.hasOwn(RANK_IMAGE_IDS, key) ? key : null;
+}
+
+/**
+ * The portal's own copy of the forum's rank insignia for a rank abbreviation (`PVT`, `1LT`), or null for an unknown rank.
+ * The files are the ones the rollcall post prints (https://7cav.us/data/roster_ranks/0/{n}.jpg, PNGs despite the name),
+ * kept under public/assets/ranks/insignia so the portal never loads an image from the forum for its own UI.
+ *
+ * @param {string|null|undefined} rank
+ * @returns {string|null}
+ */
+export function rankInsigniaUrl(rank) {
+    const key = rankKey(rank);
+
+    return key ? `/assets/ranks/insignia/${key}.png` : null;
+}
+
+/**
+ * {@link insigniaPlacement} for a rank abbreviation instead of a forum URL, so the portal draws the insignia exactly as
+ * the post preview does. Null for an unknown rank.
+ *
+ * @param {string|null|undefined} rank
+ */
+export function rankInsigniaPlacement(rank) {
+    const key = rankKey(rank);
+
+    return key ? placementOf(scaledMeasure(MEASURED[RANK_IMAGE_IDS[key]])) : null;
 }

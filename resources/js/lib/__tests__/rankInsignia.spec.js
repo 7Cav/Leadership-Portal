@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { INSIGNIA_BOX, insigniaPlacement, insigniaWidth } from '../rankInsignia';
+import { INSIGNIA_BOX, insigniaPlacement, insigniaWidth, rankInsigniaPlacement, rankInsigniaUrl } from '../rankInsignia';
+import { RANK_ORDER } from '../roster';
 
 const url = (n, query = '') => `https://7cav.us/data/roster_ranks/0/${n}.jpg${query}`;
 const RANKS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 26, 27, 28, 29, 30];
@@ -96,5 +97,22 @@ describe('insigniaWidth', () => {
     it("gives the square's size for an image that is not a known rank insignia", () => {
         expect(insigniaWidth(url(99))).toBe(INSIGNIA_BOX);
         expect(insigniaWidth('https://7cav.us/styles/7cav/xenforo/cav_logo.png')).toBe(INSIGNIA_BOX);
+    });
+});
+
+describe('rankInsigniaUrl and rankInsigniaPlacement', () => {
+    it('have a self-hosted insignia for every rank, placed as the forum URL is', () => {
+        for (const rank of RANK_ORDER) {
+            expect(rankInsigniaUrl(rank)).toBe(`/assets/ranks/insignia/${rank}.png`);
+            expect(rankInsigniaPlacement(rank)).not.toBeNull();
+        }
+        expect(rankInsigniaPlacement('pvt')).toEqual(insigniaPlacement(url(22)));
+        expect(rankInsigniaPlacement('CW5')).toEqual(insigniaPlacement(url(26)));
+    });
+
+    it('have nothing for an unknown rank', () => {
+        expect(rankInsigniaUrl('Private')).toBeNull();
+        expect(rankInsigniaUrl(null)).toBeNull();
+        expect(rankInsigniaPlacement('')).toBeNull();
     });
 });
