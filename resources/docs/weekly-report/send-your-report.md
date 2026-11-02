@@ -19,7 +19,7 @@ checklist:
 
 1. Choose **Reports** in the sidebar.
 2. A section leader lands on their own section's report. Above a section, you see your units for the week; choose the one to open.
-3. The report is due by Saturday 23:59 UTC, the end of the Saturday after the Cav week.
+3. The report is due by Saturday 2359Z, the end of the Saturday after the Cav week.
 
 ## Check the numbers
 

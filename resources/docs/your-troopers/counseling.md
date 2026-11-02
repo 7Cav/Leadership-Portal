@@ -74,12 +74,12 @@ The portal follows the counseling rules on the 7Cav wiki (7CAV-R-012, 7CAV-R-014
 1. Choose **Correct** on a record to change its date or reason. Give a **Reason for the correction** and choose **Save correction**. The type and the document stay as filed; to change them, delete the record and file it again.
 2. Choose **Delete** to remove a record and its document from the portal. Give a **Reason for deleting** and choose **Delete record**.
 3. The leader who filed it, the other leaders of the unit they filed it through, and the command above can correct or delete it, as long as they still counsel the trooper. A record an Admin filed is changed by Admins only.
-4. A DCS or LOR can be corrected or deleted only in the 72 hours after it is filed. Until then the record shows "Can be corrected until" the date and time in UTC. After that it is marked "Frozen" with that time, and nobody can correct or delete it, Admins included. A frozen DCS still expires after 90 days.
+4. A DCS or LOR can be corrected or deleted only in the 72 hours after it is filed. Until then the record shows "Can be corrected until" the date and time in Zulu. After that it is marked "Frozen" with that time, and nobody can correct or delete it, Admins included. A frozen DCS still expires after 90 days.
 5. Filing, correcting, deleting, appealing and overturning are all recorded in the audit log, with the reason or statement.
 
 ## Appeal a record on yourself
 
-1. On your own milpac page, a record filed on you in the last 72 hours shows "Appeal until" the date and time in UTC on an LOR, or "Comment or dispute until" on a DCS. A DCS is not subject to appeal, so on a DCS you add your comments or dispute it instead.
+1. On your own milpac page, a record filed on you in the last 72 hours shows "Appeal until" the date and time in Zulu on an LOR, or "Comment or dispute until" on a DCS. A DCS is not subject to appeal, so on a DCS you add your comments or dispute it instead.
 2. Choose **Appeal** (or **Comment or dispute**), write **Your statement** (up to 2000 characters) and choose **File appeal** (or **File comment**).
 3. You can file one per record, signed in as yourself. Nobody can do it for you, and it cannot be done through act as or view as.
 4. It is added to the record with the time. Your chain of command sees it there, and the record is flagged "Appeal filed" (or "Comment or dispute filed").

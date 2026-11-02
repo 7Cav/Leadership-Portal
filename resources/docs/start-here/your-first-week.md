@@ -19,7 +19,7 @@ The **Start here** list on the right of every docs page tracks these. Tick each 
 Every week:
 
 1. [Run this week's roll call](/docs/weekly-rollcall/run-rollcall): record the signatures, mark section practice and post it.
-2. [Write and send your report](/docs/weekly-report/send-your-report) before Saturday 23:59 UTC.
+2. [Write and send your report](/docs/weekly-report/send-your-report) before Saturday 2359Z.
 
 Once, and then when it comes up:
 
