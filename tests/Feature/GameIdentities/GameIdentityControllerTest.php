@@ -124,7 +124,7 @@ it('links a trooper on a game an Admin added, by its slug (#388)', function () {
 
     $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
         ->has('platforms', 5)
-        ->where('platforms.4', ['value' => 'squad', 'label' => 'Squad', 'idKinds' => ['EOS ID'], 'idHints' => [], 'accounts' => ['EOS ID' => 'epic'], 'retired' => false]));
+        ->where('platforms.4', ['value' => 'squad', 'label' => 'Squad', 'idKinds' => ['EOS ID'], 'idHints' => [], 'accounts' => [], 'retired' => false]));
 
     $this->actingAs($this->leader)->put(identityUrl($this->mine, 'squad'), ['platform_id' => 'eos-1'])->assertRedirect();
 
