@@ -17,7 +17,7 @@ says what must never be pushed, what is fine, and where the real values live ins
 | Kind | Examples |
 | --- | --- |
 | Environment files | `.env`, `.env.testing`, `.env.production`, any copy of them. Only `.env.example` and `.env.production.example` belong in git, with empty values. |
-| Keys, tokens and passwords | `APP_KEY`, database and Redis passwords, `SEVENCAV_OAUTH_CLIENT_SECRET`, `SEVENCAV_FORUM_API_KEY`, `CAV_API_KEY`, `CRCON_API_KEY`, `BATTLEMETRICS_API_KEY`, `NIGHTWATCH_API_KEY`, mail and AWS credentials, Discord webhook URLs, personal access tokens |
+| Keys, tokens and passwords | `APP_KEY`, database and Redis passwords, `SEVENCAV_OAUTH_CLIENT_SECRET`, `SEVENCAV_FORUM_API_KEY`, `CAV_API_KEY`, `CRCON_API_KEY`, `BATTLEMETRICS_API_KEY`, `NIGHTWATCH_API_KEY`, `STEAM_WEB_API_KEY`, mail and AWS credentials, Discord webhook URLs, personal access tokens |
 | Google credentials | The Drive service account key (`GOOGLE_DRIVE_PRIVATE_KEY`, or any service account JSON file) |
 | Server addresses | IP addresses, ports, RCON and CRCON URLs (the `CRCON_SERVERS` and `CRCON_BASE_URL` values), admin panel addresses, database hosts, SSH hosts |
 | Private document ids | `GOOGLE_DRIVE_FOLDER_ID`, `GOOGLE_SHEETS_REPORTS_SPREADSHEET_ID`, links to private Drive files or sheets |

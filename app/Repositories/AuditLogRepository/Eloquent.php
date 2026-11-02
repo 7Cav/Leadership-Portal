@@ -171,6 +171,11 @@ class Eloquent implements AuditLogRepository
      */
     private function reloadStored(Model $model): void
     {
+        // A member the batch deleted (#174's account removal) has no stored row: it digests as it last read.
+        if (! $model->exists) {
+            return;
+        }
+
         $stored = $model->newQueryWithoutScopes()->whereKey($model->getKey())->sharedLock()->firstOrFail();
         $model->setRawAttributes($stored->getAttributes(), sync: true);
     }

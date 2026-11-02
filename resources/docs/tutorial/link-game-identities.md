@@ -1,6 +1,6 @@
 ---
 title: Link game identities
-summary: Link each trooper's in-game name so the game server can find them.
+summary: Link each trooper's player ID so the game server can find them.
 section: tutorial
 order: 5
 audience: leader
@@ -9,12 +9,12 @@ try: Open Game identities
 minutes: 5
 ---
 
-The game server only knows players by their in-game name and ID. Until a trooper is linked, their practice attendance and make-ups are not recorded for you.
+The game server knows players by their player ID. Until a trooper is linked, their practice attendance and make-ups are not recorded for you.
 
 ## Link a trooper
 
 1. Choose **Game identities** in the sidebar. **Needs a link** shows the troopers with no link yet.
-2. Choose a trooper, then enter their **Player name** and the game's ID for them. The page says which ID the game uses.
+2. Choose a trooper, then enter the game's ID for them. The page says which ID the game uses.
 3. Choose **Save identity**.
 
 ## Check the warnings are gone

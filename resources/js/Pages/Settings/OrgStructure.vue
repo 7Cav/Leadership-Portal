@@ -21,6 +21,7 @@ import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Separator } from '@/components/ui/separator';
 import EmptyState from '@/components/EmptyState.vue';
+import SearchSelect from '@/components/SearchSelect.vue';
 import ReasonDialog from '@/components/ReasonDialog.vue';
 import { onHttpException } from '@/lib/httpError';
 import { ancestorIds, searchUnits } from '@/lib/orgSearch';
@@ -1130,16 +1131,17 @@ function confirmDelete() {
 
                         <div class="grid gap-1.5">
                             <Label for="edit-parent">Parent</Label>
-                            <NativeSelect
+                            <SearchSelect
                                 id="edit-parent"
                                 v-model="editForm.parent_id"
-                                data-testid="edit-parent_id"
+                                :options="editLegalParents.map((unit) => ({ value: unit.id, label: unit.name }))"
+                                :placeholder="selectedUnit.type === 'regiment' ? 'None, this is the root' : 'Choose a parent'"
+                                search-placeholder="Search units"
+                                empty-text="No unit matches that search."
+                                testid="edit-parent_id"
                                 :disabled="selectedUnit.type === 'regiment'"
-                                :aria-invalid="!!editForm.errors.parent_id"
-                            >
-                                <option :value="null">{{ selectedUnit.type === 'regiment' ? 'None, this is the root' : 'Choose a parent' }}</option>
-                                <option v-for="unit in editLegalParents" :key="unit.id" :value="unit.id">{{ unit.name }}</option>
-                            </NativeSelect>
+                                :invalid="!!editForm.errors.parent_id"
+                            />
                             <p v-if="editForm.errors.parent_id" class="text-xs text-destructive" data-testid="edit-error-parent_id">
                                 {{ editForm.errors.parent_id }}
                             </p>
@@ -1340,10 +1342,16 @@ function confirmDelete() {
                             <form v-else data-testid="assign-form" class="mt-2 space-y-2.5 border-t border-border pt-2.5" @submit.prevent="submitAssign(trooper)">
                                 <div class="grid gap-1">
                                     <Label :for="`assign-section-${trooper.id}`">Unit</Label>
-                                    <NativeSelect :id="`assign-section-${trooper.id}`" v-model="assignSection" data-testid="assign-section">
-                                        <option :value="null">Select a unit</option>
-                                        <option v-for="section in sections" :key="section.id" :value="section.id">{{ section.label }}</option>
-                                    </NativeSelect>
+                                    <SearchSelect
+                                        :id="`assign-section-${trooper.id}`"
+                                        v-model="assignSection"
+                                        :options="sections.map((section) => ({ value: section.id, label: section.label }))"
+                                        placeholder="Select a unit"
+                                        search-placeholder="Search units"
+                                        empty-text="No unit matches that search."
+                                        testid="assign-section"
+                                        content-class="w-96 max-w-[calc(100vw-2rem)]"
+                                    />
                                 </div>
                                 <div class="grid gap-1">
                                     <Label :for="`assign-reason-${trooper.id}`">Reason</Label>

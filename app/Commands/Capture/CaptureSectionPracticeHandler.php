@@ -11,6 +11,7 @@ use App\Integration\Crcon\Data\CrconPresence;
 use App\Models\Game;
 use App\Models\SectionPractice;
 use App\Models\SyncRun;
+use App\Models\TelemetryInterface;
 use App\Models\UnitType;
 use App\Repositories\CrossSectionSightingRepository;
 use App\Repositories\GameRepository;
@@ -18,6 +19,7 @@ use App\Repositories\GameServerRepository;
 use App\Repositories\PracticeCapturePlayerRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\SyncRunRepository;
+use App\Repositories\TelemetryConnectionRepository;
 use App\Repositories\TrooperGameIdentityRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
@@ -103,6 +105,7 @@ class CaptureSectionPracticeHandler
         private readonly PresenceMinimum $minimum,
         private readonly CrossSectionSightingRepository $sightings,
         private readonly UnitRepository $units,
+        private readonly TelemetryConnectionRepository $connections,
     ) {}
 
     /**
@@ -154,7 +157,7 @@ class CaptureSectionPracticeHandler
         $reasons = [];
 
         foreach ($this->sources->for($game) as $server) {
-            $answer = $this->read($server, $command, $practice->id, null, $reasons);
+            $answer = $this->read($server, $command, $practice->id, null, $reasons, $game->id);
 
             if ($answer !== null) {
                 $answers[] = $answer;
@@ -231,7 +234,7 @@ class CaptureSectionPracticeHandler
             $reasons = [];
 
             foreach ($servers as $server) {
-                $answer = $this->read($server, $command, $practice->id, $run->id, $reasons);
+                $answer = $this->read($server, $command, $practice->id, $run->id, $reasons, $game->id);
 
                 if ($answer !== null) {
                     $answers[] = $answer;
@@ -312,12 +315,13 @@ class CaptureSectionPracticeHandler
      * does not go unnoticed (7.9). When none answers, its reasons are added to `$reasons` and null is returned. A
      * stored server none of whose sources has credentials cannot be read either; the legacy env server is never in
      * that state here, since a game with no credentials at all is not captured. A dry run ({@see preview()}) passes no
-     * `$runId` and records no read.
+     * `$runId` and records no read. A real run also records each attempt as the source's last outcome for the Game
+     * server connections page (#183), the env server's included.
      *
      * @param  list<string>  $reasons
      * @return array{server: CaptureServer, source: CaptureSource, presence: CrconPresence}|null
      */
-    private function read(CaptureServer $server, CaptureSectionPractice $command, int $practiceId, ?int $runId, array &$reasons): ?array
+    private function read(CaptureServer $server, CaptureSectionPractice $command, int $practiceId, ?int $runId, array &$reasons, int $gameId): ?array
     {
         // The legacy server's reasons stay as they always read ("crcon: unreachable"); a stored one's name the server.
         $prefix = $server->gameServerId === null ? '' : "{$server->label}: ";
@@ -328,6 +332,10 @@ class CaptureSectionPracticeHandler
 
             if ($server->gameServerId !== null && $runId !== null) {
                 $this->servers->recordRead($server->gameServerId, $runId, false, 'credentials not set');
+            }
+
+            if ($runId !== null && ($first = $server->sources[0] ?? null) !== null) {
+                $this->recordOutcome($gameId, $first, false, 'credentials not set');
             }
 
             return null;
@@ -346,11 +354,19 @@ class CaptureSectionPracticeHandler
                     $this->servers->recordRead($source->gameServerId, $runId, false, $e->getMessage());
                 }
 
+                if ($runId !== null) {
+                    $this->recordOutcome($gameId, $source, false, $e->getMessage());
+                }
+
                 continue;
             }
 
             if ($source->gameServerId !== null && $runId !== null) {
                 $this->servers->recordRead($source->gameServerId, $runId, true, null);
+            }
+
+            if ($runId !== null) {
+                $this->recordOutcome($gameId, $source, true, null);
             }
 
             // A service's own player number is the ID every capture of the server reads when that service is the
@@ -369,6 +385,14 @@ class CaptureSectionPracticeHandler
         array_push($reasons, ...$failures);
 
         return null;
+    }
+
+    /** A source's name is its interface's value; a source named otherwise (a test double) has no row to keep. */
+    private function recordOutcome(int $gameId, CaptureSource $source, bool $succeeded, ?string $reason): void
+    {
+        if (($interface = TelemetryInterface::tryFrom($source->name)) !== null) {
+            $this->connections->record($gameId, $source->gameServerId, $interface, $succeeded, $reason);
+        }
     }
 
     /**

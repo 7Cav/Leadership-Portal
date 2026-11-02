@@ -4,6 +4,7 @@ import type { HTMLAttributes } from "vue"
 import { PhMagnifyingGlass as Search } from "@phosphor-icons/vue"
 import { reactiveOmit } from "@vueuse/core"
 import { ListboxFilter, useForwardProps } from "reka-ui"
+import { selectTopOnTab } from "@/lib/listboxTab"
 import { cn } from "@/lib/utils"
 import { useCommand } from "."
 
@@ -34,6 +35,7 @@ const { filterState } = useCommand()
       v-model="filterState.search"
       data-slot="command-input"
       auto-focus
+      @keydown="selectTopOnTab"
       :class="cn('placeholder:text-muted-foreground flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-hidden disabled:cursor-not-allowed disabled:opacity-50', props.class)"
     />
   </div>

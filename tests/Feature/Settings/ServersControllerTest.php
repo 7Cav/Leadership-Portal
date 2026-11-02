@@ -12,7 +12,6 @@ use App\Models\TelemetryInterface;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\GameServerRepository;
-use App\Repositories\SyncRunRepository;
 use App\Repositories\UnitRepository;
 use Inertia\Testing\AssertableInertia as Assert;
 use Saloon\Http\Faking\MockClient;
@@ -42,15 +41,11 @@ it('shows each game\'s selected servers with their type, interface, credentials 
     $training = GameServer::factory()->trainingFor(game('arma')->id)->create(['name' => 'Arma Training', 'external_id' => '11']);
     GameServer::factory()->create(['game_id' => game('arma')->id, 'selected' => true, 'type' => GameServerType::Public, 'name' => 'Arma Public']);
     $wardogs = GameServer::factory()->trainingFor(game('wardogs')->id)->create(['interface' => TelemetryInterface::Nightwatch, 'missing_since' => now()]);
-    $run = app(SyncRunRepository::class)->open('capture', 'system');
-    app(GameServerRepository::class)->recordRead($training->id, $run->id, false, 'battlemetrics: unreachable');
 
     $this->actingAs($this->admin)->get('/settings/servers')->assertOk()->assertInertia(fn (Assert $page) => $page
         ->component('Settings/Servers')
         ->has('servers', 3)
-        ->where('servers', fn ($servers) => collect($servers)->firstWhere('id', $training->id)['lastRead']['succeeded'] === false
-            && collect($servers)->firstWhere('id', $training->id)['lastRead']['reason'] === 'battlemetrics: unreachable'
-            && collect($servers)->firstWhere('id', $training->id)['credentialsSet'] === true
+        ->where('servers', fn ($servers) => collect($servers)->firstWhere('id', $training->id)['credentialsSet'] === true
             && collect($servers)->firstWhere('id', $wardogs->id)['credentialsSet'] === false
             && collect($servers)->firstWhere('id', $wardogs->id)['missing'] === true)
         ->where('interfaces', [
@@ -59,13 +54,13 @@ it('shows each game\'s selected servers with their type, interface, credentials 
             ['value' => 'nightwatch', 'label' => 'Nightwatch', 'credentialsSet' => false],
         ])
         // HLL has no server selected: it reads its env server, which here has CRCON credentials.
-        ->where('games.0', ['id' => game('hll')->id, 'name' => 'Hell Let Loose (WW2)', 'retired' => false, 'interface' => 'crcon', 'readsEnvServer' => true, 'captureConfigured' => true])
+        ->where('games.0', fn ($game) => collect($game)->except('connections')->all() === ['id' => game('hll')->id, 'name' => 'Hell Let Loose (WW2)', 'retired' => false, 'interface' => 'crcon', 'readsEnvServer' => true, 'captureConfigured' => true])
         ->where('games.1.readsEnvServer', false)
         ->where('games.1.captureConfigured', true)
         // WARDOGS' only training server sits behind Nightwatch, whose key is unset.
         ->where('games.2.captureConfigured', false)
         // Hell Let Loose: Vietnam is listed, and reads nothing until an Admin picks its interface (#431).
-        ->where('games.3', ['id' => game('hll-vietnam')->id, 'name' => 'Hell Let Loose: Vietnam', 'retired' => false, 'interface' => 'none', 'readsEnvServer' => false, 'captureConfigured' => false])
+        ->where('games.3', fn ($game) => collect($game)->except('connections')->all() === ['id' => game('hll-vietnam')->id, 'name' => 'Hell Let Loose: Vietnam', 'retired' => false, 'interface' => 'none', 'readsEnvServer' => false, 'captureConfigured' => false])
         ->where('fetchResult', null)
     );
 });
@@ -75,7 +70,7 @@ it('says a game switched to CRCON with no server selected reads nothing, not the
 
     $this->actingAs($this->admin)->get('/settings/servers')->assertOk()->assertInertia(fn (Assert $page) => $page
         ->where('games.0.readsEnvServer', true)
-        ->where('games.3', ['id' => game('hll-vietnam')->id, 'name' => 'Hell Let Loose: Vietnam', 'retired' => false, 'interface' => 'crcon', 'readsEnvServer' => false, 'captureConfigured' => false])
+        ->where('games.3', fn ($game) => collect($game)->except('connections')->all() === ['id' => game('hll-vietnam')->id, 'name' => 'Hell Let Loose: Vietnam', 'retired' => false, 'interface' => 'crcon', 'readsEnvServer' => false, 'captureConfigured' => false])
     );
 });
 

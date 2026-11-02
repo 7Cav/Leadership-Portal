@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Authorization\ScopeResolver;
+use App\Commands\Capture\CaptureServer;
+use App\Commands\Capture\CaptureSource;
 use App\Commands\Capture\CaptureSources;
 use App\Commands\Capture\TelemetryCredentials;
+use App\Commands\Capture\TestTelemetryConnection;
 use App\Commands\Servers\FetchGameServers;
 use App\Commands\Servers\InvalidGameServerException;
 use App\Commands\Servers\UpdateGameServer;
@@ -12,9 +15,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Game;
 use App\Models\GameServer;
 use App\Models\GameServerType;
+use App\Models\TelemetryConnection;
 use App\Models\TelemetryInterface;
 use App\Repositories\GameRepository;
 use App\Repositories\GameServerRepository;
+use App\Repositories\TelemetryConnectionRepository;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -26,8 +31,10 @@ use Inertia\Response;
  * The game servers the telemetry APIs list (#389): an Admin fetches them, selects the ones the portal should know
  * about, assigns each a game and marks it training or public; captures read only the selected training servers.
  * Per game, the page shows each selected server, its interface, whether that interface's credentials are set (never
- * the credentials themselves, AD-23) and the last capture that read it. Reads the repositories directly; the writes
- * are Commands, the Admin's choices audited (AD-16).
+ * the credentials themselves or an address, AD-23) and, for each source a capture would read, when it last answered
+ * and when and why it last failed (#183), as recorded by the capture runs and "Test connection", so an Admin can tell
+ * "the feed is down" from "nobody played". Reads the repositories directly; the writes and the test are Commands, the
+ * Admin's choices audited (AD-16); a test only reads, so it is not.
  *
  * The whole screen is Admin-only, like the audit log. Viewing follows a view-as preview (an Admin previewing a leader
  * sees what that leader would: a 403); the writes check the real Admin rule, `ScopeResolver::isAdmin()` (AD-6), before anything else, so a
@@ -42,13 +49,13 @@ class ServersController extends Controller
         private readonly ScopeResolver $scope,
     ) {}
 
-    public function index(Request $request, ScopeResolver $scope, CaptureSources $sources): Response
+    public function index(Request $request, ScopeResolver $scope, CaptureSources $sources, TelemetryConnectionRepository $connections): Response
     {
         if (! $scope->actsAsAdmin($request->user())) {
             abort(403, 'Only an Admin may manage game servers.');
         }
 
-        $lastReads = $this->servers->lastReads();
+        $recorded = $connections->allByGame();
         $servers = $this->servers->all();
 
         return Inertia::render('Settings/Servers', [
@@ -63,11 +70,6 @@ class ServersController extends Controller
                 'fallbackId' => $server->fallback_server_id,
                 'missing' => $server->missing_since !== null,
                 'credentialsSet' => $this->credentials->areSet($server->interface),
-                'lastRead' => isset($lastReads[$server->id]) ? [
-                    'succeeded' => $lastReads[$server->id]->succeeded,
-                    'reason' => $lastReads[$server->id]->reason,
-                    'at' => $lastReads[$server->id]->read_at->toIso8601String(),
-                ] : null,
             ])->values()->all(),
             'games' => $this->games->all()->map(fn (Game $game) => [
                 'id' => $game->id,
@@ -78,6 +80,20 @@ class ServersController extends Controller
                 // server is its own: a game added or switched to another interface reads nothing until one is selected.
                 'readsEnvServer' => $sources->readsEnvServer($game),
                 'captureConfigured' => $sources->isConfigured($game),
+                // Every server a capture would read for the game, with how each of its sources last went (#183).
+                'connections' => array_map(fn (CaptureServer $server) => [
+                    'label' => $server->label,
+                    'sources' => array_map(function (CaptureSource $source) use ($recorded, $game) {
+                        $interface = TelemetryInterface::from($source->name);
+                        $row = $recorded[$game->id][TelemetryConnection::targetFor($source->gameServerId, $interface)] ?? null;
+
+                        return [
+                            'interface' => $interface->value,
+                            'configured' => $source->configured,
+                            ...self::outcome($row),
+                        ];
+                    }, $server->sources),
+                ], $sources->for($game)),
             ])->values()->all(),
             'interfaces' => array_values(array_map(fn (TelemetryInterface $interface) => [
                 'value' => $interface->value,
@@ -86,6 +102,7 @@ class ServersController extends Controller
             ], array_filter(TelemetryInterface::cases(), fn (TelemetryInterface $interface) => $interface !== TelemetryInterface::None))),
             'types' => array_map(fn (GameServerType $type) => ['value' => $type->value, 'label' => $type->label()], GameServerType::cases()),
             'fetchResult' => $request->session()->get('servers_fetch'),
+            'testResult' => $request->session()->get('connection_test'),
         ]);
     }
 
@@ -120,6 +137,25 @@ class ServersController extends Controller
         }
 
         return redirect()->route('settings.servers');
+    }
+
+    /** Reads each source of the game once, read-only, and records the outcome like a capture run would (#183). */
+    public function test(Request $request, int $game, TestTelemetryConnection $command): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+        $game = $this->games->find($game) ?? abort(404);
+
+        return redirect()->route('settings.servers')->with('connection_test', ['gameId' => $game->id, 'outcomes' => $command->handle($game)]);
+    }
+
+    /** @return array{lastSucceededAt: string|null, lastFailedAt: string|null, lastFailureReason: string|null} */
+    private static function outcome(?TelemetryConnection $row): array
+    {
+        return [
+            'lastSucceededAt' => $row?->last_succeeded_at?->toIso8601String(),
+            'lastFailedAt' => $row?->last_failed_at?->toIso8601String(),
+            'lastFailureReason' => $row?->last_failed_at === null ? null : $row->last_failure_reason,
+        ];
     }
 
     private function authorizeAdmin(Request $request): void

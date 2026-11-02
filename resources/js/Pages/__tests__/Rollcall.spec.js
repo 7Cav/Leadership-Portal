@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { reactive } from 'vue';
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import Rollcall from '../Rollcall.vue';
+import { chooseSearch, searchLabels } from '@/testing/searchSelect';
 
 const page = reactive({ url: '/rollcall/12', props: { auth: { user: { username: 'Vasquez.R', is_admin: false } }, viewAs: null } });
 const push = vi.fn((visit) => (page.url = visit.url));
@@ -951,8 +952,8 @@ describe('Rollcall page', () => {
             it('lists the company default, the regiment default and the switched-on templates, and says which one the post uses', () => {
                 const wrapper = factory({ template: { ...TEMPLATE, name: 'Standard', source: 'company' }, templatePicker: PICKER });
 
-                expect(select(wrapper).findAll('option').map((o) => o.text())).toEqual(['Company default', 'Regiment default (regiment)', 'Training week']);
-                expect(select(wrapper).element.value).toBe('');
+                expect(searchLabels(wrapper, 'template-pick-select')).toEqual(['Company default', 'Regiment default (regiment)', 'Training week']);
+                expect(select(wrapper).attributes('data-value')).toBe('');
                 expect(wrapper.get('[data-testid="template-pick-note"]').text()).toBe("Using Standard. The company's default.");
             });
 
@@ -964,13 +965,12 @@ describe('Rollcall page', () => {
                 });
                 const wrapper = factory({ template: { ...TEMPLATE, name: 'Standard', source: 'company' }, templatePicker: PICKER });
 
-                select(wrapper).element.value = '7';
-                await select(wrapper).trigger('change');
+                await chooseSearch(wrapper, 'template-pick-select', '7');
                 await flushPromises();
 
                 expect(post).toHaveBeenCalledWith('/rollcall/12/template', { template_id: 7 });
                 expect(wrapper.get('[data-testid="forum-bbcode"]').text()).toBe('training 2/1/A/1-7');
-                expect(select(wrapper).element.value).toBe('7');
+                expect(select(wrapper).attributes('data-value')).toBe('7');
                 expect(toastSuccess).toHaveBeenCalledWith('Template changed', { description: 'The post now uses Training week.' });
             });
 
@@ -978,8 +978,7 @@ describe('Rollcall page', () => {
                 post.mockResolvedValueOnce({ ok: false, status: 422, data: { message: 'That template is not switched on for this section. Pick another.' } });
                 const wrapper = factory({ template: { ...TEMPLATE, name: 'Standard', source: 'company' }, templatePicker: PICKER });
 
-                select(wrapper).element.value = '7';
-                await select(wrapper).trigger('change');
+                await chooseSearch(wrapper, 'template-pick-select', '7');
                 await flushPromises();
 
                 expect(toastError).toHaveBeenCalledWith('Could not change the template', expect.anything());
@@ -1323,7 +1322,7 @@ describe('Rollcall page', () => {
             post.mockResolvedValue({ ok: true, status: 200, data: { marked: true, trooper: { id: 3, status: 'present', source: 'auto' }, atRisk: [] } });
             const wrapper = factory({ capture: CAPTURE, unmatched: UNMATCHED });
 
-            await wrapper.find('[data-testid="unmatched-trooper"]').setValue('3');
+            await chooseSearch(wrapper, 'unmatched-trooper', '3');
             await wrapper.find('[data-testid="unmatched-link"]').trigger('click');
             await flushPromises();
 
@@ -1371,7 +1370,7 @@ describe('Rollcall page', () => {
                 const wrapper = factory({ capture: CAPTURE, unmatched: TWO });
                 expect(count(wrapper).text()).toBe('2 unmatched players');
 
-                await wrapper.find('[data-testid="unmatched-7656119000000001"] [data-testid="unmatched-trooper"]').setValue('3');
+                await chooseSearch(wrapper.find('[data-testid="unmatched-7656119000000001"]'), 'unmatched-trooper', '3');
                 await wrapper.find('[data-testid="unmatched-7656119000000001"] [data-testid="unmatched-link"]').trigger('click');
                 await flushPromises();
                 expect(count(wrapper).text()).toBe('1 unmatched player');
@@ -1473,7 +1472,7 @@ describe('Rollcall page', () => {
             const wrapper = factory({ capture: CAPTURE, unmatched: UNMATCHED });
 
             await wrapper.find('[data-trooper="3"] button[data-value="missed"]').trigger('click');
-            await wrapper.find('[data-testid="unmatched-trooper"]').setValue('3');
+            await chooseSearch(wrapper, 'unmatched-trooper', '3');
             await wrapper.find('[data-testid="unmatched-link"]').trigger('click');
             await flushPromises();
 
@@ -1488,7 +1487,7 @@ describe('Rollcall page', () => {
             post.mockImplementation((url) => (url.endsWith('/unmatched/link') ? new Promise((resolve) => (answer = resolve)) : Promise.resolve(SAVED)));
             const wrapper = factory({ capture: CAPTURE, unmatched: UNMATCHED });
 
-            await wrapper.find('[data-testid="unmatched-trooper"]').setValue('3');
+            await chooseSearch(wrapper, 'unmatched-trooper', '3');
             await wrapper.find('[data-testid="unmatched-link"]').trigger('click');
             await flushPromises();
             await wrapper.find('[data-trooper="3"] button[data-value="makeup"]').trigger('click');

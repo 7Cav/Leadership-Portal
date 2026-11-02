@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Authorization\ScopeResolver;
+use App\Commands\GameIdentities\GameRetiredException;
 use App\Commands\Games\AddGame;
+use App\Commands\Games\ApplySharedAccountLinks;
 use App\Commands\Games\DeleteGame;
 use App\Commands\Games\InvalidGameException;
 use App\Commands\Games\RetireGame;
@@ -12,6 +14,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Game;
 use App\Models\GameIdentityText;
 use App\Models\IdKindFormat;
+use App\Models\SharedAccount;
 use App\Models\TelemetryInterface;
 use App\Models\TrooperGameIdentity;
 use App\Repositories\GameInUseException;
@@ -45,6 +48,7 @@ class GamesController extends Controller
     {
         $inUse = array_flip($this->games->inUseIds());
         $isAdmin = $scope->actsAsAdmin($request->user());
+        $all = $isAdmin ? $identities->all() : null;
 
         return Inertia::render('Settings/Games', [
             'games' => $this->games->all()->map(fn (Game $game) => [
@@ -59,6 +63,10 @@ class GamesController extends Controller
                 'retired' => $game->isRetired(),
                 // A game in use can be retired, not deleted: the page offers only what the server would accept.
                 'inUse' => isset($inUse[$game->id]),
+                // The shared accounts it asks for (Steam, Epic) and, for an Admin, how many troopers the backfill would
+                // link (#174). Offered, never run on its own.
+                'accounts' => array_values(array_unique(array_filter(array_map(fn (string $kind) => SharedAccount::of($kind)?->label(), $game->id_kinds)))),
+                'pendingAccountLinks' => $all === null ? 0 : ApplySharedAccountLinks::pending($game, $all)->count(),
             ])->values()->all(),
             'interfaces' => array_map(fn (TelemetryInterface $interface) => [
                 'value' => $interface->value,
@@ -67,7 +75,7 @@ class GamesController extends Controller
             // Follows a view-as preview (Story 1.13), like the other Settings screens; the write gates read the real flag.
             'isAdmin' => $isAdmin,
             // Admin only: the identities to check, with what is wrong with each. Nobody else is sent any.
-            'identitiesToCheck' => $isAdmin ? $identities->all()
+            'identitiesToCheck' => $all !== null ? $all
                 ->map(fn (TrooperGameIdentity $identity) => ['identity' => $identity, 'problems' => $identity->problems()])
                 ->filter(fn (array $row) => $row['problems'] !== [])
                 ->map(fn (array $row) => [
@@ -76,7 +84,6 @@ class GamesController extends Controller
                     'game' => $row['identity']->game->name,
                     'idKind' => $row['identity']->id_kind,
                     // Hidden characters written out, so the Admin sees what is stored.
-                    'playerName' => GameIdentityText::reveal($row['identity']->player_name),
                     'platformId' => GameIdentityText::reveal($row['identity']->platform_id),
                     'problems' => $row['problems'],
                 ])->values()->all() : [],
@@ -128,6 +135,20 @@ class GamesController extends Controller
         $this->authorizeAdmin($request);
 
         $command->handle($request->user(), $this->games->find($game) ?? abort(404), false);
+
+        return redirect()->route('settings.games');
+    }
+
+    /** Link the Steam or Epic accounts troopers have on other games to this one (#174), when an Admin asks. */
+    public function applyAccountLinks(Request $request, int $game, ApplySharedAccountLinks $command): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+
+        try {
+            $command->handle($request->user(), $this->games->find($game) ?? abort(404));
+        } catch (GameRetiredException $e) {
+            throw ValidationException::withMessages(['game' => $e->getMessage()]);
+        }
 
         return redirect()->route('settings.games');
     }

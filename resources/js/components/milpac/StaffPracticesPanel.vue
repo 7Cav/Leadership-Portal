@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
+import SearchSelect from '@/components/SearchSelect.vue';
 import { onHttpException } from '@/lib/httpError';
 import { weekLabel } from '@/lib/roster';
 import { toast } from 'vue-sonner';
@@ -90,10 +91,16 @@ function remove(entry) {
                 <div class="grid gap-3 sm:grid-cols-2">
                     <div class="grid gap-1.5">
                         <Label for="staff-practice-section">Section</Label>
-                        <NativeSelect id="staff-practice-section" v-model="form.section_id" data-testid="staff-practice-section" :aria-invalid="!!form.errors.section_id">
-                            <option value="" disabled>Pick a section</option>
-                            <option v-for="section in staffPractices.sections" :key="section.id" :value="section.id">{{ section.label }}</option>
-                        </NativeSelect>
+                        <SearchSelect
+                            id="staff-practice-section"
+                            v-model="form.section_id"
+                            :options="staffPractices.sections.map((section) => ({ value: section.id, label: section.label }))"
+                            placeholder="Pick a section"
+                            search-placeholder="Search sections"
+                            empty-text="No section matches that search."
+                            testid="staff-practice-section"
+                            :invalid="!!form.errors.section_id"
+                        />
                         <p v-if="form.errors.section_id" class="text-xs text-destructive" data-testid="staff-practice-error-section">{{ form.errors.section_id }}</p>
                     </div>
                     <div class="grid gap-1.5">

@@ -22,10 +22,25 @@ const TYPES = [
     { value: 'training', label: 'Training' },
     { value: 'public', label: 'Public' },
 ];
+const source = (extra = {}) => ({ interface: 'crcon', configured: true, lastSucceededAt: null, lastFailedAt: null, lastFailureReason: null, ...extra });
 const GAMES = [
-    { id: 1, name: 'Hell Let Loose', retired: false, interface: 'crcon', readsEnvServer: false, captureConfigured: true },
-    { id: 2, name: 'Arma Reforger', retired: false, interface: 'battlemetrics', readsEnvServer: true, captureConfigured: true },
-    { id: 3, name: 'WARDOGS', retired: true, interface: 'nightwatch', readsEnvServer: false, captureConfigured: false },
+    // Configured, read a minute ago, after an earlier failure.
+    {
+        id: 1, name: 'Hell Let Loose', retired: false, interface: 'crcon', readsEnvServer: false, captureConfigured: true,
+        connections: [{ label: 'HLL Training', sources: [source({ lastSucceededAt: '2026-10-27T20:05:00+00:00', lastFailedAt: '2026-10-27T19:00:00+00:00', lastFailureReason: 'crcon: unreachable' })] }],
+    },
+    // Down: its last read failed.
+    {
+        id: 2, name: 'Arma Reforger', retired: false, interface: 'battlemetrics', readsEnvServer: true, captureConfigured: true,
+        connections: [{ label: 'Arma Reforger server', sources: [source({ interface: 'battlemetrics', lastSucceededAt: '2026-10-26T20:00:00+00:00', lastFailedAt: '2026-10-27T23:59:00+00:00', lastFailureReason: 'battlemetrics: http_error' })] }],
+    },
+    // Unconfigured: the credentials are not set.
+    {
+        id: 3, name: 'WARDOGS', retired: true, interface: 'nightwatch', readsEnvServer: false, captureConfigured: false,
+        connections: [{ label: 'WARDOGS server', sources: [source({ interface: 'nightwatch', configured: false })] }],
+    },
+    // Read by none.
+    { id: 4, name: 'Hell Let Loose: Vietnam', retired: false, interface: 'none', readsEnvServer: false, captureConfigured: false, connections: [] },
 ];
 const server = (id, extra = {}) => ({
     id,
@@ -38,11 +53,10 @@ const server = (id, extra = {}) => ({
     fallbackId: null,
     missing: false,
     credentialsSet: true,
-    lastRead: null,
     ...extra,
 });
 const SERVERS = [
-    server(1, { interface: 'crcon', externalId: 'crcon', name: 'HLL Training', gameId: 1, type: 'training', selected: true, lastRead: { succeeded: false, reason: 'crcon: unreachable', at: '2026-10-27T20:00:00Z' } }),
+    server(1, { interface: 'crcon', externalId: 'crcon', name: 'HLL Training', gameId: 1, type: 'training', selected: true }),
     server(2, { name: 'HLL BM twin', gameId: 1, selected: true }),
     server(3, { name: 'Gone', missing: true }),
 ];
@@ -55,17 +69,68 @@ describe('Settings/Servers', () => {
         routerPatch.mockReset();
     });
 
-    it('shows what each game reads: its selected servers with type, interface and last read, or the env server', () => {
+    it('shows what each game reads: its selected servers with type and interface, or the env server', () => {
         const wrapper = factory();
 
         expect(wrapper.get('[data-testid="reads-1"]').text()).toContain('HLL Training');
         expect(wrapper.get('[data-testid="reads-1"]').text()).toContain('Training');
         expect(wrapper.get('[data-testid="reads-1"]').text()).toContain('CRCON');
-        expect(wrapper.get('[data-testid="last-read-1"]').text()).toContain('crcon: unreachable');
-        // A public server is listed under its game but no read is shown: it is never read.
-        expect(wrapper.find('[data-testid="last-read-2"]').exists()).toBe(false);
         expect(wrapper.get('[data-testid="env-2"]').text()).toBe('No server selected: reads the BattleMetrics server set in env.');
-        expect(wrapper.get('[data-testid="not-configured-3"]').exists()).toBe(true);
+    });
+
+    it('shows a configured game with its last read and an older failure, not in red', () => {
+        const wrapper = factory();
+
+        expect(wrapper.get('[data-testid="interface-1"]').text()).toBe('CRCON');
+        expect(wrapper.get('[data-testid="configured-1"]').text()).toBe('Configured');
+        const row = wrapper.get('[data-testid="source-1-crcon"]');
+        expect(row.text()).toContain('HLL Training');
+        expect(row.text()).toContain('Last read 27OCT26 20 05Z');
+        expect(row.text()).toContain('Last failed 27OCT26 19 00Z: crcon: unreachable');
+        expect(row.find('.text-destructive').exists()).toBe(false);
+    });
+
+    it('shows a game that is down with its typed reason in red', () => {
+        const failed = factory().get('[data-testid="source-2-battlemetrics"]').get('.text-destructive');
+
+        expect(failed.text()).toBe('Last failed 27OCT26 23 59Z: battlemetrics: http_error');
+    });
+
+    it('shows an unconfigured game and that its credentials are not set', () => {
+        const wrapper = factory();
+
+        expect(wrapper.get('[data-testid="configured-3"]').text()).toBe('Not configured');
+        expect(wrapper.get('[data-testid="source-3-nightwatch"]').text()).toContain('credentials not set');
+        expect(wrapper.get('[data-testid="source-3-nightwatch"]').text()).toContain('Never read');
+    });
+
+    it('says plainly a game read by none is marked by hand, with nothing to test', () => {
+        const wrapper = factory();
+
+        expect(wrapper.get('[data-testid="interface-4"]').text()).toBe('None');
+        expect(wrapper.get('[data-testid="env-4"]').text()).toBe('Attendance read by none: leaders mark it by hand.');
+        expect(wrapper.find('[data-testid="test-4"]').exists()).toBe(false);
+    });
+
+    it('tests a game\'s connection and shows each outcome under it', async () => {
+        const wrapper = factory({
+            testResult: {
+                gameId: 2,
+                outcomes: [
+                    { server: 'Arma Reforger server', interface: 'battlemetrics', status: 'failed', reason: 'battlemetrics: unreachable' },
+                    { server: 'Spare', interface: 'battlemetrics', status: 'ok' },
+                ],
+            },
+        });
+
+        await wrapper.get('[data-testid="test-1"]').trigger('click');
+        expect(routerPost).toHaveBeenCalledWith('/settings/servers/games/1/test', {}, expect.objectContaining({ preserveScroll: true }));
+        expect(wrapper.get('[data-testid="test-1"]').text()).toBe('Testing');
+
+        const result = wrapper.get('[data-testid="test-result-2"]').text();
+        expect(result).toContain('Arma Reforger server (BattleMetrics): could not be read. battlemetrics: unreachable');
+        expect(result).toContain('Spare (BattleMetrics): answered.');
+        expect(wrapper.find('[data-testid="test-result-1"]').exists()).toBe(false);
     });
 
     it('says which interfaces have their credentials set', () => {
@@ -144,15 +209,6 @@ describe('Settings/Servers', () => {
         expect(wrapper.get('[data-testid="type-3"]').element.value).toBe('training');
         expect(wrapper.get('[data-testid="type-2"]').element.value).toBe('training');
         expect(wrapper.get('[data-testid="save-2"]').attributes('disabled')).toBeDefined();
-    });
-
-    it('shows a successful last read and a server not read yet', () => {
-        const wrapper = factory({
-            servers: [server(5, { gameId: 1, type: 'training', selected: true, lastRead: { succeeded: true, reason: null, at: '2026-10-27T20:00:00Z' } }), server(6, { gameId: 1, type: 'training', selected: true })],
-        });
-
-        expect(wrapper.get('[data-testid="last-read-5"]').text()).toMatch(/^Read .+Z$/);
-        expect(wrapper.get('[data-testid="last-read-6"]').text()).toBe('Not read yet');
     });
 
     it('gives a newly fetched server a row once the list comes back', async () => {

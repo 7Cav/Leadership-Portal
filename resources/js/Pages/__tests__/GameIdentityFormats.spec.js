@@ -30,8 +30,8 @@ const PLATFORMS = [
 const MARKUP = '<img src=x onerror="window.pwned=1">';
 const trooper = (id, name, identities = {}) => ({ id, displayName: name, billet: 'Rifleman', section: '1/A', editable: true, identities });
 const TROOPERS = [
-    trooper(1, 'SGT Ortega.M', { hll: { playerName: 'Ortеga', platformId: '76561198012345678', idKind: 'Steam ID', mixedScripts: true } }),
-    trooper(2, 'PFC Dube.R', { hll: { playerName: MARKUP, platformId: '76561198012345679', idKind: 'Steam ID', mixedScripts: false } }),
+    trooper(1, 'SGT Ortega.M', { hll: { platformId: '76561198012345678', idKind: 'Steam ID' } }),
+    trooper(2, 'PFC Dube.R', { hll: { platformId: MARKUP, idKind: 'Xbox ID' } }),
 ];
 
 const open = async (id) => {
@@ -42,7 +42,7 @@ const open = async (id) => {
     return wrapper;
 };
 
-describe('GameIdentities page, ID shapes and names to check', () => {
+describe('GameIdentities page, ID shapes', () => {
     it('shows the hint the server sent for the chosen kind, and none for a kind it does not check', async () => {
         const wrapper = await open(1);
         await wrapper.get('[data-testid="identity-game"]').setValue('hll');
@@ -58,20 +58,7 @@ describe('GameIdentities page, ID shapes and names to check', () => {
         wrapper.unmount();
     });
 
-    it('marks a name that mixes alphabets, and only that one', async () => {
-        const wrapper = await open(1);
-
-        expect(wrapper.get('[data-testid="check-name-hll"]').text()).toBe('Check this name');
-        expect(wrapper.get('[data-testid="row-1"]').text()).toContain('(check this name)');
-        expect(wrapper.get('[data-testid="row-2"]').text()).not.toContain('check this name');
-        wrapper.unmount();
-
-        const other = await open(2);
-        expect(other.find('[data-testid="check-name-hll"]').exists()).toBe(false);
-        other.unmount();
-    });
-
-    it('shows a name with markup as text, never as HTML', async () => {
+    it('shows an ID with markup as text, never as HTML', async () => {
         const wrapper = await open(2);
 
         expect(wrapper.get('[data-testid="identity-hll"]').text()).toContain(MARKUP);
@@ -84,7 +71,7 @@ describe('GameIdentities page, ID shapes and names to check', () => {
 describe('Settings Games page, identities to check', () => {
     const GAMES = [{ id: 1, slug: 'hll', name: 'Hell Let Loose', idKinds: ['Steam ID', 'Xbox ID'], checkedKinds: ['Steam ID'], interface: 'crcon', retired: false, inUse: true }];
     const INTERFACES = [{ value: 'crcon', label: 'CRCON' }];
-    const ROWS = [{ id: 9, trooper: 'SGT Ortega.M', game: 'Hell Let Loose', idKind: 'Steam ID', playerName: `Hid[U+200B]den${MARKUP}`, platformId: '7656', problems: ['This is not a valid Steam ID.'] }];
+    const ROWS = [{ id: 9, trooper: 'SGT Ortega.M', game: 'Hell Let Loose', idKind: 'Steam ID', platformId: `Hid[U+200B]den${MARKUP}`, problems: ['This is not a valid Steam ID.'] }];
 
     it('lists them for an Admin with what to check, markup shown as text', () => {
         const wrapper = mount(Games, { props: { games: GAMES, interfaces: INTERFACES, isAdmin: true, identitiesToCheck: ROWS } });
