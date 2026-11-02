@@ -152,7 +152,7 @@ const oversightText = computed(() => {
 
             <!--
               Inline tools (UX-DR4 / settings-v1-tree.html), revealed on hover or focus. Rename and
-              delete are Admin-only; add-child shows wherever the viewer may add (`can_add_child`). The
+              delete are Admin-only; add-child shows wherever the viewer may add (`can_add_child`, Admin only for now). The
               server enforces the same gates regardless (AD-6). Root gets rename only; a leaf gets no add-child.
             -->
             <span

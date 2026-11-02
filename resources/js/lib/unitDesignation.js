@@ -109,3 +109,56 @@ export function movePreview(unit, parent, units) {
 
     return { from: unit.callsign, to: next.callsign, toName: next.name, below, clash, oldParent, options, swap: !!clash && swapBlocked === null, swapBlocked };
 }
+
+/** "number", or "letter" for a company, which holds a letter under its battalion. */
+export function ordinalWord(type) {
+    return type === 'company' ? 'letter' : 'number';
+}
+
+/**
+ * The before and after of a move for the Move dialog, for the clash option picked (`choice`: null, 'swap',
+ * 'renumber_existing' or 'renumber_moved') and the free number or letter picked for a renumber (`pick`). One row per
+ * unit whose designation changes, the moved unit first: `{ id, type, before: { name, callsign, parent }, after: { name,
+ * callsign, parent }, below: [{ id, type, name, from, to }] }`, where `parent` is the parent's name and `below` the
+ * units under it, whose callsigns are rebuilt on the new one. `after.callsign` is null while a renumber waits for its
+ * pick. The unit already there is listed only when it changes.
+ */
+export function moveOutcome(plan, unit, parent, units, choice = null, pick = '') {
+    if (!plan?.to || !unit || !parent) return [];
+    const byId = (id) => units.find((candidate) => candidate.id === id) ?? null;
+    const parentName = (node) => node?.name ?? node?.callsign ?? null;
+    const picked = pick ? childDesignation(unit.type, parent.callsign, pick) : null;
+    const tail = (node, from, to) =>
+        units
+            .filter((candidate) => candidate.id !== node.id && candidate.path?.startsWith(node.path) && candidate.callsign)
+            .map((candidate) => ({
+                id: candidate.id,
+                type: candidate.type,
+                name: candidate.name,
+                from: candidate.callsign,
+                to: to && from && candidate.callsign.toUpperCase().endsWith(`/${from.toUpperCase()}`)
+                    ? candidate.callsign.slice(0, candidate.callsign.length - from.length) + to
+                    : null,
+            }));
+    const row = (node, after) => ({
+        id: node.id,
+        type: node.type,
+        before: { name: node.name, callsign: node.callsign, parent: parentName(byId(node.parent_id)) },
+        after,
+        below: tail(node, node.callsign, after.callsign),
+    });
+
+    const movedAfter =
+        choice === 'renumber_moved'
+            ? { name: picked?.name ?? unit.name, callsign: picked?.callsign ?? null, parent: parentName(parent) }
+            : { name: plan.toName ?? unit.name, callsign: plan.to, parent: parentName(parent) };
+    const rows = [row(unit, movedAfter)];
+
+    if (plan.clash && choice === 'swap') {
+        rows.push(row(plan.clash, { name: unit.name, callsign: plan.from, parent: parentName(plan.oldParent) }));
+    } else if (plan.clash && choice === 'renumber_existing') {
+        rows.push(row(plan.clash, { name: picked?.name ?? plan.clash.name, callsign: picked?.callsign ?? null, parent: parentName(parent) }));
+    }
+
+    return rows;
+}

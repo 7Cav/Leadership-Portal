@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { reactive } from 'vue';
 import OrgStructure from '../OrgStructure.vue';
 import { chooseSearch } from '@/testing/searchSelect';
-import { movePreview, ordinalOf } from '@/lib/unitDesignation';
+import { moveOutcome, movePreview, ordinalOf } from '@/lib/unitDesignation';
 
 // The Move dialog (2026-11-02): a move rebuilds the designation from the new parent, and a clash there is settled before
 // the save. The edit form is reactive here so the dialog follows the picked parent, as it does in the page.
@@ -53,6 +53,12 @@ async function openMove(list, parentId) {
     return wrapper;
 }
 
+const squash = (text) => text.replace(/\s+/g, ' ').trim();
+const rowText = (id) => ({
+    before: squash(inBody(`move-row-${id}`).querySelector('[data-testid="move-row-before"]').textContent),
+    after: squash(inBody(`move-row-${id}`).querySelector('[data-testid="move-row-after"]').textContent),
+});
+
 async function pick(testid) {
     const input = inBody(testid);
     input.checked = true;
@@ -94,13 +100,33 @@ describe('unitDesignation move helpers', () => {
     });
 });
 
+describe('moveOutcome', () => {
+    const list = units();
+    const plan = movePreview(list[4], list[3], list);
+
+    it('lists the moved unit, and the one already there only once an option changes it', () => {
+        expect(moveOutcome(plan, list[4], list[3], list).map((row) => row.id)).toEqual([5]);
+        expect(moveOutcome(plan, list[4], list[3], list, 'renumber_moved', '').map((row) => row.id)).toEqual([5]);
+        expect(moveOutcome(plan, list[4], list[3], list, 'swap').map((row) => row.id)).toEqual([5, 7]);
+    });
+
+    it('rebuilds the callsigns of the units under each, and waits for a pick on a renumber', () => {
+        const [moved, there] = moveOutcome(plan, list[4], list[3], list, 'renumber_existing', '');
+        expect(moved.below).toEqual([{ id: 6, type: 'section', name: '1st Section', from: '1/1/A/1-7', to: '1/1/G/1-7' }]);
+        expect(there.after).toEqual({ name: '1st Platoon', callsign: null, parent: 'Golf Company' });
+    });
+});
+
 describe('Settings/OrgStructure Move dialog', () => {
     it('saves straight away when nothing under the new parent holds the designation', async () => {
         const wrapper = await openMove(units(), 9);
 
-        expect(inBody('move-summary').textContent).toContain('1/A/1-7 becomes 1/H/1-7');
-        expect(inBody('move-summary').textContent).toContain('the unit under it follow');
+        expect(inBody('move-summary').textContent).toContain('1st Platoon moves from Alpha Company to Hotel Company');
+        expect(inBody('move-summary').textContent).toContain('the unit under it');
         expect(inBody('move-clash')).toBeNull();
+        expect(rowText(5)).toEqual({ before: '1st Platoon, Alpha Company 1/A/1-7', after: 'becomes 1st Platoon, Hotel Company 1/H/1-7' });
+        expect(inBody('move-row-below-5').textContent).toContain('Its 1 section');
+        expect(inBody('move-row-below-5').textContent).toMatch(/1st Section\s*1\/1\/A\/1-7\s*→\s*1\/1\/H\/1-7/);
 
         inBody('move-confirm').click();
         expect(sent).toEqual([{ url: '/settings/org-structure/5', parent_id: 9, clash: null, clash_ordinal: '' }]);
@@ -110,11 +136,18 @@ describe('Settings/OrgStructure Move dialog', () => {
     it('says the designation exists and waits for a choice before it moves', async () => {
         const wrapper = await openMove(units(), 4);
 
-        expect(inBody('move-clash-message').textContent).toContain('1/G/1-7 already exists under G/1-7.');
+        expect(inBody('move-clash-message').textContent).toContain('Golf Company already has a 1st Platoon (1/G/1-7).');
+        expect(inBody('clash-swap-label').textContent).toBe('Swap the two platoons');
+        expect(inBody('clash-renumber-existing-label').textContent).toBe('Renumber the platoon already in Golf Company');
+        expect(inBody('clash-renumber-moved-label').textContent).toBe('Give the moved platoon a different number');
         expect(inBody('move-confirm').disabled).toBe(true);
+        expect(inBody('move-outcome-pending')).not.toBeNull();
+        expect(inBody('move-row-7')).toBeNull();
 
         await pick('clash-swap');
         expect(inBody('move-confirm').disabled).toBe(false);
+        expect(rowText(5)).toEqual({ before: '1st Platoon, Alpha Company 1/A/1-7', after: 'becomes 1st Platoon, Golf Company 1/G/1-7' });
+        expect(rowText(7)).toEqual({ before: '1st Platoon, Golf Company 1/G/1-7', after: 'becomes 1st Platoon, Alpha Company 1/A/1-7' });
         inBody('move-confirm').click();
         expect(sent.at(-1)).toMatchObject({ parent_id: 4, clash: 'swap' });
         wrapper.unmount();
@@ -124,16 +157,24 @@ describe('Settings/OrgStructure Move dialog', () => {
         const wrapper = await openMove(units(), 4);
 
         await pick('clash-renumber-existing');
+        expect(inBody('clash-ordinal-label').textContent.trim()).toBe('New number for the 1st Platoon already in Golf Company');
+        expect(rowText(7).after).toBe('becomes 1st Platoon, Golf Company pick a number');
         const offered = [...inBody('clash-ordinal').querySelectorAll('option')].map((option) => option.value).filter(Boolean);
         expect(offered).toEqual(['3', '4', '5', '6', '7', '8', '9']);
         expect(inBody('move-confirm').disabled).toBe(true);
 
         await choose('3');
+        expect(rowText(7)).toEqual({ before: '1st Platoon, Golf Company 1/G/1-7', after: 'becomes 3rd Platoon, Golf Company 3/G/1-7' });
+        expect(rowText(5).after).toBe('becomes 1st Platoon, Golf Company 1/G/1-7');
         inBody('move-confirm').click();
         expect(sent.at(-1)).toMatchObject({ clash: 'renumber_existing', clash_ordinal: '3' });
 
         await pick('clash-renumber-moved');
+        expect(inBody('clash-ordinal-label').textContent.trim()).toBe('New number for the moved platoon');
         await choose('4');
+        expect(rowText(5).after).toBe('becomes 4th Platoon, Golf Company 4/G/1-7');
+        expect(inBody('move-row-below-5').textContent).toMatch(/1\/1\/A\/1-7\s*→\s*1\/4\/G\/1-7/);
+        expect(inBody('move-row-7')).toBeNull();
         inBody('move-confirm').click();
         expect(sent.at(-1)).toMatchObject({ clash: 'renumber_moved', clash_ordinal: '4' });
         wrapper.unmount();
@@ -142,7 +183,7 @@ describe('Settings/OrgStructure Move dialog', () => {
     it('hides swap and renumbering the other unit, with the reason, when it is outside write scope', async () => {
         const wrapper = await openMove(units({ 7: { can_renumber: false } }), 4);
 
-        expect(inBody('move-clash-out-of-scope').textContent).toContain('1/G/1-7 is outside your write scope');
+        expect(inBody('move-clash-out-of-scope').textContent).toContain('That platoon (1/G/1-7) is outside your write scope');
         expect(inBody('clash-swap')).toBeNull();
         expect(inBody('clash-renumber-existing')).toBeNull();
         expect(inBody('clash-renumber-moved')).not.toBeNull();

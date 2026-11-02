@@ -6,7 +6,7 @@
   leadership billet gives you the unit it commands and everything under it. Nobody types in roles.
 - Admin comes from one of two places: the Admin flag on a portal user, set from the server console, or a Regimental HQ
   or S6 1IC or S6 2IC billet an existing Admin has approved (see [Admin by billet](#admin-by-billet)). Admins see and change everything, and
-  are the only ones who can edit the org structure (leaders may add units below their own, see (13)), staff grants and the regiment default roll call template, or read the
+  are the only ones who can edit the org structure (including adding units for now, see (13)), staff grants and the regiment default roll call template, or read the
   audit log and the activity log.
 - A company's command (and the command above it) manages that company's own roll call templates, and a section's command
   (and the command above it) manages the section's own.
@@ -224,9 +224,9 @@ their own plan unless they also command the company.
 
 | Action | Adm | Everyone else | VA |
 | --- | --- | --- | --- |
-| Org structure: add a unit (13) | Yes | Regimental HQ staff below the regiment; a leader or overseer inside the unit they command or oversee and at least two echelons below it (13) | No |
+| Org structure: add a unit (13) | Yes | No for now; with `portal.unit_add_scope` set to 'leaders': Regimental HQ staff below the regiment, a leader or overseer inside the unit they command or oversee and at least two echelons below it (13) | No |
 | Org structure: rename or move a unit, delete an empty unit | Yes | No | No |
-| Org structure: undo adding a unit | Yes (Admins delete instead) | The person who added it, within 60 minutes, while it is still empty and they could still add it there | No |
+| Org structure: undo adding a unit | Yes (Admins delete instead) | No for now; with 'leaders': the person who added it, within 60 minutes, while it is still empty and they could still add it there | No |
 | Org structure: Import from Cav roster | Yes | No | No |
 | Org structure: place a trooper the sync could not place | Yes | No | No |
 | Org structure: set or clear the game a unit plays (from the Games list, not a retired game; only while no unit above has one) (12) | Yes | Regimental HQ staff on any unit; an overseer on the units they oversee and those under them; DEVCOM's 1IC and 2IC on DEVCOM and the units under it (12) | No |
@@ -259,7 +259,8 @@ who read the whole regiment) on any unit; a serving overseer (Org structure's "O
 every unit under them; the serving holders of DEVCOM 1IC and DEVCOM 2IC on DEVCOM and every unit under it. Anyone else
 gets a 403 and sees no game control. Act as may change it as the person acted as would; view as is read only.
 
-(13) Admins add any unit. Regimental HQ staff (the same people as in (12)) add any unit below the regiment,
+(13) Admins add any unit. For now only Admins do: the rule below is kept in code and applies only while the
+`portal.unit_add_scope` setting is 'leaders' (the default is 'admin'). Regimental HQ staff (the same people as in (12)) add any unit below the regiment,
 battalions and companies included. Anyone else adds a line unit only inside a unit they command (billet or acting lead) or
 oversee, and only at least two echelons below that unit: a section needs a company or above, a platoon a battalion or
 above, a company the regiment. An overseer counts one echelon higher than the unit they oversee, so the overseer of a
@@ -269,7 +270,7 @@ add units. The parent must sit inside that unit. The unit's name and callsign ar
 picked number or letter, never typed. Anyone else gets a 403 and sees no Add unit button. Every add is in the audit
 log. Act as may add as the person acted as would (an Admin acting as a Chief of Staff who is Regimental HQ staff may add a battalion); view as is read only. The row add tool in the tree shows wherever the viewer may add.
 
-Undo add: the person who added a unit may delete it again for 60 minutes after adding it, while it is still empty
+Undo add (only while the add scope is 'leaders'; with adding Admin only nobody gets it): the person who added a unit may delete it again for 60 minutes after adding it, while it is still empty
 (no troopers placed in it now or before, no units under it, no nickname, game, guidon, practice slot, oversight, acting
 lead or anything else attached, and no audited change since it was added) and while they could still add it there. The
 server checks all of it on the delete; otherwise it answers 403, or "You can undo this for 60 minutes after adding it,
