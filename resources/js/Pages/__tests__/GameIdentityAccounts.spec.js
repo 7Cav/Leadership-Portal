@@ -25,6 +25,7 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => {
                 processing: false,
                 put: (...args) => put(...args),
                 post: (...args) => post(...args),
+                transform() {},
                 clearErrors() {},
                 reset() {
                     Object.assign(this, data);

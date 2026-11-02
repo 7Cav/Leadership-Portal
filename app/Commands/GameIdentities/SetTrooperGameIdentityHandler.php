@@ -99,7 +99,10 @@ class SetTrooperGameIdentityHandler
             }
         }
 
-        if ($existing?->platform_id === $platformId && $existing->id_kind === $idKind) {
+        $sameGamertag = $command->gamertag === null
+            || ($existing?->gamertag === $command->gamertag->value && ($command->gamertag->value === null || $existing->gamertag_from_server === $command->gamertag->fromServer));
+
+        if ($existing?->platform_id === $platformId && $existing->id_kind === $idKind && $sameGamertag) {
             return $existing;
         }
 
@@ -137,7 +140,7 @@ class SetTrooperGameIdentityHandler
                     }
                 }
 
-                $identity = $this->identities->link($command->trooperId, $command->game, $platformId, $idKind, $source);
+                $identity = $this->identities->link($command->trooperId, $command->game, $platformId, $idKind, $source, $command->gamertag);
                 // Linking a player a leader once dismissed re-admits them (7.7), in the same transaction.
                 $this->dismissals->forget($command->game, $platformId);
 

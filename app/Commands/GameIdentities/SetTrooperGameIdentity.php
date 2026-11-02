@@ -4,7 +4,9 @@ namespace App\Commands\GameIdentities;
 
 use App\Models\Game;
 use App\Models\GameIdentityText;
+use App\Models\Gamertag;
 use App\Models\IdentitySource;
+use App\Repositories\TrooperGameIdentityRepository;
 
 /**
  * Link a trooper to a player ID in one game, or correct the identity they already have there. `$idKind` is which of the game's ID kinds (#428) the id was entered as; null
@@ -22,6 +24,9 @@ use App\Models\IdentitySource;
  *
  * `$source` is how a new row came to be (#174): typed here, from_rollcall when linking an unmatched player. A write that
  * keeps the same ID keeps the row's source; a new ID takes the command's.
+ *
+ * `$gamertag` sets the player's in-game name shown beside the ID (its value null clears it); null leaves it as the
+ * repository does ({@see TrooperGameIdentityRepository::link()}): kept for the same ID, gone with a new one.
  */
 final readonly class SetTrooperGameIdentity
 {
@@ -39,6 +44,7 @@ final readonly class SetTrooperGameIdentity
         ?string $idKind = null,
         public bool $reportedByServer = false,
         public IdentitySource $source = IdentitySource::Typed,
+        public ?Gamertag $gamertag = null,
     ) {
         $this->platformId = GameIdentityText::clean($platformId);
         $this->replacing = $replacing === null ? null : trim($replacing);

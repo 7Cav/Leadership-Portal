@@ -44,6 +44,14 @@ interface GameServerRepository
     public function hasSelectedFor(Game $game): bool;
 
     /**
+     * The game's selected servers read by `$interface`, training and public, oldest first: the servers the platform
+     * lookup asks about a player, in order.
+     *
+     * @return Collection<int, GameServer>
+     */
+    public function selectedFor(Game $game, TelemetryInterface $interface): Collection;
+
+    /**
      * Store what an interface listed: a new server is added unselected, a known one is renamed and no longer missing,
      * and a stored one the listing left out is flagged missing (never deselected).
      *

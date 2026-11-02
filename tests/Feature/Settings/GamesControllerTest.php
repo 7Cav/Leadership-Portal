@@ -42,9 +42,9 @@ it('lists every game with its id label, interface and state, and the interfaces 
         ->component('Settings/Games')
         ->where('isAdmin', true)
         ->has('games', 5)
-        ->where('games.0', ['id' => game('hll')->id, 'slug' => 'hll', 'name' => 'Hell Let Loose (WW2)', 'abbreviation' => 'HLL', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID'], 'checkedKinds' => ['Steam ID', 'Epic ID'], 'interface' => 'crcon', 'retired' => false, 'inUse' => true, 'accounts' => ['Steam', 'Epic'], 'pendingAccountLinks' => 0])
+        ->where('games.0', ['id' => game('hll')->id, 'slug' => 'hll', 'name' => 'Hell Let Loose (WW2)', 'abbreviation' => 'HLL', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID', 'PlayStation ID'], 'checkedKinds' => ['Steam ID', 'Epic ID'], 'interface' => 'crcon', 'retired' => false, 'inUse' => true, 'accounts' => ['Steam', 'Epic'], 'pendingAccountLinks' => 0])
         ->where('games.1.inUse', false)
-        ->where('games.3', ['id' => game('hll-vietnam')->id, 'slug' => 'hll-vietnam', 'name' => 'Hell Let Loose: Vietnam', 'abbreviation' => 'HLLV', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID'], 'checkedKinds' => ['Steam ID', 'Epic ID'], 'interface' => 'none', 'retired' => false, 'inUse' => false, 'accounts' => ['Steam', 'Epic'], 'pendingAccountLinks' => 1])
+        ->where('games.3', ['id' => game('hll-vietnam')->id, 'slug' => 'hll-vietnam', 'name' => 'Hell Let Loose: Vietnam', 'abbreviation' => 'HLLV', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID', 'PlayStation ID', 'EOS ID'], 'checkedKinds' => ['Steam ID', 'Epic ID', 'EOS ID'], 'interface' => 'none', 'retired' => false, 'inUse' => false, 'accounts' => ['Steam', 'Epic'], 'pendingAccountLinks' => 1])
         ->where('games.4', fn ($game) => $game['slug'] === 'foxhole' && $game['retired'] === true)
         ->where('interfaces', [
             ['value' => 'crcon', 'label' => 'CRCON'],
@@ -108,7 +108,7 @@ it('renames a game, relabels its id and changes its interface, keeping the slug,
 it('records nothing when a game is saved unchanged', function () {
     $hll = game('hll');
 
-    $this->actingAs($this->admin)->patch("/settings/games/{$hll->id}", ['name' => 'Hell Let Loose (WW2)', 'id_kinds' => ['Steam ID', 'Epic ID', 'Xbox ID'], 'interface' => 'crcon'])->assertRedirect();
+    $this->actingAs($this->admin)->patch("/settings/games/{$hll->id}", ['name' => 'Hell Let Loose (WW2)', 'id_kinds' => ['Steam ID', 'Epic ID', 'Xbox ID', 'PlayStation ID'], 'interface' => 'crcon'])->assertRedirect();
 
     expect(AuditLogEntry::query()->count())->toBe(0);
 });

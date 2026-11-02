@@ -401,7 +401,30 @@ existing identities" is ticked. New Steam IDs are checked with Steam, at most 20
 when Steam has no key or does not answer, are shown as not checked and saved as a single save would save them. The
 import checks every line again and saves all of them in one audited action (`game_identity.imported`, on the
 audited-writes throttle), or none when anything changed since the preview. New rows are marked Imported. There is no
-"link to every game" column: use the single form for that. A downloadable example file is offered.
+"link to every game" column: use the single form for that. A downloadable example file is offered. An optional fifth
+column is the gamertag. On a game read through CRCON, a 32-character ID whose kind is `?`, empty or left out is looked
+up on the game's servers (below): the line takes the kind for the reported platform, shown as "Xbox ID (from game
+server)", and the server's name as its gamertag when the column is empty. A player no server has seen, a platform the
+game has no kind for, or a server that cannot be asked refuses the line until a kind is given. At most 60 lookups per
+preview, stopping after the first server that cannot be reached; an answer is kept for 10 minutes, so the import saves
+what the preview showed without asking again. A `?` on any other game or ID is refused.
+
+Fill in from game server: on a game whose interface is CRCON, the page can ask the game's servers which platform a
+32-character ID belongs to and the player's current name (`get_player_profile`, read-only). The game's selected CRCON
+servers are asked in order, oldest first, and the first that knows the player answers; a game with no selected server
+asks the CRCON env server only when that server is its own. The platform maps to a kind only when the game asks for it:
+steam to Steam ID, epic to Epic ID, xbl to Xbox ID, psn to PlayStation ID; any other platform is shown but sets no kind.
+On the add form a button appears after a 32-character ID and fills in the kind and gamertag (nothing is saved until Save
+identity). On a saved identity the button shows when its kind is not one the game asks for, a Steam ID that is 32
+characters, or a console or Epic identity with no gamertag; it saves the server's kind and gamertag in one audited
+update, and writes nothing when the server says nothing new or has not seen the player. Both are scoped like an identity
+write and throttled (`platform-lookup`, 20 a minute per user, which also covers the import preview). The capture does
+not record platforms or gamertags: its connection logs carry only a name and ID, and it makes no extra calls for this.
+
+Gamertag: an identity may hold the player's current in-game name, for Xbox, PlayStation and Epic players whose ID tells
+a leader nothing. It is shown under the ID as "Gamertag (from game server)" when a server gave it and "Gamertag" when a
+leader typed it, is optional on the form for those kinds, and is part of the audit entry. It is display only: a player
+can change it at any time, so attendance is always matched by ID, never by gamertag. Saving a new ID clears it.
 
 Missing identity alert: a trooper counts as missing when they have no identity on the game their own unit plays (its own
 or inherited, not retired), whatever ID kind; departed troopers, troopers placed on groups and units with no game are
@@ -419,7 +442,9 @@ command of their own does not see them unless viewing or acting as someone at ba
 and roster banners are about the page's own unit and stay.
 
 The ID is checked against the shape of its kind when it is saved: a Steam ID is 17 digits starting 7656119, an Epic ID
-32 characters of 0 to 9 and a to f (stored lower case, as the game server reports it). Other kinds, such as Xbox ID or
+32 characters of 0 to 9 and a to f (stored lower case, as the game server reports it), an EOS ID 32 characters of 0 to
+9 and a to f starting 0002 (stored lower case; Hell Let Loose: Vietnam asks for it, and it differs per game, so it is
+never a shared account). Other kinds, such as Xbox ID, PlayStation ID or
 Arma's Player ID, take any value. The hint under the ID field says what the chosen kind looks like. An identity saved
 with the same ID and kind it already has is not checked again, so an older one that does not fit its kind can still be
 saved; changing its ID or kind checks it. IDs are stored without hidden characters (zero-width spaces, direction marks

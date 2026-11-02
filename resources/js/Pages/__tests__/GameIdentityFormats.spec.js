@@ -16,7 +16,7 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => {
         Head: { template: '<head></head>' },
         router: { delete: vi.fn(), post: vi.fn() },
         usePage: () => page,
-        useForm: (data) => reactive({ ...data, errors: {}, processing: false, put: vi.fn(), post: vi.fn(), patch: vi.fn(), clearErrors() {}, reset() {} }),
+        useForm: (data) => reactive({ ...data, errors: {}, processing: false, put: vi.fn(), post: vi.fn(), patch: vi.fn(), transform() {}, clearErrors() {}, reset() {} }),
     };
 });
 

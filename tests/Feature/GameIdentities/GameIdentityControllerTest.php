@@ -46,12 +46,12 @@ it('lists only the troopers in scope with their identities and every platform sl
     $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
         ->component('GameIdentities')
         ->has('platforms', 4)
-        ->where('platforms.0', ['value' => 'hll', 'label' => 'Hell Let Loose (WW2)', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID'], 'idHints' => ['Steam ID' => 'A Steam ID is 17 digits starting 7656119, for example 76561198012345678.', 'Epic ID' => 'An Epic ID is 32 characters, the digits 0 to 9 and the letters a to f.'], 'accounts' => ['Steam ID' => 'steam', 'Epic ID' => 'epic'], 'retired' => false])
+        ->where('platforms.0', ['value' => 'hll', 'label' => 'Hell Let Loose (WW2)', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID', 'PlayStation ID'], 'idHints' => ['Steam ID' => 'A Steam ID is 17 digits starting 7656119, for example 76561198012345678.', 'Epic ID' => 'An Epic ID is 32 characters, the digits 0 to 9 and the letters a to f.'], 'accounts' => ['Steam ID' => 'steam', 'Epic ID' => 'epic'], 'retired' => false, 'lookup' => true])
         ->has('troopers', 1)
         ->where('troopers.0.id', $this->mine->id)
         ->where('troopers.0.displayName', 'SGT Ortega.M')
         ->where('troopers.0.section', '1/A')
-        ->where('troopers.0.identities.hll', ['platformId' => '76561198000000656', 'idKind' => 'Steam ID', 'source' => 'typed'])
+        ->where('troopers.0.identities.hll', ['platformId' => '76561198000000656', 'idKind' => 'Steam ID', 'source' => 'typed', 'gamertag' => null, 'gamertagFromServer' => false])
         ->missing('troopers.0.identities.arma'));
 });
 
@@ -120,11 +120,11 @@ it('validates the fields and the platform', function () {
 });
 
 it('links a trooper on a game an Admin added, by its slug (#388)', function () {
-    $squad = Game::factory()->create(['slug' => 'squad', 'name' => 'Squad', 'id_kinds' => ['EOS ID']]);
+    $squad = Game::factory()->create(['slug' => 'squad', 'name' => 'Squad', 'id_kinds' => ['Squad ID']]);
 
     $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
         ->has('platforms', 5)
-        ->where('platforms.4', ['value' => 'squad', 'label' => 'Squad', 'idKinds' => ['EOS ID'], 'idHints' => [], 'accounts' => [], 'retired' => false]));
+        ->where('platforms.4', ['value' => 'squad', 'label' => 'Squad', 'idKinds' => ['Squad ID'], 'idHints' => [], 'accounts' => [], 'retired' => false, 'lookup' => false]));
 
     $this->actingAs($this->leader)->put(identityUrl($this->mine, 'squad'), ['platform_id' => 'eos-1'])->assertRedirect();
 
@@ -137,7 +137,7 @@ it('refuses a new link on a retired game, writing nothing, and still lists and r
 
     $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
         ->where('platforms.4.retired', true)
-        ->where('troopers.0.identities.squad', ['platformId' => 'eos-old', 'idKind' => 'Player ID', 'source' => 'typed']));
+        ->where('troopers.0.identities.squad', ['platformId' => 'eos-old', 'idKind' => 'Player ID', 'source' => 'typed', 'gamertag' => null, 'gamertagFromServer' => false]));
 
     $this->actingAs($this->leader)->put(identityUrl(placedTrooper($this->section), 'squad'), ['platform_id' => 'eos-new'])
         ->assertSessionHasErrors(['platform_id' => "{$retired->name} is retired, so no identity can be linked to it."]);
@@ -296,7 +296,7 @@ it('lists group members (ELOA, Reservists, New Recruits, staff departments) when
 
 it('links the same ID on Hell Let Loose (WW2) and Vietnam, one identity per game per trooper (#431)', function () {
     $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
-        ->where('platforms.3', ['value' => 'hll-vietnam', 'label' => 'Hell Let Loose: Vietnam', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID'], 'idHints' => ['Steam ID' => 'A Steam ID is 17 digits starting 7656119, for example 76561198012345678.', 'Epic ID' => 'An Epic ID is 32 characters, the digits 0 to 9 and the letters a to f.'], 'accounts' => ['Steam ID' => 'steam', 'Epic ID' => 'epic'], 'retired' => false]));
+        ->where('platforms.3', ['value' => 'hll-vietnam', 'label' => 'Hell Let Loose: Vietnam', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID', 'PlayStation ID', 'EOS ID'], 'idHints' => ['Steam ID' => 'A Steam ID is 17 digits starting 7656119, for example 76561198012345678.', 'Epic ID' => 'An Epic ID is 32 characters, the digits 0 to 9 and the letters a to f.', 'EOS ID' => 'An EOS ID is 32 characters starting 0002, the digits 0 to 9 and the letters a to f.'], 'accounts' => ['Steam ID' => 'steam', 'Epic ID' => 'epic'], 'retired' => false, 'lookup' => false]));
 
     $body = ['platform_id' => '0002105c01b748ada8d8cf5b32e70093', 'id_kind' => 'Epic ID'];
     $this->actingAs($this->leader)->put(identityUrl($this->mine, 'hll'), $body)->assertRedirect()->assertSessionHasNoErrors();

@@ -11,7 +11,9 @@ namespace App\Models;
  *
  * Only shapes that are certain are listed. A Steam ID is the SteamID64 the capture reads from CRCON and Nightwatch.
  * An Epic ID is the Epic account id, 32 hex characters, which CRCON reports in lower case: one typed in upper case is
- * stored lower case, so it is the value the capture compares. Xbox, PlayStation and other kinds are not checked.
+ * stored lower case, so it is the value the capture compares. An EOS ID (the Epic Online Services ID a Hell Let Loose
+ * server reports, one per game) is 32 hex characters starting 0002, also stored lower case. Xbox, PlayStation and other
+ * kinds are not checked.
  */
 final readonly class IdKindFormat
 {
@@ -28,11 +30,12 @@ final readonly class IdKindFormat
         return match (strtolower(preg_replace('/\s+/', '', $kind) ?? '')) {
             'steamid', 'steamid64' => new self($kind, '/^7656119\d{10}$/', 'A Steam ID is 17 digits starting 7656119, for example 76561198012345678.'),
             'epicid' => new self($kind, '/^[0-9a-f]{32}$/', 'An Epic ID is 32 characters, the digits 0 to 9 and the letters a to f.', lowercase: true),
+            'eosid' => new self($kind, '/^0002[0-9a-f]{28}$/', 'An EOS ID is 32 characters starting 0002, the digits 0 to 9 and the letters a to f.', lowercase: true),
             default => null,
         };
     }
 
-    /** The ID as it is stored: an Epic ID lower case, anything else as given. */
+    /** The ID as it is stored: an Epic or EOS ID lower case, anything else as given. */
     public function canonical(string $id): string
     {
         return $this->lowercase ? strtolower($id) : $id;

@@ -12,6 +12,11 @@ use App\Models\User;
 
 // #431: Hell Let Loose is two games, WW2 (the existing `hll`, renamed) and Vietnam (`hll-vietnam`, new).
 
+// These tests are about the split itself, so the later kinds (PlayStation ID, EOS ID) are taken off first.
+beforeEach(function () {
+    (require database_path('migrations/2026_11_17_100000_add_console_id_kinds_to_hell_let_loose.php'))->down();
+});
+
 function hllSplitMigration(): object
 {
     return require database_path('migrations/2026_10_28_140000_split_hell_let_loose_into_ww2_and_vietnam.php');

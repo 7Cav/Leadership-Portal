@@ -15,7 +15,7 @@ beforeEach(function () {
 
 function gameForm(array $override = []): array
 {
-    return ['name' => 'Hell Let Loose (WW2)', 'id_kinds' => ['Steam ID', 'Epic ID', 'Xbox ID'], 'interface' => 'crcon', ...$override];
+    return ['name' => 'Hell Let Loose (WW2)', 'id_kinds' => ['Steam ID', 'Epic ID', 'Xbox ID', 'PlayStation ID'], 'interface' => 'crcon', ...$override];
 }
 
 it('gives a game several ID kinds, in order, audited, and shows them on the page', function () {
@@ -37,8 +37,8 @@ it('adds a game with several kinds, trimmed and as a list', function () {
 
 it('treats a reorder as a change, since the first kind is the default', function () {
     $this->actingAs($this->admin)->patch("/settings/games/{$this->hll->id}", gameForm());
-    $this->actingAs($this->admin)->patch("/settings/games/{$this->hll->id}", gameForm(['id_kinds' => ['Epic ID', 'Steam ID', 'Xbox ID']]))->assertRedirect();
-    $this->actingAs($this->admin)->patch("/settings/games/{$this->hll->id}", gameForm(['id_kinds' => ['Epic ID', 'Steam ID', 'Xbox ID']]))->assertRedirect();
+    $this->actingAs($this->admin)->patch("/settings/games/{$this->hll->id}", gameForm(['id_kinds' => ['Epic ID', 'Steam ID', 'Xbox ID', 'PlayStation ID']]))->assertRedirect();
+    $this->actingAs($this->admin)->patch("/settings/games/{$this->hll->id}", gameForm(['id_kinds' => ['Epic ID', 'Steam ID', 'Xbox ID', 'PlayStation ID']]))->assertRedirect();
 
     expect($this->hll->refresh()->defaultIdKind())->toBe('Epic ID')->and(AuditLogEntry::query()->count())->toBe(1);
 });

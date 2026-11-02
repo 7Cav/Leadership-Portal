@@ -21,6 +21,18 @@ page: /game-identities
 2. For a game, enter the game's ID for them. The page says which ID that game uses. Their identity is shown by that ID.
 3. Choose **Save identity**. Each trooper has one identity per game.
 
+## Fill in from the game server
+
+On a Hell Let Loose game, an Xbox, PlayStation or Epic ID is 32 characters that tell you nothing about the player. The game server can say which kind of ID it is and what the player is called in game.
+
+1. Enter the 32-character ID on the form. **Fill in from game server** appears under it.
+2. Choose it. The ID kind and the gamertag are filled in from what the server knows. Nothing is saved yet.
+3. Check them and choose **Save identity**.
+
+If no server has seen the player, the page says so and you choose the kind yourself. A saved identity with no gamertag, or with a kind that does not fit, also offers **Fill in from game server**; that one saves the change straight away.
+
+> [!good-to-know] The gamertag is shown under the ID as **Gamertag (from game server)** when the server gave it, or **Gamertag** when you typed it. A player can change their gamertag at any time, so it is only there to help you recognise them. Attendance is always matched on the ID, never on the gamertag.
+
 ## Link a Steam or Epic account to every game
 
 A Steam ID is the same in every Steam game, and an Epic ID the same in every Epic game, so you can enter it once.
