@@ -12,6 +12,7 @@ use App\Integration\GoogleDrive\GoogleDriveApi;
 use App\Integration\GoogleSheets\GoogleSheetsApi;
 use App\Integration\GoogleSheets\SheetsClient;
 use App\Integration\Nightwatch\NightwatchApi;
+use App\Integration\Steam\SteamApi;
 use App\Kpi\EchelonReportKpiSource;
 use App\Kpi\ReportKpiSource;
 use App\Models\TelemetryInterface;
@@ -45,6 +46,9 @@ class AppServiceProvider extends ServiceProvider
 
         // The BattleMetrics presence seam (AD-3, Story 7.4). Key and server id come from config (env only, AD-23).
         $this->app->singleton(BattleMetricsApi::class, fn () => new BattleMetricsApi(config('services.battlemetrics')));
+
+        // The Steam ID check on save (AD-3, #174). The key comes from config (env only, AD-23).
+        $this->app->singleton(SteamApi::class, fn () => new SteamApi(config('services.steam')));
 
         // Whether each telemetry interface has its credentials set in env (AD-23, #389), without handing them out.
         $this->app->singleton(TelemetryCredentials::class, fn () => new TelemetryCredentials([
