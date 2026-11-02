@@ -12,6 +12,7 @@ import {
     PhJoystick,
     PhKey,
     PhListMagnifyingGlass,
+    PhPlugsConnected,
     PhTreeStructure,
     PhUserCheck,
     PhUsersThree,
@@ -67,6 +68,7 @@ export const NAV_GROUPS = [
             { label: 'Templates', href: '/settings/templates', icon: PhFileCode, allow: 'canManageTemplates' },
             { label: 'Games', href: '/settings/games', icon: PhJoystick },
             { label: 'Servers', href: '/settings/servers', icon: PhHardDrives },
+            { label: 'Connections', href: '/settings/connections', icon: PhPlugsConnected },
             { label: 'Audit log', href: '/settings/audit-log', icon: PhListMagnifyingGlass },
             { label: 'Activity log', href: '/settings/activity-log', icon: PhFootprints },
             // Only while DEMO_TOOLS is on (#115): `feature` names the shared `features` flag it needs.
