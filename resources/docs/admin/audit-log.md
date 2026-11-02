@@ -12,12 +12,12 @@ page: /settings/audit-log
 ## Find an entry
 
 1. Open **Settings**, then **Audit log**. The newest entries are first.
-2. Filter by **Actor**, **Action**, **Target type**, **Target ID**, dates, or **Unit**. A unit includes everything under it.
+2. Filter by **User**, **Action**, **Target type**, **Target ID**, dates, or **Unit**. A unit includes everything under it. To pick a user, open the list and type part of their name, such as "Pike.S" or "pike".
 3. Choose **Apply filters**, or **Clear** to start again.
 
 ## Read an entry
 
-1. **Actor** is who did it. When an Admin acted as someone, the entry also says who or which billet, such as "acting as Vasquez.R". An Admin by billet (a Regimental HQ, S6 1IC or S6 2IC billet an Admin approved) shows as the actor like any other Admin; approving such a billet is recorded as `admin_billet.approved`, and rejecting or revoking it as `admin_billet.rejected`.
+1. **User** is who did it. When an Admin acted as someone, the entry also says who or which billet, such as "acting as Vasquez.R". An Admin by billet (a Regimental HQ, S6 1IC or S6 2IC billet an Admin approved) shows as the user like any other Admin; approving such a billet is recorded as `admin_billet.approved`, and rejecting or revoking it as `admin_billet.rejected`.
 2. **Action** is what happened, such as `weekly_report.sent`. **Target** names what the entry is about, with its week or date where it has one, such as "Staff report of 1LT Lindqvist.P, week 17OCT26 to 23OCT26" or "DCS for PFC Novak.E dated 10OCT26". Under it, each change reads as before and after, such as "Slot: none → Wed 2359Z", and a link opens the page that shows it. Free text such as a counseling reason is never shown here.
 3. **Reason** is the reason given, where the action asks for one.
 4. **Digest** is a fingerprint of the change, so a record can be proven unchanged since.

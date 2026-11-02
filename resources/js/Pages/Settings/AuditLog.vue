@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import EmptyState from '@/components/EmptyState.vue';
+import UserFilterPicker from '@/components/UserFilterPicker.vue';
 import { forumDateTime } from '@/lib/forumDate';
 
 // Flat entries + option lists (mirrors `StaffGrants.vue`'s flat-props pattern). `entries` is a
@@ -81,11 +82,8 @@ function goTo(url) {
                 @submit.prevent="applyFilters"
             >
                 <div class="grid gap-1.5">
-                    <Label for="filter-actor">Actor</Label>
-                    <NativeSelect id="filter-actor" v-model="filters.actor_id" data-testid="filter-actor_id">
-                        <option :value="null">Any actor</option>
-                        <option v-for="actor in actorOptions" :key="actor.id" :value="actor.id">{{ actor.username }}</option>
-                    </NativeSelect>
+                    <Label for="filter-user">User</Label>
+                    <UserFilterPicker id="filter-user" v-model="filters.actor_id" :users="actorOptions" testid="filter-actor_id" />
                 </div>
 
                 <div class="grid gap-1.5">
@@ -134,7 +132,7 @@ function goTo(url) {
             <Table v-if="entries.data.length" sticky-header class="text-[13px]">
                 <TableHeader>
                     <TableRow class="hover:bg-transparent">
-                        <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">Actor</TableHead>
+                        <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">User</TableHead>
                         <TableHead class="h-8 text-xs font-medium text-muted-foreground">Action</TableHead>
                         <TableHead class="h-8 text-xs font-medium text-muted-foreground">Target</TableHead>
                         <TableHead class="h-8 text-xs font-medium text-muted-foreground">Reason</TableHead>

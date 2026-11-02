@@ -17,7 +17,9 @@ test('an Admin sees the pages they opened in the activity log, filterable by use
     await expect(visit.getByTestId('visit-url')).toHaveText('/roster?probe=activity-log');
     await expect(page.getByText('e2e-secret')).toHaveCount(0);
 
-    await page.getByTestId('filter-user_id').selectOption({ label: 'Pike.S' });
+    await page.getByTestId('filter-user_id').click();
+    await page.getByRole('combobox', { name: 'Search users' }).fill('pike');
+    await page.getByRole('option', { name: 'Pike.S' }).click();
     await page.getByTestId('apply-filters').click();
     await expect(page).toHaveURL(/user_id=\d+/);
 

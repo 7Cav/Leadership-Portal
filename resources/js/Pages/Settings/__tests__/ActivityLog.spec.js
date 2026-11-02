@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
+import { nextTick } from 'vue';
 import ActivityLog from '../ActivityLog.vue';
 
 const getSpy = vi.fn();
@@ -28,7 +29,7 @@ const VISITS = {
     next_page_url: null,
 };
 
-function makeWrapper(overrides = {}) {
+function makeWrapper(overrides = {}, options = {}) {
     return mount(ActivityLog, {
         props: {
             visits: VISITS,
@@ -37,6 +38,7 @@ function makeWrapper(overrides = {}) {
             retentionDays: 30,
             ...overrides,
         },
+        ...options,
     });
 }
 
@@ -77,9 +79,12 @@ describe('Settings/ActivityLog', () => {
     });
 
     it('filters by user and date range with a GET to the activity-log route', async () => {
-        const wrapper = makeWrapper();
+        const wrapper = makeWrapper({}, { attachTo: document.body });
 
-        await wrapper.get('[data-testid="filter-user_id"]').setValue('10');
+        await wrapper.get('[data-testid="filter-user_id"]').trigger('click');
+        await nextTick();
+        document.body.querySelector('[data-testid="user-filter-popover"] [data-user="10"]').click();
+        await nextTick();
         await wrapper.get('[data-testid="filter-date_from"]').setValue('2026-10-01');
         await wrapper.get('[data-testid="filter-date_to"]').setValue('2026-10-28');
         await wrapper.get('[data-testid="filter-form"]').trigger('submit');
@@ -94,7 +99,8 @@ describe('Settings/ActivityLog', () => {
     it('opens with the filters it was given, and Clear resets them all', async () => {
         const wrapper = makeWrapper({ filters: { user_id: 10, date_from: '2026-10-01', date_to: '2026-10-28' } });
 
-        expect(wrapper.get('[data-testid="filter-user_id"]').element.value).toBe('10');
+        expect(wrapper.get('[data-testid="filter-user_id"]').attributes('data-value')).toBe('10');
+        expect(wrapper.get('[data-testid="filter-user_id"]').text()).toBe('Hale.S');
 
         await wrapper.get('[data-testid="clear-filters"]').trigger('click');
 

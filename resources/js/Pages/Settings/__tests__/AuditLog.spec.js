@@ -156,6 +156,16 @@ describe('Settings/AuditLog', () => {
         expect(wrapper.get('[data-testid="entry-row-1"]').text()).toContain('Unit#7');
     });
 
+    it('calls the person filter User, a searchable picker, and the column User too', () => {
+        const wrapper = makeWrapper({ filters: { actor_id: 10 } });
+
+        expect(wrapper.get('label[for="filter-user"]').text()).toBe('User');
+        expect(wrapper.get('[data-testid="filter-actor_id"]').attributes('role')).toBe('combobox');
+        expect(wrapper.get('[data-testid="filter-actor_id"]').text()).toBe('jsmith');
+        expect(wrapper.findAll('th').map((th) => th.text())).toContain('User');
+        expect(wrapper.text()).not.toMatch(/actor/i);
+    });
+
     it('filters by a unit chosen from the tree, indented under its parent', async () => {
         const wrapper = makeWrapper({
             unitOptions: [
