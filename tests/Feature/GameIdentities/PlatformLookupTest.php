@@ -99,6 +99,11 @@ describe('the lookup', function () {
         'epic' => ['epic', 'Epic ID'],
         'xbox' => ['xbl', 'Xbox ID'],
         'playstation' => ['psn', 'PlayStation ID'],
+        'vietnam steam' => ['EPlatformFamily::Steam', 'Steam ID'],
+        'vietnam epic' => ['EPlatformFamily::EGS', 'Epic ID'],
+        'vietnam xbox' => ['EPlatformFamily::XboxSeries', 'Xbox ID'],
+        'vietnam playstation' => ['EPlatformFamily::PS5', 'PlayStation ID'],
+        'vietnam ps4' => ['EPlatformFamily::PS4', 'PlayStation ID'],
         'unknown' => ['switch', null],
     ]);
 

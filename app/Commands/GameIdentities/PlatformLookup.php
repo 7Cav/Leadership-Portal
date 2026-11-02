@@ -25,13 +25,30 @@ use Illuminate\Support\Facades\Cache;
  */
 class PlatformLookup
 {
-    /** CRCON's platform names and the ID kind each is. */
+    /**
+     * CRCON's platform names and the ID kind each is. HLL WW2 reports `steam`, `epic`, `xbl` and `psn`; HLL Vietnam
+     * reports Epic's platform family, such as `EPlatformFamily::PS5`, read by {@see self::kindFor()} without the prefix.
+     */
     public const PLATFORM_KINDS = [
         'steam' => 'Steam ID',
         'epic' => 'Epic ID',
+        'egs' => 'Epic ID',
         'xbl' => 'Xbox ID',
+        'xbox' => 'Xbox ID',
+        'xboxone' => 'Xbox ID',
+        'xboxseries' => 'Xbox ID',
         'psn' => 'PlayStation ID',
+        'ps4' => 'PlayStation ID',
+        'ps5' => 'PlayStation ID',
     ];
+
+    /** The ID kind for a platform as CRCON reports it, case and an `EPlatformFamily::` prefix ignored, or null. */
+    public static function kindFor(?string $platform): ?string
+    {
+        $key = strtolower((string) preg_replace('/^EPlatformFamily::/i', '', trim((string) $platform)));
+
+        return self::PLATFORM_KINDS[$key] ?? null;
+    }
 
     public const CACHE_MINUTES = 10;
 
@@ -95,7 +112,7 @@ class PlatformLookup
             $answered = true;
 
             if ($profile !== null) {
-                $kind = self::PLATFORM_KINDS[$profile->platform ?? ''] ?? null;
+                $kind = self::kindFor($profile->platform);
                 $result = PlatformLookupResult::found($kind !== null && $game->hasIdKind($kind) ? $kind : null, $profile->platform, $profile->name);
 
                 return $this->keep($game, $playerId, $result);
