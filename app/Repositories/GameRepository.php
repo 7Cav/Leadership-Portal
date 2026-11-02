@@ -26,6 +26,8 @@ interface GameRepository
 
     public function findBySlug(string $slug): ?Game;
 
+    public function findByAbbreviation(string $abbreviation): ?Game;
+
     /**
      * The game as stored now, with its row locked until the caller's transaction ends (`$exclusive` for a write to the
      * game, shared for one that only relies on it): what keeps an ID kind from being removed while an identity is
@@ -36,14 +38,14 @@ interface GameRepository
     public function lock(int $id, bool $exclusive): Game;
 
     /** @param  list<string>  $idKinds */
-    public function create(string $slug, string $name, array $idKinds, TelemetryInterface $interface): Game;
+    public function create(string $slug, string $name, string $abbreviation, array $idKinds, TelemetryInterface $interface): Game;
 
     /**
      * Rename the game, change its ID kinds, or change how its attendance is read. The slug never changes.
      *
      * @param  list<string>  $idKinds
      */
-    public function update(Game $game, string $name, array $idKinds, TelemetryInterface $interface): Game;
+    public function update(Game $game, string $name, string $abbreviation, array $idKinds, TelemetryInterface $interface): Game;
 
     /** Retire the game (`true`) or bring it back (`false`). Already in that state is left as it is. */
     public function setRetired(Game $game, bool $retired): Game;

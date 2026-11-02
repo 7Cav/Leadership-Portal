@@ -120,6 +120,35 @@ describe('Settings/AuditLog', () => {
         expect(wrapper.get('[data-testid="entry-row-1"]').text()).toContain('Unit#7');
     });
 
+    it('names what an entry is about and lists what it changed, before and after', () => {
+        const wrapper = makeWrapper({
+            entries: {
+                ...ENTRIES,
+                data: [
+                    {
+                        ...ENTRY,
+                        subject: 'Practice slot 1/2/B/2-7',
+                        changes: [
+                            { field: 'Slot', from: 'none', to: 'Wed 2359Z' },
+                            { field: 'And 3 more', from: null, to: null },
+                        ],
+                    },
+                ],
+            },
+        });
+
+        expect(wrapper.get('[data-testid="subject-1"]').text()).toBe('Practice slot 1/2/B/2-7');
+        const changes = wrapper.findAll('[data-testid="changes-1"] li').map((item) => item.text());
+        expect(changes).toEqual(['Slot: none → Wed 2359Z', 'And 3 more']);
+    });
+
+    it('shows no subject or changes for an entry without them', () => {
+        const wrapper = makeWrapper({ entries: { ...ENTRIES, data: [{ ...ENTRY, subject: null, changes: [] }] } });
+
+        expect(wrapper.find('[data-testid="subject-1"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="changes-1"]').exists()).toBe(false);
+    });
+
     it('shows only the raw target for an entry with nothing to link to', () => {
         const wrapper = makeWrapper({ entries: { ...ENTRIES, data: [{ ...ENTRY, link: null }] } });
 

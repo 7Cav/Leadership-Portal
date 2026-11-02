@@ -25,6 +25,7 @@ class GameFactory extends Factory
             'name' => ucwords($name),
             'id_kinds' => ['Player ID'],
             'interface' => TelemetryInterface::None,
+            'abbreviation' => fake()->unique()->regexify('Z[A-Z0-9]{4}'),
             'retired_at' => null,
         ];
     }

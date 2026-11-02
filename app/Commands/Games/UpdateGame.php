@@ -10,7 +10,7 @@ use App\Repositories\TrooperGameIdentityRepository;
 use App\Support\Audit\AuditEnvelope;
 
 /**
- * Rename a game, change the kinds of player ID it asks for, or change which built-in telemetry interface reads its
+ * Rename a game, change its abbreviation, the kinds of player ID it asks for, or change which built-in telemetry interface reads its
  * attendance (#388, #428). Admin-only, gated by the controller (AD-6). The slug stays. Saving what is already stored
  * records nothing; any change is one audited action (AD-16). A kind a linked identity uses cannot be removed (so
  * renaming one is refused too): the check runs inside the audited transaction, so a refusal leaves no log entry.
@@ -28,12 +28,14 @@ class UpdateGame
      *
      * @throws InvalidGameException when a kind the game loses is one a linked identity uses.
      */
-    public function handle(User $actor, Game $game, string $name, array $idKinds, TelemetryInterface $interface): Game
+    public function handle(User $actor, Game $game, string $name, array $idKinds, TelemetryInterface $interface, ?string $abbreviation = null): Game
     {
         $name = trim($name);
         $idKinds = array_values(array_map('trim', $idKinds));
+        // None given keeps the one it has.
+        $abbreviation = $abbreviation === null || trim($abbreviation) === '' ? $game->abbreviation : strtoupper(trim($abbreviation));
 
-        if ($game->name === $name && $game->id_kinds === $idKinds && $game->interface === $interface) {
+        if ($game->name === $name && $game->abbreviation === $abbreviation && $game->id_kinds === $idKinds && $game->interface === $interface) {
             return $game;
         }
 
@@ -42,7 +44,7 @@ class UpdateGame
             action: 'game.updated',
             reason: null,
             reasonRequired: false,
-            mutation: function () use ($game, $name, $idKinds, $interface) {
+            mutation: function () use ($game, $name, $abbreviation, $idKinds, $interface) {
                 // Under a lock on the game's row, which a link on this game takes shared: one lands before this
                 // check and is seen by it, or waits and is validated against the kinds saved here.
                 $stored = $this->games->lock($game->id, exclusive: true);
@@ -52,7 +54,7 @@ class UpdateGame
                     throw InvalidGameException::idKindInUse(array_values($removed));
                 }
 
-                return $this->games->update($game, $name, $idKinds, $interface);
+                return $this->games->update($game, $name, $abbreviation, $idKinds, $interface);
             },
         );
     }

@@ -30,30 +30,60 @@ it('renders the org tree for any authenticated user', function () {
             ->where('isAdmin', false));
 });
 
-it('lets an Admin create a node under a chosen parent (AC #2)', function () {
+it('lets an Admin create a node under a chosen parent, deriving its name and callsign (AC #2)', function () {
     $admin = User::factory()->admin()->create();
-    $regiment = app(UnitRepository::class)->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
+    $regiment = app(UnitRepository::class)->create(UnitType::Regiment, '7th Cavalry Regiment', '7CAV', null);
 
+    // A name and callsign in the request are not read: the server derives both from the ordinal.
     $this->actingAs($admin)->post('/settings/org-structure', [
         'type' => 'battalion',
-        'name' => '2nd Battalion',
-        'callsign' => '2-7',
+        'ordinal' => '2',
+        'name' => 'Anything',
+        'callsign' => 'X-99',
         'parent_id' => $regiment->id,
     ])->assertRedirect();
 
-    $created = Unit::where('name', '2nd Battalion')->first();
+    $created = Unit::where('callsign', '2-7')->first();
     expect($created)->not->toBeNull()
+        ->and($created->name)->toBe('2nd Battalion')
         ->and($created->parent_id)->toBe($regiment->id)
-        ->and($created->path)->toBe("{$regiment->path}{$created->id}/");
+        ->and($created->path)->toBe("{$regiment->path}{$created->id}/")
+        ->and(Unit::where('callsign', 'X-99')->exists())->toBeFalse();
+});
+
+it('422s an ordinal already used under the parent, as a form error on ordinal', function () {
+    $admin = User::factory()->admin()->create();
+    $repo = app(UnitRepository::class);
+    $regiment = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', '7CAV', null);
+    $repo->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);
+
+    $this->actingAs($admin)->post('/settings/org-structure', [
+        'type' => 'battalion',
+        'ordinal' => '1',
+        'parent_id' => $regiment->id,
+    ])->assertInvalid(['ordinal' => '1st Battalion already exists here.']);
+
+    expect(Unit::where('callsign', '1-7')->count())->toBe(1);
+});
+
+it('422s an ordinal that is not one number or letter', function () {
+    $admin = User::factory()->admin()->create();
+    $regiment = app(UnitRepository::class)->create(UnitType::Regiment, '7th Cavalry Regiment', '7CAV', null);
+
+    $this->actingAs($admin)->post('/settings/org-structure', [
+        'type' => 'battalion',
+        'ordinal' => '1-7',
+        'parent_id' => $regiment->id,
+    ])->assertInvalid('ordinal');
+
+    expect(Unit::count())->toBe(1);
 });
 
 it('refuses a non-Admin server-side, even though the UI hides the control (AC #5, AD-6)', function () {
     $user = User::factory()->serving()->create();
 
     $this->actingAs($user)->post('/settings/org-structure', [
-        'type' => 'battalion',
-        'name' => '2nd Battalion',
-        'callsign' => '2-7',
+        'type' => 'regiment',
         'parent_id' => null,
     ])->assertForbidden();
 
@@ -65,8 +95,6 @@ it('requires authentication to view or author the tree', function () {
 
     $this->post('/settings/org-structure', [
         'type' => 'regiment',
-        'name' => '7th Cavalry Regiment',
-        'callsign' => null,
         'parent_id' => null,
     ])->assertRedirect(route('login'));
 });
@@ -76,24 +104,21 @@ it('422s an unrecognized type value', function () {
 
     $this->actingAs($admin)->post('/settings/org-structure', [
         'type' => 'squad', // not a UnitType member
-        'name' => 'Bogus',
-        'callsign' => null,
         'parent_id' => null,
     ])->assertInvalid('type');
 
     expect(Unit::count())->toBe(0);
 });
 
-it('422s a missing name', function () {
+it('creates the regiment with its fixed name and callsign', function () {
     $admin = User::factory()->admin()->create();
 
     $this->actingAs($admin)->post('/settings/org-structure', [
         'type' => 'regiment',
-        'callsign' => null,
         'parent_id' => null,
-    ])->assertInvalid('name');
+    ])->assertRedirect();
 
-    expect(Unit::count())->toBe(0);
+    expect(Unit::sole()->only('name', 'callsign'))->toBe(['name' => '7th Cavalry Regiment', 'callsign' => '7CAV']);
 });
 
 it('422s a parent_id that does not exist', function () {
@@ -101,8 +126,7 @@ it('422s a parent_id that does not exist', function () {
 
     $this->actingAs($admin)->post('/settings/org-structure', [
         'type' => 'battalion',
-        'name' => '2nd Battalion',
-        'callsign' => '2-7',
+        'ordinal' => '2',
         'parent_id' => 999999,
     ])->assertInvalid('parent_id');
 
@@ -111,17 +135,16 @@ it('422s a parent_id that does not exist', function () {
 
 it('422s a node placed at the wrong echelon rank, as a form error on type (AC #6 counterpart)', function () {
     $admin = User::factory()->admin()->create();
-    $regiment = app(UnitRepository::class)->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
+    $regiment = app(UnitRepository::class)->create(UnitType::Regiment, '7th Cavalry Regiment', '7CAV', null);
 
-    // Skips battalion — a company cannot be placed directly under a regiment.
+    // Skips battalion: a company cannot be placed directly under a regiment.
     $this->actingAs($admin)->post('/settings/org-structure', [
         'type' => 'company',
-        'name' => 'Echo Company',
-        'callsign' => 'E/2-7',
+        'ordinal' => 'E',
         'parent_id' => $regiment->id,
     ])->assertInvalid('type');
 
-    expect(Unit::where('name', 'Echo Company')->exists())->toBeFalse();
+    expect(Unit::count())->toBe(1);
 });
 
 it('422s a non-Regiment root node', function () {
@@ -129,8 +152,7 @@ it('422s a non-Regiment root node', function () {
 
     $this->actingAs($admin)->post('/settings/org-structure', [
         'type' => 'battalion',
-        'name' => '2nd Battalion',
-        'callsign' => '2-7',
+        'ordinal' => '2',
         'parent_id' => null,
     ])->assertInvalid('type');
 

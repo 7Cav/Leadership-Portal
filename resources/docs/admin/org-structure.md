@@ -24,8 +24,12 @@ The page has two cards. **Chain of command** holds the regiment, its battalions 
 
 ## Add, rename or move a unit
 
-1. Choose **Add unit**, or select a unit to edit it.
-2. Set its **Name**, **Callsign**, **Echelon** and **Parent**, and choose **Save unit**.
+1. To add a unit, select the unit it goes under and choose the button under its details, such as "Add a platoon under Alpha Company". A separate **Add a unit** window opens with the **Echelon** and, under it, the **Parent**. With nothing selected the button adds a battalion under the regiment.
+2. Pick which one it is from the list, such as "2nd Section" or "Bravo Company". The list only offers the ones the parent does not have yet, so a platoon with a 1st and 3rd Section still offers the 2nd. The name and callsign follow from your pick and the parent's callsign, the same way the import names units (2nd Section under 1/A/3-7 is 2/1/A/3-7), and cannot be typed in. Choose **Add unit**. The new unit is selected in the tree. It has nobody in it yet, so **Show empty units** is ticked for you.
+> [!good-to-know] Who can add: Admins anywhere, and Regimental HQ staff any unit below the regiment. A leader or overseer can add units inside their own unit, at least two echelons below it: a company commander adds sections, a battalion commander platoons, and the overseer of a battalion its companies. Without that, the button is not shown.
+> [!good-to-know] Added the wrong unit? Right after adding, choose **Undo** on the message that confirms it. Until an hour has passed, the unit's details also show **Undo add** with the minutes left. It works only for the person who added the unit, and only while nothing has happened in it yet: no troopers, units under it, nickname, game, practice slot or other change. After that, ask an Admin to delete it.
+
+3. To rename or move a unit, select it and change it in the details panel.
 
 > [!good-to-know] What this changes, and how to undo it: moving a unit moves everyone's access with it on the next page load. Move it back the same way. A unit with troopers, reports or anything else attached cannot be deleted.
 
@@ -42,14 +46,16 @@ The page has two cards. **Chain of command** holds the regiment, its battalions 
 
 ## Set the game a unit plays
 
-1. Select the unit, pick its **Game** from the list, and choose **Save game**. The list has the games kept on the Games page that are not retired.
-2. Every unit under it plays the same game, unless it has its own. The game shows next to each unit's name; one a unit inherits is muted, with the unit it comes from, such as "WARDOGS from 2/A/1-7".
+1. Select a unit, pick its **Game** from the list, and choose **Save game**. Any unit can have its own game while no unit above it has one. The list has the games kept on the Games page that are not retired.
+2. Every unit under it plays the same game. That unit's row shows the game's abbreviation as a chip, such as HLLV; the units under it show no game in the tree, and their details panel shows it locked, such as "Hell Let Loose: Vietnam (from 2-7)".
 
-> [!good-to-know] What this changes, and how to undo it: Game identities opens Add identity on this game, and the practice capture reads the section's practice from it. Pick **None (inherits)** to clear it, and the unit plays the game of the nearest unit above it again. A unit keeps a game that has since been retired, marked retired, until you change it. Both are in the audit log.
+Admins and Regimental HQ staff can change any unit's game. An overseer can change the games of the units they oversee and those under them, and DEVCOM's 1IC and 2IC those of DEVCOM and its units. Nobody else sees the control.
 
-## Set a team label
+> [!good-to-know] What this changes, and how to undo it: Game identities opens Add identity on this game, and the practice capture reads the section's practice from it. Pick the inherited choice at the top of the list to clear it. A unit keeps a game that has since been retired, marked retired, until you change it. A unit under one with a game keeps a game of its own set before until you choose **Clear game**; no new one can be set there. A unit with units under it that have their own games cannot be given one until you clear those; the error names them. Both are in the audit log.
 
-1. Select the unit, fill in **Team label**, and choose **Save label**. It shows next to the unit's name. It is free text and changes nothing else.
+## Set a nickname
+
+1. Select the unit, fill in **Nickname**, such as Jaegers, and choose **Save nickname**. It shows next to the unit's name on the rosters of that unit and of the company or platoon above it, not in the Org structure tree or across a battalion. It is free text and changes nothing else; to rename the unit itself, change **Name** above it.
 
 ## Set who oversees a battalion
 
