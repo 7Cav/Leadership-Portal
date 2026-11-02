@@ -19,7 +19,6 @@ use App\Http\Controllers\RosterPresenceMinimumController;
 use App\Http\Controllers\ScopeUnitsController;
 use App\Http\Controllers\Settings\ActivityLogController;
 use App\Http\Controllers\Settings\AuditLogController;
-use App\Http\Controllers\Settings\ConnectionsController;
 use App\Http\Controllers\Settings\DemoDataController;
 use App\Http\Controllers\Settings\GamesController;
 use App\Http\Controllers\Settings\LoaSyncController;
@@ -315,11 +314,9 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/settings/servers', [ServersController::class, 'index'])->name('settings.servers');
     Route::post('/settings/servers/fetch', [ServersController::class, 'fetch'])->middleware('throttle:server-fetch')->name('settings.servers.fetch');
     Route::patch('/settings/servers/{server}', [ServersController::class, 'update'])->middleware('throttle:audited-writes')->name('settings.servers.update');
-
-    // Game server connections (#183), Admin-only, gated in the controller (AD-6). A test reads every source of the game
-    // over HTTP on the request, like fetching the servers, so it shares that per-Admin cap.
-    Route::get('/settings/connections', [ConnectionsController::class, 'index'])->name('settings.connections');
-    Route::post('/settings/connections/{game}/test', [ConnectionsController::class, 'test'])->where('game', '\d+')->middleware('throttle:server-fetch')->name('settings.connections.test');
+    // A connection test (#183) reads every source of the game over HTTP on the request, like fetching the servers, so
+    // it shares that per-Admin cap.
+    Route::post('/settings/servers/games/{game}/test', [ServersController::class, 'test'])->where('game', '\d+')->middleware('throttle:server-fetch')->name('settings.servers.test');
 
     // Audit-log review (Story 1.14). The whole screen is Admin-only (AC #4) — the gate is
     // enforced in the controller, not route middleware, matching every other Admin gate here.

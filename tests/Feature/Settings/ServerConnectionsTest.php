@@ -19,7 +19,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 use Inertia\Testing\AssertableInertia as Assert;
 
-// #183: the Game server connections page lists every game, its interface, whether it is configured and how each of its
+// #183: the Servers page lists every game, its interface, whether it is configured and how each of its
 // sources last went, as recorded by the capture runs and Test connection. Never a credential or an address (AD-23).
 
 beforeEach(function () {
@@ -61,27 +61,27 @@ it('lists every game with its interface, configured state and the last outcome o
     TelemetryConnection::query()->create(['game_id' => game('hll')->id, 'target' => 'env:crcon', 'interface' => 'crcon', 'last_succeeded_at' => now()->subHour()]);
     TelemetryConnection::query()->create(['game_id' => game('arma')->id, 'target' => "server:{$training->id}:battlemetrics", 'game_server_id' => $training->id, 'interface' => 'battlemetrics', 'last_succeeded_at' => now()->subDay(), 'last_failed_at' => now()->subMinute(), 'last_failure_reason' => 'battlemetrics: http_error']);
 
-    $this->actingAs($this->admin)->get('/settings/connections')->assertOk()->assertInertia(fn (Assert $page) => $page
-        ->component('Settings/Connections')
+    $this->actingAs($this->admin)->get('/settings/servers')->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->component('Settings/Servers')
         ->has('games', 4)
         // Configured: HLL reads the CRCON server set in env, which answered an hour ago.
         ->where('games.0.interface', 'crcon')
-        ->where('games.0.configured', true)
-        ->where('games.0.servers', [['label' => 'Hell Let Loose (WW2) server', 'sources' => [
+        ->where('games.0.captureConfigured', true)
+        ->where('games.0.connections', [['label' => 'Hell Let Loose (WW2) server', 'sources' => [
             ['interface' => 'crcon', 'configured' => true, 'lastSucceededAt' => '2026-10-08T19:00:00+00:00', 'lastFailedAt' => null, 'lastFailureReason' => null],
         ]]])
         // Down: Arma's training server failed a minute ago, with its typed reason.
-        ->where('games.1.servers.0.label', 'Arma Training')
-        ->where('games.1.servers.0.sources.0.lastFailedAt', '2026-10-08T19:59:00+00:00')
-        ->where('games.1.servers.0.sources.0.lastFailureReason', 'battlemetrics: http_error')
+        ->where('games.1.connections.0.label', 'Arma Training')
+        ->where('games.1.connections.0.sources.0.lastFailedAt', '2026-10-08T19:59:00+00:00')
+        ->where('games.1.connections.0.sources.0.lastFailureReason', 'battlemetrics: http_error')
         // Unconfigured: WARDOGS' Nightwatch credentials are not set.
-        ->where('games.2.configured', false)
-        ->where('games.2.servers.0.sources.0.configured', false)
-        ->where('games.2.servers.0.sources.0.lastSucceededAt', null)
+        ->where('games.2.captureConfigured', false)
+        ->where('games.2.connections.0.sources.0.configured', false)
+        ->where('games.2.connections.0.sources.0.lastSucceededAt', null)
         // None: Vietnam is read by no interface and has nothing to read.
         ->where('games.3.interface', 'none')
-        ->where('games.3.configured', false)
-        ->where('games.3.servers', [])
+        ->where('games.3.captureConfigured', false)
+        ->where('games.3.connections', [])
         ->where('testResult', null)
     );
 });
@@ -90,7 +90,7 @@ it('never sends a credential or an address', function () {
     config()->set('services.crcon', ['base_url' => 'https://crcon-secret-host.test', 'api_key' => 'secret-key-123']);
     app()->forgetInstance(CaptureSources::class);
 
-    $html = $this->actingAs($this->admin)->get('/settings/connections')->assertOk()->getContent();
+    $html = $this->actingAs($this->admin)->get('/settings/servers')->assertOk()->getContent();
 
     expect($html)->not->toContain('crcon-secret-host')->not->toContain('secret-key-123');
 });
@@ -121,8 +121,8 @@ it('tests a connection with a read-only call through the sources and records the
     $unset = new CaptureSource('battlemetrics', 'bm', fn () => throw new LogicException('not read'), configured: false);
     connectionSources(['crcon' => [answering('crcon', $asked), $unset]]);
 
-    $this->actingAs($this->admin)->post('/settings/connections/'.game('hll')->id.'/test')
-        ->assertRedirect('/settings/connections')
+    $this->actingAs($this->admin)->post('/settings/servers/games/'.game('hll')->id.'/test')
+        ->assertRedirect('/settings/servers')
         ->assertSessionHas('connection_test', ['gameId' => game('hll')->id, 'outcomes' => [
             ['server' => 'Hell Let Loose (WW2) server', 'interface' => 'crcon', 'status' => 'ok'],
             ['server' => 'Hell Let Loose (WW2) server', 'interface' => 'battlemetrics', 'status' => 'not_configured'],
@@ -137,7 +137,7 @@ it('tests a connection with a read-only call through the sources and records the
 it('reports a source that is down with its typed reason', function () {
     connectionSources(['crcon' => [down('crcon')]]);
 
-    $this->actingAs($this->admin)->post('/settings/connections/'.game('hll')->id.'/test')
+    $this->actingAs($this->admin)->post('/settings/servers/games/'.game('hll')->id.'/test')
         ->assertSessionHas('connection_test.outcomes', [['server' => 'Hell Let Loose (WW2) server', 'interface' => 'crcon', 'status' => 'failed', 'reason' => 'crcon: unreachable']]);
 
     expect(TelemetryConnection::query()->sole()->last_failure_reason)->toBe('crcon: unreachable');
@@ -146,7 +146,7 @@ it('reports a source that is down with its typed reason', function () {
 it('tests nothing for a game read by none', function () {
     connectionSources(['crcon' => [answering('crcon')]]);
 
-    $this->actingAs($this->admin)->post('/settings/connections/'.game('hll-vietnam')->id.'/test')
+    $this->actingAs($this->admin)->post('/settings/servers/games/'.game('hll-vietnam')->id.'/test')
         ->assertSessionHas('connection_test.outcomes', []);
 
     expect(TelemetryConnection::query()->count())->toBe(0);
@@ -155,7 +155,7 @@ it('tests nothing for a game read by none', function () {
 it('refuses a non-Admin the page and the test, before looking the game up', function () {
     $leader = User::factory()->serving()->create();
 
-    $this->actingAs($leader)->get('/settings/connections')->assertForbidden();
-    $this->actingAs($leader)->post('/settings/connections/999999/test')->assertForbidden();
-    $this->actingAs($this->admin)->post('/settings/connections/999999/test')->assertNotFound();
+    $this->actingAs($leader)->get('/settings/servers')->assertForbidden();
+    $this->actingAs($leader)->post('/settings/servers/games/999999/test')->assertForbidden();
+    $this->actingAs($this->admin)->post('/settings/servers/games/999999/test')->assertNotFound();
 });
