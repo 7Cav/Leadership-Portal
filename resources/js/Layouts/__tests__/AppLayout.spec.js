@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
-import { reactive } from 'vue';
+import { reactive, nextTick } from 'vue';
 import AppLayout from '../AppLayout.vue';
 import { THEME_STORAGE_KEY, useTheme } from '@/composables/useTheme';
 import { useTrooperSearch } from '@/composables/useTrooperSearch';
@@ -367,6 +367,49 @@ describe('AppLayout', () => {
             wrapper = mountLayout({ user: { id: 1, username, is_admin: false } });
 
             expect(wrapper.find('[data-testid="user-menu"] [data-slot="avatar-fallback"]').text()).toBe(expected);
+        });
+
+        // The 7Cav rank avatar: drawn once the image loads, the initials until then and whenever it fails.
+        it('keeps the initials while the rank avatar has not loaded', () => {
+            wrapper = mountLayout({ profile: ENRICHED });
+
+            expect(wrapper.find('[data-testid="user-menu"] [data-slot="avatar-fallback"]').text()).toBe('HS');
+        });
+
+        it('shows the rank avatar, decorative, once it loads', async () => {
+            const RealImage = window.Image;
+            window.Image = class {
+                set src(value) {
+                    this._src = value;
+                    setTimeout(() => this.onload?.());
+                }
+                get src() {
+                    return this._src;
+                }
+                addEventListener(type, fn) {
+                    if (type === 'load') this.onload = fn;
+                }
+                removeEventListener() {}
+            };
+            try {
+                wrapper = mountLayout({ profile: ENRICHED });
+                await new Promise((resolve) => setTimeout(resolve, 10));
+                await nextTick();
+
+                const img = wrapper.find('[data-testid="user-menu"] img[data-testid="rank-avatar"]');
+                expect(img.exists()).toBe(true);
+                expect(img.attributes('src')).toBe('/assets/ranks/WO1.png');
+                expect(img.attributes('alt')).toBe('');
+            } finally {
+                window.Image = RealImage;
+            }
+        });
+
+        it('draws no rank avatar for a recruit', () => {
+            wrapper = mountLayout({ profile: { ...ENRICHED, rank_short: 'RCT' } });
+
+            expect(wrapper.find('[data-testid="rank-avatar"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="user-menu"] [data-slot="avatar-fallback"]').text()).toBe('HS');
         });
 
         it('falls back to a placeholder identity without a username', () => {

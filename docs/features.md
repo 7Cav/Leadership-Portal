@@ -317,6 +317,9 @@ leaves the Cav; one who left before it began doing so has no date and is on no p
   the shell with a short blocked note ("The trooper you are viewing as does not have permission to see this page.", or
   unit, or billet, or acting as) and the bar to leave, never the page's data.
 - Both follow act as and View as: with either on, the switcher lists the units of the scope you are seeing.
+- User menu (bottom of the sidebar): your rank, name, billet and where they came from, drawn with the 7Cav standard
+  rank avatar for your rank (from the 7Cav wiki). A recruit, a trooper with no Cav profile, an unknown rank, an image
+  that fails to load and act as (which shows no profile) get your initials instead.
 - Act as (user menu): runs the portal as another person, writes included, under a red bar. A leader's picker lists the
   serving billet holders below them and the billets junior to theirs in their own command team (an SL their ASL, a PL
   their PSG, a company CO their XO and 1SG, the RCO the RXO and RCSM), never anyone above or beside them. The full
