@@ -135,8 +135,10 @@ class OrgStructureController extends Controller
         $mayGame = fn (Unit $unit) => $gamesEverywhere
             || collect([$unit, ...$ancestorsOf($unit)])->contains(fn (Unit $at) => $gameRoots->has($at->id));
 
-        $addEverywhere = ! $previewing && ($scope->isAdmin($viewer) || $scope->isRegimentalHqStaff($viewer));
-        $addRoots = $previewing || $addEverywhere ? collect() : $scope->unitAddRoots($viewer);
+        // Adding is Admin only for now; the scoped rule applies only while it is switched on (ScopeResolver::mayAddUnit).
+        $leadersAdd = $scope->leadersMayAddUnits();
+        $addEverywhere = ! $previewing && ($scope->isAdmin($viewer) || ($leadersAdd && $scope->isRegimentalHqStaff($viewer)));
+        $addRoots = $previewing || $addEverywhere || ! $leadersAdd ? collect() : $scope->unitAddRoots($viewer);
         $mayAddUnder = function (Unit $unit) use ($addEverywhere, $addRoots, $ancestorsOf): bool {
             $below = collect(UnitType::cases())->first(fn (UnitType $type) => $type->isLine() && $unit->isLine() && $type->rank() === $unit->type->rank() + 1);
             if ($below === null) {

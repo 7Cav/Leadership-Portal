@@ -519,11 +519,18 @@ class ScopeResolver
      * the new one. A section needs a company or above, a platoon a battalion or above, a company the regiment; a
      * battalion is left to Admins and Regimental HQ staff, the regiment itself to Admins. Whether the echelon fits under the parent
      * is the command's check. Real authority: a view-as preview is read only anyway.
+     *
+     * For now adding is Admin only: the scoped rule below applies only while `portal.unit_add_scope` is 'leaders'.
+     * With it off nobody but an Admin adds, so nobody gets an undo either ({@see mayUndoAddUnit()}).
      */
     public function mayAddUnit(User $user, Unit $parent, UnitType $type): bool
     {
         if ($this->isAdmin($user)) {
             return true;
+        }
+
+        if (! $this->leadersMayAddUnits()) {
+            return false;
         }
 
         if (! $type->isLine() || $type === UnitType::Regiment) {
@@ -541,6 +548,12 @@ class ScopeResolver
                 && ($root = $this->units->find($rootId)) !== null
                 && $this->units->subtreeIds($root)->contains($parent->id),
         );
+    }
+
+    /** Whether anyone short of an Admin may add units: `portal.unit_add_scope` is 'leaders'. Admin only by default. */
+    public function leadersMayAddUnits(): bool
+    {
+        return config('portal.unit_add_scope') === 'leaders';
     }
 
     /**

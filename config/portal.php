@@ -156,4 +156,17 @@ return [
 
     'changelog_deploy_id' => null,
 
+    /*
+    |--------------------------------------------------------------------------
+    | Who may add units
+    |--------------------------------------------------------------------------
+    |
+    | 'admin' (the default for now): only Admins add units on Org structure. 'leaders': the scoped rule as well, so
+    | leaders and overseers two echelons above the new unit and Regimental HQ staff may add too, and the leader who
+    | added a unit may undo it within the hour (ScopeResolver::mayAddUnit, mayUndoAddUnit). Moving stays Admin only.
+    |
+    */
+
+    'unit_add_scope' => 'admin',
+
 ];

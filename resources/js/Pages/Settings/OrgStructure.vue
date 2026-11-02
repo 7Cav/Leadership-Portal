@@ -25,7 +25,7 @@ import SearchSelect from '@/components/SearchSelect.vue';
 import ReasonDialog from '@/components/ReasonDialog.vue';
 import { onHttpException } from '@/lib/httpError';
 import { ancestorIds, searchUnits } from '@/lib/orgSearch';
-import { movePreview, ordinalOptions } from '@/lib/unitDesignation';
+import { moveOutcome, movePreview, ordinalOptions, ordinalWord } from '@/lib/unitDesignation';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import OrgTreeNode from './OrgTreeNode.vue';
 
@@ -456,8 +456,9 @@ watch(
 );
 
 // The ordinals still free under the parent, gaps included; the regiment, as the root, has its one fixed designation.
-// Admins add anywhere; a leader only where the server says they may (`can_add_child`: inside the unit they command or
-// oversee, at least two echelons below it). The button and dialog hide otherwise; `store` checks again.
+// Admins add anywhere. For now nobody else does: `can_add_child` is false for everyone else while `portal.unit_add_scope`
+// is 'admin' (the default); with 'leaders' it is true where a leader may add (inside the unit they command or oversee,
+// at least two echelons below it). The button and dialog hide otherwise; `store` checks again.
 const canAdd = computed(() => props.isAdmin || addTarget.value.parent?.can_add_child === true);
 
 const addOptions = computed(() => ordinalOptions(addTarget.value.type, addTarget.value.parent, props.units));
@@ -592,6 +593,23 @@ const movePlan = computed(() =>
         : null,
 );
 const clashRenumberable = computed(() => !!movePlan.value?.clash?.can_renumber);
+// The Now and After rows for the option picked, rebuilt as the option or the free number changes.
+const moveRows = computed(() =>
+    moveOutcome(movePlan.value, selectedUnit.value, moveParent.value, props.units, editForm.clash, editForm.clash_ordinal),
+);
+const ordinalLabel = computed(() => {
+    const unit = selectedUnit.value;
+    const whose = editForm.clash === 'renumber_existing' ? `the ${movePlan.value?.clash?.name} already in ${moveParent.value?.name}` : `the moved ${unit?.type}`;
+    return `New ${ordinalWord(unit?.type)} for ${whose}`;
+});
+
+/** "Its 4 sections", or "Its 5 units" when the units under it are of more than one echelon. */
+function belowSummary(row) {
+    const types = new Set(row.below.map((item) => item.type));
+    const count = row.below.length;
+    const word = types.size === 1 ? [...types][0] : 'unit';
+    return `Its ${count} ${count === 1 ? word : `${word}s`}`;
+}
 const moveReady = computed(() => {
     const plan = movePlan.value;
     if (!plan?.clash) return true;
@@ -1417,7 +1435,7 @@ function confirmDelete() {
                 </section>
 
                 <!--
-                  Add-node control: Admins, and leaders two echelons above the new unit (`canAdd`). Hidden
+                  Add-node control: Admins, and leaders two echelons above the new unit while the add scope allows it (`canAdd`). Hidden
                   otherwise; the server enforces the same gate on `store` regardless (AC #5, AD-6).
                 -->
                 <template v-if="canAdd">
@@ -1431,39 +1449,39 @@ function confirmDelete() {
 
         <!-- Add unit: its own dialog, apart from the details panel where the selected unit is edited. -->
         <Dialog v-if="isAdmin && selectedUnit" :open="moveOpen" @update:open="(open) => !open && !editForm.processing && (moveOpen = false)">
-            <DialogContent class="sm:max-w-md" data-testid="move-dialog">
+            <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-lg" data-testid="move-dialog">
                 <DialogHeader>
                     <DialogTitle>Move {{ selectedUnit.name }}</DialogTitle>
                     <DialogDescription data-testid="move-summary">
-                        {{ movePlan?.from }} becomes {{ movePlan?.to }}<template v-if="movePlan?.below"
-                            >, and the {{ movePlan.below === 1 ? 'unit' : `${movePlan.below} units` }} under it follow</template
-                        >.
+                        {{ selectedUnit.name }} moves from {{ movePlan?.oldParent?.name ?? 'its parent' }} to {{ moveParent?.name }}, so its callsign
+                        changes<template v-if="movePlan?.below">, and so do those of the {{ movePlan.below === 1 ? 'unit' : `${movePlan.below} units` }} under it</template>.
                     </DialogDescription>
                 </DialogHeader>
 
                 <div v-if="movePlan?.clash" class="space-y-3 text-sm" data-testid="move-clash">
-                    <p class="font-medium" data-testid="move-clash-message">
-                        {{ movePlan.to }} already exists under {{ moveParent?.callsign ?? moveParent?.name }}.
-                    </p>
-                    <p v-if="!clashRenumberable" class="text-xs text-muted-foreground" data-testid="move-clash-out-of-scope">
-                        {{ movePlan.clash.callsign }} is outside your write scope, so you may not swap or renumber it.
-                    </p>
-
                     <fieldset class="space-y-2">
-                        <legend class="sr-only">How to settle it</legend>
+                        <legend class="mb-2 font-medium" data-testid="move-clash-message">
+                            {{ moveParent?.name }} already has a {{ movePlan.clash.name }} ({{ movePlan.clash.callsign }}). Choose what happens:
+                        </legend>
+                        <p v-if="!clashRenumberable" class="text-xs text-muted-foreground" data-testid="move-clash-out-of-scope">
+                            That {{ selectedUnit.type }} ({{ movePlan.clash.callsign }}) is outside your write scope, so you may not swap or renumber it.
+                        </p>
                         <label v-if="clashRenumberable" class="flex items-start gap-2" :class="{ 'opacity-60': !movePlan.swap }">
                             <input
                                 type="radio"
                                 name="clash"
                                 value="swap"
+                                class="mt-1"
                                 data-testid="clash-swap"
                                 :disabled="!movePlan.swap"
                                 :checked="editForm.clash === 'swap'"
                                 @change="pickClash('swap')"
                             />
                             <span>
-                                Swap: {{ movePlan.clash.callsign }} moves to {{ movePlan.oldParent?.callsign ?? movePlan.oldParent?.name }} as
-                                {{ movePlan.from }}
+                                <span data-testid="clash-swap-label">Swap the two {{ selectedUnit.type }}s</span>
+                                <span class="block text-xs text-muted-foreground">
+                                    The {{ movePlan.clash.name }} of {{ moveParent?.name }} takes the old place in {{ movePlan.oldParent?.name }}.
+                                </span>
                                 <span v-if="movePlan.swapBlocked" class="block text-xs text-muted-foreground" data-testid="clash-swap-blocked">{{
                                     movePlan.swapBlocked
                                 }}</span>
@@ -1474,35 +1492,71 @@ function confirmDelete() {
                                 type="radio"
                                 name="clash"
                                 value="renumber_existing"
+                                class="mt-1"
                                 data-testid="clash-renumber-existing"
                                 :checked="editForm.clash === 'renumber_existing'"
                                 @change="pickClash('renumber_existing')"
                             />
-                            <span>Give {{ movePlan.clash.callsign }} another number</span>
+                            <span data-testid="clash-renumber-existing-label">Renumber the {{ selectedUnit.type }} already in {{ moveParent?.name }}</span>
                         </label>
                         <label class="flex items-start gap-2">
                             <input
                                 type="radio"
                                 name="clash"
                                 value="renumber_moved"
+                                class="mt-1"
                                 data-testid="clash-renumber-moved"
                                 :checked="editForm.clash === 'renumber_moved'"
                                 @change="pickClash('renumber_moved')"
                             />
-                            <span>Give {{ selectedUnit.name }} another number instead</span>
+                            <span data-testid="clash-renumber-moved-label">Give the moved {{ selectedUnit.type }} a different {{ ordinalWord(selectedUnit.type) }}</span>
                         </label>
                     </fieldset>
 
                     <div v-if="editForm.clash === 'renumber_existing' || editForm.clash === 'renumber_moved'" class="grid gap-1.5">
-                        <Label for="clash-ordinal">{{ editForm.clash === 'renumber_existing' ? movePlan.clash.callsign : selectedUnit.name }} becomes</Label>
+                        <Label for="clash-ordinal" data-testid="clash-ordinal-label">{{ ordinalLabel }}</Label>
                         <NativeSelect id="clash-ordinal" v-model="editForm.clash_ordinal" data-testid="clash-ordinal" :disabled="movePlan.options.length === 0">
                             <option value="" disabled>{{ movePlan.options.length ? 'Choose one' : 'None free' }}</option>
                             <option v-for="option in movePlan.options" :key="option.value" :value="option.value">
-                                {{ option.callsign }} ({{ option.name }})
+                                {{ option.name }}, {{ option.callsign }}
                             </option>
                         </NativeSelect>
                     </div>
                 </div>
+
+                <section aria-labelledby="move-outcome-heading" aria-live="polite" class="space-y-2 text-sm" data-testid="move-outcome">
+                    <h3 id="move-outcome-heading" class="font-medium">What changes</h3>
+                    <p v-if="movePlan?.clash && !editForm.clash" class="text-xs text-muted-foreground" data-testid="move-outcome-pending">
+                        Choose an option above to see what happens to the {{ selectedUnit.type }} already there.
+                    </p>
+                    <ul class="space-y-2">
+                        <li v-for="row in moveRows" :key="row.id" class="rounded-md border p-2" :data-testid="`move-row-${row.id}`">
+                            <div class="grid grid-cols-[1fr_auto_1fr] items-start gap-x-2 gap-y-0.5">
+                                <span class="text-xs text-muted-foreground">Now</span>
+                                <span aria-hidden="true"></span>
+                                <span class="text-xs text-muted-foreground">After</span>
+                                <span data-testid="move-row-before">
+                                    {{ row.before.name }}, {{ row.before.parent }}
+                                    <span class="block font-mono text-xs">{{ row.before.callsign }}</span>
+                                </span>
+                                <span aria-hidden="true" class="pt-0.5 text-muted-foreground">→</span>
+                                <span data-testid="move-row-after">
+                                    <span class="sr-only">becomes </span>{{ row.after.name }}, {{ row.after.parent }}
+                                    <span class="block font-mono text-xs">{{ row.after.callsign ?? `pick a ${ordinalWord(row.type)}` }}</span>
+                                </span>
+                            </div>
+                            <details v-if="row.below.length" class="mt-1.5 text-xs" :data-testid="`move-row-below-${row.id}`">
+                                <summary class="cursor-pointer text-muted-foreground">{{ belowSummary(row) }}</summary>
+                                <ul class="mt-1 space-y-0.5">
+                                    <li v-for="item in row.below" :key="item.id">
+                                        {{ item.name }} <span class="font-mono">{{ item.from }}</span> →
+                                        <span class="font-mono">{{ item.to ?? '?' }}</span>
+                                    </li>
+                                </ul>
+                            </details>
+                        </li>
+                    </ul>
+                </section>
 
                 <p v-if="editForm.errors.clash" class="text-xs text-destructive" data-testid="move-error-clash">{{ editForm.errors.clash }}</p>
                 <p v-if="editForm.errors.clash_ordinal" class="text-xs text-destructive" data-testid="move-error-clash_ordinal">
