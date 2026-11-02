@@ -202,3 +202,26 @@ describe('Settings/Games', () => {
         expect(locate('/settings/games').group.id).toBe('settings');
     });
 });
+
+describe('Settings/Games, applying existing account links (#174)', () => {
+    const withPending = [{ ...GAMES[0], accounts: ['Steam'], pendingAccountLinks: 3 }, { ...GAMES[1], accounts: ['Epic'], pendingAccountLinks: 0 }];
+
+    beforeEach(() => routerPost.mockReset());
+
+    it('offers the backfill to an Admin on a game with links to apply, and posts it on a click', async () => {
+        const wrapper = mount(Games, { props: { games: withPending, interfaces: INTERFACES, isAdmin: true } });
+
+        expect(wrapper.get('[data-testid="apply-account-links-hll"]').text()).toBe('Apply existing Steam links');
+        expect(wrapper.get('[data-testid="pending-account-links-hll"]').text()).toBe('3 troopers');
+        expect(wrapper.find('[data-testid="apply-account-links-squad"]').exists()).toBe(false);
+
+        await wrapper.get('[data-testid="apply-account-links-hll"]').trigger('click');
+        expect(routerPost).toHaveBeenCalledWith('/settings/games/1/account-links', expect.any(Object));
+    });
+
+    it('offers nothing to someone who is not an Admin', () => {
+        const wrapper = mount(Games, { props: { games: withPending, interfaces: INTERFACES, isAdmin: false } });
+
+        expect(wrapper.find('[data-testid="apply-account-links-hll"]').exists()).toBe(false);
+    });
+});
