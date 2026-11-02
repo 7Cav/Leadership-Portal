@@ -25,6 +25,16 @@ function factory(props = {}) {
 }
 
 describe('Order of battle (roster-s2)', () => {
+    it("shows a section's nickname on its row in a platoon roster, and none across a battalion", () => {
+        const { units } = roster();
+        const named = units.map((unit) => (unit.id === 2 ? { ...unit, label: 'Jaegers' } : unit));
+
+        expect(factory({ units: named }).find('[data-testid="label-2"]').text()).toBe('· Jaegers');
+
+        const wide = [{ ...named[0], type: 'battalion' }, ...named.slice(1)];
+        expect(factory({ units: wide }).find('[data-testid="label-2"]').exists()).toBe(false);
+    });
+
     it('keeps the column headers in view, with the trooper header above the others', () => {
         const wrapper = factory();
 

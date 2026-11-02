@@ -15,7 +15,7 @@ use App\Repositories\WeeklyReportRepository;
 use App\Support\Audit\AuditEnvelope;
 
 /**
- * Remove a node from the chain of command (AD-18, AD-22). Admin-only — enforced by the
+ * Remove a node from the chain of command (AD-18, AD-22). Admin-only, bar an undo of an add, enforced by the
  * controller (AD-6), same as {@see CreateUnit}. Refuses when anything still hangs off the unit
  * so an Admin gets a clear reason instead of the DB's raw `restrictOnDelete` constraint error,
  * which surfaces as a 500.
@@ -27,12 +27,18 @@ use App\Support\Audit\AuditEnvelope;
  * in the database, but are refused too: a topic is part of its week's report record. Troopers (`primary_section_id`) are `nullOnDelete`
  * and command mappings are `cascadeOnDelete`, so neither blocks.
  *
+ * An undo of an add (`$undoAdd`) is the same delete, for the leader who added the unit within the hour (the controller
+ * checks who and when): it is refused too when anything has happened in the unit since ({@see UnitRepository::hasHistory()}),
+ * and audited with the reason "Undo of an add".
+ *
  * Returns the deleted `Unit` (rather than void) so `AuditEnvelope` has a target to log — its
  * attributes are still populated in memory after `delete()`, since deleting a row doesn't clear
  * the model that referenced it.
  */
 class DeleteUnit
 {
+    public const UNDO_REASON = 'Undo of an add';
+
     public function __construct(
         private readonly UnitRepository $units,
         private readonly UnitBilletMappingRepository $mappings,
@@ -48,21 +54,26 @@ class DeleteUnit
     /**
      * @throws UnitHasDependentsException when the unit still has child units, billet mappings,
      *                                    staff grants, recorded practices, weekly reports,
-     *                                    template versions, training plans or training topics.
+     *                                    template versions, training plans or training topics, or, for an
+     *                                    undo, anything else that happened in it since it was added.
      */
-    public function handle(User $actor, Unit $unit): Unit
+    public function handle(User $actor, Unit $unit, bool $undoAdd = false): Unit
     {
         return $this->audit->record(
             actorId: $actor->id,
             action: 'unit.deleted',
-            reason: null,
+            reason: $undoAdd ? self::UNDO_REASON : null,
             reasonRequired: false,
-            mutation: function () use ($unit) {
+            mutation: function () use ($unit, $undoAdd) {
                 // Checked inside the audit envelope's transaction, under a lock on the unit row, so
                 // the check and the delete are one atomic step: a grant, report or template written
                 // in between waits on the lock instead of turning the refusal back into the raw
                 // foreign-key 500. The lock comes first so the checks below read after it.
                 $this->units->lockForDelete($unit);
+
+                if ($undoAdd && ($this->units->hasChildren($unit) || $this->units->hasHistory($unit))) {
+                    throw UnitHasDependentsException::notUndoable();
+                }
 
                 if ($this->units->hasChildren($unit)) {
                     throw UnitHasDependentsException::hasChildren($unit->name);

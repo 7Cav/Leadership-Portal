@@ -17,7 +17,7 @@ import { onHttpException } from '@/lib/httpError';
 // Staff grants layout). A game in use can be retired, not deleted, so Delete is offered only for one nothing uses.
 // An Admin also sees the identities saved before #450 that break its rules, to fix on Game identities.
 const props = defineProps({
-    // `[{ id, slug, name, idKinds, checkedKinds, interface, retired, inUse }]`, in the order they were added;
+    // `[{ id, slug, name, abbreviation, idKinds, checkedKinds, interface, retired, inUse }]`, in the order they were added;
     // `checkedKinds` are the kinds whose IDs the server checks for a shape.
     games: { type: Array, required: true },
     // `[{ value, label }]`: the telemetry interfaces the portal has built in.
@@ -32,7 +32,7 @@ const editing = computed(() => props.games.find((game) => game.id === editingId.
 const rowError = ref(null);
 
 // `id_kinds` is the list of player-ID kinds the game asks for ("Steam ID", "Epic ID"), the first being the default.
-const form = useForm({ name: '', id_kinds: [''], interface: 'none' });
+const form = useForm({ name: '', abbreviation: '', id_kinds: [''], interface: 'none' });
 
 const interfaceLabel = (value) => props.interfaces.find((option) => option.value === value)?.label ?? value;
 
@@ -40,6 +40,7 @@ function edit(game) {
     editingId.value = game.id;
     form.clearErrors();
     form.name = game.name;
+    form.abbreviation = game.abbreviation ?? '';
     form.id_kinds = [...game.idKinds];
     form.interface = game.interface;
 }
@@ -120,6 +121,12 @@ const remove = (game) => act('delete', `/settings/games/${game.id}`, `${game.nam
                             <TableCell class="px-4 font-medium">
                                 <span class="flex flex-wrap items-center gap-1.5">
                                     {{ game.name }}
+                                    <span
+                                        v-if="game.abbreviation"
+                                        :data-testid="`abbreviation-${game.slug}`"
+                                        class="rounded-sm border border-border px-1 font-mono text-[10px] font-semibold tracking-wide text-muted-foreground"
+                                        >{{ game.abbreviation }}</span
+                                    >
                                     <Badge v-if="game.retired" variant="outline" :data-testid="`retired-${game.slug}`">Retired</Badge>
                                 </span>
                             </TableCell>
@@ -168,6 +175,25 @@ const remove = (game) => act('delete', `/settings/games/${game.id}`, `${game.nam
                         <Label for="game-name">Name</Label>
                         <Input id="game-name" v-model="form.name" data-testid="game-name" autocomplete="off" :aria-invalid="!!form.errors.name" />
                         <p v-if="form.errors.name" class="text-xs text-destructive" data-testid="error-name">{{ form.errors.name }}</p>
+                    </div>
+
+                    <div class="grid gap-1.5">
+                        <Label for="game-abbreviation">Abbreviation</Label>
+                        <Input
+                            id="game-abbreviation"
+                            :model-value="form.abbreviation"
+                            data-testid="game-abbreviation"
+                            class="w-28 font-mono uppercase"
+                            maxlength="6"
+                            autocomplete="off"
+                            aria-describedby="game-abbreviation-help"
+                            :aria-invalid="!!form.errors.abbreviation"
+                            @update:model-value="(value) => (form.abbreviation = String(value).toUpperCase())"
+                        />
+                        <p id="game-abbreviation-help" class="text-xs text-muted-foreground">
+                            2 to 6 letters or digits, shown on a battalion's row in Org structure.<template v-if="!editing"> Left blank, it is made from the name.</template>
+                        </p>
+                        <p v-if="form.errors.abbreviation" class="text-xs text-destructive" data-testid="error-abbreviation">{{ form.errors.abbreviation }}</p>
                     </div>
 
                     <div class="grid gap-1.5" role="group" aria-labelledby="game-id-kinds">

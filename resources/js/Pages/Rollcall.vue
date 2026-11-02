@@ -110,6 +110,8 @@ const props = defineProps({
     practiceSlot: { type: Object, default: null },
     // True when the section plays a game and has troopers but no slot: the page warns at the top until one is set.
     practiceSlotMissing: { type: Boolean, default: false },
+    // Whether the section's game is read from its server; the slot warning says what a slot changes only then.
+    practiceSlotAutomatic: { type: Boolean, default: true },
     // `{ source, capturedAt }` once a capture run stamped this practice, else null (7.7). Drives the
     // capture banner and the confirm action (7.8).
     capture: { type: Object, default: null },
@@ -1113,7 +1115,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
         <!-- Not dismissible: it goes away once the section has a slot. -->
         <WarningBanner v-if="slotMissing" class="mt-3" data-testid="slot-missing-banner">
             <p class="font-semibold">This section has no practice slot set</p>
-            <p>Without a slot, its practices aren't captured automatically and make-ups aren't given from the game server.</p>
+            <p v-if="practiceSlotAutomatic" data-testid="slot-missing-consequence">Without a slot, its practices aren't captured automatically and make-ups aren't given from the game server.</p>
             <template v-if="canWrite" #action>
                 <Button
                     size="sm"

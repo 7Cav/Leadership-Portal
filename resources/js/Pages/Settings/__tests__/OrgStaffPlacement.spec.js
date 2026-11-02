@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import OrgStructure from '../OrgStructure.vue';
 
 // Staff, ELOA and New Recruit placement on the org page (decided 2026-10-24): HQ staff counted in their unit, New
-// Recruits hidden until asked for, an ELOA trooper's "was", a unit's team label and a vacant lead.
+// Recruits hidden until asked for, an ELOA trooper's "was", a unit's nickname and a vacant lead.
 
 const labelPatch = vi.fn();
 const routerPost = vi.fn();
@@ -78,11 +78,11 @@ describe('Settings/OrgStructure placement', () => {
         expect(wrapper.find('[data-testid="member-was"]').exists()).toBe(false);
     });
 
-    it('shows a unit\'s team label next to its name', () => {
+    it('keeps a unit\'s nickname out of the tree', () => {
         const wrapper = mountPage();
 
-        expect(wrapper.find('[data-testid="unit-label-2"]').text()).toBe('WARDOGS');
-        expect(wrapper.find('[data-testid="unit-label-3"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="unit-row-2"]').text()).not.toContain('WARDOGS');
+        expect(wrapper.find('[data-testid="unit-label-2"]').exists()).toBe(false);
     });
 
     it('shows "Lead: vacant" for a unit whose lead billet nobody holds, and the holder otherwise', async () => {

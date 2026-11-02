@@ -73,6 +73,9 @@ const stripStart = computed(() => props.weeks.length - STRIP);
 const stripWeeks = computed(() => props.weeks.slice(stripStart.value));
 
 const root = computed(() => props.units[0]);
+// A unit's nickname (`label`, such as Jaegers) shows on the rows of a company, platoon or section roster only, not
+// across a battalion or the regiment.
+const showNicknames = computed(() => ['company', 'platoon', 'section'].includes(props.units[0]?.type));
 const childrenOf = computed(() => {
     const map = new Map();
     for (const unit of props.units) {
@@ -392,7 +395,7 @@ function clearAll() {
                                         <span>
                                             <span class="block text-[13px] leading-tight font-semibold">
                                                 {{ row.unit.name }} <span class="font-normal text-muted-foreground">{{ row.unit.callsign }}</span>
-                                                <span v-if="row.unit.label" class="ml-1 rounded-sm border border-border px-1 text-[10px] font-semibold text-muted-foreground" :data-testid="`label-${row.unit.id}`">{{ row.unit.label }}</span>
+                                                <span v-if="showNicknames && row.unit.label" class="text-xs font-normal text-muted-foreground" :data-testid="`label-${row.unit.id}`">· {{ row.unit.label }}</span>
                                             </span>
                                         </span>
                                     </div>
@@ -426,6 +429,7 @@ function clearAll() {
                                     <span>
                                         <span class="block leading-tight font-semibold">
                                             <template v-for="(part, i) in highlightParts(row.unit.callsign ?? row.unit.name, query)" :key="i"><mark v-if="part.hit" class="hl">{{ part.text }}</mark><template v-else>{{ part.text }}</template></template>
+                                            <span v-if="showNicknames && row.unit.label" class="ml-1 text-xs font-normal text-muted-foreground" :data-testid="`label-${row.unit.id}`">· {{ row.unit.label }}</span>
                                             <PracticeSlotMissingIcon :missing="row.unit.practiceSlotMissing ?? false" class="ml-1 align-[-2px]" />
                                         </span>
                                         <span class="mt-0.5 block text-xs leading-tight text-muted-foreground">

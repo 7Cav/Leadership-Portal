@@ -37,4 +37,20 @@ describe('MissingIdentities', () => {
         expect(wrapper.find('[data-testid="missing-identity-toggle"]').exists()).toBe(false);
         expect(wrapper.find('[data-testid="missing-identities-link"]').text()).toBe('Link it on Game identities');
     });
+
+    it('leaves the consequence out for a game whose attendance is marked by hand, per game', () => {
+        const wrapper = mount(MissingIdentities, {
+            props: {
+                groups: [
+                    { game: 'Arma Reforger', count: 2, automatic: false, troopers: troopers(2) },
+                    { game: 'Hell Let Loose', count: 1, automatic: true, troopers: troopers(1) },
+                ],
+            },
+        });
+        const [manual, read] = wrapper.findAll('[data-testid="missing-identity-group"]');
+
+        expect(manual.find('[data-testid="missing-identity-consequence"]').exists()).toBe(false);
+        expect(read.find('[data-testid="missing-identity-consequence"]').text()).toContain("The game server can't see this trooper");
+        expect(wrapper.find('[data-testid="missing-identities-link"]').text()).toBe('Link them on Game identities');
+    });
 });

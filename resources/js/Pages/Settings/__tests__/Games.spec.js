@@ -24,10 +24,10 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => {
                 processing: false,
                 // The fields as they stand when the form is sent, passed last so a test can check what was posted.
                 post(...args) {
-                    post(...args, { name: this.name, id_kinds: this.id_kinds, interface: this.interface });
+                    post(...args, { name: this.name, abbreviation: this.abbreviation, id_kinds: this.id_kinds, interface: this.interface });
                 },
                 patch(...args) {
-                    patch(...args, { name: this.name, id_kinds: this.id_kinds, interface: this.interface });
+                    patch(...args, { name: this.name, abbreviation: this.abbreviation, id_kinds: this.id_kinds, interface: this.interface });
                 },
                 clearErrors() {},
                 reset() {
@@ -44,7 +44,7 @@ const INTERFACES = [
     { value: 'none', label: 'None' },
 ];
 const GAMES = [
-    { id: 1, slug: 'hll', name: 'Hell Let Loose', idKinds: ['Steam ID'], interface: 'crcon', retired: false, inUse: true },
+    { id: 1, slug: 'hll', name: 'Hell Let Loose', abbreviation: 'HLL', idKinds: ['Steam ID'], interface: 'crcon', retired: false, inUse: true },
     { id: 4, slug: 'squad', name: 'Squad', idKinds: ['EOS ID'], interface: 'none', retired: false, inUse: false },
     { id: 5, slug: 'foxhole', name: 'Foxhole', idKinds: ['Player ID'], interface: 'none', retired: true, inUse: true },
 ];
@@ -96,6 +96,7 @@ describe('Settings/Games', () => {
 
         expect(post).toHaveBeenCalledWith('/settings/games', expect.objectContaining({ preserveScroll: true }), {
             name: 'Squad 44',
+            abbreviation: '',
             id_kinds: ['EOS ID'],
             interface: 'battlemetrics',
         });
@@ -113,7 +114,7 @@ describe('Settings/Games', () => {
         await wrapper.get('[data-testid="game-id_kind-0"]').setValue('Steam64');
         await wrapper.get('[data-testid="game-interface"]').setValue('none');
         await wrapper.get('[data-testid="game-form"]').trigger('submit');
-        expect(patch).toHaveBeenCalledWith('/settings/games/1', expect.anything(), { name: 'Hell Let Loose', id_kinds: ['Steam64'], interface: 'none' });
+        expect(patch).toHaveBeenCalledWith('/settings/games/1', expect.anything(), { name: 'Hell Let Loose', abbreviation: 'HLL', id_kinds: ['Steam64'], interface: 'none' });
 
         await wrapper.get('[data-testid="cancel-edit"]').trigger('click');
         expect(wrapper.get('[data-testid="submit-game"]').text()).toBe('Add game');
@@ -156,6 +157,7 @@ describe('Settings/Games', () => {
 
         expect(patch).toHaveBeenLastCalledWith('/settings/games/1', expect.anything(), {
             name: 'Hell Let Loose',
+            abbreviation: 'HLL',
             id_kinds: ['Steam ID', 'Epic ID', 'Xbox ID'],
             interface: 'crcon',
         });
@@ -181,6 +183,18 @@ describe('Settings/Games', () => {
 
         expect(wrapper.findAll('[data-testid^="game-id_kind-"]').map((input) => input.element.value)).toEqual(['EOS ID']);
         expect(GAMES[0].idKinds).toEqual(['Steam ID']);
+    });
+
+    it('shows the abbreviation of each game, and sends one typed in lowercase as uppercase', async () => {
+        const wrapper = factory();
+        expect(wrapper.get('[data-testid="abbreviation-hll"]').text()).toBe('HLL');
+
+        await wrapper.get('[data-testid="game-name"]').setValue('Squad 44');
+        await wrapper.get('[data-testid="game-abbreviation"]').setValue('sq44');
+        await wrapper.get('[data-testid="game-id_kind-0"]').setValue('EOS ID');
+        await wrapper.get('[data-testid="game-form"]').trigger('submit');
+
+        expect(post.mock.lastCall[2].abbreviation).toBe('SQ44');
     });
 
     it('is in the Settings navigation', () => {

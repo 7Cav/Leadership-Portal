@@ -15,6 +15,7 @@ use App\Commands\Attendance\MarkRollcallPosted;
 use App\Commands\Attendance\MarkRollcallPostedForbiddenException;
 use App\Commands\Attendance\MarkRollcallPostedHandler;
 use App\Commands\Attendance\RollcallWeekLockedException;
+use App\Commands\Capture\AutomaticAttendance;
 use App\Commands\Capture\CaptureRetryForbiddenException;
 use App\Commands\Capture\CaptureRetryRefusedException;
 use App\Commands\Capture\CaptureRetryThrottledException;
@@ -155,6 +156,7 @@ class RollcallController extends Controller
         private readonly AutoExcused $autoExcused,
         private readonly UnitGuidonRepository $guidons,
         private readonly MissingGameIdentities $missingIdentities,
+        private readonly AutomaticAttendance $automatic,
     ) {}
 
     /**
@@ -809,6 +811,8 @@ class RollcallController extends Controller
         $excused = $this->autoExcused->forTroopers($trooperIds, $weekStart);
         // The game each trooper placed here has no identity linked for, so the capture cannot see them; read-only.
         $missingGame = $this->missingIdentities->placedIn([$section->id]);
+        // The section, when it needs a slot and has none (#392), with whether its game is read automatically.
+        $slotMissing = $this->sectionsWithoutSlot->among([$section->id]);
 
         return [
             'troopers' => array_map(fn (array $row) => [
@@ -820,6 +824,8 @@ class RollcallController extends Controller
                 'excused' => $excused[$row['id']] ?? null,
                 'history' => $history[$row['id']],
                 'missingGame' => ($missingGame[$row['id']] ?? null)?->name,
+                // Whether that game's server is read automatically; the warning leaves out what the capture misses when not.
+                'missingGameAutomatic' => isset($missingGame[$row['id']]) && $this->automatic->reads($missingGame[$row['id']]),
             ], $week->troopers),
             'priorWeekMarked' => $week->priorWeekMarked,
             // Where the leave data comes from and how fresh it is (4.3, AD-20), shown with every LOA badge.
@@ -842,7 +848,9 @@ class RollcallController extends Controller
             // The section's weekly practice slot and this week's practice (#392), or null when it has none.
             'practiceSlot' => $this->schedule->props($section->id, $weekStart, $practice),
             // True when the section needs a slot and has none (plays a game, has troopers): the page warns at the top.
-            'practiceSlotMissing' => $this->sectionsWithoutSlot->among([$section->id]) !== [],
+            'practiceSlotMissing' => $slotMissing !== [],
+            // Whether the section's game is read from its server at all; the warning says what a slot changes only then.
+            'practiceSlotAutomatic' => (bool) ($slotMissing[0]['automatic'] ?? false),
             'practice' => [
                 'lastMarkedAt' => $week->marks->max(fn (Attendance $row) => $row->updated_at)?->toIso8601String(),
                 'posted' => $this->postedProps($practice),
