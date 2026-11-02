@@ -1,9 +1,9 @@
 ---
 title: Servers
-summary: Choose which game servers the portal reads attendance from, and which game each one is for.
+summary: Choose which game servers the portal reads attendance from, which game each one is for, and check that the portal can read them.
 section: admin
 order: 9
-updated: 2026-10-31
+updated: 2026-11-02
 audience: admin
 page: /settings/servers
 ---
@@ -32,7 +32,15 @@ The unit runs a CRCON for each Hell Let Loose server, both WW2 and Vietnam. Once
 
 ## Check what each game reads
 
-1. **What each game reads** lists, for each game, the selected training servers and when each was last read.
-2. A game with no training server selected reads nothing, and its leaders mark attendance by hand.
+1. **What each game reads** lists, for each game, the interface that reads it, whether it is **Configured** (it has a server to read and the credentials for it are set) and its selected servers.
+2. Under that is every server a capture reads for the game, with when it was last read and, if it ever failed, when and why. A failure newer than the last read is shown in red, so a feed that is down does not pass for a practice nobody played.
+3. A game with no training server selected reads nothing. A game read by none says so: its leaders mark attendance by hand.
+4. The times come from the captures and the tests, not from a check made when the page opens. A server that shows **credentials not set** is not read at all until its credentials are set. The credentials and the server addresses are never shown.
+
+## Test a connection
+
+1. Choose **Test connection** on a game.
+2. The portal reads each of its servers over the last ten minutes, the same way a capture does, and lists what each one answered under the game. It only reads: nothing is sent to the game server and no attendance is marked.
+3. The outcome is kept as that server's last read or last failure.
 
 > [!good-to-know] What this changes, and how to undo it: only a selected training server is read for attendance; a public one never is. Untick **Selected** and save to stop reading a server. A server the services no longer list is marked **No longer listed** and is kept, so its past captures still show.
