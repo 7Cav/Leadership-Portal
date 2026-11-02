@@ -314,6 +314,9 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/settings/servers', [ServersController::class, 'index'])->name('settings.servers');
     Route::post('/settings/servers/fetch', [ServersController::class, 'fetch'])->middleware('throttle:server-fetch')->name('settings.servers.fetch');
     Route::patch('/settings/servers/{server}', [ServersController::class, 'update'])->middleware('throttle:audited-writes')->name('settings.servers.update');
+    // A connection test (#183) reads every source of the game over HTTP on the request, like fetching the servers, so
+    // it shares that per-Admin cap.
+    Route::post('/settings/servers/games/{game}/test', [ServersController::class, 'test'])->where('game', '\d+')->middleware('throttle:server-fetch')->name('settings.servers.test');
 
     // Audit-log review (Story 1.14). The whole screen is Admin-only (AC #4) — the gate is
     // enforced in the controller, not route middleware, matching every other Admin gate here.
