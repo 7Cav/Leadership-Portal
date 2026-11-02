@@ -86,7 +86,7 @@ class MissingGameIdentities
      * missing it, sorted by name. Empty when nobody is missing one.
      *
      * @param  iterable<int>  $unitIds
-     * @return list<array{game: string, count: int, troopers: list<array{id: int, name: string}>}>
+     * @return list<array{gameId: int, game: string, count: int, troopers: list<array{id: int, name: string}>}>
      */
     public function summaryFor(iterable $unitIds): array
     {
@@ -97,6 +97,7 @@ class MissingGameIdentities
         return collect($missing)
             ->groupBy(fn (Game $game) => $game->id, preserveKeys: true)
             ->map(fn (Collection $group) => [
+                'gameId' => $group->first()->id,
                 'game' => $group->first()->name,
                 'count' => $group->count(),
                 'troopers' => $group->keys()

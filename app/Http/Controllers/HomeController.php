@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffReportAccess;
+use App\Commands\Capture\AutomaticAttendance;
 use App\Commands\Practices\PracticeSchedule;
 use App\Commands\Practices\SectionsWithoutSlot;
 use App\Kpi\AutoExcused;
@@ -77,6 +78,7 @@ class HomeController extends Controller
         private readonly AutoExcused $autoExcused,
         private readonly UnitGuidonRepository $guidons,
         private readonly MissingGameIdentities $missingIdentities,
+        private readonly AutomaticAttendance $automatic,
         private readonly PracticeSchedule $schedule,
         private readonly SectionsWithoutSlot $sectionsWithoutSlot,
     ) {}
@@ -101,6 +103,9 @@ class HomeController extends Controller
         $paths = $tree->mapWithKeys(fn (Unit $unit) => [$unit->id => $unit->path]);
 
         $slots = $this->schedule->slotsOf($this->units->sectionsAmong($scope)->modelKeys());
+        // The leader warnings (missing identities, missing slots) are for leaders at battalion level or below: a staff
+        // grant reads but cannot fix them, and a regimental leader or an Admin not previewing someone below is too far up.
+        $warns = $this->scope->leads($request->user()) && ! $this->scope->leadsAboveBattalion($request->user());
 
         return Inertia::render('Home', [
             // The guidon of the unit in scope, for the header: its own or its nearest ancestor's. None for a scope of
@@ -119,10 +124,12 @@ class HomeController extends Controller
             // Troopers in scope with no identity linked for the game their unit plays, by game (read-only). Leaders only
             // (a synced billet, an acting lead or Admin; a preview shows what its target would see): a staff grant reads
             // the scope but cannot link anyone.
-            'missingIdentities' => $this->scope->leads($request->user()) ? $this->missingIdentities->summaryFor($scope) : [],
+            // Each game says whether its server is read automatically (`automatic`), so the banner leaves out what the
+            // capture misses for a game marked by hand. Not above battalion level ({@see ScopeResolver::leadsAboveBattalion()}).
+            'missingIdentities' => $warns ? $this->identityGroups($scope) : [],
             // Sections in scope that play a game and have troopers but no practice slot (#392), so nothing is captured
             // there. Leaders only (a synced billet, an acting lead or Admin): a staff grant reads but cannot set one.
-            'sectionsWithoutSlot' => $this->scope->leads($request->user()) ? $this->sectionsWithoutSlot->among($scope) : [],
+            'sectionsWithoutSlot' => $warns ? $this->sectionsWithoutSlot->among($scope) : [],
             'units' => $chains->flatMap(function (ChainNode $chain, int $i) use ($attendance, $paths, $weekStart, $slots) {
                 $rows = $attendance[$i];
 
@@ -175,6 +182,20 @@ class HomeController extends Controller
      * @param  Collection<int, Unit>  $tree
      * @return Collection<int, Unit>
      */
+    /**
+     * {@see MissingGameIdentities::summaryFor()} with whether each game's server is read automatically.
+     *
+     * @param  Collection<int, int>  $scope
+     * @return list<array<string, mixed>>
+     */
+    private function identityGroups(Collection $scope): array
+    {
+        return array_map(
+            fn (array $group) => [...$group, 'automatic' => $this->automatic->readsId($group['gameId'])],
+            $this->missingIdentities->summaryFor($scope),
+        );
+    }
+
     private function topmost(Collection $scope, Collection $tree): Collection
     {
         $ids = $scope->flip();

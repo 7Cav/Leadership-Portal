@@ -50,8 +50,8 @@ it('lists a section that plays a game and has troopers but no slot, in tree orde
     placeIn($this->sibling);
 
     expect(withoutSlot([$this->platoon->id, $this->section->id, $this->sibling->id]))->toBe([
-        ['id' => $this->section->id, 'designation' => '1/1/B'],
-        ['id' => $this->sibling->id, 'designation' => '2/1/B'],
+        ['id' => $this->section->id, 'designation' => '1/1/B', 'automatic' => false],
+        ['id' => $this->sibling->id, 'designation' => '2/1/B', 'automatic' => false],
     ]);
 
     app(SectionPracticeSlotRepository::class)->set($this->section->id, 4, 120);
@@ -100,7 +100,7 @@ it('warns a Section Leader on Home about their own section only', function () {
     $leader = User::factory()->commanding($this->section)->create();
 
     $this->actingAs($leader)->get('/home')->assertInertia(fn (Assert $page) => $page
-        ->where('sectionsWithoutSlot', [['id' => $this->section->id, 'designation' => '1/1/B']]));
+        ->where('sectionsWithoutSlot', [['id' => $this->section->id, 'designation' => '1/1/B', 'automatic' => false]]));
 });
 
 it('warns a Platoon Leader about every section, and someone outside the unit about none', function () {
@@ -128,9 +128,38 @@ it('flags the roll call, and the roster banner and section rows', function () {
     $this->actingAs($leader)->get("/roster/{$this->platoon->id}")->assertInertia(function (Assert $page) {
         $props = $page->toArray()['props'];
         $rows = collect($props['units'])->keyBy('id');
-        expect($props['sectionsWithoutSlot'])->toBe([['id' => $this->section->id, 'designation' => '1/1/B']])
+        expect($props['sectionsWithoutSlot'])->toBe([['id' => $this->section->id, 'designation' => '1/1/B', 'automatic' => false]])
             ->and($rows[$this->section->id]['practiceSlotMissing'])->toBeTrue()
             ->and($rows[$this->sibling->id]['practiceSlotMissing'])->toBeFalse()
             ->and($rows[$this->platoon->id]['practiceSlotMissing'])->toBeFalse();
     });
+});
+
+it('says whether the section game is read from its server, the way the capture decides', function () {
+    placeIn($this->section);
+    // Nothing configured in tests: the game is marked by hand.
+    expect(withoutSlot([$this->section->id])[0]['automatic'])->toBeFalse();
+
+    readFromServer('hll-vietnam');
+
+    expect(withoutSlot([$this->section->id])[0]['automatic'])->toBeTrue();
+});
+
+it('tells the roll call whether a missing slot costs the capture anything', function () {
+    placeIn($this->section);
+    $leader = User::factory()->commanding($this->platoon)->create();
+    $week = WeekOf::start(CarbonImmutable::now())->toDateString();
+
+    $this->actingAs($leader)->get("/rollcall/{$this->section->id}?week={$week}")
+        ->assertInertia(fn (Assert $page) => $page->where('practiceSlotMissing', true)->where('practiceSlotAutomatic', false));
+});
+
+it('tells the roll call when the section game is read automatically', function () {
+    placeIn($this->section);
+    $leader = User::factory()->commanding($this->platoon)->create();
+    $week = WeekOf::start(CarbonImmutable::now())->toDateString();
+    readFromServer('hll-vietnam');
+
+    $this->actingAs($leader)->get("/rollcall/{$this->section->id}?week={$week}")
+        ->assertInertia(fn (Assert $page) => $page->where('practiceSlotAutomatic', true));
 });

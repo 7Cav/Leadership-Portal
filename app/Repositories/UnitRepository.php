@@ -21,8 +21,17 @@ interface UnitRepository
      * known once the id exists, so the row is inserted first (with a placeholder) and then
      * updated with its final path before the transaction commits — no half-written row is ever
      * visible outside it. `$kind` is `Line` for every echelon; the org import passes the kind of a group it creates.
+     * `$createdBy` is the user who added it by hand on Org structure (so they may undo the add); null for the import.
      */
-    public function create(UnitType $type, string $name, ?string $callsign, ?int $parentId, UnitKind $kind = UnitKind::Line): Unit;
+    public function create(UnitType $type, string $name, ?string $callsign, ?int $parentId, UnitKind $kind = UnitKind::Line, ?int $createdBy = null): Unit;
+
+    /**
+     * Whether anything has happened to or in the unit since it was added: a trooper placed in it now or before (or
+     * marked as having been there), a label, a game, a guidon, a practice slot, an oversight, an acting lead, fireteams,
+     * template choices, battalion settings, a staff report, or any audit entry about it other than its creation. The
+     * `restrictOnDelete` dependents are checked by the delete itself. Undoing an add needs this to be false.
+     */
+    public function hasHistory(Unit $unit): bool;
 
     /**
      * Set or clear the unit's team label, shown next to its name.

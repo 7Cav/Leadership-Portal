@@ -42,9 +42,9 @@ it('lists every game with its id label, interface and state, and the interfaces 
         ->component('Settings/Games')
         ->where('isAdmin', true)
         ->has('games', 5)
-        ->where('games.0', ['id' => game('hll')->id, 'slug' => 'hll', 'name' => 'Hell Let Loose (WW2)', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID'], 'checkedKinds' => ['Steam ID', 'Epic ID'], 'interface' => 'crcon', 'retired' => false, 'inUse' => true])
+        ->where('games.0', ['id' => game('hll')->id, 'slug' => 'hll', 'name' => 'Hell Let Loose (WW2)', 'abbreviation' => 'HLL', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID'], 'checkedKinds' => ['Steam ID', 'Epic ID'], 'interface' => 'crcon', 'retired' => false, 'inUse' => true])
         ->where('games.1.inUse', false)
-        ->where('games.3', ['id' => game('hll-vietnam')->id, 'slug' => 'hll-vietnam', 'name' => 'Hell Let Loose: Vietnam', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID'], 'checkedKinds' => ['Steam ID', 'Epic ID'], 'interface' => 'none', 'retired' => false, 'inUse' => false])
+        ->where('games.3', ['id' => game('hll-vietnam')->id, 'slug' => 'hll-vietnam', 'name' => 'Hell Let Loose: Vietnam', 'abbreviation' => 'HLLV', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID'], 'checkedKinds' => ['Steam ID', 'Epic ID'], 'interface' => 'none', 'retired' => false, 'inUse' => false])
         ->where('games.4', fn ($game) => $game['slug'] === 'foxhole' && $game['retired'] === true)
         ->where('interfaces', [
             ['value' => 'crcon', 'label' => 'CRCON'],

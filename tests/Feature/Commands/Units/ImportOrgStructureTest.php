@@ -116,7 +116,7 @@ it('builds Regiment → Battalion → Company → Platoon → Section from the l
         '2-7' => '2nd Battalion',
         '3-7' => '3rd Battalion',
         'ACD' => 'Auxiliary Combat Detachment',
-        'DEVCOM' => 'DEVCOM',
+        'DEVCOM' => 'Development Command',
     ]);
 
     expect(Unit::query()->where('type', UnitType::Company)->orderBy('id')->pluck('callsign')->all())

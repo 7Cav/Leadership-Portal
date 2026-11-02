@@ -265,6 +265,8 @@ export function inkBox(text) {
 
 // How far every letter, digit and large character keeps from the flag's edge, the cut and the split between colors.
 export const EDGE_PAD = 6;
+// The texts keep a little more, so they don't look crammed against an edge, the cut or the split.
+export const TEXT_PAD = 10;
 
 // The flag's right edge at height y: the fly at the top and bottom, the swallowtail cut between.
 export const flagRight = (y) => WIDTH - NOTCH + Math.abs(y - HEIGHT / 2);
@@ -320,10 +322,10 @@ export function usableSpan(r, y0, y1, pad = EDGE_PAD) {
 }
 
 // Where a text goes: its scale and the origin of its first glyph on the baseline, its capitals centered on y, at most
-// `cap` tall and `maxWidth` wide, shrunk until its ink stays inside the region. `mode` is 'start' (first glyph at x,
-// or further right when the edge is closer), 'axis' (ink centered on x) or 'span' (ink centered on the space free at
-// its height). Null for a text with no ink.
-export function fitText(text, { x = 0, y, cap, maxWidth = Infinity, mode = 'start', region: r }) {
+// `cap` tall and `maxWidth` wide, shrunk until its ink stays `pad` inside the region. `mode` is 'start' (the ink's left
+// edge at x, not the glyph's box, so a 7 and an H start on the same line; further right when the edge is closer),
+// 'axis' (ink centered on x) or 'span' (ink centered on the space free at its height). Null for a text with no ink.
+export function fitText(text, { x = 0, y, cap, maxWidth = Infinity, mode = 'start', region: r, pad = TEXT_PAD }) {
     const ink = inkBox(text);
     if (!ink) return null;
     // Checked at the precision the drawing writes, so rounding can't push the ink over.
@@ -335,10 +337,10 @@ export function fitText(text, { x = 0, y, cap, maxWidth = Infinity, mode = 'star
             y0: baseline + ink.minY * scale,
             y1: baseline + ink.maxY * scale,
         };
-        const span = usableSpan(r, box.y0, box.y1);
+        const span = usableSpan(r, box.y0, box.y1, pad);
         if (!span) continue;
         const middle = ((ink.minX + ink.maxX) / 2) * scale;
-        const left = round(mode === 'start' ? Math.max(x, span[0] - ink.minX * scale) : mode === 'axis' ? x - middle : (span[0] + span[1]) / 2 - middle, 2);
+        const left = round(mode === 'start' ? Math.max(x, span[0]) - ink.minX * scale : mode === 'axis' ? x - middle : (span[0] + span[1]) / 2 - middle, 2);
         box.x0 = left + ink.minX * scale;
         box.x1 = left + ink.maxX * scale;
         if (box.x0 >= span[0] - 1e-9 && box.x1 <= span[1] + 1e-9) return { text, scale, left, baseline, box };
@@ -347,17 +349,42 @@ export function fitText(text, { x = 0, y, cap, maxWidth = Infinity, mode = 'star
     return null;
 }
 
-// Two texts in one column: short ones (two characters or fewer) share a center line, that of the wider one, since
-// left edges make an A over a 7 look off; longer ones keep the common left edge.
-const SHORT = 2;
-function column(top, bottom, topOptions, bottomOptions) {
-    const a = fitText(top, topOptions);
-    const b = fitText(bottom, bottomOptions);
-    if (!a || !b || top.trim().length > SHORT || bottom.trim().length > SHORT) return [a, b];
-    const wider = a.box.x1 - a.box.x0 >= b.box.x1 - b.box.x0 ? a : b;
-    const axis = (wider.box.x0 + wider.box.x1) / 2;
+// The top and bottom text share one cap height, the smaller of the two each would get alone, so they read as a pair.
+// Both are refitted at that height until neither has to shrink further. `align` lines them up: null keeps each where
+// its options put it; 'column' centers both on one line when both are a single character (left edges make an A over a
+// 7 look off) and otherwise starts both at the same ink left edge.
+const sameScale = (a, b) => Math.abs(a.scale - b.scale) < 1e-4;
+export function fitPair(top, bottom, topOptions, bottomOptions, align = null) {
+    let a = fitText(top, topOptions);
+    let b = fitText(bottom, bottomOptions);
+    const single = top.trim().length === 1 && bottom.trim().length === 1;
+    for (let pass = 0; pass < 8 && a && b; pass++) {
+        const cap = CAP_HEIGHT * Math.min(a.scale, b.scale);
+        let topAt = { ...topOptions, cap: Math.min(topOptions.cap, cap) };
+        let bottomAt = { ...bottomOptions, cap: Math.min(bottomOptions.cap, cap) };
+        if (align === 'column' && single) {
+            const wider = a.box.x1 - a.box.x0 >= b.box.x1 - b.box.x0 ? a : b;
+            const axis = (wider.box.x0 + wider.box.x1) / 2;
+            topAt = { ...topAt, x: axis, mode: 'axis' };
+            bottomAt = { ...bottomAt, x: axis, mode: 'axis' };
+        } else if (align === 'column') {
+            const x = Math.max(a.box.x0, b.box.x0);
+            topAt = { ...topAt, x };
+            bottomAt = { ...bottomAt, x };
+        }
+        const nextA = fitText(top, topAt);
+        const nextB = fitText(bottom, bottomAt);
+        const lined = align !== 'column' || single || (nextA && nextB && Math.abs(nextA.box.x0 - nextB.box.x0) < 0.05);
+        const settled = nextA && nextB && sameScale(nextA, nextB) && sameScale(nextA, a) && sameScale(nextB, b) && lined;
+        [a, b] = [nextA, nextB];
+        if (settled) break;
+    }
 
-    return [fitText(top, { ...topOptions, x: axis, mode: 'axis' }), fitText(bottom, { ...bottomOptions, x: axis, mode: 'axis' })];
+    return [a, b];
+}
+
+function column(top, bottom, topOptions, bottomOptions) {
+    return fitPair(top, bottom, topOptions, bottomOptions, 'column');
 }
 
 // A fitted text drawn as paths. The group carries the text and its cap height as data, for the tests and anyone
@@ -381,13 +408,15 @@ function draw(fit, fill) {
 const HALF_LEFT = 24;
 const HALF_CAP = 64;
 
-// The large character hugs the hoist (about 3% of the width in) and is about 72% of the flag's height, centered on
-// it; two characters shrink to end by LARGE_RIGHT. The texts start LARGE_GAP (about 5% of the width) after its ink:
-// a narrow 1 or 7 pulls them closer than a wide 2 or two characters.
-const LARGE_LEFT = 9;
-const LARGE_RIGHT = 148;
-const LARGE_CAP = Math.round(HEIGHT * 0.72);
-const LARGE_GAP = 14;
+// The large character sits near the hoist (4% of the width in) and is about 68% of the flag's height, centered on
+// it; two characters shrink to end by LARGE_RIGHT. The texts start at TEXT_COLUMN (about a third of the width, as on
+// the ACD/C guidon), so a narrow 1 doesn't pull them against it, and never closer than LARGE_GAP (9% of the width)
+// after its ink, so a wide 2 or two characters push them right.
+const LARGE_LEFT = 12;
+const LARGE_RIGHT = 144;
+const LARGE_CAP = Math.round(HEIGHT * 0.68);
+const LARGE_GAP = 27;
+const TEXT_COLUMN = 99;
 
 function largeFit(text, place = null) {
     if (!text) return null;
@@ -399,6 +428,7 @@ function largeFit(text, place = null) {
               maxWidth: place.width,
               mode: 'span',
               region: place.region,
+              pad: EDGE_PAD,
           })
         : fitText(text, {
               x: LARGE_LEFT,
@@ -406,11 +436,12 @@ function largeFit(text, place = null) {
               cap: LARGE_CAP,
               maxWidth: LARGE_RIGHT - LARGE_LEFT,
               region: REGIONS.flag,
+              pad: EDGE_PAD,
           });
 }
 
 // Where the texts start beside a large character.
-const besideLarge = (fit) => Math.round(fit.box.x1 + LARGE_GAP);
+const besideLarge = (fit) => Math.max(TEXT_COLUMN, Math.round(fit.box.x1 + LARGE_GAP));
 
 // The large character and the two texts of the top and bottom and the solid formats.
 function halfFits(design) {
@@ -426,9 +457,9 @@ function halfFits(design) {
 
         return [large, ...column(design.topLeft, design.bottomRight, { ...top, x }, { ...bottom, x })];
     }
-    const one = (text, options, align) => fitText(text, align === 'center' ? { ...options, mode: 'span' } : { ...options, x: HALF_LEFT });
+    const place = (options, align) => (align === 'center' ? { ...options, mode: 'span' } : { ...options, x: HALF_LEFT });
 
-    return [null, one(design.topLeft, top, design.topAlign), one(design.bottomRight, bottom, design.bottomAlign)];
+    return [null, ...fitPair(design.topLeft, design.bottomRight, place(top, design.topAlign), place(bottom, design.bottomAlign))];
 }
 
 // The large character, most of the height of the flag across both halves, like the wiki's Reserve guidon. It takes
@@ -452,31 +483,14 @@ function diagonal(design, primary, secondary) {
 
     // Without a large character the texts keep the spots a guidon saved before formats had.
     if (!design.large) {
-        return [
-            ...shapes,
-            draw(
-                fitText(design.topLeft, {
-                    x: 80,
-                    y: 72,
-                    cap: 70,
-                    maxWidth: 150,
-                    mode: 'axis',
-                    region: REGIONS.diagonalTop,
-                }),
-                oppositeOn(primary, secondary),
-            ),
-            draw(
-                fitText(design.bottomRight, {
-                    x: 172,
-                    y: 160,
-                    cap: 80,
-                    maxWidth: 110,
-                    mode: 'axis',
-                    region: REGIONS.diagonalBottom,
-                }),
-                oppositeOn(secondary, primary),
-            ),
-        ];
+        const [top, bottom] = fitPair(
+            design.topLeft,
+            design.bottomRight,
+            { x: 80, y: 72, cap: 70, maxWidth: 150, mode: 'axis', region: REGIONS.diagonalTop },
+            { x: 172, y: 160, cap: 80, maxWidth: 110, mode: 'axis', region: REGIONS.diagonalBottom },
+        );
+
+        return [...shapes, draw(top, oppositeOn(primary, secondary)), draw(bottom, oppositeOn(secondary, primary))];
     }
 
     // With a large character the texts take the other half's color too, as on the wiki's Reserve guidon. Both start
@@ -486,7 +500,7 @@ function diagonal(design, primary, secondary) {
     const [top, bottom] = column(
         design.topLeft,
         design.bottomRight,
-        { x, y: 44, cap: 44, region: REGIONS.diagonalTop },
+        { x, y: 44, cap: 48, region: REGIONS.diagonalTop },
         { x, y: 172, cap: 48, region: REGIONS.diagonalBottom },
     );
 
@@ -550,16 +564,15 @@ function quartered(design, primary, secondary) {
     // Without a large character the top text sits in the top left quarter and the bottom text in the bottom right
     // one, both on the first color.
     if (!design.large) {
-        const one = (text, options, align, from) => fitText(text, align === 'center' ? { ...options, mode: 'span' } : { ...options, x: from });
+        const place = (options, align, from) => (align === 'center' ? { ...options, mode: 'span' } : { ...options, x: from });
+        const [topText, bottomText] = fitPair(
+            design.topLeft,
+            design.bottomRight,
+            place({ ...top, region: REGIONS.quarterTopLeft }, design.topAlign, QUARTER_PAD),
+            place({ ...bottom, region: REGIONS.quarterBottomRight }, design.bottomAlign, QUARTER_SPLIT + QUARTER_PAD),
+        );
 
-        return [
-            ...shapes,
-            draw(one(design.topLeft, { ...top, region: REGIONS.quarterTopLeft }, design.topAlign, QUARTER_PAD), oppositeOn(primary, secondary)),
-            draw(
-                one(design.bottomRight, { ...bottom, region: REGIONS.quarterBottomRight }, design.bottomAlign, QUARTER_SPLIT + QUARTER_PAD),
-                oppositeOn(primary, secondary),
-            ),
-        ];
+        return [...shapes, draw(topText, oppositeOn(primary, secondary)), draw(bottomText, oppositeOn(primary, secondary))];
     }
 
     // The large character fills the left quarters, centered on them, in the opposite color of each; the top text

@@ -256,10 +256,10 @@ describe('read-only preview', function () {
         $admin = User::factory()->admin()->create();
         $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $tree['platoon']->id]);
 
-        $this->post('/settings/org-structure', ['type' => 'section', 'name' => 'Ghost Section', 'parent_id' => $tree['platoon']->id, 'reason' => 'x'])
+        $this->post('/settings/org-structure', ['type' => 'section', 'ordinal' => '4', 'parent_id' => $tree['platoon']->id, 'reason' => 'x'])
             ->assertForbidden();
 
-        expect(Unit::where('name', 'Ghost Section')->exists())->toBeFalse();
+        expect(Unit::where('callsign', '4/1/A/1-7')->exists())->toBeFalse();
     });
 
     it('still lets the viewer leave the preview, switch target, and sign out', function () {
@@ -281,10 +281,10 @@ describe('read-only preview', function () {
         $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $tree['platoon']->id]);
         $this->delete('/view-as');
 
-        $this->post('/settings/org-structure', ['type' => 'section', 'name' => 'Real Section', 'parent_id' => $tree['platoon']->id, 'reason' => 'stand-up'])
+        $this->post('/settings/org-structure', ['type' => 'section', 'ordinal' => '3', 'parent_id' => $tree['platoon']->id, 'reason' => 'stand-up'])
             ->assertRedirect();
 
-        expect(Unit::where('name', 'Real Section')->exists())->toBeTrue();
+        expect(Unit::where('callsign', '3/1/A/1-7')->exists())->toBeTrue();
     });
 
     // Every write route, by method — an Admin, so a 403 can only come from the preview guard,

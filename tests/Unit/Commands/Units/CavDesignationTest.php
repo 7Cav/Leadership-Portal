@@ -31,7 +31,7 @@ it('recognises a line-company group and names its battalion and company', functi
     ['B/ACD', 'ACD', 'Auxiliary Combat Detachment', 'Baker Company'],
     ['A/ACD', 'ACD', 'Auxiliary Combat Detachment', 'Alpha Company'],
     ['C/ACD', 'ACD', 'Auxiliary Combat Detachment', 'Charlie Company'],
-    ['D/DEVCOM', 'DEVCOM', 'DEVCOM', 'Delta Company'],
+    ['D/DEVCOM', 'DEVCOM', 'Development Command', 'Delta Company'],
     ['A/11-7', '11-7', '11th Battalion', 'Alpha Company'],
 ]);
 

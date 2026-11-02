@@ -110,6 +110,38 @@ final readonly class CavDesignation
         };
     }
 
+    /** The highest numbered battalion, platoon or section offered when one is added by hand. */
+    public const MAX_ORDINAL = 9;
+
+    /**
+     * The node an Admin adds by hand one echelon below `$parentCallsign`, picked by its ordinal: a number for a
+     * battalion (`3` gives `3-7`), platoon or section, a letter for a company (`B` gives `B/3-7`). Built from the
+     * parent's designation by the same rules the import uses, so a hand-made unit matches what a later import finds.
+     * Null when the ordinal is out of range or the parent's designation does not have the shape its echelon needs.
+     */
+    public static function childOf(UnitType $type, ?string $parentCallsign, string $ordinal): ?self
+    {
+        $ordinal = strtoupper(trim($ordinal));
+        $number = preg_match('#^[1-9]$#', $ordinal) === 1 ? (int) $ordinal : null;
+        $letter = preg_match('#^[A-Z]$#', $ordinal) === 1 ? $ordinal : null;
+        $parent = trim((string) $parentCallsign);
+
+        return match ($type) {
+            UnitType::Battalion => $number === null ? null : new self(UnitType::Battalion, "{$number}-7"),
+            UnitType::Company => $letter === null || $parent === '' || str_contains($parent, '/')
+                ? null
+                : new self(UnitType::Company, $parent, $letter),
+            UnitType::Platoon => $number !== null && preg_match(self::COMPANY_GROUP, $parent, $m) === 1
+                ? new self(UnitType::Platoon, $m['battalion'], $m['company'], $number)
+                : null,
+            UnitType::Section => $number !== null && preg_match('#^(?<platoon>[1-9]\d*)/(?<rest>.+)$#', $parent, $p) === 1
+                && preg_match(self::COMPANY_GROUP, $p['rest'], $m) === 1
+                ? new self(UnitType::Section, $m['battalion'], $m['company'], (int) $p['platoon'], $number)
+                : null,
+            default => null,
+        };
+    }
+
     /**
      * The echelon one rank up. Null only for the regiment.
      */
@@ -177,7 +209,8 @@ final readonly class CavDesignation
 
         return match ($designation) {
             'ACD' => 'Auxiliary Combat Detachment',
-            // DEVCOM and anything Cav adds later keep their designation as their name; an Admin
+            'DEVCOM' => 'Development Command',
+            // Anything Cav adds later keeps its designation as its name; an Admin
             // can rename them and the rename survives every later import.
             default => $designation,
         };

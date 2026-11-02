@@ -142,15 +142,15 @@ describe('Settings/OrgStructure cards', () => {
         expect(wrapper.find('[data-testid="unit-row-12"]').attributes('aria-selected')).toBe('true');
     });
 
-    it('shows the game a referenced unit plays on its reference row, and its picker in the details it opens', async () => {
+    it('shows the game chip of a referenced battalion-level unit on its reference row, and its picker in the details it opens', async () => {
         const games = [{ id: 7, name: 'WARDOGS', retired: false }];
         const units = UNITS.map((unit) =>
-            unit.id === 6 ? { ...unit, game_id: 7, game: { id: 7, name: 'WARDOGS', retired: false, from: null } } : unit,
+            unit.id === 6 ? { ...unit, game_id: 7, game: { id: 7, name: 'WARDOGS', abbreviation: 'WD', retired: false, from: null }, sets_game: true, can_set_game: true } : unit,
         );
         const wrapper = mountPage({ units, games, isAdmin: true });
 
-        expect(wrapper.find('[data-testid="ref-game-11-6"]').text()).toBe('WARDOGS');
-        expect(wrapper.find('[data-testid="unit-game-6"]').text()).toBe('WARDOGS');
+        expect(wrapper.find('[data-testid="ref-game-11-6"]').text()).toBe('WD');
+        expect(wrapper.find('[data-testid="unit-game-6"]').text()).toBe('WD');
 
         await wrapper.find('[data-testid="unit-ref-11-6"]').trigger('click');
 

@@ -14,6 +14,14 @@ use RuntimeException;
  */
 class UnitHasDependentsException extends RuntimeException
 {
+    public const UNDO_WINDOW = 'You can undo this for 60 minutes after adding it, while it is still empty.';
+
+    /** An undo of an add, refused because the unit is no longer as it was added. */
+    public static function notUndoable(): self
+    {
+        return new self(self::UNDO_WINDOW);
+    }
+
     public static function hasChildren(string $unitName): self
     {
         return new self(

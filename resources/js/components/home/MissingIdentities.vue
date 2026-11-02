@@ -8,7 +8,9 @@ import WarningBanner from '@/components/WarningBanner.vue';
 // the capture, presence, automatic make-ups and the staff report's server check, so this is loud and not dismissible:
 // it goes away once the identities are linked. Shared by Home, the roll call and the roster.
 const props = defineProps({
-    // `[{ game, count, troopers: [{ id, name }] }]`, one entry per game; empty when nobody is missing one.
+    // `[{ game, count, automatic, troopers: [{ id, name }] }]`, one entry per game; empty when nobody is missing one.
+    // `automatic` is false for a game whose server is not read (attendance marked by hand): the consequence line is left
+    // out for that game, since the capture misses nothing there.
     groups: { type: Array, default: () => [] },
     // "of your troopers" on Home; the roll call and roster speak of the page's own list.
     own: { type: Boolean, default: true },
@@ -19,6 +21,10 @@ const expanded = ref({});
 
 function shown(group) {
     return expanded.value[group.game] ? group.troopers : group.troopers.slice(0, INLINE);
+}
+
+function explanation(group) {
+    return `The game server can't see ${group.count === 1 ? 'this trooper' : 'these troopers'}, so their practice attendance and make-ups won't be recorded automatically.`;
 }
 
 const total = computed(() => props.groups.reduce((sum, group) => sum + group.count, 0));
@@ -47,8 +53,8 @@ function headline(group) {
                     {{ expanded[group.game] ? 'Show fewer' : `Show all ${group.troopers.length}` }}
                 </button>
             </p>
+            <p v-if="group.automatic !== false" class="mt-1" data-testid="missing-identity-consequence">{{ explanation(group) }}</p>
         </div>
-        <p>The game server can't see {{ total === 1 ? 'this trooper' : 'these troopers' }}, so their practice attendance and make-ups won't be recorded automatically.</p>
         <template #action>
             <Button size="sm" variant="outline" class="w-full sm:w-auto" as-child>
                 <Link href="/game-identities" data-testid="missing-identities-link">{{ total === 1 ? 'Link it on Game identities' : 'Link them on Game identities' }}</Link>
