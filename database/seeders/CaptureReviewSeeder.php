@@ -60,7 +60,7 @@ class CaptureReviewSeeder extends Seeder
 
             // Already linked to another HLL account, so linking the captured "Halvorsen" to them asks to replace (#176).
             if ($username === 'Halvorsen.K') {
-                TrooperGameIdentity::factory()->create(['trooper_id' => $trooper->id, 'player_name' => 'HalvoOld', 'platform_id' => '76561198000009099']);
+                TrooperGameIdentity::factory()->create(['trooper_id' => $trooper->id, 'platform_id' => '76561198000009099']);
             }
         }
         $this->leads('Hartmann.L', $section, (int) "{$tag}90");
@@ -123,7 +123,7 @@ class CaptureReviewSeeder extends Seeder
             ]);
 
             if ($username === 'Park.J') {
-                TrooperGameIdentity::factory()->create(['trooper_id' => $trooper->id, 'player_name' => 'Park', 'platform_id' => '76561198000009101']);
+                TrooperGameIdentity::factory()->create(['trooper_id' => $trooper->id, 'platform_id' => '76561198000009101']);
             }
         }
         $this->leads('Voss.H', $section, (int) "{$tag}92");

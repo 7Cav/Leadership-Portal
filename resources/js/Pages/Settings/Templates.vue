@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { NativeSelect } from '@/components/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -19,6 +18,7 @@ import { useViewAs } from '@/composables/useViewAs';
 import BbcodePreview from '@/components/BbcodePreview.vue';
 import LineDiff from '@/components/LineDiff.vue';
 import EmptyState from '@/components/EmptyState.vue';
+import SearchSelect from '@/components/SearchSelect.vue';
 import { toast } from 'vue-sonner';
 import InlineNotice from '@/components/InlineNotice.vue';
 import { forumDate } from '@/lib/forumDate';
@@ -87,7 +87,7 @@ const unsaved = computed(() => form.body !== (props.active?.body ?? '') || form.
 // Redraws the company picker on the company still open when the editor decides to stay.
 const pickerKey = ref(0);
 
-function chooseCompany(event) {
+function chooseCompany(value) {
     // Asks before dropping a draft, as the report and rollcall pages do when leaving with unsaved changes.
     if (unsaved.value && !window.confirm('Your template changes are not saved. Switch company and lose them?')) {
         pickerKey.value++;
@@ -95,20 +95,20 @@ function chooseCompany(event) {
         return;
     }
 
-    router.get('/settings/templates', { company: event.target.value }, { preserveScroll: true });
+    router.get('/settings/templates', { company: value }, { preserveScroll: true });
 }
 
 // Whose templates are listed: the company's, or one of its sections' own. Asks first when the editor holds a draft.
 const ownerKey = ref(0);
 const owner = () => (props.section === null ? { company: props.company } : { section: props.section });
-function chooseOwner(event) {
+function chooseOwner(value) {
     if (unsaved.value && !window.confirm('Your template changes are not saved. Switch and lose them?')) {
         ownerKey.value++;
 
         return;
     }
 
-    router.get('/settings/templates', event.target.value === '' ? { company: props.company } : { section: event.target.value }, { preserveScroll: true });
+    router.get('/settings/templates', value === '' ? { company: props.company } : { section: value }, { preserveScroll: true });
 }
 
 // The template open in the editor, and opening another, asking first when the editor holds unsaved text.
@@ -328,7 +328,8 @@ async function loadPreview(id) {
     }
 }
 
-const choosePreview = (event) => loadPreview(event.target.value);
+const choosePreview = (value) => loadPreview(value);
+const previewRows = computed(() => props.previewSections.map((section) => ({ value: String(section.id), label: sectionLabel(section) + ', this week' })));
 const firstSection = () => (props.previewSections.length ? String(props.previewSections[0].id) : '');
 
 // Another company has other sections, so the preview starts again from that company's first one; a section's own
@@ -394,16 +395,31 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
             <div class="flex flex-wrap items-end gap-3">
                 <div class="grid w-full max-w-sm gap-1.5">
                     <Label for="template-company">Company</Label>
-                    <NativeSelect id="template-company" :key="pickerKey" data-testid="company-select" :model-value="company" @change="chooseCompany">
-                        <option v-for="item in companies" :key="item.id" :value="item.id">{{ companyLabel(item) }}</option>
-                    </NativeSelect>
+                    <SearchSelect
+                        id="template-company"
+                        :key="pickerKey"
+                        testid="company-select"
+                        :model-value="String(company)"
+                        :options="companies.map((item) => ({ value: String(item.id), label: companyLabel(item) }))"
+                        search-placeholder="Search companies"
+                        empty-text="No company matches that search."
+                        @update:model-value="chooseCompany"
+                    />
                 </div>
                 <div v-if="sections.length" class="grid w-full max-w-sm gap-1.5">
                     <Label for="template-owner">Templates of</Label>
-                    <NativeSelect id="template-owner" :key="ownerKey" data-testid="owner-select" :model-value="section === null ? '' : String(section)" @change="chooseOwner">
-                        <option value="">The company</option>
-                        <option v-for="item in sections" :key="item.id" :value="String(item.id)">{{ sectionLabel(item) }}</option>
-                    </NativeSelect>
+                    <SearchSelect
+                        id="template-owner"
+                        :key="ownerKey"
+                        testid="owner-select"
+                        :model-value="section === null ? '' : String(section)"
+                        :options="sections.map((item) => ({ value: String(item.id), label: sectionLabel(item) }))"
+                        any-label="The company"
+                        any-value=""
+                        search-placeholder="Search sections"
+                        empty-text="No section matches that search."
+                        @update:model-value="chooseOwner"
+                    />
                 </div>
             </div>
 
@@ -554,17 +570,19 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                         <div v-if="previewSections.length" class="mb-3 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
                             <Label for="template-preview-with" class="text-xs font-normal text-muted-foreground">Fill with</Label>
                             <div class="min-w-0 flex-1 sm:max-w-xs">
-                                <NativeSelect
+                                <SearchSelect
                                     id="template-preview-with"
-                                    data-testid="template-preview-with"
-                                    class="text-xs"
+                                    testid="template-preview-with"
+                                    button-class="text-xs"
                                     :model-value="previewWith"
+                                    :options="previewRows"
+                                    any-label="Sample section"
+                                    any-value=""
+                                    search-placeholder="Search sections"
+                                    empty-text="No section matches that search."
                                     :aria-busy="realState === 'loading'"
-                                    @change="choosePreview"
-                                >
-                                    <option value="">Sample section</option>
-                                    <option v-for="section in previewSections" :key="section.id" :value="String(section.id)">{{ sectionLabel(section) }}, this week</option>
-                                </NativeSelect>
+                                    @update:model-value="choosePreview"
+                                />
                             </div>
                             <span v-if="realState === 'loading'" class="flex items-center gap-1.5 text-xs text-muted-foreground" role="status" data-testid="template-preview-loading">
                                 <PhCircleNotch class="size-3.5 animate-spin" aria-hidden="true" />Loading the section

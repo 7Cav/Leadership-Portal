@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import UnmatchedDrawer from '../UnmatchedDrawer.vue';
+import { chooseSearch, hasSearchSelect, searchSelect, searchValue } from '@/testing/searchSelect';
 
 enableAutoUnmount(afterEach);
 const post = vi.fn();
@@ -30,7 +31,7 @@ describe('UnmatchedDrawer', () => {
         const first = card(wrapper, '7656119000000001');
         expect(first.find('[data-testid="unmatched-name"]').text()).toBe('Dubes');
         expect(first.find('[data-testid="unmatched-id"]').text()).toBe('7656119000000001');
-        expect(first.find('select').element.value).toBe('');
+        expect(searchValue(first, 'unmatched-trooper')).toBe('');
         expect(first.find('[data-testid="unmatched-link"]').attributes('disabled')).toBeDefined();
     });
 
@@ -46,7 +47,7 @@ describe('UnmatchedDrawer', () => {
         expect(row.text()).toContain('Departed');
         expect(row.find('[data-testid="departed-note"]').text()).toBe('Linked to PFC Gone.A, who has left. Not marked on any roll call.');
         expect(row.find('button').exists()).toBe(false);
-        expect(row.find('select').exists()).toBe(false);
+        expect(hasSearchSelect(row, 'unmatched-trooper')).toBe(false);
     });
 
     it('offers no Link for a player of a retired game, says why, and still lets them be dismissed', () => {
@@ -55,7 +56,7 @@ describe('UnmatchedDrawer', () => {
 
         expect(row.find('[data-testid="unmatched-blocked"]').text()).toBe('Hell Let Loose is retired, so no new links can be made. Mark the trooper by hand.');
         expect(row.find('[data-testid="unmatched-link"]').exists()).toBe(false);
-        expect(row.find('select').exists()).toBe(false);
+        expect(hasSearchSelect(row, 'unmatched-trooper')).toBe(false);
         expect(row.find('[data-testid="unmatched-dismiss"]').exists()).toBe(true);
     });
 
@@ -74,9 +75,9 @@ describe('UnmatchedDrawer', () => {
         const wrapper = factory();
         const first = card(wrapper, '7656119000000001');
 
-        expect(first.find('optgroup[label="Closest by name"]').text()).toContain('PFC Dube.R');
-        expect(first.find('select').element.value).toBe('');
-        expect(card(wrapper, '7656119000000002').find('optgroup[label="Closest by name"]').exists()).toBe(false);
+        expect(searchSelect(first, 'unmatched-trooper').props('options').filter((o) => o.group === 'Closest by name').map((o) => o.label)).toContain('PFC Dube.R');
+        expect(searchValue(first, 'unmatched-trooper')).toBe('');
+        expect(searchSelect(card(wrapper, '7656119000000002'), 'unmatched-trooper').props('options').some((o) => o.group === 'Closest by name')).toBe(false);
     });
 
     it('enables Link only once a trooper is chosen, then posts the choice and emits the answer', async () => {
@@ -84,7 +85,7 @@ describe('UnmatchedDrawer', () => {
         const wrapper = factory();
         const first = card(wrapper, '7656119000000001');
 
-        await first.find('select').setValue('1');
+        await chooseSearch(first, 'unmatched-trooper', '1');
         expect(first.find('[data-testid="unmatched-link"]').attributes('disabled')).toBeUndefined();
         await first.find('[data-testid="unmatched-link"]').trigger('click');
         await flushPromises();
@@ -98,7 +99,7 @@ describe('UnmatchedDrawer', () => {
         const wrapper = factory({ beforeLink });
         const first = card(wrapper, '7656119000000001');
 
-        await first.find('select').setValue('1');
+        await chooseSearch(first, 'unmatched-trooper', '1');
         await first.find('[data-testid="unmatched-link"]').trigger('click');
         await flushPromises();
 
@@ -113,7 +114,7 @@ describe('UnmatchedDrawer', () => {
         const wrapper = factory();
         const first = card(wrapper, '7656119000000001');
 
-        await first.find('select').setValue('2');
+        await chooseSearch(first, 'unmatched-trooper', '2');
         await first.find('[data-testid="unmatched-link"]').trigger('click');
         await flushPromises();
 
@@ -126,9 +127,9 @@ describe('UnmatchedDrawer', () => {
             ok: false,
             status: 422,
             data: {
-                message: 'That trooper is already linked to DubeMain (7656119000000099) on Hell Let Loose. Replace it, or cancel to keep it.',
+                message: 'That trooper is already linked to 7656119000000099 on Hell Let Loose. Replace it, or cancel to keep it.',
                 reason: 'has_other_identity',
-                current: { playerName: 'DubeMain', platformId: '7656119000000099' },
+                current: { platformId: '7656119000000099' },
             },
         };
         const LINKED = { ok: true, status: 200, data: { marked: true, trooper: { id: 1, status: 'present', source: 'auto' }, atRisk: [] } };
@@ -138,7 +139,7 @@ describe('UnmatchedDrawer', () => {
         async function askToReplace() {
             wrapper = mount(UnmatchedDrawer, { props: { sectionId: 12, week: '2026-10-03', players: PLAYERS, troopers: TROOPERS }, attachTo: document.body });
             const first = card(wrapper, '7656119000000001');
-            await first.find('select').setValue('1');
+            await chooseSearch(first, 'unmatched-trooper', '1');
             await first.find('[data-testid="unmatched-link"]').trigger('click');
             await flushPromises();
 
@@ -153,7 +154,7 @@ describe('UnmatchedDrawer', () => {
 
             expect(dialog()).not.toBeNull();
             expect(dialog().querySelector('[data-testid="replace-question"]').textContent.replace(/\s+/g, ' ').trim()).toBe(
-                'PFC Dube.R is linked to DubeMain (7656119000000099) on Hell Let Loose. Replace it with Dubes (7656119000000001)?',
+                'PFC Dube.R is linked to 7656119000000099 on Hell Let Loose. Replace it with Dubes (7656119000000001)?',
             );
             expect(first.find('[data-testid="unmatched-error"]').exists()).toBe(false);
             expect(post).toHaveBeenCalledTimes(1);
@@ -161,15 +162,14 @@ describe('UnmatchedDrawer', () => {
         });
 
         it('isolates every name and ID in the question, so a direction override in a name cannot reorder the ID beside it', async () => {
-            post.mockResolvedValueOnce({ ...HAS_OTHER, data: { ...HAS_OTHER.data, current: { playerName: 'Dube[U+202E]Main', platformId: '7656119000000099' } } });
+            post.mockResolvedValueOnce({ ...HAS_OTHER, data: { ...HAS_OTHER.data, current: { platformId: '7656119000000099' } } });
             await askToReplace();
 
             const question = dialog().querySelector('[data-testid="replace-question"]');
             const isolated = (id) => question.querySelector(`[data-testid="${id}"]`);
-            for (const id of ['replace-trooper', 'replace-current-name', 'replace-current-id', 'replace-new-name', 'replace-new-id']) {
+            for (const id of ['replace-trooper', 'replace-current-id', 'replace-new-name', 'replace-new-id']) {
                 expect(isolated(id).tagName).toBe('BDI');
             }
-            expect(isolated('replace-current-name').textContent).toBe('Dube[U+202E]Main');
             expect(isolated('replace-current-id').textContent).toBe('7656119000000099');
             expect(isolated('replace-new-name').textContent).toBe('Dubes');
             expect(isolated('replace-new-id').textContent).toBe('7656119000000001');
@@ -195,7 +195,7 @@ describe('UnmatchedDrawer', () => {
             const CHANGED = {
                 ok: false,
                 status: 422,
-                data: { ...HAS_OTHER.data, message: 'That trooper is already linked to DubeAlt (7656119000000077) on Hell Let Loose. Replace it, or cancel to keep it.', current: { playerName: 'DubeAlt', platformId: '7656119000000077' } },
+                data: { ...HAS_OTHER.data, message: 'That trooper is already linked to 7656119000000077 on Hell Let Loose. Replace it, or cancel to keep it.', current: { platformId: '7656119000000077' } },
             };
             post.mockResolvedValueOnce(HAS_OTHER).mockResolvedValueOnce(CHANGED).mockResolvedValueOnce(LINKED);
             const first = await askToReplace();
@@ -205,7 +205,7 @@ describe('UnmatchedDrawer', () => {
 
             expect(dialog()).not.toBeNull();
             expect(dialog().querySelector('[data-testid="replace-question"]').textContent.replace(/\s+/g, ' ').trim()).toBe(
-                'PFC Dube.R is linked to DubeAlt (7656119000000077) on Hell Let Loose. Replace it with Dubes (7656119000000001)?',
+                'PFC Dube.R is linked to 7656119000000077 on Hell Let Loose. Replace it with Dubes (7656119000000001)?',
             );
             expect(first.find('[data-testid="unmatched-error"]').exists()).toBe(false);
             expect(wrapper.emitted('linked')).toBeUndefined();
@@ -242,7 +242,7 @@ describe('UnmatchedDrawer', () => {
             expect(post).toHaveBeenCalledTimes(1);
             expect(wrapper.emitted('linked')).toBeUndefined();
             expect(first.find('[data-testid="unmatched-error"]').exists()).toBe(false);
-            expect(first.find('select').element.value).toBe('1');
+            expect(searchValue(first, 'unmatched-trooper')).toBe('1');
             expect(first.find('[data-testid="unmatched-link"]').attributes('disabled')).toBeUndefined();
         });
 
@@ -335,7 +335,7 @@ describe('UnmatchedDrawer', () => {
         const wrapper = factory({ editable: false, disabledReason: 'Read-only while viewing as Ortega.M' });
         const first = card(wrapper, '7656119000000001');
 
-        expect(first.find('select').attributes('disabled')).toBeDefined();
+        expect(searchSelect(first, 'unmatched-trooper').get('button').attributes('disabled')).toBeDefined();
         expect(first.find('[data-testid="unmatched-dismiss"]').attributes('disabled')).toBeDefined();
         expect(wrapper.text()).toContain('Read-only while viewing as Ortega.M');
     });

@@ -37,23 +37,19 @@ test('a section leader links their troopers, hits a collision, then edits and re
     // Link all four games for the first trooper: the queue then drops them.
     await rows.first().getByRole('button', { name: 'Add identity' }).click();
     await expect(page.getByTestId('identity-game')).toHaveValue('hll');
-    await page.getByTestId('identity-name').fill('QueueOne');
     await page.getByTestId('identity-id').fill(steam);
     await page.getByTestId('identity-save').click();
     await expect(page.getByTestId('coverage-linked')).toHaveText('1');
     await expect(page.getByTestId('identity-game')).toHaveValue('arma');
-    await page.getByTestId('identity-name').fill('QueueOne_Arma');
     await page.getByTestId('identity-id').fill(steamId());
     await page.getByTestId('identity-save').click();
     await expect(page.getByTestId('coverage-linked')).toHaveText('2');
     await expect(page.getByTestId('identity-game')).toHaveValue('wardogs');
-    await page.getByTestId('identity-name').fill('QueueOne_Wardogs');
     await page.getByTestId('identity-id').fill(steamId());
     await page.getByTestId('identity-save').click();
     await expect(page.getByTestId('coverage-linked')).toHaveText('3');
     // Still queued: Hell Let Loose: Vietnam is its own game, and the same ID there as on WW2 is no collision (#431).
     await expect(page.getByTestId('identity-game')).toHaveValue('hll-vietnam');
-    await page.getByTestId('identity-name').fill('QueueOne_Vietnam');
     await page.getByTestId('identity-id').fill(steam);
     await page.getByTestId('identity-save').click();
     await expect(page.getByTestId('coverage-linked')).toHaveText('4');
@@ -61,21 +57,21 @@ test('a section leader links their troopers, hits a collision, then edits and re
 
     // The same Steam ID on another trooper is a readable error on the field, not a 500.
     await rows.first().getByRole('button', { name: 'Add identity' }).click();
-    await page.getByTestId('identity-name').fill('Copycat');
     await page.getByTestId('identity-id').fill(steam);
     await page.getByTestId('identity-save').click();
     await expect(page.getByTestId('error-platform_id')).toContainText(`Already linked to ${firstName} on Hell Let Loose (WW2)`);
     await expect(page.getByTestId('coverage-linked')).toHaveText('4');
     await page.getByTestId('identity-cancel').click();
 
-    // Everyone view: rename in place (same id), then remove.
+    // Everyone view: change the ID in place, then remove.
     await page.getByTestId('view-everyone').click();
     await expect(rows).toHaveCount(8);
     await page.locator('[data-testid^="open-"]').filter({ hasText: 'Edit identities' }).click();
     await page.getByTestId('edit-hll').click();
-    await page.getByTestId('identity-name').fill('QueueOne_Renamed');
+    const changed = steamId();
+    await page.getByTestId('identity-id').fill(changed);
     await page.getByTestId('identity-save').click();
-    await expect(page.getByTestId('identity-hll')).toContainText('QueueOne_Renamed');
+    await expect(page.getByTestId('identity-hll')).toContainText(changed);
     await expect(page.getByTestId('coverage-linked')).toHaveText('4');
 
     await page.getByTestId('remove-arma').click();
@@ -88,13 +84,11 @@ test('a section leader links their troopers, hits a collision, then edits and re
 for (const [label, width, height] of [['phone', 375, 800], ['tablet', 820, 1000], ['desktop', 1440, 900]]) {
     test(`a long linked identity wraps in full with Edit and Remove reachable on ${label}`, async ({ page }) => {
         const longId = randomBytes(16).toString('hex'); // 32 characters, unbroken, and no other test's
-        const longName = `=7Cav=PFC.${'Austin'.repeat(7)}`; // unbroken, longer than the panel is wide
         await page.setViewportSize({ width, height });
         await page.goto(`/__e2e/login/${leader}?to=/game-identities`);
 
         await page.locator('[data-testid^="open-"]').last().click();
         await page.getByTestId('identity-game').selectOption('hll');
-        await page.getByTestId('identity-name').fill(longName);
         // 32 hex characters is the shape of an Epic ID, the longest ID this game takes.
         await page.getByTestId('identity-kind').selectOption('Epic ID');
         await page.getByTestId('identity-id').fill(longId);
@@ -102,7 +96,6 @@ for (const [label, width, height] of [['phone', 375, 800], ['tablet', 820, 1000]
 
         const box = page.getByTestId('identity-hll');
         await expect(box).toContainText(longId);
-        await expect(box).toContainText(longName);
         await expect(box.getByTestId('edit-hll')).toBeVisible();
         await expect(box.getByTestId('remove-hll')).toBeVisible();
 
@@ -185,7 +178,6 @@ test('saving the last missing game of a trooper lands on the row that took their
     // link" queue and closes the panel.
     const games = await page.getByTestId('identity-game').locator('option').count();
     for (let i = 0; i < games; i++) {
-        await page.getByTestId('identity-name').fill(`Land_${i}`);
         await page.getByTestId('identity-id').fill(steamId());
         await saveAndMoveOn(page);
     }
@@ -211,7 +203,6 @@ test('a panel taller than the screen scrolls inside itself and keeps Save reacha
 
     for (const game of ['hll', 'arma', 'wardogs']) {
         await page.getByTestId('identity-game').selectOption(game);
-        await page.getByTestId('identity-name').fill(`Tall_${game}`);
         await page.getByTestId('identity-id').fill(steamId());
         await saveAndMoveOn(page);
         await expect(page.getByTestId(`identity-${game}`)).toBeVisible();

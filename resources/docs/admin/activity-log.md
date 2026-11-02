@@ -12,7 +12,7 @@ page: /settings/activity-log
 ## Find their visits
 
 1. Open **Settings**, then **Activity log**. The newest visits are first.
-2. Pick the person, and the dates around when the bug happened.
+2. Under **User**, type part of the name, such as "Pike.S" or "pike", and pick the person. Then set the dates around when the bug happened.
 
 ## Read a visit
 

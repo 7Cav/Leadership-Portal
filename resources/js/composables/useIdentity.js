@@ -2,6 +2,7 @@ import { computed } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { forumDate, forumDateTime } from '@/lib/forumDate';
 import { initialsOf } from '@/lib/initials';
+import { rankAvatarUrl } from '@/lib/rankAvatar';
 
 // The signed-in identity as the shell shows it (moved out of Home.vue in Story 1.15; the rules
 // below are Story 1.5–1.7's). Reads the shared `auth` prop from HandleInertiaRequests.
@@ -81,5 +82,8 @@ export function useIdentity() {
     // Avatar monogram: two letters from the username (`HS` for Hale.S).
     const initials = computed(() => initialsOf(username.value));
 
-    return { username, isAdmin, name, billet, identity, provenance, provenanceDetail, initials };
+    // The 7Cav rank avatar for the card, or null (no profile, a recruit, an unknown rank): initials then.
+    const avatarUrl = computed(() => rankAvatarUrl(profile.value?.rank_short));
+
+    return { username, isAdmin, name, billet, identity, provenance, provenanceDetail, initials, avatarUrl };
 }

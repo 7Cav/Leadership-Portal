@@ -6,10 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { NativeSelect } from '@/components/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import EmptyState from '@/components/EmptyState.vue';
+import SearchSelect from '@/components/SearchSelect.vue';
 import ReasonDialog from '@/components/ReasonDialog.vue';
 import { toast } from 'vue-sonner';
 import { onHttpException } from '@/lib/httpError';
@@ -17,9 +17,8 @@ import { forumDate } from '@/lib/forumDate';
 import { grantStatus, sortGrants } from '@/lib/grantExpiry';
 import GrantExpiryFields from '@/components/settings/GrantExpiryFields.vue';
 
-// Flat grants/units/users lists (mirrors `OrgStructure.vue`'s flat-props pattern) — the target
-// user and node pickers are plain `<select>`s (no roster/Trooper model exists yet for a live
-// search, and the covering mockup itself only shows a plain "from roster" select).
+// Flat grants/units/users lists (mirrors `OrgStructure.vue`'s flat-props pattern). The target user and node
+// pickers are SearchSelects over those lists: the whole list is on the page, so the search runs here.
 const props = defineProps({
     grants: { type: Array, required: true },
     units: { type: Array, required: true },
@@ -291,19 +290,32 @@ function confirmDialog(reason) {
 
                     <div class="grid gap-1.5">
                         <Label for="grant-user">User</Label>
-                        <NativeSelect id="grant-user" v-model="form.user_id" data-testid="grant-user_id" :aria-invalid="!!form.errors.user_id">
-                            <option :value="null">Choose a user</option>
-                            <option v-for="user in users" :key="user.id" :value="user.id">{{ user.username }}</option>
-                        </NativeSelect>
+                        <SearchSelect
+                            id="grant-user"
+                            v-model="form.user_id"
+                            :options="users.map((user) => ({ value: user.id, label: user.username }))"
+                            placeholder="Choose a user"
+                            search-placeholder="Search users"
+                            empty-text="No user matches that search."
+                            testid="grant-user_id"
+                            :invalid="!!form.errors.user_id"
+                        />
                         <p v-if="form.errors.user_id" class="text-xs text-destructive" data-testid="error-user_id">{{ form.errors.user_id }}</p>
                     </div>
 
                     <div class="grid gap-1.5">
                         <Label for="grant-unit">Unit</Label>
-                        <NativeSelect id="grant-unit" v-model="form.unit_id" data-testid="grant-unit_id" :aria-invalid="!!form.errors.unit_id">
-                            <option :value="null">Choose a unit</option>
-                            <option v-for="unit in units" :key="unit.id" :value="unit.id">{{ unit.label }}</option>
-                        </NativeSelect>
+                        <SearchSelect
+                            id="grant-unit"
+                            v-model="form.unit_id"
+                            :options="units.map((unit) => ({ value: unit.id, label: unit.label }))"
+                            placeholder="Choose a unit"
+                            search-placeholder="Search units"
+                            empty-text="No unit matches that search."
+                            testid="grant-unit_id"
+                            :invalid="!!form.errors.unit_id"
+                            content-class="w-96 max-w-[calc(100vw-2rem)]"
+                        />
                         <p v-if="form.errors.unit_id" class="text-xs text-destructive" data-testid="error-unit_id">{{ form.errors.unit_id }}</p>
                     </div>
 

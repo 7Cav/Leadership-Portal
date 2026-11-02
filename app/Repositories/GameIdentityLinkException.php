@@ -17,6 +17,9 @@ class GameIdentityLinkException extends RuntimeException
     /** The id as it was to be stored (an Epic ID lower case, #450), so a caller can look up who owns it. */
     public string $platformId = '';
 
+    /** The game the id is already linked on. */
+    public ?Game $game = null;
+
     /** The `(game_id, platform_id)` already belongs to another trooper — never silently reassigned. */
     public static function alreadyLinked(Game $game, string $platformId, ?Throwable $previous = null): self
     {
@@ -25,6 +28,7 @@ class GameIdentityLinkException extends RuntimeException
             previous: $previous,
         );
         $e->platformId = $platformId;
+        $e->game = $game;
 
         return $e;
     }

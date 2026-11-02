@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 import { mount } from '@vue/test-utils';
 import StaffPracticesPanel from '../StaffPracticesPanel.vue';
+import { chooseSearch } from '@/testing/searchSelect';
 
 // #448: the staff practices panel draws what the server sent and posts the forms; it decides nothing about who may.
 
@@ -102,7 +103,7 @@ describe('Staff practices panel', () => {
         expect(wrapper.find('[data-testid="staff-practice-week"]').text()).toContain('03OCT26 to 09OCT26 (this week)');
         expect(wrapper.find('[data-testid="staff-practice-submit"]').attributes('disabled')).toBeDefined();
 
-        await wrapper.find('[data-testid="staff-practice-section"]').setValue('5');
+        await chooseSearch(wrapper, 'staff-practice-section', 5);
         await wrapper.find('[data-testid="staff-practice-week"]').setValue('2026-09-26');
         await wrapper.find('[data-testid="staff-practice-form"]').trigger('submit');
 

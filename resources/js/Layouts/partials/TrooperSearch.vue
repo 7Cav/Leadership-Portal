@@ -2,6 +2,7 @@
 import { onBeforeUnmount, ref, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { ListboxFilter } from 'reka-ui';
+import { selectTopOnTab } from '@/lib/listboxTab';
 import { PhMagnifyingGlass, PhSignOut, PhWarningCircle } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -143,6 +144,7 @@ function choose(trooper) {
                         autocomplete="off"
                         spellcheck="false"
                         data-testid="trooper-search-input"
+                        @keydown="selectTopOnTab"
                         class="flex h-10 w-full rounded-md bg-transparent py-3 text-[14px] outline-hidden placeholder:text-muted-foreground"
                     />
                 </div>

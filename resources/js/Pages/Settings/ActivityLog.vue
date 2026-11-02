@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { NativeSelect } from '@/components/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import EmptyState from '@/components/EmptyState.vue';
+import UserFilterPicker from '@/components/UserFilterPicker.vue';
 import { forumDateTime } from '@/lib/forumDate';
 
 // The pages each user opened (#382), newest first, for retracing a bug report. `visits` is a Laravel paginator as-is.
@@ -65,10 +65,7 @@ function goTo(url) {
             <form data-testid="filter-form" class="grid gap-3 border-b border-border p-4 sm:grid-cols-3" @submit.prevent="applyFilters">
                 <div class="grid gap-1.5">
                     <Label for="filter-user">User</Label>
-                    <NativeSelect id="filter-user" v-model="filters.user_id" data-testid="filter-user_id">
-                        <option :value="null">Any user</option>
-                        <option v-for="user in userOptions" :key="user.id" :value="user.id">{{ user.username }}</option>
-                    </NativeSelect>
+                    <UserFilterPicker id="filter-user" v-model="filters.user_id" :users="userOptions" testid="filter-user_id" />
                 </div>
 
                 <div class="grid gap-1.5">

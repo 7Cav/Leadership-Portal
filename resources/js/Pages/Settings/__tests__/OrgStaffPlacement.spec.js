@@ -1,6 +1,7 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import OrgStructure from '../OrgStructure.vue';
+import { searchLabels } from '@/testing/searchSelect';
 
 // Staff, ELOA and New Recruit placement on the org page (decided 2026-10-24): HQ staff counted in their unit, New
 // Recruits hidden until asked for, an ELOA trooper's "was", a unit's nickname and a vacant lead.
@@ -108,7 +109,7 @@ describe('Settings/OrgStructure placement', () => {
         const wrapper = mountPage({ isAdmin: true, unplacedTroopers: [{ id: 9, cav_id: 9, username: 'Doe.J', rank: 'PFC', mos: null, billet: 'S1 Clerk', position_id: 1 }], unplacedTotal: 1 });
 
         await wrapper.find('[data-testid="assign-trooper"]').trigger('click');
-        const options = wrapper.findAll('[data-testid="assign-section"] option').map((option) => option.text());
+        const options = searchLabels(wrapper, 'assign-section');
 
         expect(options.some((text) => text.includes('1/D/DEVCOM'))).toBe(true);
         expect(options.some((text) => text.includes('Extended Leave of Absence'))).toBe(true);

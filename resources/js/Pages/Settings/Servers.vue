@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
-import { PhArrowsClockwise, PhCheckCircle, PhLockSimple, PhWarningCircle, PhHardDrives } from '@phosphor-icons/vue';
+import { PhArrowsClockwise, PhCheckCircle, PhLockSimple, PhWarningCircle, PhHardDrives, PhPlugsConnected } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -14,12 +14,13 @@ import { forumDateTime } from '@/lib/forumDate';
 
 // The game servers the telemetry APIs list (#389). An Admin fetches them, then selects each one the portal should
 // know about, assigns it a game and marks it training or public; only selected training servers are read for
-// attendance. The top card shows what each game reads, with the last capture that read each server.
+// attendance. The top card shows what each game reads and how each source last went (#183), recorded by the capture
+// runs and by Test connection, never probed on page load, so an Admin can tell "the feed is down" from "nobody played".
 const props = defineProps({
-    // `[{ id, interface, externalId, name, gameId, type, selected, fallbackId, missing, credentialsSet, lastRead }]`;
-    // `lastRead` is `{ succeeded, reason, at }` or null.
+    // `[{ id, interface, externalId, name, gameId, type, selected, fallbackId, missing, credentialsSet }]`.
     servers: { type: Array, required: true },
-    // `[{ id, name, retired, interface, readsEnvServer, captureConfigured }]`, in the order they were added.
+    // `[{ id, name, retired, interface, readsEnvServer, captureConfigured, connections: [{ label, sources: [{ interface,
+    // configured, lastSucceededAt, lastFailedAt, lastFailureReason }] }] }]`, in the order they were added.
     games: { type: Array, required: true },
     // `[{ value, label, credentialsSet }]`: the interfaces a server can be listed by.
     interfaces: { type: Array, required: true },
@@ -28,9 +29,13 @@ const props = defineProps({
     // What the last fetch found per interface, flashed once: `[{ interface, status, listed?, added?, missing?, message? }]`,
     // `status` one of listed, not_configured, failed, empty.
     fetchResult: { type: Array, default: null },
+    // The last connection test, flashed once: `{ gameId, outcomes: [{ server, interface, status, reason? }] }`,
+    // `status` one of ok, failed, not_configured.
+    testResult: { type: Object, default: null },
 });
 
-const interfaceLabel = (value) => props.interfaces.find((option) => option.value === value)?.label ?? value;
+// `interfaces` leaves out none, so a game read by none falls back to this label.
+const interfaceLabel = (value) => props.interfaces.find((option) => option.value === value)?.label ?? (value === 'none' ? 'None' : value);
 const typeLabel = (value) => props.types.find((option) => option.value === value)?.label ?? value;
 
 const selectedFor = (game) => props.servers.filter((server) => server.selected && server.gameId === game.id);
@@ -107,10 +112,28 @@ function fetchLine(outcome) {
     return `${name}: ${parts.join(', ')}.`;
 }
 
-function lastReadLabel(read) {
-    if (!read) return 'Not read yet';
+const zulu = (at) => `${forumDateTime(at)}Z`;
+const testing = ref(null);
 
-    return read.succeeded ? `Read ${forumDateTime(read.at)}Z` : `Failed ${forumDateTime(read.at)}Z: ${read.reason}`;
+// The failure is red when it is the newer of the two, so a source that failed and then answered reads as working.
+const failingNow = (source) => source.lastFailedAt !== null && (source.lastSucceededAt === null || source.lastFailedAt > source.lastSucceededAt);
+
+function testConnection(game) {
+    testing.value = game.id;
+    router.post(`/settings/servers/games/${game.id}/test`, {}, {
+        preserveScroll: true,
+        onFinish: () => (testing.value = null),
+        onHttpException: onHttpException(`${game.name} was not tested`, (message) => toast.error(message)),
+    });
+}
+
+function outcomeLine(outcome) {
+    const name = `${outcome.server} (${interfaceLabel(outcome.interface)})`;
+
+    if (outcome.status === 'not_configured') return `${name}: credentials not set, not read.`;
+    if (outcome.status === 'failed') return `${name}: could not be read. ${outcome.reason}`;
+
+    return `${name}: answered.`;
 }
 </script>
 
@@ -167,11 +190,26 @@ function lastReadLabel(read) {
             </div>
             <div class="divide-y divide-border border-t border-border">
                 <div v-for="game in games" :key="game.id" class="px-4 py-3" :data-testid="`game-${game.id}`">
-                    <p class="flex flex-wrap items-center gap-1.5 text-[13px] font-medium">
-                        {{ game.name }}
-                        <Badge v-if="game.retired" variant="outline">Retired</Badge>
-                        <Badge v-if="!game.captureConfigured" variant="outline" :data-testid="`not-configured-${game.id}`">Not configured</Badge>
-                    </p>
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <p class="flex flex-wrap items-center gap-1.5 text-[13px] font-medium">
+                            {{ game.name }}
+                            <Badge v-if="game.retired" variant="outline">Retired</Badge>
+                            <span class="font-normal text-muted-foreground" :data-testid="`interface-${game.id}`">{{ interfaceLabel(game.interface) }}</span>
+                            <Badge :variant="game.captureConfigured ? 'secondary' : 'outline'" :data-testid="`configured-${game.id}`">
+                                {{ game.captureConfigured ? 'Configured' : 'Not configured' }}
+                            </Badge>
+                        </p>
+                        <Button
+                            v-if="game.connections.length"
+                            size="sm"
+                            variant="outline"
+                            :disabled="testing !== null"
+                            :data-testid="`test-${game.id}`"
+                            @click="testConnection(game)"
+                        >
+                            <PhPlugsConnected aria-hidden="true" />{{ testing === game.id ? 'Testing' : 'Test connection' }}
+                        </Button>
+                    </div>
                     <ul v-if="selectedFor(game).length" class="mt-1.5 space-y-1">
                         <li
                             v-for="server in selectedFor(game)"
@@ -184,13 +222,6 @@ function lastReadLabel(read) {
                             <span class="text-muted-foreground">{{ interfaceLabel(server.interface) }}</span>
                             <span v-if="!server.credentialsSet" class="text-destructive">credentials not set</span>
                             <span v-if="server.missing" class="text-destructive">no longer listed</span>
-                            <span
-                                v-if="server.type === 'training'"
-                                :data-testid="`last-read-${server.id}`"
-                                :class="server.lastRead && !server.lastRead.succeeded ? 'text-destructive' : 'text-muted-foreground'"
-                            >
-                                {{ lastReadLabel(server.lastRead) }}
-                            </span>
                         </li>
                     </ul>
                     <p v-else class="mt-1 text-[13px] text-muted-foreground" :data-testid="`env-${game.id}`">
@@ -198,6 +229,38 @@ function lastReadLabel(read) {
                         <template v-else-if="game.interface === 'none'">Attendance read by none: leaders mark it by hand.</template>
                         <template v-else>No training server selected: nothing is read.</template>
                     </p>
+
+                    <ul v-if="game.connections.length" class="mt-1.5 space-y-1 border-l-2 border-border pl-2.5">
+                        <template v-for="connection in game.connections" :key="connection.label">
+                            <li
+                                v-for="source in connection.sources"
+                                :key="`${connection.label}-${source.interface}`"
+                                :data-testid="`source-${game.id}-${source.interface}`"
+                                class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13px]"
+                            >
+                                <span>{{ connection.label }}</span>
+                                <span class="text-muted-foreground">{{ interfaceLabel(source.interface) }}</span>
+                                <span v-if="!source.configured" class="text-destructive">credentials not set</span>
+                                <span class="text-muted-foreground">
+                                    {{ source.lastSucceededAt ? `Last read ${zulu(source.lastSucceededAt)}` : 'Never read' }}
+                                </span>
+                                <span v-if="source.lastFailedAt" :class="failingNow(source) ? 'text-destructive' : 'text-muted-foreground'">
+                                    Last failed {{ zulu(source.lastFailedAt) }}: {{ source.lastFailureReason }}
+                                </span>
+                            </li>
+                        </template>
+                    </ul>
+
+                    <div v-if="testResult && testResult.gameId === game.id" class="mt-2 space-y-0.5" role="status" :data-testid="`test-result-${game.id}`">
+                        <p
+                            v-for="(outcome, index) in testResult.outcomes"
+                            :key="index"
+                            class="text-[13px]"
+                            :class="outcome.status === 'ok' ? 'text-muted-foreground' : 'text-destructive'"
+                        >
+                            {{ outcomeLine(outcome) }}
+                        </p>
+                    </div>
                 </div>
             </div>
         </Card>
