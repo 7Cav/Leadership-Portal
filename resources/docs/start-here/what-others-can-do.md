@@ -4,10 +4,6 @@ summary: Which roles can see and change what, so you know who to ask.
 section: start-here
 order: 2
 audience: everyone
-checklist:
-  label: Learn what others can do
-  audience: everyone
-  order: 6
 ---
 
 > [!why] What you can do follows from your billet on the Cav roster. If a button is missing for you, it belongs to someone above you, and this page says who.

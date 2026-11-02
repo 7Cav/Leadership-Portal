@@ -10,14 +10,43 @@ final class DocsPages
 {
     public function __construct(private readonly GuideLibrary $library) {}
 
-    /** @return array<string, mixed> */
-    public function home(Audience $reader): array
+    /**
+     * @param  list<string>  $facts  what the portal knows the reader has done ({@see PortalProgress})
+     * @return array<string, mixed>
+     */
+    public function home(Audience $reader, array $facts = []): array
     {
-        return $this->shared($reader);
+        $guides = array_filter($this->library->guides(), fn (Guide $guide) => $reader->reads($guide->audience) && $guide->section !== GuideLibrary::TUTORIAL);
+        $recent = array_values(array_filter($guides, fn (Guide $guide) => $guide->updated !== null));
+        usort($recent, fn (Guide $a, Guide $b) => [$b->updated, $a->title] <=> [$a->updated, $b->title]);
+
+        return [
+            ...$this->shared($reader, $facts),
+            // The role paths (Section Leader, HQ staff...) this reader can follow, each with the guides on it.
+            'paths' => array_map(fn (array $path) => [
+                'key' => $path['key'],
+                'title' => $path['title'],
+                'blurb' => $path['blurb'],
+                'guides' => array_map(fn (Guide $guide) => $this->link($guide), $path['guides']),
+            ], $this->library->paths($reader)),
+            // The five guides changed last, by their `updated` date.
+            'recent' => array_map(fn (Guide $guide) => [...$this->link($guide), 'updated' => $guide->updated], array_slice($recent, 0, 5)),
+        ];
     }
 
-    /** @return ?array<string, mixed> null when the guide does not exist or the reader may not read it */
-    public function guide(Audience $reader, string $section, string $slug): ?array
+    /**
+     * The tutorial's first step URL, or null when this reader has no tutorial step to read.
+     */
+    public function tutorialStart(Audience $reader): ?string
+    {
+        return ($this->library->tutorial($reader)[0] ?? null)?->url();
+    }
+
+    /**
+     * @param  list<string>  $facts  what the portal knows the reader has done ({@see PortalProgress})
+     * @return ?array<string, mixed> null when the guide does not exist or the reader may not read it
+     */
+    public function guide(Audience $reader, string $section, string $slug, array $facts = []): ?array
     {
         $guide = $this->library->find($reader, $section, $slug);
         if ($guide === null) {
@@ -25,10 +54,11 @@ final class DocsPages
         }
 
         [$previous, $next] = $this->library->neighbors($reader, $guide);
+        $steps = $guide->section === GuideLibrary::TUTORIAL ? $this->library->tutorial($reader) : null;
         $sectionTitle = collect($this->library->sections())->firstWhere('key', $guide->section)?->title;
 
         return [
-            ...$this->shared($reader),
+            ...$this->shared($reader, $facts),
             'guide' => [
                 ...$this->link($guide),
                 'section' => ['key' => $guide->section, 'title' => $sectionTitle],
@@ -38,27 +68,44 @@ final class DocsPages
                 'minutes' => $guide->minutes,
                 'html' => $guide->html,
                 'headings' => $guide->headings,
-                // The guide's Start here item id when it is on this reader's list, for "Tick it off" (#412).
-                'checklist' => $guide->checklist !== null && $reader->reads($guide->checklist->audience) ? "{$guide->section}/{$guide->slug}" : null,
+                'readingMinutes' => self::readingMinutes($guide->html),
+                'updated' => $guide->updated,
+                'try' => $guide->try,
             ],
             'previous' => $previous ? $this->link($previous) : null,
             'next' => $next ? $this->link($next) : null,
             // The shell's breadcrumb ends with the guide: 7CAV > Docs > {guide}.
             'crumb' => $guide->title,
+            // On a tutorial step: every step, for "Step 2 of 8" and the step list. Null on a guide.
+            'steps' => $steps === null ? null : array_map(fn (Guide $step) => [
+                'id' => $step->slug,
+                'title' => $step->title,
+                'url' => $step->url(),
+            ], $steps),
         ];
     }
 
-    /** @return array<string, mixed> */
-    private function shared(Audience $reader): array
+    /**
+     * @param  list<string>  $facts
+     * @return array<string, mixed>
+     */
+    private function shared(Audience $reader, array $facts): array
     {
         return [
+            // The tutorial steps the portal ticks off by itself, by step id.
+            'portalDone' => PortalProgress::done($facts),
             'audience' => $reader->value,
             'feedbackUrl' => config('portal.docs_feedback_url') ?: null,
+            // The tutorial is not a section of the contents: it has its own entry, `tutorial`.
             'contents' => array_map(fn (array $group) => [
                 'key' => $group['section']->key,
                 'title' => $group['section']->title,
                 'guides' => array_map(fn (Guide $guide) => $this->link($guide), $group['guides']),
-            ], $this->library->contents($reader)),
+            ], array_values(array_filter($this->library->contents($reader), fn (array $group) => $group['section']->key !== GuideLibrary::TUTORIAL))),
+            'tutorial' => ($steps = $this->library->tutorial($reader)) === [] ? null : [
+                'url' => $steps[0]->url(),
+                'steps' => array_map(fn (Guide $step) => ['id' => $step->slug, 'title' => $step->title, 'url' => $step->url()], $steps),
+            ],
             // The search (#413) runs in the page, over only the guides this reader may read: no request per keystroke.
             'search' => collect($this->library->contents($reader))->flatMap(fn (array $group) => array_map(fn (Guide $guide) => [
                 'title' => $guide->title,
@@ -68,12 +115,13 @@ final class DocsPages
                 'headings' => array_column($guide->headings, 'text'),
                 'text' => self::plainText($guide->html),
             ], $group['guides']))->values()->all(),
-            'checklist' => array_map(fn (Guide $guide) => [
-                'id' => "{$guide->section}/{$guide->slug}",
-                'label' => $guide->checklist->label,
-                'url' => $guide->url(),
-            ], $this->library->checklist($reader)),
         ];
+    }
+
+    /** About how long the guide takes to read, at 200 words a minute, never under one minute. */
+    private static function readingMinutes(string $html): int
+    {
+        return max(1, (int) ceil(str_word_count(self::plainText($html)) / 200));
     }
 
     /** A guide's body as plain words for the search: no tags, entities decoded, whitespace collapsed. */

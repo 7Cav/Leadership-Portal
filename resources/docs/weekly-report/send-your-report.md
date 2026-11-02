@@ -7,10 +7,6 @@ audience: leader
 page: /reports
 weekly: true
 minutes: 10
-checklist:
-  label: Send your weekly report
-  audience: leader
-  order: 4
 ---
 
 > [!why] Your report is what your chain of command reads about your unit's week. Sending it freezes the numbers, so what they read never changes after you send.

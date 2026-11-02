@@ -3,6 +3,7 @@ title: Make your unit's guidon
 summary: Pick a format, the colors and the text for your company's, battalion's or the regiment's flag, then save or download it.
 section: your-troopers
 order: 4
+updated: 2026-11-01
 audience: leader
 ---
 

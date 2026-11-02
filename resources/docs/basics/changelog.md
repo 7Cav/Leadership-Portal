@@ -3,6 +3,7 @@ title: Write the changelog
 summary: Read what changed in the portal, and for the changelog editors, add and import entries.
 section: basics
 order: 8
+updated: 2026-10-31
 audience: everyone
 page: /changelog
 ---

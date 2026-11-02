@@ -17,15 +17,21 @@ use Symfony\Component\Yaml\Yaml;
  * two apart. A guide with a problem (bad front matter, a broken link, a missing image) is left out, and
  * {@see problems()} names it: a test fails the build on any, so none reaches production.
  *
+ * `paths.yaml` beside it lists docs home's role paths ("Section Leader", "HQ staff"...), each a few guides by
+ * `{section}/{slug}`; see {@see paths()}.
+ *
  * Parsed once per change of the files: the cache key is a fingerprint of every file's path, size and mtime, so a
  * deploy that changes a guide reads it again and nothing else does.
  */
 final class GuideLibrary
 {
     /** Bump when the parser's output changes, so a deploy does not serve guides parsed the old way. */
-    private const FORMAT = 3;
+    private const FORMAT = 4;
 
-    /** @var ?array{sections: list<Section>, guides: list<Guide>, problems: list<string>} */
+    /** The section whose guides are the steps of the getting started tutorial, kept out of the contents and neighbors. */
+    public const TUTORIAL = 'tutorial';
+
+    /** @var ?array{sections: list<Section>, guides: list<Guide>, paths: list<array{key: string, title: string, blurb: string, audience: Audience, guides: list<string>}>, problems: list<string>} */
     private ?array $loaded = null;
 
     public function __construct(
@@ -77,6 +83,40 @@ final class GuideLibrary
             ->all();
     }
 
+    /**
+     * Docs home's role paths for one reader: each path whose audience they read, with the guides on it they may read,
+     * in the order `paths.yaml` lists them. A path left with no guide is dropped.
+     *
+     * @return list<array{key: string, title: string, blurb: string, guides: list<Guide>}>
+     */
+    public function paths(Audience $reader): array
+    {
+        $byPath = [];
+        foreach ($this->readable($reader) as $guide) {
+            $byPath["{$guide->section}/{$guide->slug}"] = $guide;
+        }
+
+        $paths = [];
+        foreach ($this->load()['paths'] as $path) {
+            $guides = array_values(array_filter(array_map(fn (string $id) => $byPath[$id] ?? null, $path['guides'])));
+            if ($reader->reads($path['audience']) && $guides !== []) {
+                $paths[] = ['key' => $path['key'], 'title' => $path['title'], 'blurb' => $path['blurb'], 'guides' => $guides];
+            }
+        }
+
+        return $paths;
+    }
+
+    /**
+     * The tutorial's steps the reader may read, in order.
+     *
+     * @return list<Guide>
+     */
+    public function tutorial(Audience $reader): array
+    {
+        return array_values(array_filter($this->readable($reader), fn (Guide $guide) => $guide->section === self::TUTORIAL));
+    }
+
     /** One guide, or null when it does not exist or the reader may not read it: the two look the same. */
     public function find(Audience $reader, string $section, string $slug): ?Guide
     {
@@ -90,20 +130,6 @@ final class GuideLibrary
     }
 
     /**
-     * The reader's "Start here" list: guides with a `checklist` entry listed for their audience, in the list's order.
-     *
-     * @return list<Guide>
-     */
-    public function checklist(Audience $reader): array
-    {
-        return collect($this->readable($reader))
-            ->filter(fn (Guide $guide) => $guide->checklist !== null && $reader->reads($guide->checklist->audience))
-            ->sortBy([fn (Guide $a, Guide $b) => $a->checklist->order <=> $b->checklist->order, fn (Guide $a, Guide $b) => $a->url() <=> $b->url()])
-            ->values()
-            ->all();
-    }
-
-    /**
      * For the "?" help (#411): each portal path a readable guide explains, mapped to that guide's URL. Where two guides
      * explain the same page, the one written for the narrowest audience the reader holds wins (an Admin on a Settings
      * page gets the Admin guide), then the first in contents order.
@@ -114,7 +140,8 @@ final class GuideLibrary
     {
         $best = [];
         foreach ($this->readable($reader) as $guide) {
-            if ($guide->page === null) {
+            // A tutorial step points at a page to try it on, but the "?" help always opens the guide for that page.
+            if ($guide->page === null || $guide->section === self::TUTORIAL) {
                 continue;
             }
             $current = $best[$guide->page] ?? null;
@@ -168,13 +195,15 @@ final class GuideLibrary
 
     /**
      * The guides either side of `$guide` in the reader's contents order, for the previous and next links. Crosses
-     * sections, so the last guide of one leads to the first of the next.
+     * sections, so the last guide of one leads to the first of the next, but never into or out of the tutorial: a
+     * tutorial step's neighbors are the steps before and after it.
      *
      * @return array{0: ?Guide, 1: ?Guide}
      */
     public function neighbors(Audience $reader, Guide $guide): array
     {
-        $readable = $this->readable($reader);
+        $tutorial = $guide->section === self::TUTORIAL;
+        $readable = array_values(array_filter($this->readable($reader), fn (Guide $g) => ($g->section === self::TUTORIAL) === $tutorial));
         $at = array_search($guide->url(), array_map(fn (Guide $g) => $g->url(), $readable), true);
         if ($at === false) {
             return [null, null];
@@ -189,7 +218,7 @@ final class GuideLibrary
         return array_values(array_filter($this->guides(), fn (Guide $guide) => $reader->reads($guide->audience)));
     }
 
-    /** @return array{sections: list<Section>, guides: list<Guide>, problems: list<string>} */
+    /** @return array{sections: list<Section>, guides: list<Guide>, paths: list<array{key: string, title: string, blurb: string, audience: Audience, guides: list<string>}>, problems: list<string>} */
     private function load(): array
     {
         // A week, not forever: every edit leaves a key behind, and an old one should not sit in the store for good.
@@ -206,7 +235,7 @@ final class GuideLibrary
         return md5(implode("\n", $stamp));
     }
 
-    /** @return array{sections: list<Section>, guides: list<Guide>, problems: list<string>} */
+    /** @return array{sections: list<Section>, guides: list<Guide>, paths: list<array{key: string, title: string, blurb: string, audience: Audience, guides: list<string>}>, problems: list<string>} */
     private function parseAll(): array
     {
         [$sections, $problems] = $this->readSections();
@@ -273,7 +302,53 @@ final class GuideLibrary
         $guides = array_values($valid);
         usort($guides, fn (Guide $a, Guide $b) => [$known[$a->section], $a->order, $a->slug] <=> [$known[$b->section], $b->order, $b->slug]);
 
-        return ['sections' => $sections, 'guides' => $guides, 'problems' => array_values(array_unique($problems))];
+        [$paths, $pathProblems] = $this->readPaths($valid);
+
+        return ['sections' => $sections, 'guides' => $guides, 'paths' => $paths, 'problems' => array_values(array_unique([...$problems, ...$pathProblems]))];
+    }
+
+    /**
+     * `paths.yaml`, optional: `key: { title, blurb, audience, guides: [section/slug, ...] }`.
+     *
+     * @param  array<string, Guide>  $valid
+     * @return array{0: list<array{key: string, title: string, blurb: string, audience: Audience, guides: list<string>}>, 1: list<string>}
+     */
+    private function readPaths(array $valid): array
+    {
+        $file = $this->root().'/paths.yaml';
+        if (! is_file($file)) {
+            return [[], []];
+        }
+
+        try {
+            $listed = Yaml::parseFile($file);
+        } catch (ParseException $e) {
+            return [[], ["paths.yaml: not valid YAML: {$e->getMessage()}"]];
+        }
+
+        $paths = [];
+        $problems = [];
+        foreach (is_array($listed) ? $listed : [] as $key => $path) {
+            $audience = is_array($path) && is_string($path['audience'] ?? null) ? Audience::tryFrom($path['audience']) : null;
+            if (! is_string($key) || ! is_array($path) || ! is_string($path['title'] ?? null) || ! is_string($path['blurb'] ?? null)
+                || $audience === null || ! is_array($path['guides'] ?? null)) {
+                $problems[] = 'paths.yaml: each path needs a title, a blurb, an audience and a list of guides';
+
+                continue;
+            }
+            $guides = [];
+            foreach ($path['guides'] as $id) {
+                if (! is_string($id) || ! isset($valid[$id])) {
+                    $problems[] = 'paths.yaml: '.$key.' lists '.(is_string($id) ? $id : 'a non-text entry').', which is not a guide';
+
+                    continue;
+                }
+                $guides[] = $id;
+            }
+            $paths[] = ['key' => $key, 'title' => $path['title'], 'blurb' => $path['blurb'], 'audience' => $audience, 'guides' => $guides];
+        }
+
+        return [$paths, $problems];
     }
 
     /** @return array{0: list<Section>, 1: list<string>} */

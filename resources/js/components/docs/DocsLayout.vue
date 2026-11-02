@@ -8,13 +8,15 @@ import DocsSearchBox from './DocsSearchBox.vue';
 import DocsTree from './DocsTree.vue';
 
 // The three columns of every docs page (#410, agreed design): contents on the left, the page in the middle, and a
-// right rail (Start here, and "On this page" on a guide). On a narrow screen the page comes first: the contents sit
+// right rail ("On this page" on a guide, the step list on a tutorial step). On a narrow screen the page comes first: the contents sit
 // behind a "Contents" button above it and the rail drops below it.
 defineProps({
     contents: { type: Array, required: true },
     current: { type: String, default: null },
     // The page's search index (#413), only the guides this reader may read.
     search: { type: Array, required: true },
+    // `{ url, steps }` for the tree's "Getting started" entry, or null.
+    tutorial: { type: Object, default: null },
 });
 
 useDocsSearchShortcut();
@@ -43,7 +45,7 @@ const contentsOpen = ref(false);
                 <PhCaretDown class="ml-auto transition-transform" :class="contentsOpen ? 'rotate-180' : ''" />
             </Button>
             <div id="docs-contents" :class="contentsOpen ? 'mt-3' : 'hidden lg:block'">
-                <DocsTree :contents="contents" :current="current">
+                <DocsTree :contents="contents" :current="current" :tutorial="tutorial">
                     <template #top><DocsSearchBox class="mb-3.5" /></template>
                 </DocsTree>
             </div>

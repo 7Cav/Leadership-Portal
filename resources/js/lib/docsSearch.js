@@ -80,3 +80,23 @@ export function searchGuides(index, query) {
         .sort((a, b) => b.score - a.score || a.position - b.position)
         .map((hit) => hit.guide);
 }
+
+/**
+ * `text` cut into pieces, each marked `hit` when it is a word the search matched, for highlighting a result.
+ *
+ * @returns {Array<{text: string, hit: boolean}>}
+ */
+export function highlight(text, query) {
+    const terms = words(query);
+    const pieces = (text ?? '').split(/([^\p{L}\p{N}]+)/u).filter((piece) => piece !== '');
+    const marked = pieces.map((piece) => ({ text: piece, hit: terms.length > 0 && /[\p{L}\p{N}]/u.test(piece) && terms.some((term) => matches(term, piece.toLowerCase())) }));
+
+    // Neighbouring pieces with the same mark become one, so a result is a few spans, not one per word.
+    return marked.reduce((joined, piece) => {
+        const last = joined.at(-1);
+        if (last && last.hit === piece.hit) last.text += piece.text;
+        else joined.push({ ...piece });
+
+        return joined;
+    }, []);
+}

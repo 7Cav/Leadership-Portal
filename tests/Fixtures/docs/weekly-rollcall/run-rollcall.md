@@ -7,10 +7,6 @@ audience: leader
 page: /rollcall
 weekly: true
 minutes: 5
-checklist:
-    label: Run your first rollcall
-    audience: leader
-    order: 2
 ---
 
 > [!why] The weekly report is built from your confirmed rollcall.

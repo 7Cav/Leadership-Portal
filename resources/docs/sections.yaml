@@ -1,8 +1,9 @@
 # The sections of the docs, in the order the contents tree lists them: `folder-name: Title`.
 # Each section is a folder of guides beside this file. See README.md for how to write one.
-start-here: Start here
+start-here: Working with others
 basics: The basics
 weekly-rollcall: Weekly roll call
 weekly-report: Weekly report
 your-troopers: Your troopers
 admin: Admin
+tutorial: Getting started

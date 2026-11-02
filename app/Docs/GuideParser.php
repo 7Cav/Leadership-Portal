@@ -6,6 +6,7 @@ use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
 use League\CommonMark\Extension\CommonMark\Node\Block\BlockQuote;
 use League\CommonMark\Extension\CommonMark\Node\Block\Heading;
+use League\CommonMark\Extension\CommonMark\Node\Block\ListBlock;
 use League\CommonMark\Extension\CommonMark\Node\Inline\Image;
 use League\CommonMark\Extension\CommonMark\Node\Inline\Link;
 use League\CommonMark\Extension\CommonMark\Node\Inline\Strong;
@@ -30,18 +31,18 @@ use League\CommonMark\Renderer\HtmlRenderer;
  *     > [!why] The weekly report is built from your confirmed rollcall.
  *     > [!good-to-know] Troopers on leave are already marked.
  *
- * They render as `<blockquote class="callout callout-why">` (or `callout-good-to-know`) led by "Why this matters." or
- * "Good to know.", in text, not CSS, so a screen reader reads the label too.
+ * A third, `> [!warning]`, is for a step that cannot be undone or is easy to get wrong.
+ *
+ * They render as `<blockquote class="callout callout-why">` (or `callout-good-to-know`, `callout-warning`) led by "Why
+ * this matters.", "Good to know." or "Watch out.", in text, not CSS, so a screen reader reads the label too.
  */
 final class GuideParser
 {
-    private const KEYS = ['title', 'summary', 'section', 'order', 'audience', 'page', 'weekly', 'minutes', 'checklist'];
+    private const KEYS = ['title', 'summary', 'section', 'order', 'audience', 'page', 'weekly', 'minutes', 'updated', 'try'];
 
     private const REQUIRED = ['title', 'summary', 'section', 'order', 'audience'];
 
-    private const CHECKLIST_KEYS = ['label', 'audience', 'order'];
-
-    private const CALLOUTS = ['why' => 'Why this matters.', 'good-to-know' => 'Good to know.'];
+    private const CALLOUTS = ['why' => 'Why this matters.', 'good-to-know' => 'Good to know.', 'warning' => 'Watch out.'];
 
     /** Lowercase words joined by hyphens: what a section folder and a guide file may be called. */
     public const SLUG = '/^[a-z0-9]+(?:-[a-z0-9]+)*$/';
@@ -93,6 +94,7 @@ final class GuideParser
 
         $headings = $this->anchorHeadings($document);
         $this->renderCallouts($document);
+        $this->letterSubsteps($document);
         [$links, $images] = $this->urls($document);
 
         if ($problems !== []) {
@@ -100,10 +102,6 @@ final class GuideParser
         }
 
         $audience = Audience::from($meta['audience']);
-        $checklist = isset($meta['checklist'])
-            ? new ChecklistItem($meta['checklist']['label'], Audience::from($meta['checklist']['audience']), $meta['checklist']['order'])
-            : null;
-
         $guide = new Guide(
             section: $section,
             slug: $slug,
@@ -114,7 +112,8 @@ final class GuideParser
             page: $meta['page'] ?? null,
             weekly: $meta['weekly'] ?? false,
             minutes: $meta['minutes'] ?? null,
-            checklist: $checklist,
+            updated: self::date($meta['updated'] ?? null),
+            try: $meta['try'] ?? null,
             html: $this->renderer->renderDocument($document)->getContent(),
             headings: $headings,
         );
@@ -161,44 +160,27 @@ final class GuideParser
             $problems[] = '`minutes` must be a whole number of minutes';
         }
 
-        if (array_key_exists('checklist', $meta)) {
-            $problems = [...$problems, ...$this->checkChecklist($meta['checklist'], $this->audience($meta['audience'] ?? null))];
+        if (array_key_exists('updated', $meta) && self::date($meta['updated']) === null) {
+            $problems[] = '`updated` must be a date written as 2026-10-30';
+        }
+        if (array_key_exists('try', $meta) && (! is_string($meta['try']) || trim($meta['try']) === '')) {
+            $problems[] = '`try` must be text';
+        }
+        if (array_key_exists('try', $meta) && ! array_key_exists('page', $meta)) {
+            $problems[] = '`try` needs a `page` to open';
         }
 
         return $problems;
     }
 
-    /** @return list<string> */
-    private function checkChecklist(mixed $item, ?Audience $guide): array
+    /** `updated` as `Y-m-d`: YAML reads a bare date as a Unix timestamp, a quoted one as text. Null when it is neither. */
+    private static function date(mixed $value): ?string
     {
-        if (! is_array($item) || array_is_list($item)) {
-            return ['`checklist` must have a label, an audience and an order'];
+        if (is_int($value)) {
+            return gmdate('Y-m-d', $value);
         }
 
-        $problems = [];
-        foreach (array_diff(array_keys($item), self::CHECKLIST_KEYS) as $unknown) {
-            $problems[] = "unknown `checklist` key `{$unknown}`";
-        }
-        foreach (array_diff(self::CHECKLIST_KEYS, array_keys($item)) as $missing) {
-            $problems[] = "missing `checklist` key `{$missing}`";
-        }
-        if (array_key_exists('label', $item) && (! is_string($item['label']) || trim($item['label']) === '')) {
-            $problems[] = '`checklist.label` must be text';
-        }
-        if (array_key_exists('order', $item) && ! is_int($item['order'])) {
-            $problems[] = '`checklist.order` must be a whole number';
-        }
-        if (array_key_exists('audience', $item)) {
-            $listed = $this->audience($item['audience']);
-            if ($listed === null) {
-                $problems[] = '`checklist.audience` must be everyone, leader or admin';
-            } elseif ($guide !== null && ! $listed->reads($guide)) {
-                // Listing a leader guide for everyone would put an item on a trooper's list they could not open.
-                $problems[] = "`checklist.audience` cannot be wider than the guide's own audience, `{$guide->value}`";
-            }
-        }
-
-        return $problems;
+        return is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1 && strtotime($value) !== false ? $value : null;
     }
 
     private function audience(mixed $value): ?Audience
@@ -253,7 +235,7 @@ final class GuideParser
                     break;
                 }
             }
-            if (preg_match('/^\[!(why|good-to-know)\]/i', $lead, $marker) !== 1) {
+            if (preg_match('/^\[!(why|good-to-know|warning)\]/i', $lead, $marker) !== 1) {
                 continue;
             }
 
@@ -278,6 +260,24 @@ final class GuideParser
             $paragraph->prependChild($label);
 
             $quote->data->set('attributes/class', "callout callout-{$kind}");
+        }
+    }
+
+    /**
+     * A numbered list under a numbered step (a level-2 heading) is that step's sub-steps, lettered A, B, C so "1 Record
+     * the signatures" never reads as 1 then 1, 2, 3. A real `type="A"` on the list, so a screen reader announces the
+     * letters too; the CSS draws them in the same rings. A numbered list before the first step keeps its numbers.
+     */
+    private function letterSubsteps(Document $document): void
+    {
+        $inStep = false;
+        for ($node = $document->firstChild(); $node !== null; $node = $node->next()) {
+            if ($node instanceof Heading && $node->getLevel() <= 2) {
+                $inStep = $node->getLevel() === 2;
+            } elseif ($inStep && $node instanceof ListBlock && $node->getListData()->type === ListBlock::TYPE_ORDERED) {
+                $node->data->set('attributes/type', 'A');
+                $node->data->set('attributes/class', 'docs-substeps');
+            }
         }
     }
 

@@ -4,6 +4,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import DocsSearch from '../DocsSearch.vue';
 import DocsSearchBox from '../DocsSearchBox.vue';
 import { useDocsSearch, useDocsSearchShortcut } from '@/composables/useDocsSearch';
+import { handleSlash } from '@/composables/useSlashShortcut';
 
 const visit = vi.hoisted(() => vi.fn());
 
@@ -62,6 +63,14 @@ describe('docs search', () => {
         expect(searchOpen.value).toBe(false);
     });
 
+    it('highlights the words that matched in a result, typos included', async () => {
+        await openWith(INDEX);
+        await type('gust practice');
+
+        const marks = [...inBody('[data-testid="docs-search-results"]').querySelectorAll('mark')].map((m) => m.textContent);
+        expect(marks).toEqual(['guest', 'practice']);
+    });
+
     it('says nothing was found, pointing to What others can do when the reader has it', async () => {
         await openWith(INDEX);
         await type('zzzz');
@@ -78,17 +87,38 @@ describe('docs search', () => {
         expect(inBody('[data-testid="docs-search-empty"] a')).toBeNull();
     });
 
-    it('opens from the search box, and with Ctrl K or Cmd K, never with /', async () => {
+    it('opens from the search box, with / while a docs page is mounted, and with Ctrl K or Cmd K', async () => {
         const Page = defineComponent({ setup: () => (useDocsSearchShortcut(), () => h(DocsSearchBox)) });
         const page = mount(Page, { attachTo: document.body });
         mounted.push(page);
+        // The shell's `/` handler, falling back to the trooper search when no page claims the key.
+        const trooperSearch = vi.fn();
+        const shell = (event) => handleSlash(event, trooperSearch);
+        document.addEventListener('keydown', shell);
 
         await page.get('[data-testid="docs-search-trigger"]').trigger('click');
         expect(searchOpen.value).toBe(true);
 
         searchOpen.value = false;
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: '/' }));
+        document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true }));
+        expect(searchOpen.value).toBe(true);
+        expect(trooperSearch).not.toHaveBeenCalled();
+
+        // Typing a `/` into a field is never the shortcut.
+        searchOpen.value = false;
+        const field = document.createElement('input');
+        document.body.appendChild(field);
+        field.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true }));
         expect(searchOpen.value).toBe(false);
+        field.remove();
+
+        page.unmount();
+        mounted = mounted.filter((m) => m !== page);
+        document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true }));
+        expect(trooperSearch).toHaveBeenCalledTimes(1);
+        document.removeEventListener('keydown', shell);
+        const again = mount(Page, { attachTo: document.body });
+        mounted.push(again);
 
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }));
         expect(searchOpen.value).toBe(true);

@@ -3,6 +3,7 @@ title: Glossary
 summary: What the words on the portal's screens mean.
 section: basics
 order: 7
+updated: 2026-10-31
 audience: everyone
 ---
 

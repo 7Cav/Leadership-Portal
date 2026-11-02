@@ -17,7 +17,7 @@ const { openSearch } = useDocsSearch();
     <button
         type="button"
         aria-haspopup="dialog"
-        aria-keyshortcuts="Control+K Meta+K"
+        aria-keyshortcuts="/ Control+K Meta+K"
         data-testid="docs-search-trigger"
         :class="
             cn(
@@ -29,6 +29,6 @@ const { openSearch } = useDocsSearch();
     >
         <PhMagnifyingGlass class="size-4 shrink-0" aria-hidden="true" />
         <span class="min-w-0 flex-1 truncate">{{ placeholder }}</span>
-        <kbd class="hidden rounded-sm border border-border bg-muted px-1 font-mono text-[11px] leading-4 sm:inline" aria-hidden="true">Ctrl K</kbd>
+        <kbd class="hidden min-w-5 rounded-sm border border-border bg-muted px-1 text-center font-mono text-[11px] leading-4 sm:inline" aria-hidden="true">/</kbd>
     </button>
 </template>

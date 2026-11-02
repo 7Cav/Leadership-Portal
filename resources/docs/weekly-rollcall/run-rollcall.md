@@ -3,14 +3,11 @@ title: Run this week's roll call
 summary: Record who signed, mark section practice, copy the roll call post and mark it posted.
 section: weekly-rollcall
 order: 1
+updated: 2026-11-01
 audience: leader
 page: /rollcall
 weekly: true
 minutes: 10
-checklist:
-  label: Run your first roll call
-  audience: leader
-  order: 3
 ---
 
 > [!why] Your section's weekly report is built from this roll call. A roll call left unfinished leaves your section's numbers wrong in every report above it.

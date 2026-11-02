@@ -23,7 +23,6 @@ and mtimes) and answers, for one `Audience`:
 
 - `contents()`: the sections the reader has guides in, in `sections.yaml` order, each with its guides by `order`;
 - `find($section, $slug)`: one guide, or null. A guide the reader may not read is null too, exactly like a missing one;
-- `checklist()`: the "Start here" items listed for the reader, by `checklist.order`;
 - `pages()`: each portal path a readable guide explains, mapped to its URL, for the "?" help.
 - `guideFor($path)`: the URL of the guide the "?" help opens on a portal path (exact match first, `{name}` for one
   segment, then the page the path sits beneath), or null for docs home.
@@ -46,10 +45,6 @@ audience: leader            # everyone, leader or admin
 page: /rollcall             # optional: the portal path this guide explains
 weekly: true                # optional: a weekly task, listed under "Every week" on docs home
 minutes: 5                  # optional: about how long it takes
-checklist:                  # optional: list it under "Start here"
-  label: Run your first rollcall
-  audience: leader          # never wider than the guide's own audience
-  order: 3
 ---
 
 > [!why] The weekly report is built from your confirmed rollcall.

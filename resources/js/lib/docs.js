@@ -49,3 +49,23 @@ export function cameFrom(url) {
 
     return { href: from, label: found ? found.item.label : 'the previous page' };
 }
+
+// The role path docs home opens on, by the audience the viewer reads the guides as, when they have not picked one.
+const DEFAULT_PATH = { everyone: 'trooper', leader: 'section-leader', admin: 'admin' };
+
+// The path to show: the one the viewer picked when it is still on offer, else their audience's, else the first.
+export function initialPath(paths, audience, picked = null) {
+    const keys = paths.map((path) => path.key);
+    if (picked && keys.includes(picked)) return picked;
+
+    return keys.includes(DEFAULT_PATH[audience]) ? DEFAULT_PATH[audience] : (keys[0] ?? null);
+}
+
+// A guide's `updated` date (`2026-10-31`) as the portal writes dates: 31OCT26.
+export function cavDate(iso) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? '');
+    if (!match) return '';
+    const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+    return `${match[3]}${months[Number(match[2]) - 1] ?? ''}${match[1].slice(2)}`;
+}

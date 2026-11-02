@@ -32,7 +32,7 @@ function no() {
                 Say what was missing on the
                 <a :href="url" target="_blank" rel="noopener" class="underline underline-offset-2">page that just opened</a>.
             </template>
-            <template v-else>Ask your chain of command, or S6, about what was missing.</template>
+            <template v-else>For a technical issue, a question or a concern, open a ticket with S6.</template>
         </p>
     </div>
 </template>

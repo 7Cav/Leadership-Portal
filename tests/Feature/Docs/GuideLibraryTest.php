@@ -55,7 +55,6 @@ it('reads a guide\'s front matter and renders its body', function () {
         'page' => '/rollcall',
         'weekly' => true,
         'minutes' => 5,
-        'checklist' => ['label' => 'Run your first rollcall', 'audience' => 'leader', 'order' => 2],
     ]), "## Open Rollcall\n\n1. Choose **Rollcall** in the sidebar.\n2. Pick your section.\n\n[Glossary](/docs/basics/glossary)\n");
     docWrite($this->docs, 'basics/glossary.md', docMeta('basics'));
 
@@ -69,12 +68,9 @@ it('reads a guide\'s front matter and renders its body', function () {
         ->and($guide->page)->toBe('/rollcall')
         ->and($guide->weekly)->toBeTrue()
         ->and($guide->minutes)->toBe(5)
-        ->and($guide->checklist->label)->toBe('Run your first rollcall')
-        ->and($guide->checklist->audience)->toBe(Audience::Leader)
-        ->and($guide->checklist->order)->toBe(2)
         ->and($guide->url())->toBe('/docs/weekly-rollcall/run-rollcall')
         ->and($guide->html)->toContain('<h2 id="open-rollcall">Open Rollcall</h2>')
-        ->and($guide->html)->toContain('<ol>')
+        ->and($guide->html)->toContain('<ol type="A" class="docs-substeps">')
         ->and($guide->html)->toContain('<strong>Rollcall</strong>')
         ->and($guide->html)->toContain('<a href="/docs/basics/glossary">Glossary</a>');
 });
@@ -159,20 +155,6 @@ it('orders sections as sections.yaml lists them and guides by order, then slug',
     expect(docUrls(docLibrary($this)->guides()))->toBe(['/docs/basics/w', '/docs/basics/y', '/docs/basics/z', '/docs/basics/x', '/docs/weekly-rollcall/b']);
 });
 
-it('lists the Start here items each audience may see, in their order', function () {
-    docWrite($this->docs, 'basics/sign-in.md', docMeta('basics', 'everyone', ['checklist' => ['label' => 'Sign in', 'audience' => 'everyone', 'order' => 1]]));
-    docWrite($this->docs, 'basics/roster.md', docMeta('basics', 'everyone', ['checklist' => ['label' => 'Find your troopers', 'audience' => 'leader', 'order' => 2]]));
-    docWrite($this->docs, 'weekly-rollcall/run.md', docMeta('weekly-rollcall', 'leader', ['checklist' => ['label' => 'Run your first rollcall', 'audience' => 'leader', 'order' => 3]]));
-    docWrite($this->docs, 'weekly-rollcall/guests.md', docMeta('weekly-rollcall', 'leader'));
-    $library = docLibrary($this);
-
-    $labels = fn (Audience $reader) => array_map(fn (Guide $guide) => $guide->checklist->label, $library->checklist($reader));
-
-    expect($labels(Audience::Everyone))->toBe(['Sign in'])
-        ->and($labels(Audience::Leader))->toBe(['Sign in', 'Find your troopers', 'Run your first rollcall'])
-        ->and($labels(Audience::Admin))->toBe(['Sign in', 'Find your troopers', 'Run your first rollcall']);
-});
-
 it('maps each page to the readable guide for the narrowest audience the reader holds', function () {
     docWrite($this->docs, 'basics/roster.md', docMeta('basics', 'everyone', ['page' => '/roster']));
     docWrite($this->docs, 'weekly-rollcall/run.md', docMeta('weekly-rollcall', 'leader', ['page' => '/rollcall']));
@@ -223,9 +205,7 @@ it('names every broken guide and leaves it out', function (string $path, array $
     'weekly not a yes or no' => ['basics/a.md', docMeta('basics', 'everyone', ['weekly' => 'yes']), '', 'basics/a.md: `weekly` must be true or false'],
     'minutes not a number' => ['basics/a.md', docMeta('basics', 'everyone', ['minutes' => 'five']), '', 'basics/a.md: `minutes` must be a whole number of minutes'],
     'page not a path' => ['basics/a.md', docMeta('basics', 'everyone', ['page' => 'rollcall']), '', 'basics/a.md: `page` must be a portal path starting with /'],
-    'checklist key' => ['basics/a.md', docMeta('basics', 'everyone', ['checklist' => ['label' => 'A', 'audience' => 'everyone', 'order' => 1, 'icon' => 'x']]), '', 'basics/a.md: unknown `checklist` key `icon`'],
-    'checklist missing' => ['basics/a.md', docMeta('basics', 'everyone', ['checklist' => ['label' => 'A', 'order' => 1]]), '', 'basics/a.md: missing `checklist` key `audience`'],
-    'checklist wider' => ['weekly-rollcall/a.md', docMeta('weekly-rollcall', 'leader', ['checklist' => ['label' => 'A', 'audience' => 'everyone', 'order' => 1]]), '', "weekly-rollcall/a.md: `checklist.audience` cannot be wider than the guide's own audience, `leader`"],
+    'checklist key, no longer read' => ['basics/a.md', docMeta('basics', 'everyone', ['checklist' => ['label' => 'A', 'audience' => 'everyone', 'order' => 1]]), '', 'basics/a.md: unknown front-matter key `checklist`'],
     'duplicate slug' => ['admin/fine.md', docMeta('admin', 'admin'), '', 'admin/fine.md: slug `fine` is already used by basics/fine.md'],
     'bad file name' => ['basics/Run_Rollcall.md', docMeta('basics'), '', 'basics/Run_Rollcall.md: the file name must be lowercase words joined by hyphens, ending in .md'],
 ]);

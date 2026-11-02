@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Authorization\ScopeResolver;
 use App\Docs\DocsPages;
 use App\Docs\GuideLibrary;
 use App\Docs\ViewerAudience;
+use App\Models\User;
+use App\Repositories\DocsProgressRepository;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -23,13 +26,15 @@ class DocsController extends Controller
         private readonly ViewerAudience $audience,
         private readonly DocsPages $pages,
         private readonly GuideLibrary $library,
+        private readonly ScopeResolver $scope,
+        private readonly DocsProgressRepository $progress,
     ) {}
 
     public function index(Request $request): Response
     {
         abort_unless((bool) config('portal.docs'), 404);
 
-        return Inertia::render('Docs/Index', $this->pages->home($this->audience->of($request->user())));
+        return Inertia::render('Docs/Index', $this->pages->home($this->audience->of($request->user()), $this->facts($request->user())));
     }
 
     /**
@@ -56,9 +61,39 @@ class DocsController extends Controller
     {
         abort_unless((bool) config('portal.docs'), 404);
 
-        $props = $this->pages->guide($this->audience->of($request->user()), $section, $slug);
+        $props = $this->pages->guide($this->audience->of($request->user()), $section, $slug, $this->facts($request->user()));
         abort_if($props === null, 404);
 
-        return Inertia::render('Docs/Show', $props);
+        // A tutorial step has its own page: progress, the step list and "Try it" in place of the guide's rail.
+        return Inertia::render($props['steps'] === null ? 'Docs/Show' : 'Docs/Tutorial', $props);
+    }
+
+    /** `/docs/tutorial`: the first step of the getting started tutorial, or docs home when this reader has none. */
+    public function tutorial(Request $request): RedirectResponse
+    {
+        abort_unless((bool) config('portal.docs'), 404);
+
+        return redirect($this->pages->tutorialStart($this->audience->of($request->user())) ?? '/docs');
+    }
+
+    /**
+     * What the portal knows the reader has done, for the tutorial to tick off. The reader is whoever the
+     * page is for: the viewer, or the person a view-as preview shows (their account, or the roster account of a trooper
+     * who never signed in). A unit preview names no person, so only "signed in" is ticked there.
+     *
+     * @return list<string>
+     */
+    private function facts(User $viewer): array
+    {
+        $person = $this->scope->landingAccount($viewer);
+        if ($person === null) {
+            return [];
+        }
+
+        return $this->progress->factsFor(
+            $person->exists ? $person->id : null,
+            $person->cav_id === null ? null : (int) $person->cav_id,
+            $this->scope->ledBy($person)?->id,
+        );
     }
 }
