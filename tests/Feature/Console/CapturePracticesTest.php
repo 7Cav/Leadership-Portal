@@ -179,3 +179,26 @@ it('lists what it would queue and why others are skipped on --dry-run, and queue
     expect(queuedCaptures())->toBe([])
         ->and(SectionPractice::query()->count())->toBe(0);
 });
+
+it('captures each week with the slot in effect that week', function () {
+    // Set while this week was held: Monday from next week, this week keeping Thursday 0200Z.
+    SectionPracticeSlot::query()->create([
+        'section_id' => $this->section->id, 'weekday' => 1, 'start_minute' => 60,
+        'effective_from' => '2026-10-31', 'previous_weekday' => 4, 'previous_start_minute' => 120,
+    ]);
+
+    captureAt('2026-10-29 03:00:00');
+    captureAt('2026-11-02 02:00:00');
+    $queued = queuedCaptures();
+
+    expect($queued)->toHaveCount(2)
+        ->and(CarbonImmutable::instance($queued[0]->windowStart)->toIso8601ZuluString())->toBe('2026-10-29T02:00:00Z')
+        ->and(CarbonImmutable::instance($queued[1]->windowStart)->toIso8601ZuluString())->toBe('2026-11-02T01:00:00Z');
+});
+
+it('captures nothing in a week before a first slot starts', function () {
+    SectionPracticeSlot::query()->create(['section_id' => $this->section->id, 'weekday' => 4, 'start_minute' => 120, 'effective_from' => '2026-10-31']);
+
+    captureAt('2026-10-29 03:00:00');
+    expect(queuedCaptures())->toBe([]);
+});

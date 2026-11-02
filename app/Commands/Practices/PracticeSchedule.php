@@ -52,19 +52,24 @@ class PracticeSchedule
         $practice ??= $this->practices->find($sectionId, $weekStart);
         $slot ??= $this->slots->forSection($sectionId);
 
-        if ($slot === null || $practice?->slot_cancelled === true) {
+        // The slot in effect that week: one set while an earlier week was held starts later.
+        $placing = $slot?->placingFor($weekStart);
+
+        if ($placing === null || $practice?->slot_cancelled === true) {
             return null;
         }
 
         return $practice?->slot_moved_to !== null
             ? PracticeWindow::startingAt($practice->slot_moved_to)
-            : PracticeWindow::inWeek($weekStart, $slot->weekday, $slot->start_minute);
+            : PracticeWindow::inWeek($weekStart, $placing[0], $placing[1]);
     }
 
     /**
      * The roll call's `practiceSlot` prop: the slot and the week's practice, or null when the section has no slot.
+     * `effectiveFrom` is the Cav week (`Y-m-d`) the slot starts with when that is after `$weekStart`, else null; the
+     * week's `start` is then the slot it had before, or null when it had none.
      *
-     * @return array{weekday: int, startMinute: int, week: array{start: string|null, end: string|null, cancelled: bool, moved: bool, captured: bool}}|null
+     * @return array{weekday: int, startMinute: int, effectiveFrom: string|null, week: array{start: string|null, end: string|null, cancelled: bool, moved: bool, captured: bool}}|null
      */
     public function props(int $sectionId, CarbonImmutable $weekStart, ?SectionPractice $practice): ?array
     {
@@ -80,6 +85,7 @@ class PracticeSchedule
         return [
             'weekday' => $slot->weekday,
             'startMinute' => $slot->start_minute,
+            'effectiveFrom' => $slot->startsLater($weekStart) ? $slot->effective_from?->toDateString() : null,
             'week' => [
                 'start' => $window?->start->toIso8601ZuluString(),
                 'end' => $window?->end->toIso8601ZuluString(),

@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\SectionPracticeSlot;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 /**
@@ -28,8 +29,13 @@ interface SectionPracticeSlotRepository
      */
     public function all(): Collection;
 
-    /** Set the section's slot, creating it or replacing the one it had. */
-    public function set(int $sectionId, int $weekday, int $startMinute): SectionPracticeSlot;
+    /**
+     * Set the section's slot, creating it or replacing the one it had. With `$effectiveFrom` (a Cav week's Saturday)
+     * it starts that week and the weeks before keep `$previous` (`[weekday, startMinute]`, or null for none).
+     *
+     * @param  array{0: int, 1: int}|null  $previous
+     */
+    public function set(int $sectionId, int $weekday, int $startMinute, ?CarbonImmutable $effectiveFrom = null, ?array $previous = null): SectionPracticeSlot;
 
     /** Remove the slot; the model is returned as it was, for the audit entry. */
     public function delete(SectionPracticeSlot $slot): SectionPracticeSlot;

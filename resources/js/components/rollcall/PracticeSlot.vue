@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { messageFor, unreachable } from '@/composables/useRollcallAutosave';
 import { postJson } from '@/lib/postJson';
+import { forumDate, weekLabel } from '@/lib/forumDate';
 import { localLabel, minuteToTime, nextStart, slotLabel, startInWeek, startLabel, timeToMinute, WEEKDAY_NAMES } from '@/lib/practiceSlot';
 
 // The section's weekly practice slot on its roll call (#392): "Practice Thu 02 00Z" with the viewer's local time as a
@@ -19,8 +20,13 @@ const props = defineProps({
     // The roll call's week, `YYYY-MM-DD` (its Saturday).
     week: { type: String, required: true },
     slot: { type: Object, default: null },
-    // Why the slot cannot be changed here (a preview, a sent week, or a section the viewer only reads), or null.
+    // Why the slot cannot be changed here (a preview or a section the viewer only reads), or null. A sent week does not
+    // stop the slot: a change then starts with the next week (`changesFrom`).
     disabledReason: { type: String, default: null },
+    // Why this week's practice cannot be moved or cancelled (its report was sent), or null.
+    weekLockedReason: { type: String, default: null },
+    // The Cav week (`YYYY-MM-DD`) a slot saved now starts with, or null when it applies straight away.
+    changesFrom: { type: String, default: null },
     canEdit: { type: Boolean, default: false },
 });
 
@@ -37,16 +43,26 @@ const moveTime = ref('02:00');
 
 const thisWeek = computed(() => props.slot?.week ?? null);
 const label = computed(() => (props.slot ? slotLabel(props.slot) : null));
+// A slot that starts in a later week than this roll call's: "from 07NOV26", and "Starts next week" when it is the next.
+const startsFrom = computed(() => props.slot?.effectiveFrom ?? null);
+const startsNextWeek = computed(() => {
+    if (!startsFrom.value) return false;
+
+    return Date.parse(startsFrom.value) - Date.parse(props.week) === 7 * 86_400_000;
+});
 const localHint = computed(() => (props.slot ? localLabel(nextStart(props.slot)) : null));
 // This week's practice when it differs from the slot: moved, or cancelled.
 const weekNote = computed(() => {
     if (!thisWeek.value) return null;
     if (thisWeek.value.cancelled) return 'Cancelled this week';
-    if (thisWeek.value.moved && thisWeek.value.start) return `This week ${startLabel(thisWeek.value.start)}`;
+    if ((thisWeek.value.moved || startsFrom.value) && thisWeek.value.start) return `This week ${startLabel(thisWeek.value.start)}`;
 
     return null;
 });
-const weekEditable = computed(() => Boolean(props.slot) && !thisWeek.value?.captured);
+// Only a week that has a practice to move: not captured, not sent, and not before a slot that starts later.
+const weekEditable = computed(
+    () => Boolean(props.slot) && !thisWeek.value?.captured && !props.weekLockedReason && Boolean(thisWeek.value?.start || thisWeek.value?.cancelled),
+);
 
 function startEditing() {
     weekday.value = String(props.slot?.weekday ?? 4);
@@ -110,7 +126,8 @@ function restoreWeek() {
 <template>
     <span class="inline-flex flex-wrap items-center gap-x-1.5" data-testid="practice-slot">
         <template v-if="slot">
-            <span>Practice {{ label }}</span>
+            <span>Practice {{ label }}<template v-if="startsFrom"> from {{ forumDate(startsFrom) }}</template></span>
+            <span v-if="startsNextWeek" class="text-muted-foreground" data-testid="practice-slot-starts">Starts next week</span>
             <span class="text-muted-foreground/80" data-testid="practice-slot-local">({{ localHint }} your time)</span>
             <span v-if="weekNote" class="text-warning" data-testid="practice-slot-week">{{ weekNote }}</span>
         </template>
@@ -136,6 +153,10 @@ function restoreWeek() {
                 <DialogTitle>Practice slot</DialogTitle>
                 <DialogDescription>A section practice lasts one hour. Times are in Zulu.</DialogDescription>
             </DialogHeader>
+
+            <p v-if="changesFrom" class="text-sm text-muted-foreground" data-testid="practice-slot-changes-from">
+                This week's report is sent or its practice is captured, so it keeps what it had. Takes effect from week {{ weekLabel(changesFrom) }}.
+            </p>
 
             <form class="grid gap-3" data-testid="practice-slot-form" @submit.prevent="saveSlot">
                 <div class="grid grid-cols-2 gap-3">

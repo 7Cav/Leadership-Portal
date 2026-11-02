@@ -174,3 +174,51 @@ it('sets the slot over HTTP and answers the prop, and the roll call carries it',
     $this->actingAs($this->sl)->get("/rollcall/{$this->section->id}")
         ->assertInertia(fn ($page) => $page->where('practiceSlot.startMinute', 120)->where('practiceSlot.week.cancelled', true));
 });
+
+it('sets a first slot on a sent week from the next week, audited, and leaves the current week without one', function () {
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->week]);
+
+    expect($this->set->changesFrom($this->section->id)?->toDateString())->toBe('2026-10-31');
+    $this->set->handle($this->sl, $this->section->id, 3, 1439); // Wed 2359Z
+
+    $slot = SectionPracticeSlot::query()->sole();
+    expect($slot->effective_from->toDateString())->toBe('2026-10-31')
+        ->and($slot->previous_weekday)->toBeNull()
+        ->and(AuditLogEntry::query()->where('action', 'practice_slot.set')->count())->toBe(1)
+        ->and($this->schedule->windowFor($this->section->id, $this->week))->toBeNull()
+        ->and($this->schedule->windowFor($this->section->id, $this->week->addWeek())->start->toIso8601ZuluString())->toBe('2026-11-04T23:59:00Z')
+        ->and($this->schedule->props($this->section->id, $this->week, null))->toMatchArray(['effectiveFrom' => '2026-10-31'])
+        ->and($this->schedule->props($this->section->id, $this->week->addWeek(), null)['effectiveFrom'])->toBeNull();
+
+    // The current week has no practice to move, and its report was sent.
+    expect(fn () => $this->change->handle($this->sl, $this->section->id, $this->week, null, true))->toThrow(InvalidPracticeSlotException::class);
+});
+
+it('changes the slot on a sent week from the next week, the current week keeping the slot it had', function () {
+    $this->set->handle($this->sl, $this->section->id, 4, 120); // Thu 0200Z, straight away
+    expect(SectionPracticeSlot::query()->sole()->effective_from)->toBeNull();
+
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->week]);
+    $this->set->handle($this->sl, $this->section->id, 1, 60); // Mon 0100Z
+    $this->set->handle($this->sl, $this->section->id, 2, 60); // changed again the same week: still keeps Thu
+
+    $slot = SectionPracticeSlot::query()->sole();
+    expect([$slot->previous_weekday, $slot->previous_start_minute])->toBe([4, 120])
+        ->and($this->schedule->windowFor($this->section->id, $this->week)->start->toIso8601ZuluString())->toBe('2026-10-29T02:00:00Z')
+        ->and($this->schedule->windowFor($this->section->id, $this->week->addWeek())->start->toIso8601ZuluString())->toBe('2026-11-03T01:00:00Z');
+});
+
+it('sets the slot over HTTP on a sent week and the roll call says from when', function () {
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->week]);
+
+    $this->actingAs($this->sl)
+        ->postJson("/rollcall/{$this->section->id}/slot", ['weekday' => 3, 'start_minute' => 1439, 'week' => '2026-10-24'])
+        ->assertOk()
+        ->assertJsonPath('practiceSlot.effectiveFrom', '2026-10-31')
+        ->assertJsonPath('practiceSlot.week.start', null);
+
+    $this->actingAs($this->sl)->get("/rollcall/{$this->section->id}")
+        ->assertInertia(fn ($page) => $page->where('practiceSlotChangesFrom', '2026-10-31')
+            ->where('practiceSlot.effectiveFrom', '2026-10-31')
+            ->where('practiceSlotMissing', false));
+});

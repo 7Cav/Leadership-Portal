@@ -52,11 +52,12 @@ class ChangePracticeWeek
             throw InvalidPracticeSlotException::notASection($section);
         }
 
-        if ($this->slots->forSection($sectionId) === null) {
+        $weekStart = WeekOf::start($week);
+
+        // A slot that only starts in a later week has nothing to move in this one.
+        if ($this->slots->forSection($sectionId)?->placingFor($weekStart) === null) {
             throw InvalidPracticeSlotException::noSlot();
         }
-
-        $weekStart = WeekOf::start($week);
 
         if ($this->reports->isSentFor($sectionId, $weekStart)) {
             throw RollcallWeekLockedException::for($sectionId, $weekStart);
