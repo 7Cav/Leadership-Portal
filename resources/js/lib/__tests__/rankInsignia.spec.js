@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { INSIGNIA_BOX, insigniaPlacement, insigniaWidth, rankInsigniaPlacement, rankInsigniaUrl } from '../rankInsignia';
+import {
+    INSIGNIA_BOX,
+    UI_MAX_HEIGHT,
+    UI_MAX_WIDTH,
+    insigniaPlacement,
+    insigniaWidth,
+    rankInsigniaPlacement,
+    rankInsigniaUrl,
+} from '../rankInsignia';
 import { RANK_ORDER } from '../roster';
 
 const url = (n, query = '') => `https://7cav.us/data/roster_ranks/0/${n}.jpg${query}`;
@@ -101,13 +109,31 @@ describe('insigniaWidth', () => {
 });
 
 describe('rankInsigniaUrl and rankInsigniaPlacement', () => {
-    it('have a self-hosted insignia for every rank, placed as the forum URL is', () => {
+    it('have a self-hosted insignia for every rank, placed as the forum URL is when it already fits the UI cap', () => {
         for (const rank of RANK_ORDER) {
             expect(rankInsigniaUrl(rank)).toBe(`/assets/ranks/insignia/${rank}.png`);
             expect(rankInsigniaPlacement(rank)).not.toBeNull();
         }
-        expect(rankInsigniaPlacement('pvt')).toEqual(insigniaPlacement(url(22)));
-        expect(rankInsigniaPlacement('CW5')).toEqual(insigniaPlacement(url(26)));
+        expect(rankInsigniaPlacement('cpt')).toEqual(insigniaPlacement(url(9)));
+    });
+
+    it('draw a lieutenant bar no taller than chevrons or a captain, unlike the post preview', () => {
+        const bar = rankInsigniaPlacement('2LT');
+        expect(bar.height).toBe(UI_MAX_HEIGHT);
+        expect(rankInsigniaPlacement('1LT')).toEqual(bar);
+        expect(rankInsigniaPlacement('CW5').height).toBe(UI_MAX_HEIGHT);
+        expect(insigniaPlacement(url(11)).height).toBeGreaterThan(16); // the post preview is unchanged
+        expect(bar.height - rankInsigniaPlacement('CPT').height).toBeLessThan(1.5);
+    });
+
+    it('keep every insignia within the UI cap and inside the square', () => {
+        for (const rank of RANK_ORDER) {
+            const p = rankInsigniaPlacement(rank);
+            expect(p.left).toBeGreaterThanOrEqual(-p.width);
+            expect(p.top + p.height).toBeGreaterThan(0);
+        }
+        expect(rankInsigniaPlacement('GEN').width).toBeLessThanOrEqual(UI_MAX_WIDTH + 0.01);
+        expect(rankInsigniaPlacement('LTG').width).toBeLessThanOrEqual(UI_MAX_WIDTH * (75 / 74) + 0.01);
     });
 
     it('have nothing for an unknown rank', () => {

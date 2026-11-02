@@ -57,13 +57,20 @@ function scaled(src) {
     return scaledMeasure(match ? MEASURED[match[1]] : undefined);
 }
 
-function scaledMeasure(measured) {
+function scaledMeasure(measured, maxWidth = INSIGNIA_BOX, maxHeight = INSIGNIA_BOX) {
     if (!measured) return null;
 
     const [, , , , width, height, , , ink] = measured;
 
-    return { measured, scale: Math.min(Math.sqrt(INK / ink), INSIGNIA_BOX / Math.max(width, height)) };
+    return { measured, scale: Math.min(Math.sqrt(INK / ink), maxWidth / width, maxHeight / height) };
 }
+
+// The portal's own UI sets an insignia beside text, where a thin bar drawn 16 pixels tall towers over a captain's 11
+// pixel bars and the chevrons. There, no insignia is drawn taller than UI_MAX_HEIGHT or wider than UI_MAX_WIDTH, so a
+// lieutenant's bar stands as tall as a set of chevrons and a row of stars keeps a margin. The post preview keeps the
+// forum's own sizing.
+export const UI_MAX_HEIGHT = 12;
+export const UI_MAX_WIDTH = 16;
 
 /**
  * The width, in whole pixels, to show a rank insignia at on the forum so every rank carries the same visual weight: its
@@ -143,13 +150,13 @@ export function rankInsigniaUrl(rank) {
 }
 
 /**
- * {@link insigniaPlacement} for a rank abbreviation instead of a forum URL, so the portal draws the insignia exactly as
- * the post preview does. Null for an unknown rank.
+ * Where to draw a rank abbreviation's insignia in the portal's UI: {@link insigniaPlacement}, but never taller than
+ * UI_MAX_HEIGHT or wider than UI_MAX_WIDTH, so every rank looks the same size beside a name. Null for an unknown rank.
  *
  * @param {string|null|undefined} rank
  */
 export function rankInsigniaPlacement(rank) {
     const key = rankKey(rank);
 
-    return key ? placementOf(scaledMeasure(MEASURED[RANK_IMAGE_IDS[key]])) : null;
+    return key ? placementOf(scaledMeasure(MEASURED[RANK_IMAGE_IDS[key]], UI_MAX_WIDTH, UI_MAX_HEIGHT)) : null;
 }
