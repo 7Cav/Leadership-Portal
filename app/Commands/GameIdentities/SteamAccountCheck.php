@@ -18,18 +18,31 @@ class SteamAccountCheck
     /** @throws InvalidGameIdentityException when Steam answers that it has no account with this ID. */
     public function check(string $idKind, string $platformId): void
     {
-        if (SharedAccount::of($idKind) !== SharedAccount::Steam) {
-            return;
+        if ($this->verdict($idKind, $platformId) === false) {
+            throw InvalidGameIdentityException::unknownSteamAccount();
+        }
+    }
+
+    /** Whether the kind is a Steam account, so a caller can tell "not asked" from "not a Steam ID". */
+    public function applies(string $idKind): bool
+    {
+        return SharedAccount::of($idKind) === SharedAccount::Steam;
+    }
+
+    /**
+     * Steam's answer for one ID: true when it knows the account, false when it does not, null when it was not asked (not
+     * a Steam kind, no key configured) or could not answer. The bulk import shows null as "not checked".
+     */
+    public function verdict(string $idKind, string $platformId): ?bool
+    {
+        if (! $this->applies($idKind) || ! $this->steam->configured()) {
+            return null;
         }
 
         try {
-            $exists = $this->steam->accountExists($platformId);
+            return $this->steam->accountExists($platformId);
         } catch (SteamUnavailable) {
-            return;
-        }
-
-        if (! $exists) {
-            throw InvalidGameIdentityException::unknownSteamAccount();
+            return null;
         }
     }
 }

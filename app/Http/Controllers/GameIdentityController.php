@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Authorization\ScopeResolver;
 use App\Commands\GameIdentities\GameIdentityForbiddenException;
 use App\Commands\GameIdentities\GameRetiredException;
+use App\Commands\GameIdentities\IdentityImportException;
+use App\Commands\GameIdentities\IdentityImportParser;
+use App\Commands\GameIdentities\ImportGameIdentities;
 use App\Commands\GameIdentities\InvalidGameIdentityException;
 use App\Commands\GameIdentities\LinkSharedAccount;
 use App\Commands\GameIdentities\LinkSharedAccountHandler;
@@ -28,6 +31,7 @@ use App\Repositories\TrooperGameIdentityRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitGame;
 use App\Repositories\UnitRepository;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -78,6 +82,8 @@ class GameIdentityController extends Controller
         $gameOf = $this->usualGames(UnitGame::resolve($tree), $troopers, $identities, $games);
 
         return Inertia::render('GameIdentities', [
+            // Import identities: for anyone who may change at least one trooper here; each line is checked on its own.
+            'canImport' => $writable->isNotEmpty(),
             'platforms' => $games->map(fn (Game $game) => [
                 'value' => $game->slug,
                 'label' => $game->name,
@@ -105,7 +111,7 @@ class GameIdentityController extends Controller
                     ->mapWithKeys(fn (TrooperGameIdentity $identity) => [$identity->game->slug => [
                         'platformId' => $identity->platform_id,
                         'idKind' => $identity->id_kind,
-                        // How the row was made (#174): typed, from_account or from_rollcall.
+                        // How the row was made (#174): typed, from_account, from_rollcall or imported.
                         'source' => $identity->source->value,
                     ]])->all(),
             ])->sortBy(fn (array $row) => mb_strtolower($row['displayName']))->values()->all(),
@@ -208,6 +214,61 @@ class GameIdentityController extends Controller
         }
 
         return back();
+    }
+
+    /**
+     * The bulk import's preview: what each line of the pasted or uploaded text would do (#174 follow-up). The page
+     * reads a file into text before sending it, so no file reaches the server or is stored. Writes nothing.
+     */
+    public function importPreview(Request $request, ImportGameIdentities $command): JsonResponse
+    {
+        $data = $this->importInput($request);
+
+        try {
+            return response()->json($command->preview($request->user(), $data['text'], (bool) ($data['replace'] ?? false)));
+        } catch (GameIdentityForbiddenException $e) {
+            abort(403, $e->getMessage());
+        } catch (IdentityImportException $e) {
+            throw ValidationException::withMessages(['text' => $e->getMessage()]);
+        }
+    }
+
+    /** Save every line the preview showed as to be added or changed, in one audited batch, or none of them. */
+    public function import(Request $request, ImportGameIdentities $command): RedirectResponse
+    {
+        $data = $this->importInput($request, [
+            'expected' => ['required', 'array', 'max:'.IdentityImportParser::MAX_LINES],
+            'expected.*' => ['integer', 'min:1'],
+        ]);
+
+        try {
+            $saved = $command->import($request->user(), $data['text'], (bool) ($data['replace'] ?? false), $data['expected']);
+        } catch (GameIdentityForbiddenException $e) {
+            abort(403, $e->getMessage());
+        } catch (IdentityImportException|UnknownIdKindException $e) {
+            throw ValidationException::withMessages(['text' => $e->getMessage()]);
+        } catch (GameIdentityLinkException $e) {
+            throw ValidationException::withMessages(['text' => ($e->game === null ? $e->getMessage() : $this->collisionMessage($e->game, $e->platformId)).' Preview the file again.']);
+        }
+
+        return back()->with('notice', $saved === 1 ? 'Imported 1 identity.' : "Imported {$saved} identities.");
+    }
+
+    /**
+     * @param  array<string, mixed>  $more
+     * @return array<string, mixed>
+     */
+    private function importInput(Request $request, array $more = []): array
+    {
+        return $request->validate([
+            // In characters; the parser also holds the text to 256 KB in bytes.
+            'text' => ['required', 'string', 'max:'.IdentityImportParser::MAX_BYTES],
+            'replace' => ['sometimes', 'boolean'],
+            ...$more,
+        ], [
+            'text.required' => 'Choose a file or paste the identities.',
+            'text.max' => 'The file is larger than 256 KB. Split it and import each part.',
+        ]);
     }
 
     /**

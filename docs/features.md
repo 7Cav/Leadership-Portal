@@ -383,6 +383,21 @@ missing. Every serving trooper placed in your scope is listed:
 section members, HQ staff and group members (ELOA, Reservists, New Recruits, staff departments). Linking someone
 outside a section only lets the capture recognise them; attendance is still marked in sections only.
 
+Import identities: a leader who can change at least one trooper (and an Admin, anywhere) can add many identities at once
+from a .txt or .csv file, or pasted text: one identity per line, `trooper, game, ID kind, ID`, separated by commas or
+tabs. The trooper is their Cav name (Novak.E; a rank in front is ignored), the game its name or abbreviation (any case),
+and the ID kind may be left out for the game's first kind. A header line, blank lines and lines starting with `#` are
+ignored. At most 500 lines and 256 KB; the page reads the file and sends only its text, which is cleaned of hidden and
+control characters and never stored. A preview shows each line as will add, will change, unchanged, skipped or refused,
+with the reason: unknown trooper, trooper not serving or outside your units, unknown or retired game, ID kind the game
+does not use, ID without its kind's shape, ID already linked to another trooper on that game (named), or a second line
+for the same trooper and game or the same ID. A trooper who already holds a different ID is skipped unless "Replace
+existing identities" is ticked. New Steam IDs are checked with Steam, at most 20 per preview; the rest, or all of them
+when Steam has no key or does not answer, are shown as not checked and saved as a single save would save them. The
+import checks every line again and saves all of them in one audited action (`game_identity.imported`, on the
+audited-writes throttle), or none when anything changed since the preview. New rows are marked Imported. There is no
+"link to every game" column: use the single form for that. A downloadable example file is offered.
+
 Missing identity alert: a trooper counts as missing when they have no identity on the game their own unit plays (its own
 or inherited, not retired), whatever ID kind; departed troopers, troopers placed on groups and units with no game are
 left out. A leader (synced billet, acting lead or Admin; view as shows the target's) sees a top-of-page warning on Home

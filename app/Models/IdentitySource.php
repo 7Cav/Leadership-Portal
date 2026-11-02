@@ -17,12 +17,16 @@ enum IdentitySource: string
     /** Made by linking an unmatched player a capture reported. */
     case FromRollcall = 'from_rollcall';
 
+    /** Added or replaced by a leader's bulk import from a text file on Game identities. */
+    case Imported = 'imported';
+
     public function label(): string
     {
         return match ($this) {
             self::Typed => 'Typed',
             self::FromAccount => 'From account',
             self::FromRollcall => 'From rollcall',
+            self::Imported => 'Imported',
         };
     }
 }

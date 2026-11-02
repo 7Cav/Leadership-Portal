@@ -17,6 +17,16 @@ The game server knows players by their player ID. Until a trooper is linked, the
 2. Choose a trooper, then enter the game's ID for them. The page says which ID the game uses.
 3. Choose **Save identity**.
 
+## Import many identities at once
+
+1. On **Game identities**, choose **Import identities**.
+2. Choose a .txt or .csv file, or paste the lines. Each line is one identity: trooper, game, ID kind and ID, separated by commas or tabs. For example `Novak.E, HLL, Steam ID, 76561198012345678`. You can leave the ID kind out to use the game's first kind. **Download example** gives you a file to start from.
+3. Choose **Preview**. Each line says whether it will add or change an identity, or why it is skipped or refused.
+4. To change identities a trooper already has, tick **Replace existing identities**. Without it, those lines are skipped.
+5. Choose the import button, such as **Import 3 identities**, to save every line that adds or changes an identity. If anything changed since the preview, nothing is saved and you preview again.
+
+> [!good-to-know] The file can hold up to 500 lines. Steam IDs are checked with Steam where possible; a line marked "Not checked with Steam" is still saved.
+
 ## Check the warnings are gone
 
 The warning at the top of **Home**, the roster and your roll call goes away once every trooper is linked.

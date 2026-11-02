@@ -192,6 +192,8 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/game-identities', [GameIdentityController::class, 'index'])->name('game-identities.index');
     Route::put('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'update'])->middleware('throttle:audited-writes')->name('game-identities.update');
     Route::delete('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'destroy'])->middleware('throttle:audited-writes')->name('game-identities.destroy');
+    Route::post('/game-identities/import/preview', [GameIdentityController::class, 'importPreview'])->middleware('throttle:audited-writes')->name('game-identities.import.preview');
+    Route::post('/game-identities/import', [GameIdentityController::class, 'import'])->middleware('throttle:audited-writes')->name('game-identities.import');
     Route::post('/game-identities/{trooper}/{platform}/account', [GameIdentityController::class, 'linkAccount'])->middleware('throttle:audited-writes')->name('game-identities.account.store');
     Route::delete('/game-identities/{trooper}/{platform}/account', [GameIdentityController::class, 'destroyAccount'])->middleware('throttle:audited-writes')->name('game-identities.account.destroy');
 

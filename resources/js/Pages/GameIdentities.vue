@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, ref } from 'vue';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { PhGameController, PhLockSimple, PhUsersThree } from '@phosphor-icons/vue';
+import { PhGameController, PhLockSimple, PhUploadSimple, PhUsersThree } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import EmptyState from '@/components/EmptyState.vue';
+import IdentityImportDialog from '@/components/IdentityImportDialog.vue';
 import { onHttpException } from '@/lib/httpError';
 import { cn } from '@/lib/utils';
 
@@ -33,9 +34,12 @@ const props = defineProps({
     // through a staff grant. `game` is the slug of their unit's usual game (the game the unit plays, else the one most of
     // the unit has linked), or null.
     troopers: { type: Array, required: true },
+    // Whether the viewer may change any trooper here, so Import identities is offered.
+    canImport: { type: Boolean, default: false },
 });
 
 const page = usePage();
+const importOpen = ref(false);
 
 // A view-as preview is read-only (Story 1.13), and so is a trooper the viewer only sees through a
 // staff grant (`editable` false): the server refuses those writes, so say so up front.
@@ -76,7 +80,7 @@ const hasKinds = (p) => p.idKinds.length > 1;
 const editable = computed(() => !viewAs.value && Boolean(selected.value?.editable));
 
 // How each identity was made (#174).
-const SOURCES = { typed: 'Typed', from_account: 'From account', from_rollcall: 'From rollcall' };
+const SOURCES = { typed: 'Typed', from_account: 'From account', from_rollcall: 'From rollcall', imported: 'Imported' };
 const sourceLabel = (source) => SOURCES[source] ?? SOURCES.typed;
 
 // The shared account (`steam` or `epic`) the chosen kind is, or null for a kind entered per game.
@@ -265,10 +269,17 @@ function removeAccount(value) {
                     Linked once, used to pre-mark attendance from the game servers. Troopers without a link are marked by hand on that game.
                 </p>
             </div>
-            <Badge variant="outline" class="gap-1" data-testid="scope-count">
-                <PhUsersThree aria-hidden="true" />{{ troopers.length }} {{ troopers.length === 1 ? 'trooper' : 'troopers' }} in your scope
-            </Badge>
+            <div class="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" class="gap-1" data-testid="scope-count">
+                    <PhUsersThree aria-hidden="true" />{{ troopers.length }} {{ troopers.length === 1 ? 'trooper' : 'troopers' }} in your scope
+                </Badge>
+                <Button v-if="canImport && !viewAs" variant="outline" size="sm" data-testid="identity-import-open" @click="importOpen = true">
+                    <PhUploadSimple aria-hidden="true" />Import identities
+                </Button>
+            </div>
         </div>
+
+        <IdentityImportDialog v-if="canImport && !viewAs" v-model:open="importOpen" :platforms="platforms" />
 
         <p v-if="notice" role="alert" class="rounded-md bg-destructive/10 px-3 py-2 text-[13px] text-destructive" data-testid="notice">{{ notice }}</p>
 

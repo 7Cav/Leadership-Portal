@@ -449,3 +449,19 @@ describe('GameIdentities panel in view', () => {
         expect(scrolled).not.toHaveBeenCalled();
     });
 });
+
+describe('Import identities', () => {
+    afterEach(() => {
+        page.props.viewAs = null;
+    });
+
+    it('is offered when the viewer may change someone, and not during a view-as preview', async () => {
+        const mounted = (canImport) => mount(GameIdentities, { props: { platforms: PLATFORMS, troopers: TROOPERS, canImport } });
+
+        expect(mounted(false).find('[data-testid="identity-import-open"]').exists()).toBe(false);
+        expect(mounted(true).find('[data-testid="identity-import-open"]').exists()).toBe(true);
+
+        page.props.viewAs = { name: 'Someone' };
+        expect(mounted(true).find('[data-testid="identity-import-open"]').exists()).toBe(false);
+    });
+});
