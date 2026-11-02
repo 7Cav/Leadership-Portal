@@ -3,6 +3,7 @@
 namespace App\Integration\Crcon;
 
 use App\Integration\Crcon\Data\CrconPlayer;
+use App\Integration\Crcon\Data\CrconPlayerProfile;
 use App\Integration\Crcon\Data\CrconPresence;
 use App\Integration\Crcon\Requests\FetchConnectionInfoRequest;
 use App\Integration\Crcon\Requests\FetchConnectionLogsRequest;
@@ -147,6 +148,38 @@ class CrconApi
 
         // A truncated list would under-report attendance, so it is a failure, not a short answer.
         throw CrconUnavailable::malformed('the player history did not finish paging');
+    }
+
+    /**
+     * The platform and current name of one player, as the CRCON instance that runs `$serverId` knows them (the
+     * `CRCON_BASE_URL` instance when null). Null when that server has never seen the player: CRCON answers an unknown
+     * player with a failed or empty result, which is "not seen" here, not an outage.
+     *
+     * @throws CrconUnavailable when the server cannot be asked or its answer cannot be read
+     */
+    public function playerProfile(string $playerId, ?string $serverId = null): ?CrconPlayerProfile
+    {
+        $instance = $serverId === null ? null : $this->resolveServer($serverId)[0];
+        $payload = $this->envelope(new FetchPlayerProfileRequest($playerId), $instance);
+        $result = $payload['result'] ?? null;
+
+        if (($payload['failed'] ?? false) === true || ! is_array($result) || $result === []) {
+            return null;
+        }
+
+        $soldier = is_array($result['soldier'] ?? null) ? $result['soldier'] : [];
+        $platform = $soldier['platform'] ?? null;
+        $name = $soldier['name'] ?? null;
+
+        if (! is_string($name) || trim($name) === '') {
+            $name = $this->playerName($result, '');
+        }
+
+        return new CrconPlayerProfile(
+            $playerId,
+            is_string($platform) && trim($platform) !== '' ? strtolower(trim($platform)) : null,
+            is_string($name) && trim($name) !== '' ? trim($name) : null,
+        );
     }
 
     /**
@@ -457,12 +490,13 @@ class CrconApi
     }
 
     /**
-     * Send one request to an instance (the first when none is named) and return the `result` of CRCON's envelope.
+     * Send one request to an instance (the first when none is named) and return CRCON's whole envelope, decoded. The
+     * transport, the HTTP status and the JSON are checked here; what the envelope says is the caller's to read.
      *
      * @param  array{base_url: string, api_key: string}|null  $instance
-     * @return array<string, mixed>
+     * @return array<mixed>
      */
-    private function send(Request $request, ?array $instance = null): array
+    private function envelope(Request $request, ?array $instance = null): array
     {
         $instance ??= $this->instances()[0];
         $apiKey = $instance['api_key'];
@@ -494,6 +528,23 @@ class CrconApi
             // A valid JSON scalar raises a TypeError inside Saloon, not a JsonException.
             throw CrconUnavailable::malformed('the body was not JSON');
         }
+
+        if (! is_array($payload)) {
+            throw CrconUnavailable::malformed('the body was not a JSON object');
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Send one request to an instance (the first when none is named) and return the `result` of CRCON's envelope.
+     *
+     * @param  array{base_url: string, api_key: string}|null  $instance
+     * @return array<string, mixed>
+     */
+    private function send(Request $request, ?array $instance = null): array
+    {
+        $payload = $this->envelope($request, $instance);
 
         // CRCON wraps results in an envelope and signals application errors with HTTP 200.
         if (($payload['failed'] ?? false) === true || ($payload['error'] ?? null) !== null) {

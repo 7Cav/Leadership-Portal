@@ -43,6 +43,11 @@ class Eloquent implements GameServerRepository
         return GameServer::query()->where('fallback_server_id', $server->id)->orderBy('id')->get();
     }
 
+    public function selectedFor(Game $game, TelemetryInterface $interface): Collection
+    {
+        return GameServer::query()->where('game_id', $game->id)->where('selected', true)->where('interface', $interface)->orderBy('id')->get();
+    }
+
     public function hasSelectedFor(Game $game): bool
     {
         return GameServer::query()->where('game_id', $game->id)->where('selected', true)->exists();

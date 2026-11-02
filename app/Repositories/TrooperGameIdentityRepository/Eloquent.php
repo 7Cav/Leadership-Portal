@@ -3,6 +3,7 @@
 namespace App\Repositories\TrooperGameIdentityRepository;
 
 use App\Models\Game;
+use App\Models\Gamertag;
 use App\Models\IdentitySource;
 use App\Models\SharedAccount;
 use App\Models\TrooperGameIdentity;
@@ -59,7 +60,7 @@ class Eloquent implements TrooperGameIdentityRepository
             ->first();
     }
 
-    public function link(int $trooperId, Game $game, string $platformId, string $idKind, IdentitySource $source = IdentitySource::Typed): TrooperGameIdentity
+    public function link(int $trooperId, Game $game, string $platformId, string $idKind, IdentitySource $source = IdentitySource::Typed, ?Gamertag $gamertag = null): TrooperGameIdentity
     {
         $owner = $this->findByPlatformId($game, $platformId);
 
@@ -68,10 +69,16 @@ class Eloquent implements TrooperGameIdentityRepository
         }
 
         try {
-            return DB::transaction(fn (): TrooperGameIdentity => TrooperGameIdentity::query()->updateOrCreate(
-                ['trooper_id' => $trooperId, 'game_id' => $game->id],
-                ['platform_id' => $platformId, 'id_kind' => $idKind, 'source' => $source],
-            ));
+            return DB::transaction(function () use ($trooperId, $game, $platformId, $idKind, $source, $gamertag): TrooperGameIdentity {
+                $held = TrooperGameIdentity::query()->where('trooper_id', $trooperId)->where('game_id', $game->id)->first();
+                // A gamertag belongs to its ID: kept while the ID stays, gone with a new one, unless one is given.
+                $gamertag ??= $held?->platform_id === $platformId ? new Gamertag($held->gamertag, $held->gamertag_from_server) : new Gamertag(null);
+
+                return TrooperGameIdentity::query()->updateOrCreate(
+                    ['trooper_id' => $trooperId, 'game_id' => $game->id],
+                    ['platform_id' => $platformId, 'id_kind' => $idKind, 'source' => $source, 'gamertag' => $gamertag->value, 'gamertag_from_server' => $gamertag->value !== null && $gamertag->fromServer],
+                );
+            });
         } catch (UniqueConstraintViolationException $e) {
             // Only a concurrent claim by a *different* trooper is a rejected link; any other
             // collision (e.g. the same trooper double-submitting) is not ours to relabel.

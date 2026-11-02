@@ -185,6 +185,11 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('server-fetch', fn (Request $request) => Limit::perMinute(5)
             ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
 
+        // "Fill in from game server" on Game identities asks the game's CRCON servers on the request, one player at a
+        // time, so it is capped per user: 20 a minute is far above filling in identities by hand.
+        RateLimiter::for('platform-lookup', fn (Request $request) => Limit::perMinute(20)
+            ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
+
         // Manual leave sync (Story 4.2), on the same terms. SyncLoasJob is unique too, but a full
         // run reads a year of forum threads, so asking for one is capped the same way, per Admin.
         RateLimiter::for('loa-sync', fn (Request $request) => Limit::perMinute(5)

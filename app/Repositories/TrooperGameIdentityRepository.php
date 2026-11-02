@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\Game;
+use App\Models\Gamertag;
 use App\Models\IdentitySource;
 use App\Models\SharedAccount;
 use App\Models\TrooperGameIdentity;
@@ -67,12 +68,14 @@ interface TrooperGameIdentityRepository
      *
      * `$idKind` is which of the game's ID kinds the id was entered as (#428); the repository stores it as given, the
      * Command checks it against the game. `$source` is how the row came to be (#174), stored as given.
+     * `$gamertag` null keeps the row's gamertag while the ID stays the same and clears it for a new ID; a
+     * {@see Gamertag} sets it (its value null clears it).
      *
      * @throws GameIdentityLinkException when `$platformId` already belongs to a different trooper
      *                                   in that game, whatever kind either was entered as; nothing is
      *                                   written and the existing link stays intact — never silently reassigned.
      */
-    public function link(int $trooperId, Game $game, string $platformId, string $idKind, IdentitySource $source = IdentitySource::Typed): TrooperGameIdentity;
+    public function link(int $trooperId, Game $game, string $platformId, string $idKind, IdentitySource $source = IdentitySource::Typed, ?Gamertag $gamertag = null): TrooperGameIdentity;
 
     /**
      * The ID kinds of `$game` that a linked identity uses (#428), so a kind in use is never removed from the game.

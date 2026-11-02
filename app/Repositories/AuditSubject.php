@@ -240,12 +240,18 @@ final class AuditSubject
             $label = fn (mixed $source) => ($source instanceof IdentitySource ? $source : IdentitySource::tryFrom((string) $source) ?? IdentitySource::Typed)->label();
             $previous = $model->getPrevious();
 
-            return match (true) {
+            $sourceChanges = match (true) {
                 ! $model->exists => [['field' => 'Source', 'from' => $label($model->source), 'to' => 'none']],
                 $model->wasRecentlyCreated => [['field' => 'Source', 'from' => 'none', 'to' => $label($model->source)]],
                 array_key_exists('source', $model->getChanges()) && $label($previous['source'] ?? null) !== $label($model->source) => [['field' => 'Source', 'from' => $label($previous['source'] ?? null), 'to' => $label($model->source)]],
                 default => [],
             };
+            // The gamertag shown beside the ID: set, changed or cleared on an existing row, or given with a new one.
+            $gamertagFrom = $model->wasRecentlyCreated ? null : (array_key_exists('gamertag', $previous) ? $previous['gamertag'] : $model->gamertag);
+            $gamertagTo = $model->exists ? $model->gamertag : null;
+            $gamertagChanged = $model->exists && ($model->wasRecentlyCreated ? $gamertagTo !== null : array_key_exists('gamertag', $model->getChanges()) && $gamertagFrom !== $gamertagTo);
+
+            return $gamertagChanged ? [...$sourceChanges, ['field' => 'Gamertag', 'from' => $gamertagFrom ?? 'none', 'to' => $gamertagTo ?? 'none']] : $sourceChanges;
         }
 
         $fields = self::FIELDS[$model::class] ?? [];

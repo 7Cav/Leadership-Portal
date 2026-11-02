@@ -11,6 +11,7 @@ import { NativeSelect } from '@/components/ui/native-select';
 import EmptyState from '@/components/EmptyState.vue';
 import IdentityImportDialog from '@/components/IdentityImportDialog.vue';
 import { onHttpException } from '@/lib/httpError';
+import { postJson } from '@/lib/postJson';
 import { cn } from '@/lib/utils';
 
 // The link-identity screen (Story 7.2), binding design mockups/v2/link-identity.html variant C
@@ -54,7 +55,13 @@ const removing = ref(null);
 const removeProcessing = ref(false);
 const notice = ref(null);
 
-const form = useForm({ platform_id: '', id_kind: '' });
+const form = useForm({ platform_id: '', id_kind: '', gamertag: '', gamertag_from_server: false });
+
+// The kinds whose ID means nothing to a leader, so the form offers a gamertag: the player's in-game name, shown only.
+const GAMERTAG_KINDS = ['Xbox ID', 'PlayStation ID', 'Epic ID'];
+const LOOKUP_SHAPE = /^[0-9a-f]{32}$/i;
+const lookingUp = ref(false);
+const lookupNote = ref(null);
 // Link the ID to every game asking for the same Steam or Epic account (#174), not only this one.
 const everyGame = ref(false);
 
@@ -78,6 +85,16 @@ const idHint = computed(() => platformMeta.value?.idHints?.[form.id_kind || kind
 // A game with one kind shows no kind picker and behaves as it always did.
 const hasKinds = (p) => p.idKinds.length > 1;
 const editable = computed(() => !viewAs.value && Boolean(selected.value?.editable));
+const wantsGamertag = computed(() => GAMERTAG_KINDS.includes(form.id_kind || kinds.value[0]));
+// "Fill in from game server" on the form: a game read through CRCON and a 32-character ID.
+const canLookUp = computed(() => Boolean(platformMeta.value?.lookup) && LOOKUP_SHAPE.test(form.platform_id.trim()));
+// The same on a saved identity, when its kind is not one the game asks for, its ID does not fit a 32-character kind, or a
+// console or Epic identity has no gamertag yet.
+const canFill = (p, identity) =>
+    Boolean(p.lookup) &&
+    !p.retired &&
+    (!p.idKinds.includes(identity.idKind) || (!identity.gamertag && identity.idKind !== 'Steam ID') || (identity.idKind === 'Steam ID' && LOOKUP_SHAPE.test(identity.platformId)));
+const gamertagLabel = (identity) => (identity.gamertagFromServer ? 'Gamertag (from game server)' : 'Gamertag');
 
 // How each identity was made (#174).
 const SOURCES = { typed: 'Typed', from_account: 'From account', from_rollcall: 'From rollcall', imported: 'Imported' };
@@ -114,6 +131,56 @@ function fill(trooper, value) {
     form.clearErrors();
     form.platform_id = trooper.identities[value]?.platformId ?? '';
     form.id_kind = trooper.identities[value]?.idKind ?? platformOf(value)?.idKinds[0] ?? '';
+    form.gamertag = trooper.identities[value]?.gamertag ?? '';
+    form.gamertag_from_server = Boolean(trooper.identities[value]?.gamertagFromServer);
+    lookupNote.value = null;
+}
+
+// Ask the game's servers which kind the typed ID is and the player's current name, and fill both in. Saves nothing.
+async function lookUp() {
+    const trooper = selected.value;
+    if (!trooper || !canLookUp.value || lookingUp.value) return;
+    lookingUp.value = true;
+    lookupNote.value = null;
+    try {
+        const { ok, data } = await postJson(`/game-identities/${trooper.id}/${platform.value}/lookup`, { platform_id: form.platform_id.trim() });
+        if (!ok) {
+            lookupNote.value = data?.message || 'The game server could not be asked. Try again later.';
+        } else if (data.status === 'not_seen') {
+            lookupNote.value = 'Not seen on our servers. Choose the kind yourself.';
+        } else if (data.status !== 'found') {
+            lookupNote.value = 'The game server could not be asked. Choose the kind yourself.';
+        } else {
+            if (data.kind) form.id_kind = data.kind;
+            if (data.name) {
+                form.gamertag = data.name;
+                form.gamertag_from_server = true;
+            }
+            lookupNote.value = data.kind
+                ? `${data.kind} (from game server)${data.name ? `, gamertag ${data.name}` : ''}.`
+                : `Seen on our servers, but on a platform this game has no ID kind for. Choose the kind yourself.`;
+        }
+    } catch {
+        lookupNote.value = 'The game server could not be asked. Check your connection and try again.';
+    } finally {
+        lookingUp.value = false;
+    }
+}
+
+// "Fill in from game server" on a saved identity: the server's kind and gamertag, saved and audited when they differ.
+function fillFromServer(value) {
+    const trooper = selected.value;
+    if (!trooper || !editable.value) return;
+    router.post(`/game-identities/${trooper.id}/${value}/fill`, {}, {
+        preserveScroll: true,
+        onSuccess: () => {
+            const fresh = props.troopers.find((t) => t.id === trooper.id);
+            if (fresh) fill(fresh, value);
+            notice.value = null;
+        },
+        onError: (errors) => (notice.value = errors.platform_id ?? 'Could not fill in from the game server. Reload the page and try again.'),
+        onHttpException: onHttpException('Could not fill in from the game server', (message) => (notice.value = message)),
+    });
 }
 
 const panel = ref(null);
@@ -191,6 +258,8 @@ function save() {
 
     // With every game ticked, the ID goes to each game that asks for the same account, in one action.
     const toEvery = everyGame.value && account.value !== null;
+    // The gamertag goes with a console or Epic kind only; for any other kind the stored one is left as it is.
+    form.transform((data) => (toEvery || !wantsGamertag.value ? { platform_id: data.platform_id, id_kind: data.id_kind } : data));
     form[toEvery ? 'post' : 'put'](`/game-identities/${trooper.id}/${platform.value}${toEvery ? '/account' : ''}`, {
         preserveScroll: true,
         onSuccess: () => {
@@ -401,9 +470,22 @@ function removeAccount(value) {
                                         </p>
                                         <p v-if="hasKinds(p)" class="text-xs text-muted-foreground" :data-testid="`kind-${p.value}`">{{ selected.identities[p.value].idKind }}</p>
                                         <p class="font-mono text-[13px] font-medium break-all" :data-testid="`id-${p.value}`">{{ selected.identities[p.value].platformId }}</p>
+                                        <p v-if="selected.identities[p.value].gamertag" class="text-xs text-muted-foreground" :data-testid="`gamertag-${p.value}`">
+                                            {{ gamertagLabel(selected.identities[p.value]) }}: <bdi class="text-foreground">{{ selected.identities[p.value].gamertag }}</bdi>
+                                        </p>
                                     </div>
                                     <div v-if="removing !== p.value && removingAccount !== p.value" class="flex shrink-0 flex-wrap gap-1">
                                         <Button v-if="!p.retired" variant="outline" size="xs" :data-testid="`edit-${p.value}`" @click="fill(selected, p.value)">Edit</Button>
+                                        <Button
+                                            v-if="canFill(p, selected.identities[p.value])"
+                                            variant="outline"
+                                            size="xs"
+                                            :data-testid="`fill-${p.value}`"
+                                            :disabled="!editable"
+                                            @click="fillFromServer(p.value)"
+                                        >
+                                            Fill in from game server
+                                        </Button>
                                         <Button
                                             variant="outline"
                                             size="xs"
@@ -485,6 +567,26 @@ function removeAccount(value) {
                                 >
                                     {{ form.errors.platform_id }}
                                 </p>
+                            </div>
+                            <div v-if="canLookUp" class="grid gap-1.5">
+                                <Button type="button" variant="outline" size="sm" class="justify-self-start" data-testid="identity-lookup" :disabled="lookingUp || !editable" @click="lookUp">
+                                    Fill in from game server
+                                </Button>
+                            </div>
+                            <p v-if="lookupNote" class="text-xs text-muted-foreground" role="status" data-testid="identity-lookup-note">{{ lookupNote }}</p>
+                            <div v-if="wantsGamertag" class="grid gap-1.5">
+                                <Label for="identity-gamertag">Gamertag (optional)</Label>
+                                <Input
+                                    id="identity-gamertag"
+                                    v-model="form.gamertag"
+                                    data-testid="identity-gamertag"
+                                    autocomplete="off"
+                                    maxlength="100"
+                                    :aria-invalid="!!form.errors.gamertag"
+                                    @input="form.gamertag_from_server = false"
+                                />
+                                <p class="text-xs text-muted-foreground">Shown beside the ID only. It can change, so the ID is what attendance is matched on.</p>
+                                <p v-if="form.errors.gamertag" class="text-xs text-destructive" data-testid="error-gamertag">{{ form.errors.gamertag }}</p>
                             </div>
                             <label v-if="account && otherCovered.length" class="flex items-start gap-2 text-[13px]" data-testid="every-game">
                                 <input v-model="everyGame" type="checkbox" class="mt-0.5 size-4 accent-primary" data-testid="every-game-input" />

@@ -29,6 +29,9 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => {
                     Object.assign(sent, { platform_id: this.platform_id, id_kind: this.id_kind });
                     return put(...args);
                 },
+                transform() {
+                    return this;
+                },
                 clearErrors() {
                     formState.errors = {};
                 },

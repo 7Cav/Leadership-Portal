@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
+use App\Commands\GameIdentities\FillIdentityFromServer;
 use App\Commands\GameIdentities\GameIdentityForbiddenException;
 use App\Commands\GameIdentities\GameRetiredException;
 use App\Commands\GameIdentities\IdentityImportException;
@@ -11,6 +12,9 @@ use App\Commands\GameIdentities\ImportGameIdentities;
 use App\Commands\GameIdentities\InvalidGameIdentityException;
 use App\Commands\GameIdentities\LinkSharedAccount;
 use App\Commands\GameIdentities\LinkSharedAccountHandler;
+use App\Commands\GameIdentities\LookUpPlayerPlatform;
+use App\Commands\GameIdentities\PlatformLookup;
+use App\Commands\GameIdentities\PlatformLookupResult;
 use App\Commands\GameIdentities\RemoveSharedAccount;
 use App\Commands\GameIdentities\RemoveSharedAccountHandler;
 use App\Commands\GameIdentities\RemoveTrooperGameIdentity;
@@ -20,8 +24,10 @@ use App\Commands\GameIdentities\SetTrooperGameIdentityHandler;
 use App\Commands\GameIdentities\SharedAccountException;
 use App\Commands\GameIdentities\UnknownIdKindException;
 use App\Models\Game;
+use App\Models\Gamertag;
 use App\Models\IdKindFormat;
 use App\Models\SharedAccount;
+use App\Models\TelemetryInterface;
 use App\Models\Trooper;
 use App\Models\TrooperGameIdentity;
 use App\Models\Unit;
@@ -96,6 +102,8 @@ class GameIdentityController extends Controller
                 'accounts' => (object) collect($game->id_kinds)
                     ->mapWithKeys(fn (string $kind) => [$kind => SharedAccount::of($kind)?->value])->filter()->all(),
                 'retired' => $game->isRetired(),
+                // Whether "Fill in from game server" can ask this game's servers: it is read through CRCON.
+                'lookup' => $game->interface === TelemetryInterface::Crcon,
             ])->values()->all(),
             'troopers' => $troopers->map(fn (Trooper $trooper) => [
                 'id' => $trooper->id,
@@ -113,6 +121,9 @@ class GameIdentityController extends Controller
                         'idKind' => $identity->id_kind,
                         // How the row was made (#174): typed, from_account, from_rollcall or imported.
                         'source' => $identity->source->value,
+                        // The player's in-game name, shown only, and whether a game server gave it.
+                        'gamertag' => $identity->gamertag,
+                        'gamertagFromServer' => $identity->gamertag_from_server,
                     ]])->all(),
             ])->sortBy(fn (array $row) => mb_strtolower($row['displayName']))->values()->all(),
         ]);
@@ -126,20 +137,32 @@ class GameIdentityController extends Controller
      * characters are removed, an ID without its kind's shape (#450), or a Steam ID Steam has no account for (#174), comes
      * back on `platform_id`. An unknown game is a 404.
      */
-    public function update(Request $request, int $trooper, string $platform, SetTrooperGameIdentityHandler $handler): RedirectResponse
+    public function update(Request $request, int $trooper, string $platform, SetTrooperGameIdentityHandler $handler, PlatformLookup $lookup): RedirectResponse
     {
         $game = $this->games->findBySlug($platform) ?? abort(404);
 
         $data = $request->validate([
             'platform_id' => ['required', 'string', 'max:255'],
             'id_kind' => ['nullable', 'string', 'max:50'],
+            'gamertag' => ['sometimes', 'nullable', 'string', 'max:'.Gamertag::MAX],
+            'gamertag_from_server' => ['sometimes', 'boolean'],
         ], [
             'platform_id.required' => 'Enter the player ID.',
             'platform_id.max' => 'Keep the player ID to :max characters.',
+            'gamertag.max' => 'Keep the gamertag to :max characters.',
         ]);
 
+        $gamertag = null;
+
+        if ($request->has('gamertag')) {
+            $typed = new Gamertag($data['gamertag'] ?? null);
+            // "From game server" only when a lookup of this ID just gave exactly this name; anything else was typed.
+            $cached = $typed->value === null || ! ($data['gamertag_from_server'] ?? false) ? null : $lookup->cached($game, $data['platform_id']);
+            $gamertag = new Gamertag($typed->value, fromServer: $cached?->isFound() === true && $cached->name !== null && (new Gamertag($cached->name))->value === $typed->value);
+        }
+
         try {
-            $handler->handle($request->user(), new SetTrooperGameIdentity($trooper, $game, $data['platform_id'], idKind: $data['id_kind'] ?? null));
+            $handler->handle($request->user(), new SetTrooperGameIdentity($trooper, $game, $data['platform_id'], idKind: $data['id_kind'] ?? null, gamertag: $gamertag));
         } catch (GameIdentityForbiddenException $e) {
             abort(403, $e->getMessage());
         } catch (GameRetiredException $e) {
@@ -153,6 +176,55 @@ class GameIdentityController extends Controller
         }
 
         return back();
+    }
+
+    /**
+     * The add form's "Fill in from game server": which kind the typed ID is and the player's current name, from the
+     * game's CRCON servers. Writes nothing. A trooper the viewer may not change is a 403; a game not read through
+     * CRCON, or an ID that is not 32 characters, comes back as not checked without asking anyone.
+     */
+    public function lookup(Request $request, int $trooper, string $platform, LookUpPlayerPlatform $handler): JsonResponse
+    {
+        $game = $this->games->findBySlug($platform) ?? abort(404);
+        $data = $request->validate(['platform_id' => ['required', 'string', 'max:255']], ['platform_id.required' => 'Enter the player ID.']);
+        $id = trim($data['platform_id']);
+
+        try {
+            $result = preg_match(PlatformLookup::LOOKUP_SHAPE, $id) === 1
+                ? $handler->handle($request->user(), $trooper, $game, strtolower($id))
+                : PlatformLookupResult::notChecked();
+        } catch (GameIdentityForbiddenException $e) {
+            abort(403, $e->getMessage());
+        }
+
+        return response()->json($result->toArray());
+    }
+
+    /**
+     * "Fill in from game server" on a saved identity: its kind and gamertag from the game's CRCON servers. Says what
+     * happened in the page's notice; a change is audited, nothing new is not.
+     */
+    public function fill(Request $request, int $trooper, string $platform, FillIdentityFromServer $handler): RedirectResponse
+    {
+        $game = $this->games->findBySlug($platform) ?? abort(404);
+
+        try {
+            [$result, $changed] = $handler->handle($request->user(), $trooper, $game);
+        } catch (GameIdentityForbiddenException $e) {
+            abort(403, $e->getMessage());
+        } catch (GameRetiredException|InvalidGameIdentityException|UnknownIdKindException $e) {
+            throw ValidationException::withMessages(['platform_id' => $e->getMessage()]);
+        }
+
+        $notice = match (true) {
+            $result->status === PlatformLookupResult::NOT_SEEN => 'Not seen on our servers. Check the ID, or choose the kind yourself.',
+            ! $result->isFound() => 'The game server could not be asked. Try again later.',
+            $result->kind === null && ! $changed => 'Seen on our servers, but on a platform '.$game->name.' has no ID kind for.',
+            $changed => 'Filled in from the game server.',
+            default => 'Already up to date with the game server.',
+        };
+
+        return back()->with('notice', $notice);
     }
 
     /**

@@ -84,7 +84,10 @@ async function chooseFile(event) {
 // An example file: the column header, a comment, and one line per active game, the first with its ID kind left out.
 function exampleText() {
     const active = props.platforms.filter((p) => !p.retired);
-    const lines = ['trooper, game, ID kind, ID', '# One identity per line. Leave the ID kind empty to use the game\'s first kind.'];
+    const lines = [
+        'trooper, game, ID kind, ID, gamertag',
+        '# One identity per line. Leave the ID kind empty to use the game\'s first kind, or write ? to ask the game server. The gamertag is optional.',
+    ];
     active.forEach((p, index) => {
         const kind = p.idKinds?.[0] ?? '';
         const id = /steam/i.test(kind) ? '76561198012345678' : 'player-id';
@@ -149,9 +152,10 @@ function runImport() {
             <DialogHeader>
                 <DialogTitle>Import identities</DialogTitle>
                 <DialogDescription>
-                    One identity per line: trooper, game, ID kind and ID, separated by commas or tabs. Give the trooper by Cav name (Novak.E) and the game by
-                    name or abbreviation. Leave the ID kind empty to use the game's first kind. Blank lines and lines starting with # are ignored. Up to 500
-                    lines or 256 KB.
+                    One identity per line: trooper, game, ID kind, ID and, if you like, gamertag, separated by commas or tabs. Give the trooper by Cav name
+                    (Novak.E) and the game by name or abbreviation. Leave the ID kind empty to use the game's first kind. For a 32-character ID on a game read
+                    through CRCON, write ? or leave the kind empty and the game server is asked which kind it is. Blank lines and lines starting with # are
+                    ignored. Up to 500 lines or 256 KB.
                 </DialogDescription>
             </DialogHeader>
 
@@ -206,7 +210,12 @@ function runImport() {
                                 <td class="px-2 py-1.5">{{ line.game }}</td>
                                 <td class="px-2 py-1.5">
                                     <span class="font-mono text-xs break-all">{{ line.platformId }}</span>
-                                    <span v-if="line.idKind" class="block text-xs text-muted-foreground">{{ line.idKind }}</span>
+                                    <span v-if="line.idKind" class="block text-xs text-muted-foreground" :data-testid="`identity-import-kind-${line.line}`">
+                                        {{ line.idKind }}<template v-if="line.lookup === 'found'"> (from game server)</template>
+                                    </span>
+                                    <span v-if="line.gamertag" class="block text-xs text-muted-foreground" :data-testid="`identity-import-gamertag-${line.line}`">
+                                        gamertag {{ line.gamertag }}
+                                    </span>
                                     <span v-if="line.status === 'change'" class="block text-xs text-muted-foreground">was {{ line.current }}</span>
                                 </td>
                                 <td class="px-2 py-1.5">

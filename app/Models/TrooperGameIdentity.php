@@ -22,8 +22,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * `source` is how the row was made (#174, {@see IdentitySource}): typed for one game, from a shared Steam or Epic account,
  * or from a capture's unmatched player.
+ *
+ * `gamertag` is the player's current in-game name, for Xbox, PlayStation and Epic players whose ID means nothing to a
+ * leader: typed by a leader, or filled in from a game server (`gamertag_from_server`). It is shown only and never
+ * matched on, since a player can change it at any time.
  */
-#[Fillable(['trooper_id', 'game_id', 'platform_id', 'id_kind', 'source'])]
+#[Fillable(['trooper_id', 'game_id', 'platform_id', 'id_kind', 'gamertag', 'gamertag_from_server', 'source'])]
 class TrooperGameIdentity extends Model
 {
     /** @use HasFactory<TrooperGameIdentityFactory> */
@@ -34,7 +38,7 @@ class TrooperGameIdentity extends Model
 
     protected function casts(): array
     {
-        return ['source' => IdentitySource::class];
+        return ['source' => IdentitySource::class, 'gamertag_from_server' => 'boolean'];
     }
 
     /**

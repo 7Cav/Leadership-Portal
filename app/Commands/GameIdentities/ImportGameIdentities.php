@@ -4,6 +4,7 @@ namespace App\Commands\GameIdentities;
 
 use App\Authorization\ScopeResolver;
 use App\Models\Game;
+use App\Models\Gamertag;
 use App\Models\IdentitySource;
 use App\Models\IdKindFormat;
 use App\Models\Trooper;
@@ -34,11 +35,23 @@ use Illuminate\Support\Collection;
  * preview showed. Inside the transaction each game is locked shared and each trooper's identity read under lock, so
  * a change made meanwhile rolls everything back: all the lines or none. New rows are `imported`; a change of kind only
  * keeps how the row was made.
+ *
+ * An optional fifth column is the player's gamertag, shown beside the ID and never matched on. On a game read through
+ * CRCON, a 32-character ID whose kind is `?`, empty or left out is looked up on the game's servers ({@see PlatformLookup},
+ * at most {@see self::SERVER_LOOKUPS} per run, stopping at the first server that cannot be reached): the line takes the
+ * kind for the platform the server reports and, when the gamertag column is empty, the server's name for the player.
+ * A line the servers cannot place is refused until a kind is given. A `?` anywhere else is refused the same way.
  */
 class ImportGameIdentities
 {
     /** The most Steam IDs asked about in one preview or import, so a large file does not wait on Steam for long. */
     public const STEAM_LOOKUPS = 20;
+
+    /** The most IDs the game servers are asked about in one preview or import ({@see PlatformLookup}). */
+    public const SERVER_LOOKUPS = 60;
+
+    /** The ID kind column's "ask the game server" marker. */
+    public const ASK_SERVER = '?';
 
     public function __construct(
         private readonly IdentityImportParser $parser,
@@ -49,6 +62,7 @@ class ImportGameIdentities
         private readonly GameRepository $games,
         private readonly AuditEnvelope $audit,
         private readonly SteamAccountCheck $steam,
+        private readonly PlatformLookup $lookup,
     ) {}
 
     /**
@@ -57,7 +71,9 @@ class ImportGameIdentities
      * Each line: `line` (its number in the text), `trooper`, `game`, `idKind`, `platformId` (as read, or as resolved
      * when known), `status` (`add`, `change`, `skip`, `unchanged` or `refused`), `reason` (why it is skipped or
      * refused), `current` (the ID the trooper holds there now, for a change or a skip) and `steam` (`checked`,
-     * `not_checked`, or null when the ID is not a Steam ID or the line is not saved).
+     * `not_checked`, or null when the ID is not a Steam ID or the line is not saved), `gamertag` (typed or from the
+     * game server, `gamertagFromServer` says which), `lookup` (`found`, `not_seen`, `not_checked`, or null when the
+     * game server was not asked) and `platform` (the platform the server reported).
      *
      * @return array{lines: list<array<string, mixed>>, counts: array<string, int>}
      *
@@ -129,7 +145,8 @@ class ImportGameIdentities
                     }
 
                     $source = $held?->platform_id === $line['platformId'] ? $held->source : IdentitySource::Imported;
-                    $row = $this->identities->link($line['trooperId'], $game, $line['platformId'], $line['idKind'], $source);
+                    $gamertag = $line['gamertag'] === null ? null : new Gamertag($line['gamertag'], $line['gamertagFromServer']);
+                    $row = $this->identities->link($line['trooperId'], $game, $line['platformId'], $line['idKind'], $source, $gamertag);
                     $this->dismissals->forget($game, $line['platformId']);
                     $rows[] = $row;
                 }
@@ -164,6 +181,8 @@ class ImportGameIdentities
         $seenId = [];
         $steamLeft = self::STEAM_LOOKUPS;
         $steamDown = false;
+        $serverLeft = self::SERVER_LOOKUPS;
+        $serverDown = false;
         $judged = [];
 
         foreach ($rows as $index => $row) {
@@ -200,6 +219,14 @@ class ImportGameIdentities
             $line['trooperId'] = $trooper->id;
             $line['game'] = $game->name;
             $line['gameModel'] = $game;
+            $line = $this->placeOnServer($line, $game, $serverLeft, $serverDown);
+
+            if ($line['status'] === 'refused') {
+                $judged[] = $line;
+
+                continue;
+            }
+
             $judged[] = $this->judgeIdentity($line, $trooper, $game, $held->get($trooper->id) ?? collect(), $replace, $seenPair, $seenId);
         }
 
@@ -242,17 +269,21 @@ class ImportGameIdentities
     private function read(array $row): array
     {
         $cells = $row['cells'];
-        $base = ['line' => $row['line'], 'trooper' => $cells[0], 'game' => $cells[1] ?? '', 'idKind' => null, 'platformId' => '', 'status' => 'refused', 'reason' => null, 'current' => null, 'steam' => null];
+        $base = ['line' => $row['line'], 'trooper' => $cells[0], 'game' => $cells[1] ?? '', 'idKind' => null, 'platformId' => '', 'status' => 'refused', 'reason' => null, 'current' => null, 'steam' => null,
+            'gamertag' => null, 'gamertagFromServer' => false, 'lookup' => null, 'platform' => null, 'askServer' => false];
 
         if (count($cells) === 3) {
             return [...$base, 'platformId' => $cells[2], 'status' => 'pending'];
         }
 
-        if (count($cells) === 4) {
-            return [...$base, 'idKind' => $cells[2] === '' ? null : $cells[2], 'platformId' => $cells[3], 'status' => 'pending'];
+        if (count($cells) === 4 || count($cells) === 5) {
+            $gamertag = new Gamertag($cells[4] ?? null);
+
+            return [...$base, 'idKind' => in_array($cells[2], ['', self::ASK_SERVER], true) ? null : $cells[2], 'askServer' => $cells[2] === self::ASK_SERVER,
+                'platformId' => $cells[3], 'gamertag' => $gamertag->value, 'status' => 'pending'];
         }
 
-        return [...$base, 'reason' => 'Expected trooper, game, ID kind and ID, separated by commas or tabs.'];
+        return [...$base, 'reason' => 'Expected trooper, game, ID kind and ID (and a gamertag if you like), separated by commas or tabs.'];
     }
 
     /**
@@ -309,7 +340,9 @@ class ImportGameIdentities
         $seenPair[$pair] = $line['line'];
         $seenId[$idKey] = ['line' => $line['line'], 'trooper' => $trooper->display_name];
 
-        if ($existing !== null && $existing->platform_id === $platformId && $existing->id_kind === $kind) {
+        $sameGamertag = $line['gamertag'] === null || ($existing?->gamertag === $line['gamertag'] && $existing->gamertag_from_server === $line['gamertagFromServer']);
+
+        if ($existing !== null && $existing->platform_id === $platformId && $existing->id_kind === $kind && $sameGamertag) {
             return [...$line, 'status' => 'unchanged'];
         }
 
@@ -326,6 +359,59 @@ class ImportGameIdentities
         }
 
         return [...$line, 'status' => $existing === null ? 'add' : 'change'];
+    }
+
+    /**
+     * Ask the game's servers which kind a line's ID is, when the line leaves the kind to them: a `?`, or no kind for a
+     * 32-character ID on a game read through CRCON. Any other line is returned as it is.
+     *
+     * @param  array<string, mixed>  $line
+     * @return array<string, mixed>
+     */
+    private function placeOnServer(array $line, Game $game, int &$left, bool &$down): array
+    {
+        $refuse = fn (string $reason, array $more = []) => [...$line, ...$more, 'status' => 'refused', 'reason' => $reason];
+        $fits = preg_match(PlatformLookup::LOOKUP_SHAPE, $line['platformId']) === 1;
+        $canAsk = $this->lookup->applies($game) && $fits;
+
+        if ($line['askServer'] && ! $canAsk) {
+            return $refuse($this->lookup->applies($game)
+                ? 'Only a 32-character ID can be looked up on the game server. Choose a kind.'
+                : "{$game->name} is not read through CRCON, so its servers cannot be asked. Choose a kind.");
+        }
+
+        if ($line['idKind'] !== null || ! $canAsk) {
+            return $line;
+        }
+
+        $result = $this->lookup->cached($game, $line['platformId']);
+
+        if ($result === null && ! $down && $left > 0) {
+            $left--;
+            $failed = false;
+            $result = $this->lookup->lookup($game, $line['platformId'], $failed);
+            // A server that cannot be reached once is not asked again in this run.
+            $down = $failed;
+        }
+
+        $result ??= PlatformLookupResult::notChecked();
+
+        if ($result->status === PlatformLookupResult::NOT_SEEN) {
+            return $refuse('Not seen on our servers. Choose a kind.', ['lookup' => 'not_seen']);
+        }
+
+        if (! $result->isFound()) {
+            return $refuse('The game server could not be asked. Choose a kind, or preview again later.', ['lookup' => 'not_checked']);
+        }
+
+        if ($result->kind === null) {
+            return $refuse("Seen on our servers on a platform {$game->name} has no ID kind for (".($result->platform ?? 'unknown').'). Choose a kind.', ['lookup' => 'found', 'platform' => $result->platform]);
+        }
+
+        $fromServer = $line['gamertag'] === null && $result->name !== null;
+
+        return [...$line, 'idKind' => $result->kind, 'lookup' => 'found', 'platform' => $result->platform,
+            'gamertag' => $fromServer ? (new Gamertag($result->name))->value : $line['gamertag'], 'gamertagFromServer' => $fromServer];
     }
 
     /** The game named by its name, abbreviation or slug, ignoring case. */
@@ -350,7 +436,7 @@ class ImportGameIdentities
      */
     private function publicLine(array $line): array
     {
-        unset($line['gameModel'], $line['trooperId']);
+        unset($line['gameModel'], $line['trooperId'], $line['askServer']);
 
         return $line;
     }
