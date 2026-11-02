@@ -28,9 +28,14 @@ const childType = computed(() => (props.node.type === 'group' ? null : (ECHELON_
 // Who oversees the unit (a battalion or the Reservists), or vacant for a battalion with nobody serving in it.
 // An HQ sits among its unit's children but is not a sister unit, so it neither sets nor takes the shared width.
 const isHq = (node) => /HQ|headquarters/i.test(node.name ?? '');
+const ALIGN_SPREAD_CH = 6;
 const childNameCh = computed(() => {
     const names = props.node.children.filter((child) => !child.ref && child.callsign && !isHq(child)).map((child) => child.name.length);
-    return names.length > 1 ? Math.max(...names) : null;
+    if (names.length < 2) return null;
+    const longest = Math.max(...names);
+    // Line up only names of a similar length (Alpha/Baker/Charlie Company). When one name is much longer
+    // (Auxiliary Combat Detachment next to 1st Battalion), each callsign follows its own name instead.
+    return longest - Math.min(...names) <= ALIGN_SPREAD_CH ? longest : null;
 });
 // Only from `sm` up (the class reads the variable): on a phone the callsign sits under the name instead.
 const nameStyle = computed(() => (props.nameCh && props.node.callsign && !isHq(props.node) ? { '--name-ch': `${props.nameCh}ch` } : undefined));
