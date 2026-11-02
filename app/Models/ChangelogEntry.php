@@ -34,6 +34,20 @@ class ChangelogEntry extends Model
     /** The most entries one Add saves at once. */
     public const MAX_BATCH = 50;
 
+    /**
+     * The change text may carry inline emphasis only (`**bold**`, `*italic*`, `_italic_`), to name a feature; the page
+     * renders it with `resources/js/lib/inlineEmphasis.js`, everything else stays text. This is the text without the
+     * markers, for places that show plain text such as audit labels. The stored text keeps them, so an export
+     * round-trips.
+     */
+    public static function plainText(string $text): string
+    {
+        $text = preg_replace('/\*\*(?=\S)(.+?)(?<=\S)\*\*/u', '$1', $text) ?? $text;
+        $text = preg_replace('/\*(?=[^\s*])(.+?)(?<=[^\s*])\*/u', '$1', $text) ?? $text;
+
+        return preg_replace('/(?<![\p{L}\p{N}_])_(?=\S)(.+?)(?<=\S)_(?![\p{L}\p{N}_])/u', '$1', $text) ?? $text;
+    }
+
     protected function casts(): array
     {
         return [

@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { PhCaretRight, PhClockCounterClockwise, PhGear, PhPencilSimple, PhPlus, PhTrash, PhUploadSimple } from '@phosphor-icons/vue';
+import { PhCaretRight, PhClockCounterClockwise, PhDownloadSimple, PhGear, PhPencilSimple, PhPlus, PhTrash, PhUploadSimple } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -17,6 +17,7 @@ import EmptyState from '@/components/EmptyState.vue';
 import ReasonDialog from '@/components/ReasonDialog.vue';
 import { toast } from 'vue-sonner';
 import { forumDate, forumDateTime } from '@/lib/forumDate';
+import { emphasisHtml, plainText } from '@/lib/inlineEmphasis';
 import { onHttpException } from '@/lib/httpError';
 import { postJson } from '@/lib/postJson';
 
@@ -441,8 +442,18 @@ async function runPreview() {
     }
 }
 
-const skipped = (entry) => skipDuplicates.value && entry.duplicate;
-const toSave = computed(() => (preview.value ? preview.value.entries.filter((entry) => !skipped(entry)).length : 0));
+// A line with an id (`{#42}`, as Export writes it) updates that entry or is unchanged; only a new line can be skipped.
+const isNew = (entry) => (entry.status ?? 'new') === 'new';
+const skipped = (entry) => isNew(entry) && skipDuplicates.value && entry.duplicate;
+const toSave = computed(() => (preview.value ? preview.value.entries.filter((entry) => entry.status !== 'unchanged' && !skipped(entry)).length : 0));
+const previewCounts = computed(() => {
+    const entries = preview.value?.entries ?? [];
+    return {
+        created: entries.filter((entry) => isNew(entry) && !skipped(entry)).length,
+        updated: entries.filter((entry) => entry.status === 'updated').length,
+        unchanged: entries.filter((entry) => entry.status === 'unchanged').length,
+    };
+});
 const canImport = computed(() => preview.value !== null && preview.value.errors.length === 0 && toSave.value > 0 && !importing.value);
 
 // The preview grouped by date in paste order, like the page.
@@ -491,6 +502,9 @@ function runImport() {
                 <template v-if="isEditor">
                     <Button size="sm" data-testid="changelog-add" @click="openAdd"><PhPlus aria-hidden="true" />Add</Button>
                     <Button size="sm" variant="outline" data-testid="changelog-import" @click="openImport"><PhUploadSimple aria-hidden="true" />Bulk import</Button>
+                    <Button v-if="totalEntries > 0" as-child size="sm" variant="outline">
+                        <a href="/changelog/export" download data-testid="changelog-export"><PhDownloadSimple aria-hidden="true" />Export</a>
+                    </Button>
                     <Button v-if="totalEntries > 0" size="sm" variant="outline" class="text-destructive" data-testid="changelog-delete-all" @click="deleteAllOpen = true">
                         <PhTrash aria-hidden="true" />Delete all
                     </Button>
@@ -532,7 +546,8 @@ function runImport() {
             <p class="text-[13px] text-muted-foreground">
                 Start each date with a heading like "## 2026-10-29". Put each change under it on a line starting with "- ". Indent lines under a change
                 to add additional information. Start a change with "[major]" to also list it under Major changes, or with "[technical]" to mark
-                behind-the-scenes or security work.
+                behind-the-scenes or security work. Wrap a feature name in asterisks to italicize it, like *Act as*. To reword
+                entries, use Export, edit the file and paste it here: a change that ends with its id, like {#42}, updates that entry.
             </p>
             <Textarea v-model="markdown" rows="10" class="font-mono text-xs" aria-label="Markdown to import" data-testid="changelog-import-markdown" @input="preview = null" />
             <label class="flex items-center gap-2 text-[13px]">
@@ -552,19 +567,24 @@ function runImport() {
                 <ul v-if="preview.errors.length" class="space-y-1 text-xs text-destructive" role="alert" data-testid="changelog-import-errors">
                     <li v-for="error in preview.errors" :key="error.line + error.message">{{ error.message }}</li>
                 </ul>
+                <p v-if="previewDays.length" class="text-xs text-muted-foreground tabular-nums" data-testid="changelog-import-summary">
+                    {{ previewCounts.created }} new, {{ previewCounts.updated }} updated, {{ previewCounts.unchanged }} unchanged
+                </p>
                 <div v-if="previewDays.length" class="space-y-3 rounded-md border border-border p-3 text-[13px]" data-testid="changelog-import-entries">
                     <section v-for="day in previewDays" :key="day.date">
                         <h3 class="text-xs font-semibold text-muted-foreground tabular-nums">{{ forumDate(day.date).toUpperCase() }}</h3>
                         <ul class="mt-1 space-y-0.5">
                             <li v-for="entry in day.entries" :key="entry.line" class="flex items-baseline gap-2" :data-testid="`preview-entry-${entry.line}`">
                                 <span class="size-1.5 shrink-0 translate-y-[-2px] rounded-full bg-muted-foreground/60" aria-hidden="true" />
-                                <span class="min-w-0 flex-1" :class="{ 'text-muted-foreground line-through': skipped(entry) }">
-                                    {{ entry.body }}
+                                <span class="min-w-0 flex-1" :class="{ 'text-muted-foreground line-through': skipped(entry), 'text-muted-foreground': entry.status === 'unchanged' }">
+                                    <span v-html="emphasisHtml(entry.body)" />
                                     <span v-if="entry.details" class="text-muted-foreground" :data-testid="`preview-details-${entry.line}`">(with additional information)</span>
                                 </span>
                                 <Badge v-if="entry.major" variant="secondary" :data-testid="`preview-major-${entry.line}`">Major</Badge>
                                 <Badge v-if="entry.technical" variant="outline" class="text-muted-foreground" :data-testid="`preview-technical-${entry.line}`">Technical</Badge>
                                 <Badge v-if="skipped(entry)" variant="outline" :data-testid="`preview-skipped-${entry.line}`">Skipped, already exists</Badge>
+                                <Badge v-if="entry.status === 'updated'" variant="outline" :data-testid="`preview-updated-${entry.line}`">Updated</Badge>
+                                <Badge v-if="entry.status === 'unchanged'" variant="outline" class="text-muted-foreground" :data-testid="`preview-unchanged-${entry.line}`">Unchanged</Badge>
                             </li>
                         </ul>
                     </section>
@@ -641,7 +661,7 @@ function runImport() {
                                     <span v-else class="flex size-4 shrink-0 items-center justify-center" aria-hidden="true">
                                         <span class="size-1.5 rounded-full bg-muted-foreground/60" />
                                     </span>
-                                    <span class="min-w-0 flex-1 break-words" data-testid="changelog-entry-body">{{ entry.body }}</span>
+                                    <span class="min-w-0 flex-1 break-words" data-testid="changelog-entry-body" v-html="emphasisHtml(entry.body)" />
                                     <Badge v-if="column.key === 'full' && entry.major" variant="secondary" class="h-5 shrink-0 px-1.5 text-[11px]" :data-testid="`changelog-major-${entry.id}`">Major</Badge>
                                     <Badge v-if="kindOf(entry) === 'Security'" variant="secondary" class="h-5 shrink-0 px-1.5 text-[11px]" :data-testid="`${column.prefix}changelog-security-${entry.id}`">Security</Badge>
                                     <Badge
@@ -898,7 +918,7 @@ function runImport() {
         <ReasonDialog
             :open="deleting !== null"
             :title="deleting ? 'Delete this entry?' : ''"
-            :description="deleting ? `“${deleting.body}” is removed from the changelog for everyone.` : null"
+            :description="deleting ? `“${plainText(deleting.body)}” is removed from the changelog for everyone.` : null"
             confirm-label="Delete entry"
             pending-label="Deleting"
             destructive

@@ -646,7 +646,14 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
   flagged major, and one that starts with `[technical]` (any case) is flagged technical, the marker dropped; both on
   one bullet is a line error (text
   after the date on the heading is taken as the first entry). It previews the result with any errors, can skip entries
-  whose date and text already exist, and saves them in one batch. Writes are audited as `changelog.created` (one per
+  whose date and text already exist, and saves them in one batch. **Export** (editors only) downloads every entry as
+  Markdown in the import's shape, each change ending with its id (`- [major] Added the roster. {#42}`). Importing a line
+  with an id updates that entry in place (same id, same `created_at`, so it does not show as new and does not clear the
+  "Changelog outdated" bar on its own); a line that already reads the same is left alone, an id no entry has (or one
+  given twice) is refused with its line number, and a line without an id is added as before. The preview counts new,
+  updated and unchanged lines, and the notice after an import says the same. An entry's text may italicize a feature
+  name with `*Act as*` or `_Act as_` (`**bold**` too); the page renders only that emphasis, with everything else escaped
+  as text, and audit labels and the delete dialog show the text without the asterisks. Writes are audited as `changelog.created` (one per
   added batch), `changelog.updated`, `changelog.deleted`, `changelog.imported` and `changelog.outdated_dismissed`.
 - **Delete all** removes every entry after a confirm that states the count ("Delete all 265 entries? You can restore them
   for 72 hours."). The entries are only marked deleted (`deleted_at`), so they leave the page, the sidebar dot and the

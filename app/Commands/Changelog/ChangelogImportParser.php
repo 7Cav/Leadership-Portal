@@ -20,6 +20,9 @@ use DateTimeImmutable;
  *
  *     - [technical] Dependency updates.
  *
+ * A change may end with its id in braces, as the export writes it: `- Added the roster. {#42}`. The id is taken off the
+ * text and returned as `id`; an import uses it to update that entry instead of adding a new one.
+ *
  * Each `## YYYY-MM-DD` heading starts a date, and each `- ` (or `* `) bullet under it is one entry. Text after the date
  * on the heading (after a hyphen, an en dash, an em dash or a colon) is taken as that date's first entry, so the older
  * `## 2026-10-29 - Title` shape still imports. Text before the first heading is ignored. A level-2 heading that is not
@@ -32,10 +35,13 @@ class ChangelogImportParser
 
     private const MARKER = '/^\[(?<kind>major|technical)\]\s*(?<text>.*)$/iu';
 
+    /** A trailing `{#42}`: the id of the entry this line is, as {@see ChangelogExport} writes it. */
+    public const ID = '/\s*\{#(?<id>\d{1,18})\}$/u';
+
     private const BULLET = '/^[-*]\s+(?<text>.*?)\s*$/u';
 
     /**
-     * @return array{entries: list<array{line: int, date: string, body: string, details: ?string, major: bool, technical: bool}>, errors: list<array{line: int, message: string}>}
+     * @return array{entries: list<array{line: int, date: string, body: string, details: ?string, major: bool, technical: bool, id: ?int}>, errors: list<array{line: int, message: string}>}
      */
     public function parse(string $markdown): array
     {
@@ -53,6 +59,11 @@ class ChangelogImportParser
                 return;
             }
             $details = $this->dedent($entry['details']);
+            $id = null;
+            if (preg_match(self::ID, $entry['body'], $found) === 1) {
+                $id = (int) $found['id'];
+                $entry['body'] = rtrim(mb_substr($entry['body'], 0, mb_strlen($entry['body']) - mb_strlen($found[0])));
+            }
             $kinds = [];
             while (preg_match(self::MARKER, $entry['body'], $marker) === 1) {
                 $kinds[mb_strtolower($marker['kind'])] = true;
@@ -62,6 +73,8 @@ class ChangelogImportParser
             $technical = isset($kinds['technical']);
             if ($major && $technical) {
                 $errors[] = ['line' => $entry['line'], 'message' => "Line {$entry['line']}: a change cannot be both [major] and [technical]."];
+            } elseif ($entry['body'] === '' && $kinds === []) {
+                $errors[] = ['line' => $entry['line'], 'message' => "Line {$entry['line']}: the change has no text."];
             } elseif ($entry['body'] === '') {
                 $marked = $technical ? '[technical]' : '[major]';
                 $errors[] = ['line' => $entry['line'], 'message' => "Line {$entry['line']}: the change has no text after {$marked}."];
@@ -70,7 +83,7 @@ class ChangelogImportParser
             } elseif ($details !== null && mb_strlen($details) > ChangelogEntry::MAX_DETAILS_LENGTH) {
                 $errors[] = ['line' => $entry['line'], 'message' => "Line {$entry['line']}: the additional information is longer than ".ChangelogEntry::MAX_DETAILS_LENGTH.' characters.'];
             } else {
-                $entries[] = ['line' => $entry['line'], 'date' => $entry['date'], 'body' => $entry['body'], 'details' => $details, 'major' => $major, 'technical' => $technical];
+                $entries[] = ['line' => $entry['line'], 'date' => $entry['date'], 'body' => $entry['body'], 'details' => $details, 'major' => $major, 'technical' => $technical, 'id' => $id];
             }
             $entry = null;
         };

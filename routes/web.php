@@ -197,6 +197,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // shared audited-writes throttle. The import preview writes nothing but shares the throttle, as every POST does.
     Route::get('/changelog', [ChangelogController::class, 'index'])->name('changelog.index');
     Route::post('/changelog', [ChangelogController::class, 'store'])->middleware('throttle:audited-writes')->name('changelog.store');
+    Route::get('/changelog/export', [ChangelogController::class, 'export'])->middleware('throttle:audited-writes')->name('changelog.export');
     Route::post('/changelog/import/preview', [ChangelogController::class, 'preview'])->middleware('throttle:audited-writes')->name('changelog.import.preview');
     Route::post('/changelog/import', [ChangelogController::class, 'import'])->middleware('throttle:audited-writes')->name('changelog.import');
     Route::post('/changelog/settings', [ChangelogController::class, 'settings'])->middleware('throttle:audited-writes')->name('changelog.settings');

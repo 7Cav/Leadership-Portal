@@ -24,6 +24,11 @@ class Eloquent implements ChangelogRepository
         return ChangelogEntry::query()->find($id);
     }
 
+    public function findMany(array $ids): Collection
+    {
+        return $ids === [] ? collect() : ChangelogEntry::query()->whereIn('id', $ids)->get()->keyBy('id');
+    }
+
     public function create(string $date, string $body, ?string $details, int $userId, bool $major = false, bool $technical = false): ChangelogEntry
     {
         return ChangelogEntry::query()->create([

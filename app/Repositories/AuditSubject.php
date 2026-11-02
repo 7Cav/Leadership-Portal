@@ -183,7 +183,7 @@ final class AuditSubject
             $target instanceof CounselingRecord => ($target->type?->short() ?? 'Counseling record').' for '.$trooper($rel($target, 'trooper'))
                 .($target->counseled_on !== null ? ' dated '.WeekLabel::date($target->counseled_on) : ''),
             $target instanceof ChangelogEntry => 'Changelog entry '.($target->date !== null ? WeekLabel::date($target->date).' ' : '')
-                .'"'.Str::limit((string) $target->body, 60).'"',
+                .'"'.Str::limit(ChangelogEntry::plainText((string) $target->body), 60).'"',
             $target instanceof ChangelogState => 'Changelog settings',
             $target instanceof UnitGuidon => 'Guidon of '.$unit($rel($target, 'unit')),
             $target instanceof TemplateVersion => self::template($rel($target, 'template'), $unit).', version '.$target->version,

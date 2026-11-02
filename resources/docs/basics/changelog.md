@@ -3,7 +3,7 @@ title: Write the changelog
 summary: Read what changed in the portal, and for the changelog editors, add and import entries.
 section: basics
 order: 8
-updated: 2026-10-31
+updated: 2026-11-02
 audience: everyone
 page: /changelog
 ---
@@ -32,8 +32,9 @@ Under the page title you see how many changes are recorded and since which date.
 
    To change several rows at once, tick the box at the start of each one, or **Select all** above the rows. Hold Shift while you tick a box to also tick every row between it and the last one you ticked. A bar then shows how many are selected, with **Set type**, **Mark major**, **Unmark major**, **Mark technical**, **Unmark technical**, **Remove** and **Clear selection**. Security rows stay technical, so **Mark major** skips them and says how many it skipped.
 4. Every change goes in the full changelog. Tick **Major change** under a row to also list it under **Major changes**, or **Technical** for behind-the-scenes and security work. A change is never both. Picking the Security tag ticks Technical for you and keeps it ticked, since a security fix is always behind-the-scenes work. For a security fix, say what was fixed, not how it could be abused.
-5. To say more about a change, tick **Add additional information** under its row and write it in Markdown. Raw HTML is removed.
-6. Choose the add button under the rows; it counts the entries, such as **Add 2 entries**. Empty rows are left out. The bar goes away for both editors.
+5. To italicize a feature name in a change, wrap it in asterisks, such as "Fixed some access checks where \*Act as\* and your own milpac page meet". The page shows it in italics; two asterisks on each side make it bold. Nothing else in the text is formatted.
+6. To say more about a change, tick **Add additional information** under its row and write it in Markdown. Raw HTML is removed.
+7. Choose the add button under the rows; it counts the entries, such as **Add 2 entries**. Empty rows are left out. The bar goes away for both editors.
 
 ## Edit or delete an entry
 
@@ -66,6 +67,15 @@ Under the page title you see how many changes are recorded and since which date.
 2. Choose **Preview**. Fix any line it lists as wrong.
 3. Leave **Skip changes that already exist on the same date** ticked to leave out entries you already have; the preview marks them.
 4. Choose **Import**.
+
+## Reword entries
+
+1. Choose **Export**. The page downloads every entry as a Markdown file in the same shape as the import, with each change ending in its id, such as `{#42}`.
+2. Change the text, the date or the `[major]` and `[technical]` markers of the entries you want to reword. Keep the id at the end of each line. Lines you do not change can stay or go.
+3. Choose **Bulk import**, paste the file, and choose **Preview**. It counts the new, updated and unchanged entries, and marks each line **Updated** or **Unchanged**.
+4. Choose **Import**. An updated entry keeps its place and is not shown as new. A line without an id is added as a new entry.
+
+> [!good-to-know] A line whose id no entry has, such as one deleted since the export, is refused with its line number. Remove the id to add it as a new entry instead.
 
 ## Dismiss the bar
 
