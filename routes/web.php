@@ -192,6 +192,8 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/game-identities', [GameIdentityController::class, 'index'])->name('game-identities.index');
     Route::put('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'update'])->middleware('throttle:audited-writes')->name('game-identities.update');
     Route::delete('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'destroy'])->middleware('throttle:audited-writes')->name('game-identities.destroy');
+    Route::post('/game-identities/{trooper}/{platform}/account', [GameIdentityController::class, 'linkAccount'])->middleware('throttle:audited-writes')->name('game-identities.account.store');
+    Route::delete('/game-identities/{trooper}/{platform}/account', [GameIdentityController::class, 'destroyAccount'])->middleware('throttle:audited-writes')->name('game-identities.account.destroy');
 
     // The changelog: open to everyone signed in; only the changelog editors write it (an Admin changes its one setting), each write audited and on the
     // shared audited-writes throttle. The import preview writes nothing but shares the throttle, as every POST does.
@@ -306,6 +308,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::patch('/settings/games/{game}', [GamesController::class, 'update'])->middleware('throttle:audited-writes')->name('settings.games.update');
     Route::post('/settings/games/{game}/retire', [GamesController::class, 'retire'])->middleware('throttle:audited-writes')->name('settings.games.retire');
     Route::delete('/settings/games/{game}/retire', [GamesController::class, 'reinstate'])->middleware('throttle:audited-writes')->name('settings.games.reinstate');
+    Route::post('/settings/games/{game}/account-links', [GamesController::class, 'applyAccountLinks'])->middleware('throttle:audited-writes')->name('settings.games.account-links');
     Route::delete('/settings/games/{game}', [GamesController::class, 'destroy'])->middleware('throttle:audited-writes')->name('settings.games.destroy');
 
     // The game servers the telemetry APIs list (#389). The whole screen is Admin-only, gated in the controller (AD-6).
@@ -314,6 +317,9 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/settings/servers', [ServersController::class, 'index'])->name('settings.servers');
     Route::post('/settings/servers/fetch', [ServersController::class, 'fetch'])->middleware('throttle:server-fetch')->name('settings.servers.fetch');
     Route::patch('/settings/servers/{server}', [ServersController::class, 'update'])->middleware('throttle:audited-writes')->name('settings.servers.update');
+    // A connection test (#183) reads every source of the game over HTTP on the request, like fetching the servers, so
+    // it shares that per-Admin cap.
+    Route::post('/settings/servers/games/{game}/test', [ServersController::class, 'test'])->where('game', '\d+')->middleware('throttle:server-fetch')->name('settings.servers.test');
 
     // Audit-log review (Story 1.14). The whole screen is Admin-only (AC #4) — the gate is
     // enforced in the controller, not route middleware, matching every other Admin gate here.

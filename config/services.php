@@ -136,6 +136,15 @@ return [
     ],
 
     /*
+    | Steam Web API: a Steam ID is checked against Steam when a leader links one (#174, AD-3). Read-only (one GET of
+    | ISteamUser/GetPlayerSummaries). Machine credential, env only (AD-23). Without a key, IDs are saved unchecked.
+    */
+    'steam' => [
+        'base_url' => 'https://api.steampowered.com',
+        'web_api_key' => env('STEAM_WEB_API_KEY'),
+    ],
+
+    /*
     | Google Drive — where a copy of every counseling document (DCS, LOR) goes (#381, AD-3). A service
     | account's machine credential, read from env only (AD-23): its email and private key from the
     | account's JSON key file, and the id of the folder (in a shared drive) it uploads into. Any of the

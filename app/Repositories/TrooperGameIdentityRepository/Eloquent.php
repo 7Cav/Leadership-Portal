@@ -3,6 +3,8 @@
 namespace App\Repositories\TrooperGameIdentityRepository;
 
 use App\Models\Game;
+use App\Models\IdentitySource;
+use App\Models\SharedAccount;
 use App\Models\TrooperGameIdentity;
 use App\Repositories\GameIdentityLinkException;
 use App\Repositories\TrooperGameIdentityRepository;
@@ -57,7 +59,7 @@ class Eloquent implements TrooperGameIdentityRepository
             ->first();
     }
 
-    public function link(int $trooperId, Game $game, string $playerName, string $platformId, string $idKind): TrooperGameIdentity
+    public function link(int $trooperId, Game $game, string $platformId, string $idKind, IdentitySource $source = IdentitySource::Typed): TrooperGameIdentity
     {
         $owner = $this->findByPlatformId($game, $platformId);
 
@@ -68,7 +70,7 @@ class Eloquent implements TrooperGameIdentityRepository
         try {
             return DB::transaction(fn (): TrooperGameIdentity => TrooperGameIdentity::query()->updateOrCreate(
                 ['trooper_id' => $trooperId, 'game_id' => $game->id],
-                ['player_name' => $playerName, 'platform_id' => $platformId, 'id_kind' => $idKind],
+                ['platform_id' => $platformId, 'id_kind' => $idKind, 'source' => $source],
             ));
         } catch (UniqueConstraintViolationException $e) {
             // Only a concurrent claim by a *different* trooper is a rejected link; any other
@@ -94,5 +96,27 @@ class Eloquent implements TrooperGameIdentityRepository
             ->where('trooper_id', $trooperId)
             ->where('game_id', $game->id)
             ->delete() > 0;
+    }
+
+    public function unlinkAccount(int $trooperId, string $platformId, SharedAccount $account): Collection
+    {
+        $rows = TrooperGameIdentity::query()->with('game')
+            ->where('trooper_id', $trooperId)
+            ->where('platform_id', $platformId)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get()
+            ->filter(fn (TrooperGameIdentity $row) => SharedAccount::of((string) $row->id_kind) === $account)
+            ->values();
+
+        if ($rows->isNotEmpty()) {
+            TrooperGameIdentity::query()->whereKey($rows->modelKeys())->delete();
+            // Gone from the table: the audit details read each as removed.
+            foreach ($rows as $row) {
+                $row->exists = false;
+            }
+        }
+
+        return $rows;
     }
 }

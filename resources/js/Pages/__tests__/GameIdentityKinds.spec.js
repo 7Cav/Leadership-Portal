@@ -45,7 +45,7 @@ const PLATFORMS = [
 ];
 const trooper = (id, name, identities = {}) => ({ id, displayName: name, billet: 'Rifleman', section: '1/A', editable: true, identities });
 const TROOPERS = [
-    trooper(1, 'SGT Ortega.M', { hll: { playerName: 'OrtegaCav', platformId: '0002105c01b748ada8d8cf5b32e70093', idKind: 'Epic ID' }, arma: { playerName: 'Ortega', platformId: 'a41f', idKind: 'Player ID' } }),
+    trooper(1, 'SGT Ortega.M', { hll: { platformId: '0002105c01b748ada8d8cf5b32e70093', idKind: 'Epic ID' }, arma: { platformId: 'a41f', idKind: 'Player ID' } }),
     trooper(2, 'PFC Dube.R'),
 ];
 
@@ -78,7 +78,6 @@ describe('GameIdentities page, ID kinds', () => {
 
     it('sends the chosen kind with the id', async () => {
         const wrapper = await open(2);
-        await wrapper.get('[data-testid="identity-name"]').setValue('Dube');
         await wrapper.get('[data-testid="identity-kind"]').setValue('Xbox ID');
         await wrapper.get('[data-testid="identity-id"]').setValue('2535411234567890');
         await wrapper.get('[data-testid="identity-form"]').trigger('submit');
@@ -103,7 +102,7 @@ describe('GameIdentities page, ID kinds', () => {
     it('prefills the kind of an identity being edited, and shows it beside the identity and in the list', async () => {
         const wrapper = await open(1);
 
-        expect(wrapper.get('[data-testid="row-1"]').text()).toContain('Hell Let Loose: OrtegaCav (Epic ID)');
+        expect(wrapper.get('[data-testid="row-1"]').text()).toContain('Hell Let Loose: 0002105c01b748ada8d8cf5b32e70093 (Epic ID)');
         expect(wrapper.get('[data-testid="row-1"]').text()).not.toContain('(Player ID)');
         expect(wrapper.get('[data-testid="kind-hll"]').text()).toBe('Epic ID');
         expect(wrapper.find('[data-testid="kind-arma"]').exists()).toBe(false);

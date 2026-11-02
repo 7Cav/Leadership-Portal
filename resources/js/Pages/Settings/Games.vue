@@ -16,14 +16,17 @@ import { onHttpException } from '@/lib/httpError';
 // The games the regiment plays (#388): the list on the left, and the add/edit form alongside for an Admin (the
 // Staff grants layout). A game in use can be retired, not deleted, so Delete is offered only for one nothing uses.
 // An Admin also sees the identities saved before #450 that break its rules, to fix on Game identities.
+// A game that asks for a Steam or Epic ID offers an Admin to apply the links troopers already have on other games
+// (#174), one click and never on its own.
 const props = defineProps({
-    // `[{ id, slug, name, abbreviation, idKinds, checkedKinds, interface, retired, inUse }]`, in the order they were added;
-    // `checkedKinds` are the kinds whose IDs the server checks for a shape.
+    // `[{ id, slug, name, abbreviation, idKinds, checkedKinds, interface, retired, inUse, accounts, pendingAccountLinks }]`, in
+    // the order they were added; `checkedKinds` are the kinds whose IDs the server checks for a shape, `accounts` the shared
+    // accounts it asks for ("Steam", "Epic"), and `pendingAccountLinks` how many troopers the backfill would link (Admin only).
     games: { type: Array, required: true },
     // `[{ value, label }]`: the telemetry interfaces the portal has built in.
     interfaces: { type: Array, required: true },
     isAdmin: { type: Boolean, required: true },
-    // Admin only: `[{ id, trooper, game, idKind, playerName, platformId, problems }]`, hidden characters written out.
+    // Admin only: `[{ id, trooper, game, idKind, platformId, problems }]`, hidden characters written out.
     identitiesToCheck: { type: Array, default: () => [] },
 });
 
@@ -84,6 +87,8 @@ function act(method, url, failure) {
 const retire = (game) => act('post', `/settings/games/${game.id}/retire`, `${game.name} was not retired`);
 const reinstate = (game) => act('delete', `/settings/games/${game.id}/retire`, `${game.name} was not brought back`);
 const remove = (game) => act('delete', `/settings/games/${game.id}`, `${game.name} was not deleted`);
+const accountLabel = (game) => `Apply existing ${(game.accounts ?? []).join(' and ')} links`;
+const applyAccountLinks = (game) => act('post', `/settings/games/${game.id}/account-links`, `The ${(game.accounts ?? []).join(' and ')} links were not applied to ${game.name}`);
 </script>
 
 <template>
@@ -134,6 +139,14 @@ const remove = (game) => act('delete', `/settings/games/${game.id}`, `${game.nam
                                 <span :data-testid="`kinds-${game.slug}`">{{ game.idKinds.join(', ') }}</span>
                                 <span v-if="game.checkedKinds?.length" class="block text-xs text-muted-foreground" :data-testid="`checked-kinds-${game.slug}`">
                                     Shape checked: {{ game.checkedKinds.join(', ') }}
+                                </span>
+                                <span v-if="isAdmin && !game.retired && game.pendingAccountLinks > 0" class="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                    <Button variant="outline" size="xs" :data-testid="`apply-account-links-${game.slug}`" @click="applyAccountLinks(game)">
+                                        {{ accountLabel(game) }}
+                                    </Button>
+                                    <span :data-testid="`pending-account-links-${game.slug}`">
+                                        {{ game.pendingAccountLinks }} {{ game.pendingAccountLinks === 1 ? 'trooper' : 'troopers' }}
+                                    </span>
                                 </span>
                             </TableCell>
                             <TableCell :data-testid="`interface-${game.slug}`">{{ interfaceLabel(game.interface) }}</TableCell>
@@ -255,7 +268,7 @@ const remove = (game) => act('delete', `/settings/games/${game.id}`, `${game.nam
                     <TableRow class="hover:bg-transparent">
                         <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">Trooper</TableHead>
                         <TableHead class="h-8 text-xs font-medium text-muted-foreground">Game</TableHead>
-                        <TableHead class="h-8 text-xs font-medium text-muted-foreground">Player name and ID</TableHead>
+                        <TableHead class="h-8 text-xs font-medium text-muted-foreground">ID</TableHead>
                         <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">What to check</TableHead>
                     </TableRow>
                 </TableHeader>
@@ -264,8 +277,7 @@ const remove = (game) => act('delete', `/settings/games/${game.id}`, `${game.nam
                         <TableCell class="px-4 align-top font-medium">{{ row.trooper ?? 'Unknown trooper' }}</TableCell>
                         <TableCell class="align-top">{{ row.game }}<span class="block text-xs text-muted-foreground">{{ row.idKind }}</span></TableCell>
                         <TableCell class="align-top whitespace-normal">
-                            <bdi class="block break-words">{{ row.playerName }}</bdi>
-                            <bdi class="block font-mono text-xs break-all text-muted-foreground">{{ row.platformId }}</bdi>
+                            <bdi class="block font-mono text-xs break-all">{{ row.platformId }}</bdi>
                         </TableCell>
                         <TableCell class="px-4 align-top whitespace-normal">
                             <ul class="grid gap-0.5 text-xs">

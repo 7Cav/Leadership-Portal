@@ -127,9 +127,9 @@ describe('UnmatchedDrawer', () => {
             ok: false,
             status: 422,
             data: {
-                message: 'That trooper is already linked to DubeMain (7656119000000099) on Hell Let Loose. Replace it, or cancel to keep it.',
+                message: 'That trooper is already linked to 7656119000000099 on Hell Let Loose. Replace it, or cancel to keep it.',
                 reason: 'has_other_identity',
-                current: { playerName: 'DubeMain', platformId: '7656119000000099' },
+                current: { platformId: '7656119000000099' },
             },
         };
         const LINKED = { ok: true, status: 200, data: { marked: true, trooper: { id: 1, status: 'present', source: 'auto' }, atRisk: [] } };
@@ -154,7 +154,7 @@ describe('UnmatchedDrawer', () => {
 
             expect(dialog()).not.toBeNull();
             expect(dialog().querySelector('[data-testid="replace-question"]').textContent.replace(/\s+/g, ' ').trim()).toBe(
-                'PFC Dube.R is linked to DubeMain (7656119000000099) on Hell Let Loose. Replace it with Dubes (7656119000000001)?',
+                'PFC Dube.R is linked to 7656119000000099 on Hell Let Loose. Replace it with Dubes (7656119000000001)?',
             );
             expect(first.find('[data-testid="unmatched-error"]').exists()).toBe(false);
             expect(post).toHaveBeenCalledTimes(1);
@@ -162,15 +162,14 @@ describe('UnmatchedDrawer', () => {
         });
 
         it('isolates every name and ID in the question, so a direction override in a name cannot reorder the ID beside it', async () => {
-            post.mockResolvedValueOnce({ ...HAS_OTHER, data: { ...HAS_OTHER.data, current: { playerName: 'Dube[U+202E]Main', platformId: '7656119000000099' } } });
+            post.mockResolvedValueOnce({ ...HAS_OTHER, data: { ...HAS_OTHER.data, current: { platformId: '7656119000000099' } } });
             await askToReplace();
 
             const question = dialog().querySelector('[data-testid="replace-question"]');
             const isolated = (id) => question.querySelector(`[data-testid="${id}"]`);
-            for (const id of ['replace-trooper', 'replace-current-name', 'replace-current-id', 'replace-new-name', 'replace-new-id']) {
+            for (const id of ['replace-trooper', 'replace-current-id', 'replace-new-name', 'replace-new-id']) {
                 expect(isolated(id).tagName).toBe('BDI');
             }
-            expect(isolated('replace-current-name').textContent).toBe('Dube[U+202E]Main');
             expect(isolated('replace-current-id').textContent).toBe('7656119000000099');
             expect(isolated('replace-new-name').textContent).toBe('Dubes');
             expect(isolated('replace-new-id').textContent).toBe('7656119000000001');
@@ -196,7 +195,7 @@ describe('UnmatchedDrawer', () => {
             const CHANGED = {
                 ok: false,
                 status: 422,
-                data: { ...HAS_OTHER.data, message: 'That trooper is already linked to DubeAlt (7656119000000077) on Hell Let Loose. Replace it, or cancel to keep it.', current: { playerName: 'DubeAlt', platformId: '7656119000000077' } },
+                data: { ...HAS_OTHER.data, message: 'That trooper is already linked to 7656119000000077 on Hell Let Loose. Replace it, or cancel to keep it.', current: { platformId: '7656119000000077' } },
             };
             post.mockResolvedValueOnce(HAS_OTHER).mockResolvedValueOnce(CHANGED).mockResolvedValueOnce(LINKED);
             const first = await askToReplace();
@@ -206,7 +205,7 @@ describe('UnmatchedDrawer', () => {
 
             expect(dialog()).not.toBeNull();
             expect(dialog().querySelector('[data-testid="replace-question"]').textContent.replace(/\s+/g, ' ').trim()).toBe(
-                'PFC Dube.R is linked to DubeAlt (7656119000000077) on Hell Let Loose. Replace it with Dubes (7656119000000001)?',
+                'PFC Dube.R is linked to 7656119000000077 on Hell Let Loose. Replace it with Dubes (7656119000000001)?',
             );
             expect(first.find('[data-testid="unmatched-error"]').exists()).toBe(false);
             expect(wrapper.emitted('linked')).toBeUndefined();
