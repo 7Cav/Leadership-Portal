@@ -7,6 +7,7 @@ use App\Commands\Attendance\AutoMarkResult;
 use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Models\Game;
 use App\Models\GameIdentityText;
+use App\Models\IdentitySource;
 use App\Models\IdKindFormat;
 use App\Models\User;
 use App\Repositories\GameIdentityLinkException;
@@ -136,7 +137,7 @@ class LinkUnmatchedPlayerHandler
         // lock inside its audited transaction, so a change landing between the two is refused too.
         $this->setIdentity->handle($actor, new SetTrooperGameIdentity(
             $trooper->id, $command->game, $name === '' ? $player->platform_id : $name, $player->platform_id, $replaceable,
-            idKind: self::kindOf($command->game, $player->platform_id), reportedByServer: true,
+            idKind: self::kindOf($command->game, $player->platform_id), reportedByServer: true, source: IdentitySource::FromRollcall,
         ));
 
         return $this->attendance->preMark($practice, [$trooper->id], $actor->id);

@@ -4,6 +4,7 @@ namespace App\Commands\GameIdentities;
 
 use App\Models\Game;
 use App\Models\GameIdentityText;
+use App\Models\IdentitySource;
 
 /**
  * Link a trooper to a player in one game, or correct the identity they already have there
@@ -19,6 +20,9 @@ use App\Models\GameIdentityText;
  * The player name and ID are cleaned of hidden characters and normalised here ({@see GameIdentityText}, #450); the
  * handler refuses one left empty, and checks the ID against its kind's shape unless `$reportedByServer`: an ID a game
  * server reported (linking an unmatched player) is the one the capture matches, whatever shape it has.
+ *
+ * `$source` is how a new row came to be (#174): typed here, from_rollcall when linking an unmatched player. A write that
+ * keeps the same ID keeps the row's source; a new ID takes the command's.
  */
 final readonly class SetTrooperGameIdentity
 {
@@ -38,6 +42,7 @@ final readonly class SetTrooperGameIdentity
         ?string $replacing = null,
         ?string $idKind = null,
         public bool $reportedByServer = false,
+        public IdentitySource $source = IdentitySource::Typed,
     ) {
         $this->playerName = GameIdentityText::clean($playerName);
         $this->platformId = GameIdentityText::clean($platformId);

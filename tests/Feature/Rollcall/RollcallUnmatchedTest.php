@@ -8,6 +8,7 @@ use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
 use App\Models\GamePlayerDismissal;
+use App\Models\IdentitySource;
 use App\Models\PracticeCapturePlayer;
 use App\Models\SectionPractice;
 use App\Models\Trooper;
@@ -113,6 +114,8 @@ it('links the player to the chosen trooper and pre-marks them present as auto', 
     $identity = TrooperGameIdentity::query()->sole();
     expect($identity->trooper_id)->toBe($this->ortega->id)
         ->and($identity->player_name)->toBe('Ortega')
+        // #174: a row made from the rollcall says so.
+        ->and($identity->source)->toBe(IdentitySource::FromRollcall)
         ->and(AuditLogEntry::query()->where('action', 'game_identity.linked')->count())->toBe(1)
         ->and(AuditLogEntry::query()->where('action', 'attendance.auto_marked')->count())->toBe(1);
 

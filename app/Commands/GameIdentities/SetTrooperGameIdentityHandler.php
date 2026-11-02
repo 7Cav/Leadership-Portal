@@ -106,12 +106,15 @@ class SetTrooperGameIdentityHandler
             return $existing;
         }
 
+        // A rename keeps how the row was made; a new ID is a new link, made the way this command makes one (#174).
+        $source = $existing?->platform_id === $platformId ? $existing->source : $command->source;
+
         return $this->audit->record(
             actorId: $actor->id,
             action: $existing === null ? 'game_identity.linked' : 'game_identity.updated',
             reason: null,
             reasonRequired: false,
-            mutation: function () use ($command, $idKind, $platformId) {
+            mutation: function () use ($command, $idKind, $platformId, $source) {
                 // The kind is checked again against the game as stored, with its row locked shared, so a kind an
                 // Admin removed since the check above (UpdateGame takes the lock exclusive) is refused, not stored.
                 $game = $this->games->lock($command->game->id, exclusive: false);
@@ -133,7 +136,7 @@ class SetTrooperGameIdentityHandler
                     }
                 }
 
-                $identity = $this->identities->link($command->trooperId, $command->game, $command->playerName, $platformId, $idKind);
+                $identity = $this->identities->link($command->trooperId, $command->game, $command->playerName, $platformId, $idKind, $source);
                 // Linking a player a leader once dismissed re-admits them (7.7), in the same transaction.
                 $this->dismissals->forget($command->game, $platformId);
 

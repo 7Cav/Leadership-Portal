@@ -19,12 +19,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * `name_mixes_scripts` flags a player name that mixes alphabets (#450), set here whenever the name is saved; null on a
  * row saved before the flag existed. {@see self::problems()} is what an Admin is shown for a row that breaks the rules
  * new saves follow.
+ *
+ * `source` is how the row was made (#174, {@see IdentitySource}): typed for one game, from a shared Steam or Epic account,
+ * or from a capture's unmatched player.
  */
-#[Fillable(['trooper_id', 'game_id', 'player_name', 'platform_id', 'id_kind'])]
+#[Fillable(['trooper_id', 'game_id', 'player_name', 'platform_id', 'id_kind', 'source'])]
 class TrooperGameIdentity extends Model
 {
     /** @use HasFactory<TrooperGameIdentityFactory> */
     use HasFactory;
+
+    /** @var array<string, mixed> */
+    protected $attributes = ['source' => 'typed'];
 
     protected static function booted(): void
     {
@@ -37,7 +43,7 @@ class TrooperGameIdentity extends Model
 
     protected function casts(): array
     {
-        return ['name_mixes_scripts' => 'boolean'];
+        return ['name_mixes_scripts' => 'boolean', 'source' => IdentitySource::class];
     }
 
     /** Whether the name mixes alphabets: the stored flag, or worked out for a row saved before there was one. */
