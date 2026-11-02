@@ -6,13 +6,19 @@ use App\Authorization\ScopeResolver;
 use App\Commands\GameIdentities\GameIdentityForbiddenException;
 use App\Commands\GameIdentities\GameRetiredException;
 use App\Commands\GameIdentities\InvalidGameIdentityException;
+use App\Commands\GameIdentities\LinkSharedAccount;
+use App\Commands\GameIdentities\LinkSharedAccountHandler;
+use App\Commands\GameIdentities\RemoveSharedAccount;
+use App\Commands\GameIdentities\RemoveSharedAccountHandler;
 use App\Commands\GameIdentities\RemoveTrooperGameIdentity;
 use App\Commands\GameIdentities\RemoveTrooperGameIdentityHandler;
 use App\Commands\GameIdentities\SetTrooperGameIdentity;
 use App\Commands\GameIdentities\SetTrooperGameIdentityHandler;
+use App\Commands\GameIdentities\SharedAccountException;
 use App\Commands\GameIdentities\UnknownIdKindException;
 use App\Models\Game;
 use App\Models\IdKindFormat;
+use App\Models\SharedAccount;
 use App\Models\Trooper;
 use App\Models\TrooperGameIdentity;
 use App\Models\Unit;
@@ -79,6 +85,10 @@ class GameIdentityController extends Controller
                 // The shape each checked kind has, keyed by kind, for the hint under the ID field. A kind not here is not checked.
                 'idHints' => (object) collect($game->id_kinds)
                     ->mapWithKeys(fn (string $kind) => [$kind => IdKindFormat::for($kind)?->hint])->filter()->all(),
+                // The kinds that are a shared Steam or Epic account (#174), keyed by kind: the form offers to link those
+                // to every game asking for the same account.
+                'accounts' => (object) collect($game->id_kinds)
+                    ->mapWithKeys(fn (string $kind) => [$kind => SharedAccount::of($kind)?->value])->filter()->all(),
                 'retired' => $game->isRetired(),
             ])->values()->all(),
             'troopers' => $troopers->map(fn (Trooper $trooper) => [
@@ -96,6 +106,8 @@ class GameIdentityController extends Controller
                         'playerName' => $identity->player_name,
                         'platformId' => $identity->platform_id,
                         'idKind' => $identity->id_kind,
+                        // How the row was made (#174): typed, from_account or from_rollcall.
+                        'source' => $identity->source->value,
                         'mixedScripts' => $identity->nameMixesScripts(),
                     ]])->all(),
             ])->sortBy(fn (array $row) => mb_strtolower($row['displayName']))->values()->all(),
@@ -136,6 +148,57 @@ class GameIdentityController extends Controller
             throw ValidationException::withMessages([$e->field => $e->getMessage()]);
         } catch (GameIdentityLinkException $e) {
             throw ValidationException::withMessages(['platform_id' => $this->collisionMessage($game, $e->platformId)]);
+        }
+
+        return back();
+    }
+
+    /**
+     * Link the trooper's Steam or Epic account, entered on the game `$platform` names as `id_kind`, to every active game
+     * that asks for that account (#174). A refusal (the ID is another trooper's on a game, or the trooper has a different
+     * one there) comes back on `platform_id` and names each trooper and game; nothing is written.
+     */
+    public function linkAccount(Request $request, int $trooper, string $platform, LinkSharedAccountHandler $handler): RedirectResponse
+    {
+        $game = $this->games->findBySlug($platform) ?? abort(404);
+
+        $data = $request->validate([
+            'player_name' => ['required', 'string', 'max:255'],
+            'platform_id' => ['required', 'string', 'max:255'],
+            'id_kind' => ['required', 'string', 'max:50'],
+        ], [
+            'player_name.required' => 'Enter the player name as it shows in the game.',
+            'player_name.max' => 'Keep the player name to :max characters.',
+            'platform_id.required' => 'Enter the player ID.',
+            'platform_id.max' => 'Keep the player ID to :max characters.',
+        ]);
+
+        try {
+            $handler->handle($request->user(), new LinkSharedAccount($trooper, $game, $data['id_kind'], $data['player_name'], $data['platform_id']));
+        } catch (GameIdentityForbiddenException $e) {
+            abort(403, $e->getMessage());
+        } catch (UnknownIdKindException $e) {
+            throw ValidationException::withMessages(['id_kind' => $e->getMessage()]);
+        } catch (InvalidGameIdentityException $e) {
+            throw ValidationException::withMessages([$e->field => $e->getMessage()]);
+        } catch (GameRetiredException|SharedAccountException $e) {
+            throw ValidationException::withMessages(['platform_id' => $e->getMessage()]);
+        } catch (GameIdentityLinkException $e) {
+            throw ValidationException::withMessages(['platform_id' => $this->collisionMessage($e->game ?? $game, $e->platformId)]);
+        }
+
+        return back();
+    }
+
+    /** Remove the rows the trooper's account on `$platform` made on every game (#174); the page confirms first. */
+    public function destroyAccount(Request $request, int $trooper, string $platform, RemoveSharedAccountHandler $handler): RedirectResponse
+    {
+        $game = $this->games->findBySlug($platform) ?? abort(404);
+
+        try {
+            $handler->handle($request->user(), new RemoveSharedAccount($trooper, $game));
+        } catch (GameIdentityForbiddenException $e) {
+            abort(403, $e->getMessage());
         }
 
         return back();

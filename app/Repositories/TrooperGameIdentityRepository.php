@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\Game;
+use App\Models\IdentitySource;
 use App\Models\TrooperGameIdentity;
 use Illuminate\Support\Collection;
 
@@ -64,13 +65,13 @@ interface TrooperGameIdentityRepository
      * in that game (one per game) rather than adding a second.
      *
      * `$idKind` is which of the game's ID kinds the id was entered as (#428); the repository stores it as given, the
-     * Command checks it against the game.
+     * Command checks it against the game. `$source` is how the row came to be (#174), stored as given.
      *
      * @throws GameIdentityLinkException when `$platformId` already belongs to a different trooper
      *                                   in that game, whatever kind either was entered as; nothing is
      *                                   written and the existing link stays intact — never silently reassigned.
      */
-    public function link(int $trooperId, Game $game, string $playerName, string $platformId, string $idKind): TrooperGameIdentity;
+    public function link(int $trooperId, Game $game, string $playerName, string $platformId, string $idKind, IdentitySource $source = IdentitySource::Typed): TrooperGameIdentity;
 
     /**
      * The ID kinds of `$game` that a linked identity uses (#428), so a kind in use is never removed from the game.
@@ -83,4 +84,12 @@ interface TrooperGameIdentityRepository
      * Remove a trooper's identity in `$game`. True when a link existed.
      */
     public function unlink(int $trooperId, Game $game): bool;
+
+    /**
+     * Remove every row a shared account made for the trooper (#174): their identities with `$platformId` whose source is
+     * from_account, and no other. Returns the removed rows, with their games, read under lock before they went.
+     *
+     * @return Collection<int, TrooperGameIdentity>
+     */
+    public function unlinkAccount(int $trooperId, string $platformId): Collection;
 }
