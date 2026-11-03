@@ -611,10 +611,12 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
   for them: the capture reads the whole Cav week, so it only says they were on the server.
 - Sending: only once the Cav week has ended (from Saturday 0000Z), so the HQ it counts for is the one they ended
   the week on. Only the staff member, signed in as themselves, sends it. Nobody sends it for them, Admins included, and
-  never through act as or view as. It is due when the unit reports are, 2359Z on the Saturday after the week. A
-  sent report is final, as a unit's report is: there is no edit and no second send. The type, the FTX's name and date,
-  the office hour's date and note, other events and notes are frozen with it. The sent report reads back with a check,
-  when it was sent, and that it is final. There is no draft: the picks stay
+  never through act as or view as. It is due when the unit reports are, 2359Z on the Saturday after the week. Until
+  then they may send it again with a reason ("Edit report", audited as `staff_report.edited`): the row is rewritten,
+  the version it replaces is kept and listed under "Earlier versions", and its row on the reports sheet is overwritten.
+  After the deadline it is final. The type, the FTX's name and date, the office hour's date and note, other events and
+  notes are frozen with it. The sent report reads back with a check, when it was sent, and that it is final once it
+  can no longer be edited. There is no draft: the picks stay
   on the page until it is sent.
 - What sending writes: the staff report, and the week's staff practice entries set to exactly the practices picked
   (an entry for a section not picked, one a leader entered on the milpac say, is taken off, and the page warns before

@@ -497,7 +497,7 @@ function useSuggestion() {
                 <h1 id="page-title" class="flex flex-wrap items-center gap-2.5 text-xl font-semibold tracking-tight sm:text-[22px]">
                     <WeekHeading :week="week.start" />
                     <Badge v-if="sent" variant="success" data-testid="status-badge"><PhLockSimple aria-hidden="true" />Sent</Badge>
-                    <Badge v-else-if="editing" variant="warning" data-testid="status-badge">Editing</Badge>
+                    <Badge v-else-if="editing" variant="warning" data-testid="status-badge">Being edited</Badge>
                     <Badge v-else variant="warning" data-testid="status-badge">Draft</Badge>
                 </h1>
             </div>
@@ -615,7 +615,7 @@ function useSuggestion() {
                                 <p>
                                     {{ report.changedChildren.map(unitLabel).join(', ') }}
                                     {{ report.changedChildren.length === 1 ? 'changed its report' : 'changed their reports' }} after this one was
-                                    sent. The numbers here are from before the change<template v-if="report.canEdit">; edit and send this report again to include it</template>.
+                                    sent. The numbers here are from before the {{ report.changedChildren.length === 1 ? 'change' : 'changes' }}.
                                 </p>
                             </div>
                             <div v-if="report.canEdit" class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
