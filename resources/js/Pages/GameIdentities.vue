@@ -73,12 +73,21 @@ const linkedOf = (trooper) => props.platforms.filter((p) => trooper.identities[p
 const platformOf = (value) => props.platforms.find((p) => p.value === value);
 
 const needsLink = computed(() => props.troopers.filter((trooper) => missingOf(trooper).length));
-const queue = computed(() => (view.value === 'needs' ? needsLink.value : props.troopers));
+// The game the trooper's unit plays (the one the roll call warns about), linked or not; null when their unit plays none.
+const mainOf = (trooper) => (trooper.mainGame ? platformOf(trooper.mainGame) : null) ?? null;
+const mainLinked = (trooper) => Boolean(trooper.mainGame && trooper.identities[trooper.mainGame]);
+const mainMissing = computed(() => props.troopers.filter((trooper) => mainOf(trooper) && !mainLinked(trooper)));
+// The games a row shows as small chips after the main game's tab: every other game they are linked on.
+const otherLinked = (trooper) => linkedOf(trooper).filter((p) => !p.retired && p.value !== trooper.mainGame);
+const short = (p) => p.abbreviation || p.label;
+const queue = computed(() => ({ needs: needsLink.value, main: mainMissing.value })[view.value] ?? props.troopers);
 
 const slots = computed(() => props.troopers.length * active.value.length);
 const linked = computed(() => props.troopers.reduce((sum, trooper) => sum + linkedOf(trooper).filter((p) => !p.retired).length, 0));
 const percent = computed(() => (slots.value ? Math.round((linked.value / slots.value) * 100) : 0));
 
+// Whether the panel shows the add or edit form: Add identity and Edit open it; the trooper's name shows their identities only.
+const formOpen = ref(false);
 const selected = computed(() => props.troopers.find((trooper) => trooper.id === selectedId.value) ?? null);
 const platformMeta = computed(() => platformOf(platform.value));
 const existing = computed(() => selected.value?.identities[platform.value] ?? null);
@@ -204,6 +213,7 @@ const startingGame = (trooper) => {
 // it is sticky and already there. Focus goes to the first field (the panel when there is no form).
 function open(trooper) {
     selectedId.value = trooper.id;
+    formOpen.value = true;
     fill(trooper, startingGame(trooper));
 
     nextTick(() => {
@@ -217,6 +227,29 @@ function open(trooper) {
     });
 }
 
+// The trooper's name: their identities, with Edit, Remove and Fill in from game server, and no form until one is asked for.
+function show(trooper) {
+    selectedId.value = trooper.id;
+    formOpen.value = false;
+    fill(trooper, startingGame(trooper));
+
+    nextTick(() => {
+        const el = panel.value;
+        if (!el) return;
+        el.scrollTop = 0;
+        const wide = sideBySide();
+        el.focus({ preventScroll: !wide });
+        if (!wide) el.scrollIntoView({ block: 'start' });
+    });
+}
+
+// Edit on a linked identity, or Add identity in the panel: the form on that game.
+function edit(trooper, value) {
+    formOpen.value = true;
+    fill(trooper, value);
+    nextTick(() => panel.value?.querySelector('form select, form input')?.focus({ preventScroll: true }));
+}
+
 const rowIndex = (id) => queue.value.findIndex((trooper) => trooper.id === id);
 
 // Back to the trooper's row after the panel closes, so the next one is a step away. A trooper who
@@ -228,7 +261,7 @@ function returnTo(index) {
         const rows = queueList.value?.querySelectorAll('[data-testid^="row-"]') ?? [];
         const row = rows[Math.min(index, rows.length - 1)];
         if (!row) return;
-        row.querySelector('button')?.focus({ preventScroll: true });
+        (row.querySelector('[data-testid^="open-"]') ?? row.querySelector('button'))?.focus({ preventScroll: true });
         row.scrollIntoView({ block: 'nearest' });
     });
 }
@@ -236,6 +269,7 @@ function returnTo(index) {
 function close(index = rowIndex(selectedId.value)) {
     notice.value = null;
     selectedId.value = null;
+    formOpen.value = false;
     removing.value = null;
     form.reset();
     form.clearErrors();
@@ -380,6 +414,7 @@ function removeAccount(value) {
                     <Button
                         v-for="option in [
                             { value: 'needs', label: 'Needs a link', count: needsLink.length },
+                            { value: 'main', label: 'Main game not linked', count: mainMissing.length },
                             { value: 'everyone', label: 'Everyone', count: troopers.length },
                         ]"
                         :key="option.value"
@@ -408,7 +443,33 @@ function removeAccount(value) {
                             :class="cn('flex scroll-mt-[calc(var(--shell-top,3rem)+0.5rem)] items-center justify-between gap-3 px-4 py-2.5',selectedId === trooper.id && 'bg-muted shadow-[inset_3px_0_0_var(--primary)]')"
                         >
                             <div class="min-w-0">
-                                <p class="truncate text-[13px] font-medium">{{ trooper.displayName }}</p>
+                                <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                    <button
+                                        type="button"
+                                        class="truncate rounded-sm text-left text-[13px] font-medium hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                                        :data-testid="`name-${trooper.id}`"
+                                        :aria-label="`Show game identities of ${trooper.displayName}`"
+                                        @click="show(trooper)"
+                                    >
+                                        {{ trooper.displayName }}
+                                    </button>
+                                    <span
+                                        v-if="mainOf(trooper)"
+                                        :class="cn('rounded px-1.5 py-px text-[11px] font-medium', mainLinked(trooper) ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning')"
+                                        :data-testid="`main-${trooper.id}`"
+                                    >
+                                        {{ short(mainOf(trooper)) }} {{ mainLinked(trooper) ? 'linked' : 'not linked' }}
+                                    </span>
+                                    <span
+                                        v-for="p in otherLinked(trooper)"
+                                        :key="p.value"
+                                        class="rounded border border-border px-1 text-[10px] text-muted-foreground"
+                                        :data-testid="`chip-${trooper.id}-${p.value}`"
+                                        :title="`Linked on ${p.label}`"
+                                    >
+                                        {{ short(p) }}
+                                    </span>
+                                </div>
                                 <p class="truncate text-xs text-muted-foreground">
                                     <template v-if="view === 'needs'">Missing {{ joinNames(missingOf(trooper)) }}</template>
                                     <template v-else-if="linkedOf(trooper).length">
@@ -422,8 +483,8 @@ function removeAccount(value) {
                                 </p>
                             </div>
                             <Badge v-if="selectedId === trooper.id" variant="secondary">Editing</Badge>
-                            <Button v-else variant="outline" size="sm" :data-testid="`open-${trooper.id}`" @click="open(trooper)">
-                                {{ missingOf(trooper).length ? 'Add identity' : 'Edit identities' }}
+                            <Button v-else-if="missingOf(trooper).length" variant="outline" size="sm" :data-testid="`open-${trooper.id}`" @click="open(trooper)">
+                                Add identity
                             </Button>
                         </li>
                     </ul>
@@ -478,7 +539,7 @@ function removeAccount(value) {
                                         </p>
                                     </div>
                                     <div v-if="removing !== p.value && removingAccount !== p.value" class="flex shrink-0 flex-wrap gap-1">
-                                        <Button v-if="!p.retired" variant="outline" size="xs" :data-testid="`edit-${p.value}`" @click="fill(selected, p.value)">Edit</Button>
+                                        <Button v-if="!p.retired" variant="outline" size="xs" :data-testid="`edit-${p.value}`" @click="edit(selected, p.value)">Edit</Button>
                                         <Button
                                             v-if="canFill(p, selected.identities[p.value])"
                                             variant="outline"
@@ -534,6 +595,19 @@ function removeAccount(value) {
                         <p v-if="!active.length" class="text-xs text-muted-foreground" data-testid="no-active-games">
                             Every game is retired, so no identity can be linked. An Admin can add or bring back a game under Settings, Games.
                         </p>
+                        <template v-else-if="!formOpen">
+                            <p v-if="!linkedOf(selected).length" class="text-xs text-muted-foreground" data-testid="no-identities">No game identities yet.</p>
+                            <Button
+                                v-if="missingOf(selected).length && editable"
+                                variant="outline"
+                                size="sm"
+                                class="justify-self-start"
+                                data-testid="panel-add"
+                                @click="edit(selected, startingGame(selected))"
+                            >
+                                Add identity
+                            </Button>
+                        </template>
                         <form v-else class="grid gap-3" data-testid="identity-form" @submit.prevent="save">
                             <div class="grid gap-1.5">
                                 <Label for="identity-game">Game</Label>

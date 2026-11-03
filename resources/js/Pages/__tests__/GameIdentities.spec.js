@@ -118,7 +118,7 @@ describe('GameIdentities page', () => {
         const platforms = PLATFORMS.map((p) => ({ ...p, retired: true }));
         const wrapper = mount(GameIdentities, { props: { platforms, troopers: [TROOPERS[0]] } });
         await wrapper.get('[data-testid="view-everyone"]').trigger('click');
-        await wrapper.get('[data-testid="open-1"]').trigger('click');
+        await wrapper.get('[data-testid="name-1"]').trigger('click');
 
         expect(wrapper.find('[data-testid="identity-form"]').exists()).toBe(false);
         expect(wrapper.find('[data-testid="no-active-games"]').exists()).toBe(true);
@@ -139,7 +139,50 @@ describe('GameIdentities page', () => {
         await wrapper.get('[data-testid="view-everyone"]').trigger('click');
 
         expect(wrapper.findAll('[data-testid^="row-"]')).toHaveLength(3);
-        expect(wrapper.get('[data-testid="open-3"]').text()).toBe('Edit identities');
+        expect(wrapper.find('[data-testid="open-3"]').exists()).toBe(false);
+        expect(wrapper.get('[data-testid="name-3"]').text()).toBe('SPC Halvorsen.K');
+    });
+
+    it('tabs each row with their main game, linked or not, then chips the other games they are linked on', async () => {
+        const platforms = [
+            { value: 'hll', label: 'Hell Let Loose', abbreviation: 'HLL', idKinds: ['Steam ID'] },
+            { value: 'hllv', label: 'Hell Let Loose: Vietnam', abbreviation: 'HLLV', idKinds: ['Steam ID'] },
+        ];
+        const troopers = [
+            { ...trooper(1, 'SGT Ortega.M', { hll: { platformId: '7656' }, hllv: { platformId: '9' } }), mainGame: 'hllv' },
+            { ...trooper(2, 'PFC Dube.R', { hll: { platformId: '8' } }), mainGame: 'hllv' },
+            { ...trooper(3, 'SPC Halvorsen.K', { hll: { platformId: '7' } }), mainGame: null },
+        ];
+        const wrapper = mount(GameIdentities, { props: { platforms, troopers } });
+        await wrapper.get('[data-testid="view-everyone"]').trigger('click');
+
+        expect(wrapper.get('[data-testid="main-1"]').text()).toBe('HLLV linked');
+        expect(wrapper.get('[data-testid="main-1"]').classes()).toContain('text-success');
+        expect(wrapper.get('[data-testid="chip-1-hll"]').text()).toBe('HLL');
+        expect(wrapper.find('[data-testid="chip-1-hllv"]').exists()).toBe(false);
+        expect(wrapper.get('[data-testid="main-2"]').text()).toBe('HLLV not linked');
+        expect(wrapper.get('[data-testid="main-2"]').classes()).toContain('text-warning');
+        expect(wrapper.find('[data-testid="main-3"]').exists()).toBe(false);
+        expect(wrapper.get('[data-testid="chip-3-hll"]').text()).toBe('HLL');
+
+        await wrapper.get('[data-testid="view-main"]').trigger('click');
+        expect(wrapper.findAll('[data-testid^="row-"]').map((row) => row.attributes('data-testid'))).toEqual(['row-2']);
+    });
+
+    it('shows the identities of a trooper from their name without the form, and Add identity opens it', async () => {
+        const wrapper = factory();
+        await wrapper.get('[data-testid="name-1"]').trigger('click');
+
+        expect(wrapper.get('[data-testid="id-hll"]').text()).toBe('7656');
+        expect(wrapper.find('[data-testid="identity-form"]').exists()).toBe(false);
+
+        await wrapper.get('[data-testid="panel-add"]').trigger('click');
+        expect(wrapper.get('[data-testid="identity-game"]').element.value).toBe('arma');
+
+        await wrapper.get('[data-testid="identity-cancel"]').trigger('click');
+        await wrapper.get('[data-testid="open-1"]').trigger('click');
+        expect(wrapper.get('[data-testid="identity-game"]').element.value).toBe('arma');
+        expect(wrapper.get('[data-testid="identity-id"]').element.value).toBe('');
     });
 
     it('celebrates an empty queue', () => {
@@ -206,7 +249,7 @@ describe('GameIdentities page', () => {
     it('prefills an existing identity for editing', async () => {
         const wrapper = factory();
         await wrapper.get('[data-testid="view-everyone"]').trigger('click');
-        await wrapper.get('[data-testid="open-3"]').trigger('click');
+        await wrapper.get('[data-testid="name-3"]').trigger('click');
         await wrapper.get('[data-testid="edit-hll"]').trigger('click');
 
         expect(wrapper.get('[data-testid="identity-id"]').element.value).toBe('8765');
@@ -216,7 +259,7 @@ describe('GameIdentities page', () => {
     it('asks before removing, then deletes the platform link', async () => {
         const wrapper = factory();
         await wrapper.get('[data-testid="view-everyone"]').trigger('click');
-        await wrapper.get('[data-testid="open-3"]').trigger('click');
+        await wrapper.get('[data-testid="name-3"]').trigger('click');
         await wrapper.get('[data-testid="remove-arma"]').trigger('click');
 
         expect(del).not.toHaveBeenCalled();
@@ -249,7 +292,7 @@ describe('GameIdentities page', () => {
         await wrapper.get('[data-testid="view-everyone"]').trigger('click');
 
         expect(wrapper.get('[data-testid="row-3"]').text()).toContain('Hell Let Loose: 8765');
-        await wrapper.get('[data-testid="open-3"]').trigger('click');
+        await wrapper.get('[data-testid="name-3"]').trigger('click');
         expect(wrapper.get('[data-testid="id-hll"]').text()).toBe('8765');
         expect(wrapper.find('[data-testid="identity-name"]').exists()).toBe(false);
     });
@@ -378,7 +421,7 @@ describe('GameIdentities panel in view', () => {
     it('focuses the panel itself when there is no form to fill (every game retired)', async () => {
         const wrapper = mountAttached(TROOPERS, PLATFORMS.map((p) => ({ ...p, retired: true })));
         await wrapper.get('[data-testid="view-everyone"]').trigger('click');
-        await wrapper.get('[data-testid="open-1"]').trigger('click');
+        await wrapper.get('[data-testid="name-1"]').trigger('click');
         await settle();
 
         expect(document.activeElement).toBe(wrapper.get('[data-testid="panel"]').element);

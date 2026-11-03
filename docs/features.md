@@ -384,7 +384,11 @@ link on any game, so one linked only on WW2 shows as missing Vietnam. The captur
 section's game is the game it plays as set on Org structure (its own or the nearest unit's above), and with none set, the
 one most of its troopers have a link for. Add identity opens on the trooper's usual game while it is missing: the game
 their unit plays when it is not retired, else the one most of their unit has linked, else the first game they are
-missing. Every serving trooper placed in your scope is listed:
+missing. Each row starts with a tab for the game the trooper's line unit plays (the one the roll call warns about), such
+as "HLLV linked" or "HLLV not linked", then a small chip for each other game they are linked on; a unit that plays no
+game shows no tab. "Main game not linked" lists only the troopers whose tab says not linked. Choosing a trooper's name
+shows their identities (game, kind, ID, gamertag, how it was made) with Edit, Remove and Fill in from game server; Add
+identity, shown only while a game is missing, opens the form for adding. Every serving trooper placed in your scope is listed:
 section members, HQ staff and group members (ELOA, Reservists, New Recruits, staff departments). Linking someone
 outside a section only lets the capture recognise them; attendance is still marked in sections only.
 

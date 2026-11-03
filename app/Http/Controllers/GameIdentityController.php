@@ -89,7 +89,9 @@ class GameIdentityController extends Controller
         $troopers = $this->troopers->placedInAny($units->keys());
         $identities = $this->identities->forTroopers($troopers->modelKeys())->groupBy('trooper_id');
         $games = $this->games->all();
-        $gameOf = $this->usualGames(UnitGame::resolve($tree), $troopers, $identities, $games);
+        $unitGames = UnitGame::resolve($tree);
+        $gameOf = $this->usualGames($unitGames, $troopers, $identities, $games);
+        $gamesById = $games->keyBy('id');
 
         return Inertia::render('GameIdentities', [
             // Import identities: for anyone who may change at least one trooper here; each line is checked on its own.
@@ -109,6 +111,8 @@ class GameIdentityController extends Controller
             'platforms' => $games->map(fn (Game $game) => [
                 'value' => $game->slug,
                 'label' => $game->name,
+                // The short name the trooper rows show on their game chips.
+                'abbreviation' => $game->abbreviation,
                 'idKinds' => $game->id_kinds,
                 // The shape each checked kind has, keyed by kind, for the hint under the ID field. A kind not here is not checked.
                 'idHints' => (object) collect($game->id_kinds)
@@ -131,6 +135,9 @@ class GameIdentityController extends Controller
                 // The game Add identity opens on while it is still missing: the game their unit plays, else the game most
                 // troopers placed with them have linked. Null when neither gives one.
                 'game' => $gameOf->get((int) $trooper->primary_section_id),
+                // The game their line unit plays, as the roll call's missing-identity warning reads it: the row's first
+                // tab says whether they are linked on it. Null when their unit plays no game (or a retired one).
+                'mainGame' => $this->mainGame($units->get($trooper->primary_section_id), $unitGames, $gamesById),
                 'identities' => ($identities->get($trooper->id) ?? collect())
                     ->mapWithKeys(fn (TrooperGameIdentity $identity) => [$identity->game->slug => [
                         'platformId' => $identity->platform_id,
@@ -416,6 +423,17 @@ class GameIdentityController extends Controller
 
                 return $best?->slug;
             });
+    }
+
+    /**
+     * @param  array<int, UnitGame>  $unitGames  by unit id
+     * @param  Collection<int, Game>  $gamesById
+     */
+    private function mainGame(?Unit $unit, array $unitGames, Collection $gamesById): ?string
+    {
+        $game = $unit !== null && $unit->isLine() && isset($unitGames[$unit->id]) ? $gamesById->get($unitGames[$unit->id]->gameId) : null;
+
+        return $game === null || $game->isRetired() ? null : $game->slug;
     }
 
     private function designation(?Unit $unit): ?string

@@ -31,7 +31,7 @@ test('a section leader links their troopers, hits a collision, then edits and re
 
     const rows = page.locator('[data-testid^="row-"]');
     await expect(rows).toHaveCount(8);
-    const firstName = (await page.getByTestId(/^row-/).first().locator('p').first().textContent()).trim();
+    const firstName = (await page.getByTestId(/^name-/).first().textContent()).trim();
     const steam = steamId();
 
     // Link all four games for the first trooper: the queue then drops them.
@@ -66,7 +66,9 @@ test('a section leader links their troopers, hits a collision, then edits and re
     // Everyone view: change the ID in place, then remove.
     await page.getByTestId('view-everyone').click();
     await expect(rows).toHaveCount(8);
-    await page.locator('[data-testid^="open-"]').filter({ hasText: 'Edit identities' }).click();
+    // Their name shows their identities; Add identity is only for adding, and a fully linked trooper has none.
+    await page.getByTestId(/^name-/).filter({ hasText: firstName }).click();
+    await expect(page.getByTestId('identity-form')).toHaveCount(0);
     await page.getByTestId('edit-hll').click();
     const changed = steamId();
     await page.getByTestId('identity-id').fill(changed);

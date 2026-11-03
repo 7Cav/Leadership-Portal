@@ -46,11 +46,12 @@ it('lists only the troopers in scope with their identities and every platform sl
     $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
         ->component('GameIdentities')
         ->has('platforms', 4)
-        ->where('platforms.0', ['value' => 'hll', 'label' => 'Hell Let Loose (WW2)', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID', 'PlayStation ID'], 'idHints' => ['Steam ID' => 'A Steam ID is 17 digits starting 7656119, for example 76561198012345678.', 'Epic ID' => 'An Epic ID is 32 characters, the digits 0 to 9 and the letters a to f.'], 'accounts' => ['Steam ID' => 'steam', 'Epic ID' => 'epic'], 'retired' => false, 'lookup' => true])
+        ->where('platforms.0', ['value' => 'hll', 'label' => 'Hell Let Loose (WW2)', 'abbreviation' => game('hll')->abbreviation, 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID', 'PlayStation ID'], 'idHints' => ['Steam ID' => 'A Steam ID is 17 digits starting 7656119, for example 76561198012345678.', 'Epic ID' => 'An Epic ID is 32 characters, the digits 0 to 9 and the letters a to f.'], 'accounts' => ['Steam ID' => 'steam', 'Epic ID' => 'epic'], 'retired' => false, 'lookup' => true])
         ->has('troopers', 1)
         ->where('troopers.0.id', $this->mine->id)
         ->where('troopers.0.displayName', 'SGT Ortega.M')
         ->where('troopers.0.section', '1/A')
+        ->where('troopers.0.mainGame', null)
         ->where('troopers.0.identities.hll', ['platformId' => '76561198000000656', 'idKind' => 'Steam ID', 'source' => 'typed', 'gamertag' => null, 'gamertagFromServer' => false])
         ->missing('troopers.0.identities.arma'));
 });
@@ -124,7 +125,7 @@ it('links a trooper on a game an Admin added, by its slug (#388)', function () {
 
     $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
         ->has('platforms', 5)
-        ->where('platforms.4', ['value' => 'squad', 'label' => 'Squad', 'idKinds' => ['Squad ID'], 'idHints' => [], 'accounts' => [], 'retired' => false, 'lookup' => false]));
+        ->where('platforms.4', ['value' => 'squad', 'label' => 'Squad', 'abbreviation' => $squad->abbreviation, 'idKinds' => ['Squad ID'], 'idHints' => [], 'accounts' => [], 'retired' => false, 'lookup' => false]));
 
     $this->actingAs($this->leader)->put(identityUrl($this->mine, 'squad'), ['platform_id' => 'eos-1'])->assertRedirect();
 
@@ -296,7 +297,7 @@ it('lists group members (ELOA, Reservists, New Recruits, staff departments) when
 
 it('links the same ID on Hell Let Loose (WW2) and Vietnam, one identity per game per trooper (#431)', function () {
     $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
-        ->where('platforms.3', ['value' => 'hll-vietnam', 'label' => 'Hell Let Loose: Vietnam', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID', 'PlayStation ID', 'EOS ID'], 'idHints' => ['Steam ID' => 'A Steam ID is 17 digits starting 7656119, for example 76561198012345678.', 'Epic ID' => 'An Epic ID is 32 characters, the digits 0 to 9 and the letters a to f.', 'EOS ID' => 'An EOS ID is 32 characters starting 0002, the digits 0 to 9 and the letters a to f.'], 'accounts' => ['Steam ID' => 'steam', 'Epic ID' => 'epic'], 'retired' => false, 'lookup' => false]));
+        ->where('platforms.3', ['value' => 'hll-vietnam', 'label' => 'Hell Let Loose: Vietnam', 'abbreviation' => game('hll-vietnam')->abbreviation, 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID', 'PlayStation ID', 'EOS ID'], 'idHints' => ['Steam ID' => 'A Steam ID is 17 digits starting 7656119, for example 76561198012345678.', 'Epic ID' => 'An Epic ID is 32 characters, the digits 0 to 9 and the letters a to f.', 'EOS ID' => 'An EOS ID is 32 characters starting 0002, the digits 0 to 9 and the letters a to f.'], 'accounts' => ['Steam ID' => 'steam', 'Epic ID' => 'epic'], 'retired' => false, 'lookup' => false]));
 
     $body = ['platform_id' => '0002105c01b748ada8d8cf5b32e70093', 'id_kind' => 'Epic ID'];
     $this->actingAs($this->leader)->put(identityUrl($this->mine, 'hll'), $body)->assertRedirect()->assertSessionHasNoErrors();
@@ -340,4 +341,10 @@ it('ignores a unit\'s team label, and a retired unit game, and falls back to the
 
     $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
         ->where('troopers', fn ($rows) => collect($rows)->every(fn ($row) => $row['game'] === 'arma')));
+});
+
+it('sends each trooper the game their line unit plays as their main game, and none when it plays none', function () {
+    $this->section->forceFill(['game_id' => game('hll-vietnam')->id])->save();
+
+    $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page->where('troopers.0.mainGame', 'hll-vietnam'));
 });

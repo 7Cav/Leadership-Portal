@@ -17,6 +17,8 @@ The game server knows players by their player ID. Until a trooper is linked, the
 2. Choose a trooper, then enter the game's ID for them. The page says which ID the game uses.
 3. Choose **Save identity**.
 
+Each trooper's row shows whether they are linked on the game their unit plays, such as "HLLV linked" or "HLLV not linked", and the other games they are linked on. **Main game not linked** lists only the troopers still missing that game. Choose a trooper's name to see their identities, then **Edit** or **Remove** one. **Add identity** is only for adding a new one.
+
 ## Import many identities at once
 
 1. On **Game identities**, choose **Import identities**.

@@ -50,7 +50,8 @@ const TROOPERS = [
 const open = async (id) => {
     const wrapper = mount(GameIdentities, { props: { platforms: PLATFORMS, troopers: TROOPERS } });
     await wrapper.get('[data-testid="view-everyone"]').trigger('click');
-    await wrapper.get(`[data-testid="open-${id}"]`).trigger('click');
+    // Add identity when a game is missing, else the name, which shows their identities.
+    await (wrapper.find(`[data-testid="open-${id}"]`).exists() ? wrapper.get(`[data-testid="open-${id}"]`) : wrapper.get(`[data-testid="name-${id}"]`)).trigger('click');
 
     return wrapper;
 };
@@ -117,7 +118,7 @@ describe('GameIdentities page, shared accounts', () => {
         const mount2 = async (identities) => {
             const wrapper = mount(GameIdentities, { props: { platforms: PLATFORMS, troopers: [trooper(3, identities)] } });
             await wrapper.get('[data-testid="view-everyone"]').trigger('click');
-            await wrapper.get('[data-testid="open-3"]').trigger('click');
+            await wrapper.get('[data-testid="name-3"]').trigger('click');
             return wrapper;
         };
 
