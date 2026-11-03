@@ -37,6 +37,11 @@ function telemetryConnectionsMigration(): object
     return require database_path('migrations/2026_11_16_100000_create_telemetry_connections_table.php');
 }
 
+function keptIdentitiesMigration(): object
+{
+    return require database_path('migrations/2026_11_18_100000_create_kept_game_identities_table.php');
+}
+
 function unitGameMigration(): object
 {
     return require database_path('migrations/2026_11_02_100000_add_game_id_to_units_table.php');
@@ -46,12 +51,13 @@ function unitGameMigration(): object
 // the games migration dropping the table under `game_servers` (#389) or `units.game_id`, but MySQL refuses (error
 // 3730). `units.game_id` only comes off on MySQL: SQLite drops a column by rebuilding the table, which its foreign
 // key check refuses inside the test's transaction while other tables point at units. The #428 columns come off
-// before the games table too, and so does the #183 connections table.
+// before the games table too, and so do the #183 connections table and the kept identities table.
 function rollBackToPlatformEnum(): void
 {
     if (DB::getDriverName() === 'mysql') {
         unitGameMigration()->down();
     }
+    keptIdentitiesMigration()->down();
     telemetryConnectionsMigration()->down();
     gameServersMigration()->down();
     idKindsMigration()->down();
@@ -64,6 +70,7 @@ function restoreGames(): void
     idKindsMigration()->up();
     gameServersMigration()->up();
     telemetryConnectionsMigration()->up();
+    keptIdentitiesMigration()->up();
     if (DB::getDriverName() === 'mysql') {
         unitGameMigration()->up();
     }
