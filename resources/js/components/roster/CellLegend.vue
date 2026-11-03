@@ -47,7 +47,7 @@ const SP = [
                 <span class="w-full font-medium text-foreground sm:w-20">Both</span>
                 <span class="inline-flex items-center gap-1.5"><span class="roster-h roster-h--loa inline-block w-[1.125rem]" aria-hidden="true" />LOA</span>
                 <span class="inline-flex items-center gap-1.5"><span class="roster-h roster-h--ex inline-block w-[1.125rem]" aria-hidden="true" />Excused</span>
-                <span class="inline-flex items-center gap-1.5"><span class="roster-h roster-h--out inline-block w-[1.125rem]" aria-hidden="true" />Not in the unit yet</span>
+                <span class="inline-flex items-center gap-1.5"><span class="roster-h roster-h--out inline-block w-[1.125rem]" aria-hidden="true" />Not in the unit yet, no section that week, or left the Cav</span>
                 <span class="inline-flex items-center gap-1.5"><span class="roster-cc roster-cc--auto w-[1.125rem]" aria-hidden="true"><span class="roster-h roster-h--ok" /></span>Auto capture, game server</span>
                 <span v-if="aggregate" class="inline-flex items-center gap-1.5">
                     <span class="roster-h roster-h--g4 inline-block w-3" aria-hidden="true" /><span class="roster-h roster-h--g3 inline-block w-3" aria-hidden="true" />

@@ -133,7 +133,7 @@ const anyRows = computed(() => rows.value.some((row) => row.kind === 'trooper' |
 function cell(trooper, index) {
     const week = props.weeks[index];
 
-    return weekCell(trooper.weeks[index], week, { current: week === props.currentWeek, joined: trooper.joined, excused: trooper.excusedWeeks?.[week] ?? null });
+    return weekCell(trooper.weeks[index], week, { current: week === props.currentWeek, joined: trooper.joined, departedAt: trooper.departedAt, departed: trooper.departed, inSection: trooper.inSection?.[index], excused: trooper.excusedWeeks?.[week] ?? null });
 }
 function aggregate(members, index) {
     const week = props.weeks[index];
