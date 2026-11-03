@@ -3,7 +3,7 @@ title: Run this week's roll call
 summary: Record who signed, mark section practice, copy the roll call post and mark it posted.
 section: weekly-rollcall
 order: 1
-updated: 2026-11-01
+updated: 2026-11-04
 audience: leader
 page: /rollcall
 weekly: true
@@ -84,7 +84,7 @@ If your section plays a game and has no slot, a warning sits at the top of the r
 ## Mark it posted
 
 1. Once the post is on the forum, choose **Mark roll call posted**.
-2. If you change a mark later, the page says the copied BBCode is out of date. Repost the updated BBCode, then choose **Mark posted again**.
+2. If you change a mark later, the page says the copied BBCode is out of date. Repost the updated BBCode, then choose **Mark posted again**. A template that uses the live Signed RC and Attended SP images ([Roll call templates](/docs/admin/rollcall-templates) says how) shows the new marks in those images on its own, once the forum reloads them, which can take a minute; the rest of the post is still text you repost.
 3. Then [write and send your report](/docs/weekly-report/send-your-report).
 
 > [!good-to-know] Once your section's report is sent, that week's roll call is locked: marks, the practice confirmation and guests can no longer change. Choosing **Edit report** on the report before it is due opens the roll call again until you send the report again or the deadline passes. A week too far back is read only too.

@@ -52,5 +52,6 @@ page: /settings/templates
 2. `{{#troopers}}...{{/troopers}}` repeats for each trooper. `{{#name}}...{{/name}}` shows only when a value or flag is set, and `{{^name}}...{{/name}}` only when it is not.
 3. `{{name|upper}}` and `{{name|lower}}` print a value in capitals or small letters.
 4. **Template codes** on the page lists every code you can use, with an example. Click one to put it in the template. A code not on the list is refused when you save.
+5. To keep the Signed RC and Attended SP marks current after the post is on the forum, put the two live images in the template: `[IMG]{{rc_image}}[/IMG]` for who signed and `[IMG]{{sp_image}}[/IMG]` for who attended practice. Each lists every trooper with their mark, and the portal draws it fresh each time the forum loads it, so a mark changed later shows without pasting the post again. The text table keeps working beside them if you want both.
 
 > [!good-to-know] What this changes, and how to undo it: the next roll call post in every section using that template changes. To undo it, make the previous version active, or switch the template off. Every save, switch and activation is in the audit log.

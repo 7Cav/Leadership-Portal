@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 /**
  * A node in the chain of command (AD-18): adjacency list (`parent_id`) plus a cached
@@ -38,6 +39,14 @@ class Unit extends Model
 
     /** How long after adding a unit its creator may undo the add. */
     public const UNDO_ADD_MINUTES = 60;
+
+    /** Every unit gets the secret of its roll call result image URLs when it is created (#641). Never mass-assigned. */
+    protected static function booted(): void
+    {
+        static::creating(function (Unit $unit) {
+            $unit->rollcall_image_token ??= Str::random(40);
+        });
+    }
 
     protected function casts(): array
     {

@@ -75,6 +75,7 @@ use App\Repositories\UnitGuidonRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Rollcall\MissingGameIdentities;
+use App\Rollcall\ResultImageUrls;
 use App\Rollcall\RollcallGuests;
 use App\Rollcall\RollcallRoster;
 use App\Rollcall\SectionFireteams;
@@ -242,6 +243,9 @@ class RollcallController extends Controller
             // The templates this section may render from and its leader's pick (#375); picking is a write, so the page
             // offers it only with `canWrite`.
             'templatePicker' => $this->templates->pickerFor($section),
+            // The live result images the post can embed (#641): the Signed RC and the Attended SP of this week, drawn
+            // on each fetch from the marks as they are then. The unit's secret in the URL is what lets the forum load them.
+            'resultImages' => ResultImageUrls::for($section, $weekStart),
             'report' => $this->reportProps($section, $weekStart),
             ...$this->rosterProps($section, $weekStart, $currentWeek),
             'fireteams' => $this->fireteamProps($user, $section),
