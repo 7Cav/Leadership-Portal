@@ -18,6 +18,7 @@ audience: leader
 1. Choose **Add guest**.
 2. Type part of the trooper's name and pick them. Only serving troopers from other sections are offered.
 3. They are listed as **Added by hand**.
+4. Their make-up goes on their own section's roll call once your practice is over. Added after it ended, they get it straight away.
 
 > [!good-to-know] On a past week, their make-up goes to the roll call that listed them that week, even if they have moved since. Someone on your own roll call that week cannot be added as a guest.
 

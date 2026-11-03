@@ -196,8 +196,19 @@ On the same page:
   interface other than none and a training server, or the legacy env server, with credentials). For a game that is
   not, attendance is marked by hand, so the warning leaves out the line about captures and make-ups (Home and the
   roster when no listed section's game is read; the roll call for its own section).
-- Capture review: when game-server data was captured for the practice, marks it made show their source, and the leader
-  can confirm the practice ("Confirmed by ..."). Editing a mark by hand afterwards clears the confirmation.
+- Capture review: when game-server data was captured for the practice, marks it made show their source.
+- Practice confirmation: on any section with troopers on its roll call, the leader confirms the week's practice as held
+  ("Confirm held", every trooper marked; leave and an automatic Excused count as marked) or as not held ("Not held",
+  refused while a trooper is marked Attended), shown as "Confirmed held" or "Confirmed not held" ("Confirmed by ..." in
+  the title). Both are refused before the practice hour ends (the captured window, the week's move, or the slot); a
+  section with no slot, or a cancelled week, can confirm any time in the week. Editing a mark by hand afterwards clears
+  the confirmation. The capture never confirms. A practice counts as held only once its hour is over or it is
+  confirmed: until then its Attended and Not attended marks stay out of the SP numbers and Home does not call it held.
+  Confirmed held counts as held; confirmed not held never does, and its Attended and Not attended marks stay out.
+  Leave, Excused and make-ups count as they are. A section's weekly report cannot be sent (not even with "Send
+  anyway") until its practice is confirmed as held or not held; a section with nobody on its roll call is not asked.
+  Practices confirmed before "not held" existed read as held; past weeks never confirmed count as before, since their
+  hour is over.
   On a CRCON server selected on the Servers page, a player counts as present when they were connected to that server
   during the practice, read from its connect and disconnect log lines (each instance of a multi-server setup is asked
   only about its own server). On the server set in env with nothing selected, a player counts as present when one of
@@ -237,7 +248,11 @@ On the same page:
   not tried again by itself, and "Try again" is there for it. Operators can run `php artisan portal:capture-practices
   --dry-run` to see what would be captured and why other sections are skipped.
 - Guests: add a serving trooper from another section who attended this practice, or remove one you added. See "JSAM
-  guests" and "Makeups". Staff who said they attended (a staff practice entry, from their staff report or their milpac)
+  guests" and "Makeups". A guest added before the practice hour ends gets their make-up once it ends
+  (`php artisan portal:guest-makeups`, scheduled every ten minutes); added after it, or at a section with no slot,
+  straight away. The audit log names the guest on "guest.recorded" and "guest.removed" (the subject names the host
+  section's practice). Removing a guest takes their make-up back and deletes the mark row it created when nothing
+  else is on it; a row with a roll call signature or a leader's mark stays. Staff who said they attended (a staff practice entry, from their staff report or their milpac)
   are listed there too: "Staff guest" when the section is under the platoon or company HQ they were on when the week
   ended, "Guest" otherwise. They are shown only: they never count in the section's numbers, KPIs, strength, JSAM counts
   or makeups, are never on its roster, and the host leader cannot remove them.
@@ -267,7 +282,7 @@ leaves the Cav; one who left before it began doing so has no date and is on no p
   report.
 - A unit's report (`/reports/<unit>/<week>`):
   - Section report: KPIs and the change from last week, a "Ready to send" checklist (Roll call complete, Practice marked,
-    Unaccounted troopers explained, Training subject filled, Notes reviewed), a reason for each unaccounted trooper from
+    Practice confirmed, which blocks the send, Unaccounted troopers explained, Training subject filled, Notes reviewed), a reason for each unaccounted trooper from
     a fixed list, the training subject (last sent subject offered as a suggestion), notes, history and an 8 week trend.
   - Suggested reasons: where the portal's data says why a trooper is unaccounted, their reason is pre-selected:
     "Departed, no longer on the Cav roster", "Moved out of the section this week" (they left the section during the
