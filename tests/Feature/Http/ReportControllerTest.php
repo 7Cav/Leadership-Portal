@@ -120,6 +120,17 @@ it('shows the delta against the prior week\'s sent report', function () {
             ->where('history.0.sentBy', 'SGT Vasquez.R'));
 });
 
+it('shows no change on a roll-up still missing a child report, and says the coverage differs (#625)', function () {
+    app(WeeklyReportRepository::class)->send($this->platoon->id, $this->weekStart->subWeek(), frozenSnapshot(16), null, $this->leader->id, 'd', null);
+
+    $this->actingAs(User::factory()->admin()->create())->get(reportUrl($this->platoon, $this->week))
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('missingChildren', [$this->section->id, $this->sibling->id])
+            ->where('delta', null)
+            ->where('baseline.kind', 'incomplete')
+            ->where('baseline.week', $this->weekStart->subWeek()->toIso8601String()));
+});
+
 it('shows "no prior baseline" when only an older week was sent', function () {
     app(WeeklyReportRepository::class)->send($this->section->id, $this->weekStart->subWeeks(2), frozenSnapshot(), null, $this->leader->id, 'd', null);
     app(WeeklyReportRepository::class)->saveDraft($this->section->id, $this->weekStart->subWeek(), [], null);
