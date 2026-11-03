@@ -86,10 +86,11 @@ interface SectionPracticeRepository
 
     /**
      * Record that a leader reviewed and confirmed the practice's marks (7.8): `confirmed_at` = now,
-     * `confirmed_by` = `$userId`; confirming again re-stamps. Returns the row with `confirmedBy`
-     * loaded. Callers route it through the audit envelope.
+     * `confirmed_by` = `$userId`, and `not_held` when the leader says it did not take place (#634);
+     * confirming again re-stamps. Returns the row with `confirmedBy` loaded. Callers route it through
+     * the audit envelope.
      */
-    public function confirm(SectionPractice $practice, int $userId): SectionPractice;
+    public function confirm(SectionPractice $practice, int $userId, bool $held = true): SectionPractice;
 
     /**
      * Clear the confirmation, because a mark changed after it (7.8). A no-op on an unconfirmed

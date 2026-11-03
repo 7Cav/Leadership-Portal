@@ -83,7 +83,7 @@ final class AuditSubject
 
     /** The fields shown as before and after, per target class, with the name each reads as. */
     private const FIELDS = [
-        SectionPractice::class => ['slot_moved_to' => 'Moved to', 'slot_cancelled' => 'Cancelled', 'confirmed_at' => 'Confirmed'],
+        SectionPractice::class => ['slot_moved_to' => 'Moved to', 'slot_cancelled' => 'Cancelled', 'confirmed_at' => 'Confirmed', 'not_held' => 'Not held'],
         Attendance::class => ['status' => 'Practice', 'rollcall' => 'Roll call'],
         WeeklyReport::class => ['status' => 'Status'],
         StaffReport::class => ['attended' => 'Attended', 'practice_type' => 'Practice type', 'ftx_date' => 'FTX date', 'office_hour_date' => 'Office hour'],

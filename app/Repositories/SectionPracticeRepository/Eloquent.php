@@ -121,9 +121,9 @@ class Eloquent implements SectionPracticeRepository
         return $practice->load('rollcallPostedBy');
     }
 
-    public function confirm(SectionPractice $practice, int $userId): SectionPractice
+    public function confirm(SectionPractice $practice, int $userId, bool $held = true): SectionPractice
     {
-        $practice->forceFill(['confirmed_at' => now(), 'confirmed_by' => $userId])->save();
+        $practice->forceFill(['confirmed_at' => now(), 'confirmed_by' => $userId, 'not_held' => ! $held])->save();
 
         return $practice->load('confirmedBy');
     }
@@ -131,7 +131,7 @@ class Eloquent implements SectionPracticeRepository
     public function unconfirm(SectionPractice $practice): SectionPractice
     {
         if ($practice->confirmed_at !== null) {
-            $practice->forceFill(['confirmed_at' => null, 'confirmed_by' => null])->save();
+            $practice->forceFill(['confirmed_at' => null, 'confirmed_by' => null, 'not_held' => false])->save();
         }
 
         return $practice;

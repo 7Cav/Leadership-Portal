@@ -7,6 +7,7 @@ use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\RollcallSignature;
 use App\Models\SectionPractice;
+use App\Models\SectionPracticeSlot;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
@@ -14,6 +15,7 @@ use App\Repositories\AttendanceRepository;
 use App\Repositories\CountingMark;
 use App\Repositories\CountingWindow;
 use App\Repositories\PlacementWeeks;
+use App\Repositories\PracticeTiming;
 use App\Repositories\SectionWeekProgress;
 use App\Repositories\TrooperPlacementRepository;
 use App\Support\Time\WeekOf;
@@ -291,8 +293,13 @@ class Eloquent implements AttendanceRepository
 
         $practices = $found->keyBy(fn (object $row) => $row->section_id.'|'.CarbonImmutable::parse($row->week_start, 'UTC')->toDateString());
         $rows = $found->whereNotNull('trooper_id')->keyBy(fn (object $row) => $row->trooper_id.'|'.$row->id);
+        // A practice still to come, and not confirmed, holds nothing and its marks wait (#634).
+        $states = $this->practiceStates($found->pluck('id')->unique()->all());
+        $stateOf = fn (object $practice) => $states[(int) $practice->id] ?? PracticeTiming::OVER;
 
-        $statusOf = fn (array $option) => $option['row']?->status === null ? null : AttendanceStatus::from($option['row']->status);
+        $statusOf = fn (array $option) => $option['row']?->status === null
+            ? null
+            : PracticeTiming::counted($stateOf($option['practice']), AttendanceStatus::from($option['row']->status));
         $signed = fn (array $option) => $option['row'] !== null && $option['row']->rollcall !== null && $option['row']->rollcall !== RollcallSignature::Unsigned->value;
         $marks = [];
 
@@ -323,7 +330,7 @@ class Eloquent implements AttendanceRepository
                     status: $statusOf($chosen),
                     // Unsigned when they have no row, or signed at none of the week's practices.
                     rollcall: $signedAt === null ? RollcallSignature::Unsigned : RollcallSignature::from($signedAt['row']->rollcall),
-                    held: (bool) $chosen['practice']->held,
+                    held: PracticeTiming::held($stateOf($chosen['practice']), (bool) $chosen['practice']->held),
                     source: $row?->source === null ? null : AttendanceSource::from($row->source),
                     sectionId: (int) $chosen['practice']->section_id,
                 );
@@ -354,7 +361,7 @@ class Eloquent implements AttendanceRepository
         $excusedSql = $excused === [] ? '' : ' or troopers.id in ('.implode(', ', array_fill(0, count($excused), '?')).')';
         $notExcusedSql = $excused === [] ? '' : ' and troopers.id not in ('.implode(', ', array_fill(0, count($excused), '?')).')';
 
-        return Trooper::query()
+        $rows = Trooper::query()
             ->whereIn('troopers.status', TrooperStatus::servingValues())
             ->whereIn('troopers.primary_section_id', $sectionIds)
             ->leftJoin('section_practices', function ($join) use ($weekStart) {
@@ -375,13 +382,17 @@ class Eloquent implements AttendanceRepository
             ->selectRaw("coalesce(sum(case when attendance.status = '{$loa}'{$excusedSql} then 1 else 0 end), 0) as on_loa", $excused)
             ->selectRaw("coalesce(sum(case when (attendance.status is null or attendance.status != '{$loa}') and (attendance.rollcall is null or attendance.rollcall = '{$unsigned}'){$notExcusedSql} then 1 else 0 end), 0) as not_signed", $excused)
             ->selectRaw('max(section_practices.rollcall_posted_at) as posted_at')
-            ->get()
+            ->selectRaw('max(section_practices.id) as practice_id')
+            ->get();
+        $states = $this->practiceStates($rows->pluck('practice_id')->filter()->all());
+
+        return $rows
             ->mapWithKeys(fn (object $row) => [(int) $row->section_id => new SectionWeekProgress(
                 sectionId: (int) $row->section_id,
                 strength: (int) $row->strength,
                 signed: (int) $row->signed,
                 marked: (int) $row->marked,
-                held: (int) $row->held_marks > 0,
+                held: PracticeTiming::held($states[(int) $row->practice_id] ?? PracticeTiming::OVER, (int) $row->held_marks > 0),
                 onLoa: (int) $row->on_loa,
                 unsigned: (int) $row->not_signed,
                 postedAt: $row->posted_at === null ? null : CarbonImmutable::parse($row->posted_at, 'UTC'),
@@ -421,13 +432,16 @@ class Eloquent implements AttendanceRepository
                 $join->on('attendance.section_practice_id', '=', 'section_practices.id')
                     ->whereIn('attendance.trooper_id', $trooperIds);
             })
-            ->get(['section_practices.section_id', 'section_practices.rollcall_posted_at', 'attendance.trooper_id', 'attendance.rollcall', 'attendance.status', 'attendance.source']);
+            ->get(['section_practices.id as practice_id', 'section_practices.section_id', 'section_practices.rollcall_posted_at', 'attendance.trooper_id', 'attendance.rollcall', 'attendance.status', 'attendance.source']);
 
         $posted = [];
         $marks = [];
+        $states = $this->practiceStates($rows->pluck('practice_id')->unique()->all());
+        $stateOf = [];
 
         foreach ($rows as $row) {
             $sectionId = (int) $row->section_id;
+            $stateOf[$sectionId] = $states[(int) $row->practice_id] ?? PracticeTiming::OVER;
 
             if ($row->rollcall_posted_at !== null) {
                 $posted[$sectionId] = max($posted[$sectionId] ?? '', (string) $row->rollcall_posted_at);
@@ -471,7 +485,7 @@ class Eloquent implements AttendanceRepository
                 strength: count($ids),
                 signed: $counts['signed'],
                 marked: $counts['marked'],
-                held: $counts['held'],
+                held: PracticeTiming::held($stateOf[$sectionId] ?? PracticeTiming::OVER, $counts['held']),
                 onLoa: $counts['onLoa'],
                 unsigned: $counts['unsigned'],
                 postedAt: isset($posted[$sectionId]) ? CarbonImmutable::parse($posted[$sectionId], 'UTC') : null,
@@ -479,6 +493,29 @@ class Eloquent implements AttendanceRepository
         }
 
         return collect($progress);
+    }
+
+    /**
+     * Each practice's {@see PracticeTiming} state now, by id: two reads (the practices and their sections' slots).
+     *
+     * @param  array<int|string>  $practiceIds
+     * @return array<int, string>
+     */
+    private function practiceStates(array $practiceIds): array
+    {
+        $ids = array_values(array_unique(array_map('intval', array_filter($practiceIds, fn ($id) => $id !== null))));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $practices = SectionPractice::query()->whereKey($ids)->get();
+        $slots = SectionPracticeSlot::query()->whereIn('section_id', $practices->pluck('section_id')->unique()->all())->get()->keyBy('section_id');
+        $now = CarbonImmutable::now();
+
+        return $practices
+            ->mapWithKeys(fn (SectionPractice $practice) => [$practice->id => PracticeTiming::state($practice, $slots->get($practice->section_id), $now)])
+            ->all();
     }
 
     /**
