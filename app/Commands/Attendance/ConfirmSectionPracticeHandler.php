@@ -99,7 +99,7 @@ class ConfirmSectionPracticeHandler
                 action: 'practice.confirmed',
                 reason: null,
                 reasonRequired: false,
-                mutation: function () use ($command, $weekStart, $actor) {
+                mutation: function () use ($command, $weekStart, $actor, $section) {
                     if ($this->reports->isSentFor($command->sectionId, $weekStart)) {
                         throw RollcallWeekLockedException::for($command->sectionId, $weekStart);
                     }

@@ -2,7 +2,6 @@
 
 namespace App\Commands\Attendance;
 
-use App\Support\Time\WeekLabel;
 use Carbon\CarbonImmutable;
 use RuntimeException;
 
@@ -13,9 +12,15 @@ use RuntimeException;
  */
 class ConfirmPracticeRefusedException extends RuntimeException
 {
+    /** When the practice ends, for a refusal before then; the screen words it. */
+    public ?CarbonImmutable $endsAt = null;
+
     public static function notOver(CarbonImmutable $end): self
     {
-        return new self('The practice is not over yet. Confirm it after it ends, '.$end->format('D').' '.WeekLabel::date($end).' '.$end->format('Hi').'Z.');
+        $refusal = new self('The practice is not over yet. Confirm it once it ends.');
+        $refusal->endsAt = $end;
+
+        return $refusal;
     }
 
     public static function unmarked(int $count): self
