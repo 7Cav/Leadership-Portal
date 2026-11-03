@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import EmptyState from '@/components/EmptyState.vue';
 import IdentityImportDialog from '@/components/IdentityImportDialog.vue';
+import KeptIdentitiesList from '@/components/KeptIdentitiesList.vue';
 import { onHttpException } from '@/lib/httpError';
 import { postJson } from '@/lib/postJson';
 import { cn } from '@/lib/utils';
@@ -37,6 +38,8 @@ const props = defineProps({
     troopers: { type: Array, required: true },
     // Whether the viewer may change any trooper here, so Import identities is offered.
     canImport: { type: Boolean, default: false },
+    // Kept identities for Cav names with no trooper in the portal: a list for Admins, null for everyone else.
+    kept: { type: Array, default: null },
 });
 
 const page = usePage();
@@ -607,5 +610,7 @@ function removeAccount(value) {
                 </div>
             </div>
         </Card>
+
+        <KeptIdentitiesList v-if="kept && !viewAs" :kept="kept" />
     </div>
 </template>

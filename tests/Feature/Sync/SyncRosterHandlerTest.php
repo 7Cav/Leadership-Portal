@@ -6,10 +6,12 @@ use App\Integration\Cav\CavRequestException;
 use App\Models\AdminBillet;
 use App\Models\AdminBilletStatus;
 use App\Models\AuditLogEntry;
+use App\Models\KeptGameIdentity;
 use App\Models\PlacementSource;
 use App\Models\SyncRun;
 use App\Models\SyncRunStatus;
 use App\Models\Trooper;
+use App\Models\TrooperGameIdentity;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitBilletMapping;
@@ -17,6 +19,7 @@ use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\AdminBilletRepository;
+use App\Repositories\KeptGameIdentityRepository;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitBilletMappingRepository;
@@ -78,6 +81,7 @@ function syncRosterHandler(): SyncRosterHandler
         app(UnitCommandMappingRepository::class),
         app(UnitRepository::class),
         app(AdminBilletRepository::class),
+        app(KeptGameIdentityRepository::class),
     );
 }
 
@@ -930,4 +934,22 @@ it('puts an approved Admin billet back to pending when the roster shows it renam
     // Unchanged: still approved. And the roster sync never creates a row: the import does, as it sees the group.
     expect($billets(774)->status)->toBe(AdminBilletStatus::Approved)
         ->and(AdminBillet::query()->where('cav_position_id', 775)->exists())->toBeFalse();
+});
+
+it('moves an identity kept on file for a Cav name onto the trooper of that name once the sync brings them in', function () {
+    $kept = KeptGameIdentity::query()->create(['cav_name' => 'Jarvis.A', 'cav_name_key' => 'jarvis.a', 'game_id' => game('hll')->id, 'id_kind' => 'Steam ID', 'platform_id' => '76561198000000021']);
+    KeptGameIdentity::query()->create(['cav_name' => 'Jarvis.AB', 'cav_name_key' => 'jarvis.ab', 'game_id' => game('hll')->id, 'id_kind' => 'Steam ID', 'platform_id' => '76561198000000022']);
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT')]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    $identity = TrooperGameIdentity::query()->sole();
+    expect($identity->trooper_id)->toBe(Trooper::query()->sole()->id)
+        ->and($identity->platform_id)->toBe('76561198000000021')
+        ->and($kept->fresh())->toBeNull()
+        ->and(KeptGameIdentity::query()->sole()->cav_name)->toBe('Jarvis.AB');
 });

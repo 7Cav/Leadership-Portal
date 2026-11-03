@@ -15,6 +15,7 @@ use App\Commands\GameIdentities\LinkSharedAccountHandler;
 use App\Commands\GameIdentities\LookUpPlayerPlatform;
 use App\Commands\GameIdentities\PlatformLookup;
 use App\Commands\GameIdentities\PlatformLookupResult;
+use App\Commands\GameIdentities\RemoveKeptGameIdentity;
 use App\Commands\GameIdentities\RemoveSharedAccount;
 use App\Commands\GameIdentities\RemoveSharedAccountHandler;
 use App\Commands\GameIdentities\RemoveTrooperGameIdentity;
@@ -26,6 +27,7 @@ use App\Commands\GameIdentities\UnknownIdKindException;
 use App\Models\Game;
 use App\Models\Gamertag;
 use App\Models\IdKindFormat;
+use App\Models\KeptGameIdentity;
 use App\Models\SharedAccount;
 use App\Models\TelemetryInterface;
 use App\Models\Trooper;
@@ -33,6 +35,7 @@ use App\Models\TrooperGameIdentity;
 use App\Models\Unit;
 use App\Repositories\GameIdentityLinkException;
 use App\Repositories\GameRepository;
+use App\Repositories\KeptGameIdentityRepository;
 use App\Repositories\TrooperGameIdentityRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitGame;
@@ -73,6 +76,7 @@ class GameIdentityController extends Controller
         private readonly TrooperRepository $troopers,
         private readonly TrooperGameIdentityRepository $identities,
         private readonly GameRepository $games,
+        private readonly KeptGameIdentityRepository $kept,
     ) {}
 
     public function index(Request $request): Response
@@ -90,6 +94,18 @@ class GameIdentityController extends Controller
         return Inertia::render('GameIdentities', [
             // Import identities: for anyone who may change at least one trooper here; each line is checked on its own.
             'canImport' => $writable->isNotEmpty(),
+            // Kept identities: IDs kept on file for Cav names with no trooper in the portal, for Admins only (null otherwise).
+            'kept' => $this->scope->isAdmin($request->user()) ? $this->kept->all()->map(fn (KeptGameIdentity $row) => [
+                'id' => $row->id,
+                'cavName' => $row->cav_name,
+                'game' => $row->game->name,
+                'idKind' => $row->id_kind,
+                'platformId' => $row->platform_id,
+                'gamertag' => $row->gamertag,
+                'addedBy' => $row->creator?->username,
+                'addedAt' => $row->created_at?->toIso8601String(),
+                'conflict' => $row->conflict,
+            ])->values()->all() : null,
             'platforms' => $games->map(fn (Game $game) => [
                 'value' => $game->slug,
                 'label' => $game->name,
@@ -268,6 +284,20 @@ class GameIdentityController extends Controller
 
         try {
             $handler->handle($request->user(), new RemoveSharedAccount($trooper, $game));
+        } catch (GameIdentityForbiddenException $e) {
+            abort(403, $e->getMessage());
+        }
+
+        return back();
+    }
+
+    /** Delete an identity kept on file for a Cav name with no trooper (Admins only), with an optional reason. */
+    public function destroyKept(Request $request, int $kept, RemoveKeptGameIdentity $command): RedirectResponse
+    {
+        $data = $request->validate(['reason' => ['nullable', 'string', 'max:500']]);
+
+        try {
+            $command->handle($request->user(), $kept, $data['reason'] ?? null);
         } catch (GameIdentityForbiddenException $e) {
             abort(403, $e->getMessage());
         }

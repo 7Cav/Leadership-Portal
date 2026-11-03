@@ -33,12 +33,13 @@ const fileInput = ref(null);
 const STATUS = {
     add: { label: 'Will add', variant: 'default' },
     change: { label: 'Will change', variant: 'default' },
+    keep: { label: 'Kept on file', variant: 'secondary' },
     skip: { label: 'Skipped', variant: 'outline' },
     unchanged: { label: 'Unchanged', variant: 'outline' },
     refused: { label: 'Refused', variant: 'destructive' },
 };
 
-const toSave = computed(() => (preview.value?.lines ?? []).filter((line) => line.status === 'add' || line.status === 'change'));
+const toSave = computed(() => (preview.value?.lines ?? []).filter((line) => ['add', 'change', 'keep'].includes(line.status)));
 const counts = computed(() => preview.value?.counts ?? {});
 const notChecked = computed(() => toSave.value.filter((line) => line.steam === 'not_checked').length);
 
@@ -188,7 +189,8 @@ function runImport() {
 
             <div v-if="preview" class="space-y-2" data-testid="identity-import-preview">
                 <p class="text-[13px] text-muted-foreground" data-testid="identity-import-counts">
-                    {{ counts.add ?? 0 }} to add, {{ counts.change ?? 0 }} to change, {{ counts.unchanged ?? 0 }} unchanged, {{ counts.skip ?? 0 }} skipped,
+                    {{ counts.add ?? 0 }} to add, {{ counts.change ?? 0 }} to change,
+                    <template v-if="counts.keep">{{ counts.keep }} to keep on file, </template>{{ counts.unchanged ?? 0 }} unchanged, {{ counts.skip ?? 0 }} skipped,
                     {{ counts.refused ?? 0 }} refused.
                     <span v-if="notChecked" data-testid="identity-import-not-checked">{{ notChecked }} Steam {{ notChecked === 1 ? 'ID was' : 'IDs were' }} not checked with Steam.</span>
                 </p>
@@ -220,6 +222,9 @@ function runImport() {
                                 </td>
                                 <td class="px-2 py-1.5">
                                     <Badge :variant="STATUS[line.status]?.variant ?? 'outline'">{{ STATUS[line.status]?.label ?? line.status }}</Badge>
+                                    <span v-if="line.notServing && line.status !== 'refused'" class="mt-1 block text-xs text-muted-foreground" :data-testid="`identity-import-not-serving-${line.line}`">
+                                        Not serving, kept for if they rejoin.
+                                    </span>
                                     <span v-if="line.reason" class="mt-1 block text-xs text-muted-foreground">{{ line.reason }}</span>
                                     <span v-if="line.steam === 'not_checked'" class="mt-1 block text-xs text-muted-foreground">Not checked with Steam.</span>
                                 </td>

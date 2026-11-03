@@ -27,6 +27,10 @@ The game server knows players by their player ID. Until a trooper is linked, the
 
 > [!good-to-know] For a 32-character Xbox, PlayStation or Epic ID on a Hell Let Loose game, write `?` as the ID kind (or leave it empty) and the preview asks the game server which kind it is and fills in the gamertag. A player the server has not seen is refused until you give the kind.
 
+> [!good-to-know] The trooper is matched on their exact Cav name. Atkins.D and Atkins.DS are different people.
+
+> [!good-to-know] An Admin can also import IDs for people who have left. A trooper who is not serving gets the identity as usual, ready for when they rejoin. A name with no trooper in the portal is kept on file and listed under **Kept identities**; when someone with exactly that name joins, the next roster sync gives them the identity. Other leaders see these lines refused.
+
 > [!good-to-know] The file can hold up to 500 lines. Steam IDs are checked with Steam where possible; a line marked "Not checked with Steam" is still saved.
 
 ## Check the warnings are gone

@@ -409,6 +409,21 @@ game has no kind for, or a server that cannot be asked refuses the line until a 
 preview, stopping after the first server that cannot be reached; an answer is kept for 10 minutes, so the import saves
 what the preview showed without asking again. A `?` on any other game or ID is refused.
 
+The trooper column is matched on the exact Cav name, ignoring case only, never by prefix: Atkins.D, Atkins.DS and
+Atkins.DA are different people. Two lines are saved for an Admin only (anyone else is refused, with a reason saying an
+Admin can save it). A trooper who is in the portal but not serving (they left after it began syncing) gets a normal
+identity, shown as "Not serving, kept for if they rejoin"; it is used again if they come back, and the capture never
+credits a trooper who is not serving. A Cav name with no trooper at all (they left before the portal began syncing) is
+"Kept on file" in `kept_game_identities` (the name as written and its lower case key, game, kind, ID stored as a save
+would store it, gamertag, who added it), in the same audited import. Kept lines check the game, kind, shape, Steam and
+`?` lookup as any other; an ID a trooper or another kept name holds on that game is refused naming them, and a trooper
+line is refused for an ID kept for a name. A capture never matches a kept identity. Each roster sync moves a kept
+identity onto the trooper of exactly that name once one is in the portal, whatever their status, as an Imported identity
+(one query when nothing matches, its own transaction after the trooper write, covered by the run's `sync_runs` row and
+logged). When that trooper already has an identity on the game, or another trooper holds the ID, it stays kept and the
+list shows why. Admins see Kept identities on Game identities (name, game, kind, ID, gamertag, added by and when) and
+can delete one with an optional reason (`kept_game_identity.removed`).
+
 Fill in from game server: on a game whose interface is CRCON, the page can ask the game's servers which platform a
 32-character ID belongs to and the player's current name (`get_player_profile`, read-only). The game's selected CRCON
 servers are asked in order, oldest first, and the first that knows the player answers; a game with no selected server

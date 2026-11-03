@@ -67,6 +67,31 @@ describe('IdentityImportDialog', () => {
         expect(routerPost).toHaveBeenCalledWith('/game-identities/import', { text: 'Novak.E, HLL, 76561198000000001', replace: false, expected: [2, 3] }, expect.any(Object));
     });
 
+    it('labels a kept line and a not serving line, and imports them with the rest', async () => {
+        postJson.mockResolvedValue({
+            ok: true,
+            data: {
+                lines: [
+                    { line: 1, trooper: 'Atkins.DS', game: 'Hell Let Loose', idKind: 'Steam ID', platformId: '76561198000000011', status: 'keep', reason: 'No trooper named Atkins.DS yet.', current: null, steam: null },
+                    { line: 2, trooper: 'PVT Atkins.A', game: 'Hell Let Loose', idKind: 'Steam ID', platformId: '76561198000000012', status: 'add', reason: null, current: null, steam: null, notServing: true },
+                ],
+                counts: { add: 1, change: 0, keep: 1, skip: 0, unchanged: 0, refused: 0 },
+            },
+        });
+        mountDialog();
+        await flushPromises();
+        await type('Atkins.DS, HLL, 76561198000000011');
+        body('[data-testid="identity-import-preview-button"]').click();
+        await flushPromises();
+
+        expect(body('[data-testid="identity-import-line-1"]').textContent).toContain('Kept on file');
+        expect(body('[data-testid="identity-import-line-1"]').textContent).toContain('No trooper named Atkins.DS yet.');
+        expect(body('[data-testid="identity-import-not-serving-2"]').textContent).toContain('Not serving, kept for if they rejoin.');
+        expect(body('[data-testid="identity-import-counts"]').textContent).toContain('1 to keep on file');
+        body('[data-testid="identity-import-save"]').click();
+        expect(routerPost).toHaveBeenCalledWith('/game-identities/import', expect.objectContaining({ expected: [1, 2] }), expect.any(Object));
+    });
+
     it('previews again with the replace tick, and drops the preview when the text changes', async () => {
         postJson.mockResolvedValue({ ok: true, data: PREVIEW });
         mountDialog();
