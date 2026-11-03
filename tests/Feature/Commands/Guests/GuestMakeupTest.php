@@ -323,6 +323,11 @@ it('writes no makeup when an Undo removes the entry between its commit and the m
             return $this->inner->find($hostPracticeId, $trooperId);
         }
 
+        public function manualInWeeks(array $weekStarts): Collection
+        {
+            return $this->inner->manualInWeeks($weekStarts);
+        }
+
         public function forHostPractice(int $hostPracticeId): Collection
         {
             return $this->inner->forHostPractice($hostPracticeId);
