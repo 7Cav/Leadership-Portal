@@ -287,7 +287,8 @@ function submit() {
             office_hour_note: kind === 'office_hour' ? data.office_hour_note : null,
             other_events: data.other_events,
             notes: data.notes,
-            reason: editingReport.value ? data.reason : null,
+            // Only an edit carries a reason: a first send posts the fields it always did.
+            ...(editingReport.value ? { reason: data.reason } : {}),
         };
     }).post(`/staff-report/${props.trooper.id}/${props.week.date}`, {
         preserveScroll: true,
