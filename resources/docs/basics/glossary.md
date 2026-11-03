@@ -25,7 +25,7 @@ audience: everyone
 - Echelon: a level of the chain of command: regiment, battalion, company, platoon, section.
 - Section: the smallest line unit, led by a Section Leader and an Assistant Section Leader.
 - Platoon: two or more sections, led by a Platoon Leader and a Platoon Sergeant.
-- Headcount: everyone serving placed in a unit or under it, HQ staff and staff departments included. New Recruits, ELOA and Reservists count only on their own group. Home and the weekly report show it beside In roll call, the troopers in sections that the rates are counted over. The roster and Org structure label it Headcount too. It never changes that number or any rate.
+- Headcount: everyone serving placed in a unit or under it, HQ staff and staff departments included. New Recruits, ELOA and Reservists count only on their own group. Home and the weekly report show it beside In roll call, the troopers in sections that the rates are counted over. The roster and Org structure label it Headcount too. It never changes that number or any rate. A report counts it for its own week: an earlier week's report counts who was placed there that week, the same people as that week's roll call.
 - Billet: a position on the Cav roster, such as Section Leader 1/1/A/1-7. Your billet decides what you can see and change.
 - Acting lead: a trooper an Admin has put in charge of a unit without the billet.
 - View as: a read-only preview of the portal as a unit's leader, or for an Admin as a person.
@@ -35,7 +35,7 @@ audience: everyone
 
 - Training plan: a platoon's training subjects for each Cav week of a month, approved by its company.
 - Weekly report: a unit's numbers, training subject and notes for the week, sent up the chain. Sending freezes it; it can be edited and sent again until it is due.
-- Roll-up: a platoon's or higher unit's report, added up from the sent reports below it.
+- Roll-up: a platoon's or higher unit's report, added up from the sent reports below it. Its headcount comes from the roster, not from those reports. While a report below it is missing, or last week's roll-up was sent with one missing, it shows no change from last week.
 - Staff report: a platoon or company HQ staff member's own weekly report of the section practices they attended.
 - Staff guest: a staff member listed on a roll call of a section in their own platoon or company. Shown only, never counted.
 - Game identity: a trooper's player ID, one per game, so the server data can be matched to them.
