@@ -149,11 +149,20 @@ class SendWeeklyReportHandler
         $madeUp = array_values(array_map(fn (array $check) => $check['trooper_id'], array_filter($makeupChecks ?? [], fn (array $check) => $check['done'])));
 
         if ($madeUp !== []) {
+            // The sender's own answers are marks, which clear the practice's confirmation (7.8). It was confirmed just
+            // above, by this leader or another, so it is put back as it was (#634) once they are in.
+            $confirmed = $unit->type === UnitType::Section ? $this->practices->find($unit->id, $weekStart) : null;
             $this->attendance->handle($actor, new MarkAttendance(
                 $unit->id,
                 $weekStart->toDateTimeImmutable(),
                 ...array_map(fn (int $trooperId) => new AttendanceMark($trooperId, AttendanceStatus::Makeup), $madeUp),
             ));
+
+            $now = $this->practices->find($unit->id, $weekStart);
+
+            if ($confirmed?->confirmed_at !== null && $now !== null && $now->confirmed_at === null) {
+                $this->practices->confirm($now, (int) ($confirmed->confirmed_by ?? $actor->id), ! $confirmed->not_held);
+            }
         }
 
         try {

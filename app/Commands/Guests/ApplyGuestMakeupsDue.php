@@ -3,6 +3,7 @@
 namespace App\Commands\Guests;
 
 use App\Commands\Attendance\MarkAttendanceHandler;
+use App\Commands\Capture\CapturePracticesDue;
 use App\Models\CrossSectionSighting;
 use App\Repositories\CrossSectionSightingRepository;
 use App\Repositories\PracticeTiming;
@@ -14,7 +15,7 @@ use DateTimeInterface;
 /**
  * The makeups of hand-added guests whose host practice is now over (#634). A guest added before the host's practice
  * hour ends is listed straight away, but their own section's roll call only gets the automatic makeup once that hour
- * has ended: the scheduler runs this every few minutes, as it runs {@see \App\Commands\Capture\CapturePracticesDue}.
+ * has ended: the scheduler runs this every few minutes, as it runs {@see CapturePracticesDue}.
  *
  * Reads the hand-added guests of this Cav week and the last (a Friday 2330Z practice ends in the next week), skips a
  * host whose hour has not ended, and writes each guest's makeup through
