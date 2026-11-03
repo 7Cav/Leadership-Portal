@@ -135,7 +135,8 @@ interface TrooperPlacementRepository
      * report chain waits on the sections whose rollcall lists someone that week: a section when someone ended the week
      * in it ({@see PlacementWeeks::sectionIn()}), and another unit (HQ staff, a group) when someone was in it at any
      * moment of the week. A trooper who left the Cav counts for the weeks that opened before their `departed_at`, and
-     * one who left before that date was recorded counts for none.
+     * one who left before that date was recorded counts for none. A trooper whose join date (`tis`) falls after a week
+     * does not count for it, as {@see TrooperRepository::onRollcall()} leaves them off it.
      *
      * A serving trooper with no history, or whose open row is not their current `primary_section_id`, counts in their
      * current unit for every week (the rule from before the history existed), and their rows are not read. A trooper
@@ -152,7 +153,8 @@ interface TrooperPlacementRepository
     /**
      * Where each trooper ended each Cav week from `$firstWeek` to `$lastWeek`, read as {@see unitIdsPlacedByWeek()}
      * reads the history: the section they ended the week in, or else the last other unit (HQ staff, a group) they were
-     * in during it. The strength trends rebuild a past week's headcount from it. Same troopers and the same one query
+     * in during it. The strength trends and a past week's report rebuild that week's headcount from it
+     * (`Kpi\Headcount::forUnit()`). Same troopers, the same join date rule and the same one query
      * as {@see unitIdsPlacedByWeek()}, however many weeks.
      *
      * @return array<string, array<int, int>> by week start (Y-m-d), earliest first: trooper id => unit id
