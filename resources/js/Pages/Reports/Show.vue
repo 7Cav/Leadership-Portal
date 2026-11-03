@@ -87,6 +87,9 @@ const props = defineProps({
     // A platoon's or company's HQ staff and their own staff reports for the week, read only and
     // live; null for any other unit.
     staffReports: { type: Array, default: null },
+    // A section's draft with troopers: whether the week's practice is confirmed (`{ confirmed, held }`), which the send
+    // needs (#634). Null when nothing needs confirming.
+    practice: { type: Object, default: null },
 });
 
 const page = usePage();
@@ -278,9 +281,12 @@ const checks = computed(() =>
         content: chosen.value,
         reviewed: reviewed.value,
         suggested: Object.keys(suggested.value).map(Number),
+        practice: props.practice,
     }),
 );
 const openChecks = computed(() => checks.value.filter((c) => !c.done));
+// A check the server enforces (the practice confirmation, #634): "Send anyway" cannot pass it.
+const blocked = computed(() => openChecks.value.some((c) => c.blocking));
 // Children still out are named on their own in the overview and the reason, not as an open check.
 const openItems = computed(() => openChecks.value.filter((c) => c.id !== 'children'));
 const missingUnits = computed(() => (props.children ?? []).filter((c) => c.status !== 'sent').map(unitLabel));
@@ -792,8 +798,8 @@ function useSuggestion() {
                         <Button
                             v-if="openChecks.length"
                             variant="outline"
-                            :disabled="readOnly || !!kpiError"
-                            :title="readOnlyNote ?? undefined"
+                            :disabled="readOnly || !!kpiError || blocked"
+                            :title="readOnlyNote ?? (blocked ? 'Confirm the practice in roll call first' : undefined)"
                             data-testid="send-anyway"
                             @click="openSend"
                         >
