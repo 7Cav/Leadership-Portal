@@ -112,6 +112,20 @@ describe('Reports/Show', () => {
         expect(wrapper.get('[data-testid="send-bar"]').text()).toContain('3 checks left before you can send');
     });
 
+    it('closes "Send anyway" too until the practice is confirmed (#634), and opens it once it is', () => {
+        const wrapper = mountShow({ practice: { confirmed: false, held: null } });
+
+        expect(wrapper.get('[data-testid="send-anyway"]').attributes('disabled')).toBeDefined();
+        expect(wrapper.get('[data-testid="send-anyway"]').attributes('title')).toBe('Confirm the practice in roll call first');
+        expect(wrapper.get('[data-testid="send-bar"]').text()).toContain('4 checks left before you can send');
+        expect(wrapper.get('[data-check="confirmed"]').text()).toContain('Practice confirmed');
+
+        document.body.innerHTML = '';
+        const confirmed = mountShow({ practice: { confirmed: true, held: false } });
+        expect(confirmed.get('[data-testid="send-anyway"]').attributes('disabled')).toBeUndefined();
+        expect(confirmed.get('[data-testid="send-bar"]').text()).toContain('3 checks left before you can send');
+    });
+
     it('autosaves the draft after the leader stops typing', async () => {
         vi.useFakeTimers();
         const wrapper = mountShow();

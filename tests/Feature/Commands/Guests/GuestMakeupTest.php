@@ -2,6 +2,7 @@
 
 use App\Commands\Attendance\MakeupWithdrawal;
 use App\Commands\Attendance\MarkAttendanceHandler;
+use App\Commands\Guests\ApplyGuestMakeupsDue;
 use App\Commands\Guests\RecordGuestAttendance;
 use App\Commands\Guests\RecordGuestAttendanceHandler;
 use App\Commands\Guests\RemoveGuestAttendance;
@@ -13,6 +14,7 @@ use App\Models\AuditLogEntry;
 use App\Models\CrossSectionSighting;
 use App\Models\Loa;
 use App\Models\SectionPractice;
+use App\Models\SectionPracticeSlot;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
@@ -353,4 +355,44 @@ it('writes no makeup when an Undo removes the entry between its commit and the m
         ->and(CrossSectionSighting::query()->count())->toBe(0)
         ->and(homeMark($this))->toBeNull()
         ->and(AuditLogEntry::query()->where('action', 'attendance.auto_marked')->count())->toBe(0);
+});
+
+// #634: a guest added before the host practice is over gets their makeup only once it is.
+it('waits with the makeup of a guest added before the host practice ends, and the scheduler writes it after', function () {
+    SectionPracticeSlot::query()->create(['section_id' => $this->host->id, 'weekday' => 4, 'start_minute' => 1200]);
+
+    expect(recordGuest($this))->toBe('pending')
+        ->and(homeMark($this))->toBeNull()
+        ->and(CrossSectionSighting::query()->count())->toBe(1);
+
+    // Not over yet: nothing is due.
+    expect(app(ApplyGuestMakeupsDue::class)->at(CarbonImmutable::parse('2026-10-08 20:59:00', 'UTC')))->toBe(0)
+        ->and(homeMark($this))->toBeNull();
+
+    Carbon::setTestNow(CarbonImmutable::parse('2026-10-08 21:10:00', 'UTC'));
+    expect(app(ApplyGuestMakeupsDue::class)->at(now()))->toBe(1);
+
+    $entry = AuditLogEntry::query()->where('action', 'attendance.auto_marked')->sole();
+    expect(homeMark($this)->status)->toBe(AttendanceStatus::Makeup)
+        ->and(homeMark($this)->source)->toBe(AttendanceSource::Auto)
+        ->and($entry->actor_id)->toBe($this->leader->id)
+        // A later run finds nothing missing.
+        ->and(app(ApplyGuestMakeupsDue::class)->at(now()))->toBe(0)
+        ->and(AuditLogEntry::query()->where('action', 'attendance.auto_marked')->count())->toBe(1);
+});
+
+it('gives the makeup straight away to a guest added after the host practice ended, or at a host with no slot', function () {
+    SectionPracticeSlot::query()->create(['section_id' => $this->host->id, 'weekday' => 3, 'start_minute' => 1200]);
+
+    expect(recordGuest($this))->toBe('marked')
+        ->and(homeMark($this)->status)->toBe(AttendanceStatus::Makeup);
+});
+
+it('runs the guest makeups from the scheduler command', function () {
+    SectionPracticeSlot::query()->create(['section_id' => $this->host->id, 'weekday' => 4, 'start_minute' => 1200]);
+    recordGuest($this);
+    Carbon::setTestNow(CarbonImmutable::parse('2026-10-08 21:10:00', 'UTC'));
+
+    $this->artisan('portal:guest-makeups')->expectsOutput('1 guest make-ups recorded.')->assertSuccessful();
+    expect(homeMark($this)->status)->toBe(AttendanceStatus::Makeup);
 });

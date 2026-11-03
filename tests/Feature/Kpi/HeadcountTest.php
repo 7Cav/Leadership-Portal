@@ -120,7 +120,11 @@ it('reads a snapshot frozen before the headcount existed as having none', functi
 
 it('persists a sent platoon report\'s headcount, staff included, apart from its strength, and keeps it', function () {
     $admin = User::factory()->admin()->create();
-    $send = fn (Unit $unit) => app(SendWeeklyReportHandler::class)->handle($admin, new SendWeeklyReport($unit->id, hcWeek(), 'Weekly report', 'ok'));
+    $send = function (Unit $unit) use ($admin) {
+        confirmPracticeHeld($unit, hcWeek());
+
+        return app(SendWeeklyReportHandler::class)->handle($admin, new SendWeeklyReport($unit->id, hcWeek(), 'Weekly report', 'ok'));
+    };
 
     $send($this->s1);
     $send($this->s2);

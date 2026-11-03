@@ -130,6 +130,7 @@ it('renders an empty roster as a page, not an error', function () {
 
 it('flags at-risk troopers from the shared KPI service', function () {
     $trooper = rollcallTrooper($this->section);
+    practiceOver($this->section);
     foreach ([0, 1] as $weeksAgo) {
         $practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->week->subWeeks($weeksAgo)]);
         Attendance::factory()->create(['trooper_id' => $trooper->id, 'section_practice_id' => $practice->id, 'status' => AttendanceStatus::Missed]);

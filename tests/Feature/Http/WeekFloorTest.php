@@ -108,7 +108,7 @@ it('confirms a practice at the floor and refuses the week before it', function (
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/confirm", ['week' => BEFORE_FLOOR_WEEK])->assertStatus(422);
     expect(practiceWeeks())->toBe([]);
 
-    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/confirm", ['week' => FLOOR_WEEK])->assertOk();
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/confirm", ['week' => FLOOR_WEEK, 'held' => false])->assertOk();
     expect(practiceWeeks())->toBe([FLOOR_WEEK]);
 });
 
@@ -165,6 +165,7 @@ it('sends a report at the floor and answers 404 for the week before it', functio
     $this->actingAs($this->leader)->post("/reports/{$this->section->id}/".BEFORE_FLOOR_WEEK.'/send', ['reason' => 'Late'])->assertNotFound();
     expect(WeeklyReport::query()->count())->toBe(0);
 
+    confirmPracticeHeld($this->section, FLOOR_WEEK);
     $this->actingAs($this->leader)->post("/reports/{$this->section->id}/".FLOOR_WEEK.'/send', ['reason' => 'Late'])->assertRedirect();
     expect(WeeklyReport::query()->sole())
         ->week_start->toDateString()->toBe(FLOOR_WEEK)
@@ -212,6 +213,7 @@ it('shows a report below the floor read-only, a sent one as it was frozen, witho
         ->assertInertia(fn (Assert $page) => $page->where('week.beforeFloor', false)->where('week.previous', BEFORE_FLOOR_WEEK));
 
     // A report sent back when its week was writable stays readable once the floor passes it.
+    confirmPracticeHeld($this->section, FLOOR_WEEK);
     $this->actingAs($this->leader)->post("/reports/{$this->section->id}/".FLOOR_WEEK.'/send', ['reason' => 'Late'])->assertRedirect();
     config(['portal.week_floor_weeks' => 2]);
 

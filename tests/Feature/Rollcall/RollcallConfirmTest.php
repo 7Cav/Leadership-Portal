@@ -68,13 +68,13 @@ it('keeps an override across a capture re-run, which still re-stamps the practic
 
 it('confirms the practice as an audited, scope-gated action and shows it on the page', function () {
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/confirm", ['week' => '2026-10-03'])
-        ->assertOk()->assertJsonPath('confirmation', ['at' => '2026-10-08T16:20:00+00:00', 'by' => 'Vasquez.R']);
+        ->assertOk()->assertJsonPath('confirmation', ['at' => '2026-10-08T16:20:00+00:00', 'by' => 'Vasquez.R', 'held' => true]);
 
     $entry = AuditLogEntry::query()->where('action', 'practice.confirmed')->sole();
     expect($entry->actor_id)->toBe($this->leader->id)->and((int) $entry->target_id)->toBe($this->practice->id);
 
     $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
-        ->assertInertia(fn (Assert $page) => $page->where('practice.confirmation', ['at' => '2026-10-08T16:20:00+00:00', 'by' => 'Vasquez.R']));
+        ->assertInertia(fn (Assert $page) => $page->where('practice.confirmation', ['at' => '2026-10-08T16:20:00+00:00', 'by' => 'Vasquez.R', 'held' => true]));
 });
 
 it('confirms a purely manual practice the same way', function () {
@@ -113,7 +113,8 @@ it('clears the confirmation when a practice mark is changed by hand, but not for
 it('locks a confirmed practice against capture pre-marks until a hand edit', function () {
     $extra = Trooper::factory()->create();
     $extra->forceFill(['primary_section_id' => $this->section->id])->save();
-    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/confirm", ['week' => '2026-10-03'])->assertOk();
+    // Confirmed before the extra trooper joined the roll call: confirming held now needs everyone marked (#634).
+    app(SectionPracticeRepository::class)->confirm($this->practice, $this->leader->id);
 
     $result = app(MarkAttendanceHandler::class)->preMark($this->practice, [$extra->id]);
 
@@ -124,7 +125,8 @@ it('locks a confirmed practice against capture pre-marks until a hand edit', fun
 it('lets capture pre-mark again once a hand edit has unlocked the practice', function () {
     $extra = Trooper::factory()->create();
     $extra->forceFill(['primary_section_id' => $this->section->id])->save();
-    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/confirm", ['week' => '2026-10-03'])->assertOk();
+    // Confirmed before the extra trooper joined the roll call: confirming held now needs everyone marked (#634).
+    app(SectionPracticeRepository::class)->confirm($this->practice, $this->leader->id);
     markByHand($this, $this->dube->id, 'missed')->assertOk();
 
     $result = app(MarkAttendanceHandler::class)->preMark($this->practice, [$extra->id]);
@@ -145,7 +147,8 @@ it('leaves existing marks untouched when a confirmed practice is pre-marked', fu
 it('writes no empty audit entry when the practice is confirmed between the pre-check and the lock', function () {
     $extra = Trooper::factory()->create();
     $extra->forceFill(['primary_section_id' => $this->section->id])->save();
-    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/confirm", ['week' => '2026-10-03'])->assertOk();
+    // Confirmed before the extra trooper joined the roll call: confirming held now needs everyone marked (#634).
+    app(SectionPracticeRepository::class)->confirm($this->practice, $this->leader->id);
     // The pre-check reads the practice as it was before the confirmation landed; the lock then finds it confirmed.
     $unconfirmed = $this->practice->fresh()->forceFill(['confirmed_at' => null, 'confirmed_by' => null]);
     app()->instance(SectionPracticeRepository::class, new class($unconfirmed) extends EloquentSectionPracticeRepository

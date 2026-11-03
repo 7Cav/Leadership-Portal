@@ -37,6 +37,8 @@ function mcMark(Trooper $trooper, Unit $section, AttendanceStatus $status, Rollc
 
 function mcSend(object $test, array $checks = [])
 {
+    confirmPracticeHeld($test->section, '2026-10-03');
+
     return $test->actingAs($test->leader)->post("/reports/{$test->section->id}/2026-10-03/send", [
         'reason' => 'Weekly report',
         'notes' => '',

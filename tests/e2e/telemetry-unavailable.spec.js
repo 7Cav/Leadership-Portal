@@ -34,6 +34,7 @@ test('a practice whose last capture failed shows the unavailable banner, the man
     await expect(page.getByTestId('telemetry-banner')).toContainText('Hell Let Loose (WW2) server (CRCON) could not be read');
     await expect(park.getByRole('button', { name: /^Attended/ })).toHaveAttribute('aria-pressed', 'true');
 
+    await page.getByTestId('mark-rest-missed').click();
     await page.getByTestId('confirm-practice').click();
-    await expect(page.getByTestId('confirm-badge')).toHaveText('Confirmed');
+    await expect(page.getByTestId('confirm-badge')).toHaveText('Confirmed held');
 });

@@ -146,6 +146,7 @@ it('shows a section the enforced topic it must use, and refuses a draft that cha
         ->assertSessionHasErrors('training_subject');
     expect(WeeklyReport::query()->exists())->toBeFalse();
 
+    confirmPracticeHeld($this->section, $this->week);
     $this->actingAs($this->sectionLeader)
         ->post(rtUrl($this->section->id, $this->week, '/send'), ['reason' => 'Weekly report', 'training_subject' => 'Room clearing'])
         ->assertSessionHasNoErrors();

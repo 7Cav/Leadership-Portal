@@ -44,6 +44,8 @@ function draftSubject(User $actor, Unit $section, DateTimeImmutable $moment, ?st
 
 function sendSubject(User $actor, Unit $section, DateTimeImmutable $moment, ?string $subject): WeeklyReport
 {
+    confirmPracticeHeld($section, $moment);
+
     return app(SendWeeklyReportHandler::class)->handle($actor, new SendWeeklyReport($section->id, $moment, 'Weekly report', 'Notes', $subject))->report;
 }
 

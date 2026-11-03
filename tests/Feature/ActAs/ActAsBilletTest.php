@@ -86,6 +86,7 @@ it('reaches down from a higher billet, as that unit\'s leader would', function (
 it('records each change as the Admin acting as the billet, in the audit log and on the record', function () {
     abActAsBillet($this, $this->section);
 
+    confirmPracticeHeld($this->section, $this->week);
     $this->actingAs($this->admin)->post("/reports/{$this->section->id}/{$this->week}/send", ['reason' => 'Weekly report', 'notes' => 'Billet vacant.'])
         ->assertSessionHasNoErrors();
 

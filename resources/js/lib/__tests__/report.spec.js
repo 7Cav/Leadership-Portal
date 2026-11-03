@@ -47,6 +47,22 @@ describe('baselineText', () => {
 });
 
 describe('readinessChecks', () => {
+    describe('practice confirmed (#634)', () => {
+        const content = { trainingSubject: 'Room clearing', unaccounted: [] };
+        const confirmed = (practice) => readinessChecks({ isLeaf: true, troopers: [], content, reviewed: true, practice }).find((c) => c.id === 'confirmed');
+
+        it('is a blocking check until the practice is confirmed, as held or not held', () => {
+            expect(confirmed({ confirmed: false, held: null })).toMatchObject({ title: 'Practice confirmed', done: false, blocking: true, next: 'Confirm the practice in roll call' });
+            expect(confirmed({ confirmed: true, held: true })).toMatchObject({ done: true, detail: 'Confirmed as held.' });
+            expect(confirmed({ confirmed: true, held: false })).toMatchObject({ done: true, detail: 'Confirmed as not held.' });
+        });
+
+        it('is not asked of a section with nobody to confirm for, nor of a roll-up', () => {
+            expect(confirmed(null)).toBeUndefined();
+            expect(readinessChecks({ isLeaf: false, children: [], content, reviewed: true, practice: { confirmed: false } }).map((c) => c.id)).toEqual(['children', 'reviewed']);
+        });
+    });
+
     const content = { trainingSubject: 'Room clearing', unaccounted: [] };
 
     it('passes every check for a fully marked, explained, reviewed section', () => {

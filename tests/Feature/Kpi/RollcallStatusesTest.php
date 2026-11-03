@@ -40,6 +40,7 @@ function rsTrooper(Unit $section, array $attributes = []): Trooper
 
 function rsMark(Trooper $trooper, Unit $section, int $back, ?AttendanceStatus $status = null, ?RollcallSignature $rollcall = null, AttendanceSource $source = AttendanceSource::Manual): void
 {
+    practiceOver($section);
     $practice = app(SectionPracticeRepository::class)->findOrCreate($section->id, rsWeek($back));
 
     if ($status !== null) {

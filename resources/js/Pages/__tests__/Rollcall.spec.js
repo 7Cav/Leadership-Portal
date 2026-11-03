@@ -1512,7 +1512,8 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-testid="capture-banner"]').text()).toContain('Marks filled from BattleMetrics, read 08OCT26 12\u200A00Z (4 h ago).');
             expect(wrapper.find('[data-testid="capture-banner"]').text()).toContain('Auto');
             expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Not confirmed');
-            expect(wrapper.find('[data-testid="confirm-practice"]').text()).toContain('Confirm practice');
+            expect(wrapper.find('[data-testid="confirm-practice"]').text()).toContain('Confirm held');
+            expect(wrapper.find('[data-testid="confirm-not-held"]').text()).toContain('Not held');
         });
 
         it('names the game server, not "null", when a capture has no source recorded', () => {
@@ -1522,11 +1523,47 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-testid="capture-banner"]').text()).not.toContain('null');
         });
 
-        it('renders the unchanged manual screen, with no banner or confirm action, when nothing was captured', () => {
+        it('renders the manual screen with no banner, and still the confirm action (#634), when nothing was captured', () => {
             const wrapper = factory({ capture: null });
 
             expect(wrapper.find('[data-testid="capture-banner"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="confirm-cluster"]').exists()).toBe(true);
+        });
+
+        it('has no confirm action on a roll call with nobody on it', () => {
+            const wrapper = factory({ capture: null, troopers: [] });
+
             expect(wrapper.find('[data-testid="confirm-cluster"]').exists()).toBe(false);
+        });
+
+        it('confirms the practice as not held, and says so on the badge', async () => {
+            post.mockResolvedValue({ ok: true, status: 200, data: { confirmation: { at: '2026-10-08T16:20:00+00:00', by: 'Vasquez.R', held: false } } });
+            const wrapper = factory({ capture: null });
+
+            await wrapper.find('[data-testid="confirm-not-held"]').trigger('click');
+            await flushPromises();
+
+            expect(post).toHaveBeenCalledWith('/rollcall/12/confirm', { week: '2026-10-03', confirmedAt: null, held: false });
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed not held');
+            expect(toastSuccess).toHaveBeenCalledWith('Practice confirmed as not held', expect.anything());
+        });
+
+        it('keeps both confirm actions closed until the practice hour ends, saying when', async () => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2026-10-08T20:30:00Z'));
+            const wrapper = factory({ capture: null, practice: { lastMarkedAt: null, confirmation: null, endsAt: '2026-10-08T21:00:00+00:00' } });
+
+            for (const id of ['confirm-practice', 'confirm-not-held']) {
+                expect(wrapper.find(`[data-testid="${id}"]`).attributes('disabled')).toBeDefined();
+                expect(wrapper.find(`[data-testid="${id}"]`).attributes('title')).toBe('Confirm the practice once it ends, Thu 08OCT26 21\u200A00Z');
+            }
+
+            vi.setSystemTime(new Date('2026-10-08T21:00:30Z'));
+            await vi.advanceTimersByTimeAsync(30000);
+
+            expect(wrapper.find('[data-testid="confirm-practice"]').attributes('disabled')).toBeUndefined();
+            expect(wrapper.find('[data-testid="confirm-not-held"]').attributes('disabled')).toBeUndefined();
+            vi.useRealTimers();
         });
 
         it('confirms through the server and shows the badge', async () => {
@@ -1536,8 +1573,8 @@ describe('Rollcall page', () => {
             await wrapper.find('[data-testid="confirm-practice"]').trigger('click');
             await flushPromises();
 
-            expect(post).toHaveBeenCalledWith('/rollcall/12/confirm', { week: '2026-10-03', confirmedAt: null });
-            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed');
+            expect(post).toHaveBeenCalledWith('/rollcall/12/confirm', { week: '2026-10-03', confirmedAt: null, held: true });
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed held');
         });
 
         it('sends the confirmation it shows when confirming again, so the server can tell a racing one', async () => {
@@ -1550,7 +1587,7 @@ describe('Rollcall page', () => {
             await wrapper.find('[data-testid="confirm-practice"]').trigger('click');
             await flushPromises();
 
-            expect(post).toHaveBeenCalledWith('/rollcall/12/confirm', { week: '2026-10-03', confirmedAt: '2026-10-08T16:20:00+00:00' });
+            expect(post).toHaveBeenCalledWith('/rollcall/12/confirm', { week: '2026-10-03', confirmedAt: '2026-10-08T16:20:00+00:00', held: true });
         });
 
         it('stays not confirmed and says so when the server refuses the confirmation', async () => {
@@ -1593,11 +1630,11 @@ describe('Rollcall page', () => {
                 capture: CAPTURE,
                 practice: { lastMarkedAt: null, confirmation: { at: '2026-10-08T16:20:00+00:00', by: 'Vasquez.R' } },
             });
-            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed');
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed held');
 
             const missed = wrapper.findAll('[data-trooper="1"] button').find((b) => b.text().startsWith('Not attended'));
             await missed.trigger('click');
-            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed');
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed held');
             await vi.advanceTimersByTimeAsync(1000);
 
             expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Not confirmed');
@@ -1615,7 +1652,7 @@ describe('Rollcall page', () => {
                     confirmation: { at: '2026-10-08T16:30:00+00:00', by: 'Ortega.M' },
                 },
             });
-            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed');
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed held');
             await wrapper.find('[data-step="3"]').trigger('click');
             page.url = '/rollcall/12?step=3';
             await wrapper.vm.$nextTick();
