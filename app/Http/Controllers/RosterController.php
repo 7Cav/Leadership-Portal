@@ -495,11 +495,9 @@ class RosterController extends Controller
         }
 
         $placed = $this->placements->sectionsByWeek($trooperIds, $week->subWeeks(self::HISTORY_WEEKS - 1), $week);
-        $isSection = [];
-
-        foreach ($placed->sectionIds() as $id) {
-            $isSection[$id] = $this->units->find($id)?->type === UnitType::Section;
-        }
+        // One query for every unit met, so the cost does not grow with the roster.
+        $isSection = Unit::query()->whereIn('id', $placed->sectionIds())->pluck('type', 'id')
+            ->map(fn (UnitType $type) => $type === UnitType::Section)->all();
 
         $weeks = $this->weeks($week);
         $out = [];

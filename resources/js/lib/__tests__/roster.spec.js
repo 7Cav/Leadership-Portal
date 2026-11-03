@@ -516,7 +516,7 @@ describe('transfers and the attendance history', () => {
         expect(historyCell(week(), { departedAt: '2026-09-20' })).toEqual({ rc: 'ok', sp: 'ok' });
     });
 
-    it('still shows each week's own section after a move', () => {
+    it("still shows each week's own section after a move", () => {
         expect(historyCell(week({ section: { id: 9, label: '1/2/A/1-7' } }))).toEqual({ rc: 'ok', sp: 'ok' });
     });
 });
