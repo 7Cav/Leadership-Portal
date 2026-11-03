@@ -454,7 +454,22 @@ describe('Reports/Show', () => {
             troopers: [{ id: 1, name: 'SGT Vasquez.R', rollcall: 'unsigned', status: null, source: null, atRisk: false, missed: 0, onLoa: false }],
         });
 
-        expect(wrapper.find('[data-testid="no-attendance"]').exists()).toBe(true);
+        const banner = wrapper.get('[data-testid="no-attendance"]').text();
+        expect(banner).toContain('No roll call signatures or practice marks yet this week');
+        expect(banner).toContain('The 30-day rates below include earlier weeks');
+        expect(banner).not.toContain('zero');
+    });
+
+    it('calls a report nobody has saved "Not started", in the header and the preview, and a draft once saved', () => {
+        const fresh = mountShow({ report: { status: 'none', notes: '', trainingSubject: '', unaccounted: [], savedAt: null, sentAt: null, sentBy: null } });
+
+        expect(fresh.get('[data-testid="status-badge"]').text()).toBe('Not started');
+        expect(fresh.get('#preview').text()).toContain('Not started');
+        expect(fresh.get('#preview').text()).not.toContain('Draft, live');
+
+        const saved = mountShow({ report: { status: 'draft', notes: '', trainingSubject: '', unaccounted: [], savedAt: '2026-10-08T16:22:00+00:00', sentAt: null, sentBy: null } });
+        expect(saved.get('[data-testid="status-badge"]').text()).toBe('Draft');
+        expect(saved.get('#preview').text()).toContain('Draft, live');
     });
 
     it('drops the pending autosave when the leader sends, freezing what they typed', async () => {
