@@ -31,7 +31,8 @@ use InvalidArgumentException;
  * report to roll up, so its company's roll-up neither sums nor waits on it. For a report's week, a section also counts
  * when that week's rollcall lists someone (they ended the week in it, the 2026-10-29 audit) or when it sent that week's
  * report, so a section emptied afterwards still rolls up into its platoon for the week it reported. A past week is judged only by that: a section created or
- * filled after it is not one that week waits on. Who is placed now counts for the running week.
+ * filled after it is not one that week waits on. The running week is judged only by who is placed now, as its rollcall
+ * is (#624): a section everyone left this week is not waited on unless it sent.
  */
 final class Headcount
 {
@@ -41,10 +42,27 @@ final class Headcount
         private readonly TrooperPlacementRepository $placements,
     ) {}
 
-    /** The headcount of `$unit`'s subtree, itself included. */
-    public function forUnit(Unit $unit): int
+    /**
+     * The headcount of `$unit`'s subtree, itself included. With a week that has ended, as it stood that week (#624):
+     * each trooper who served it counted where they ended it ({@see TrooperPlacementRepository::unitOfEachTrooperByWeek()}),
+     * the rule its rollcalls and the strength trends read, so a trooper who moved to HQ staff during the week still
+     * counts in the section whose rollcall lists them as moved out, and one who joined after it not at all. With no week,
+     * or the running one, who is serving and placed now.
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function forUnit(Unit $unit, ?CarbonInterface $weekStart = null): int
     {
-        return $this->perUnit($this->units->subtree($unit), $this->troopers->countsBySection())->get($unit->id, 0);
+        $subtree = $this->units->subtree($unit);
+        $week = $weekStart === null ? null : WeekOf::requireStart($weekStart);
+
+        if ($week === null || ! $week->lessThan(WeekOf::start(CarbonImmutable::now()))) {
+            return $this->perUnit($subtree, $this->troopers->countsBySection())->get($unit->id, 0);
+        }
+
+        $ended = collect($this->placements->unitOfEachTrooperByWeek($week, $week)[$week->toDateString()] ?? [])->countBy();
+
+        return $this->perUnit($subtree, $ended)->get($unit->id, 0);
     }
 
     /**
@@ -127,12 +145,14 @@ final class Headcount
      *
      * With a week, "has troopers" is read for that week ({@see placedByWeek()}): from the placement history, someone
      * ended the week in the section, so is on its rollcall for the week as {@see TrooperRepository::onRollcall()} lists
-     * it (a trooper who moved or left after the week included, one who moved on during it not). Who is placed now counts only for the running Cav week, so a section
-     * created or filled after a past week is not one that week waits on. With no week, who is placed now.
+     * it (a trooper who moved or left after the week included, one who moved on during it not). The running Cav week is
+     * read from who is placed now alone, as its rollcall is, so a section created or filled after a past week is not
+     * one that week waits on, and one emptied during the running week is not one it waits on (#624). With no week, who
+     * is placed now.
      *
      * `$sent` are the ids of the units that sent the week's report: every one under `$units` that matters, since a
-     * unit can take part only through what sent below it. Groups are kept, as is every unit's order. Two queries (the
-     * tree, and who was placed during the week or is placed now), three for the running week (both).
+     * unit can take part only through what sent below it. Groups are kept, as is every unit's order. Two queries: the
+     * tree, and who was placed during a past week or is placed now for the running one.
      *
      * @template TCollection of Collection<int, Unit>
      *
@@ -183,7 +203,7 @@ final class Headcount
      * `$units` without the line units that neither have troopers now ({@see withoutEmptyLineUnits()}) nor take part in
      * the week's report chain ({@see reportingLineUnits()}): the top units a page about one week's reports starts from
      * (the roll-up workspace, Home). A unit emptied after a week it reported for is still there for that week, and a
-     * unit whose only troopers are its HQ is still there, to land on its own report. Three queries.
+     * unit whose only troopers are its HQ is still there, to land on its own report. Three queries at most.
      *
      * @template TCollection of Collection<int, Unit>
      *
@@ -209,8 +229,8 @@ final class Headcount
      * The units someone was in during each Cav week from `$firstWeek` to `$lastWeek`, ids as keys, by week start
      * (Y-m-d): the placement history read as a past week's rollcall reads it
      * ({@see TrooperPlacementRepository::unitIdsPlacedByWeek()}), and for the
-     * running week (or a later one) also the units someone serving is placed in now. A past week is never judged by
-     * who is placed now.
+     * running week (or a later one) only the units someone serving is placed in now, as its rollcall reads them (#624).
+     * A past week is never judged by who is placed now.
      *
      * @param  array<int, true>|null  $now  the units placed now, when the caller has already read them
      * @return array<string, array<int, true>>
@@ -220,7 +240,7 @@ final class Headcount
         $first = WeekOf::requireStart($firstWeek);
         $last = WeekOf::requireStart($lastWeek);
         $running = WeekOf::start(CarbonImmutable::now());
-        $during = $this->placements->unitIdsPlacedByWeek($first, $last);
+        $during = $first->lessThan($running) ? $this->placements->unitIdsPlacedByWeek($first, $last) : [];
 
         if ($last->greaterThanOrEqualTo($running)) {
             $now ??= $this->placedNow();
@@ -230,7 +250,9 @@ final class Headcount
 
         for ($week = $first; $week->lessThanOrEqualTo($last); $week = $week->addWeek()) {
             $date = $week->toDateString();
-            $placed[$date] = array_fill_keys($during[$date] ?? [], true) + ($week->greaterThanOrEqualTo($running) ? ($now ?? []) : []);
+            // The running week's rollcall is who is placed in the section now (#624), so a section everyone left this
+            // week is not waited on, however the history reads the days before they went.
+            $placed[$date] = $week->greaterThanOrEqualTo($running) ? ($now ?? []) : array_fill_keys($during[$date] ?? [], true);
         }
 
         return $placed;
