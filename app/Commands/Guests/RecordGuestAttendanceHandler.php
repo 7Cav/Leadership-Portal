@@ -10,12 +10,15 @@ use App\Models\SectionPractice;
 use App\Models\User;
 use App\Repositories\AuditedBatch;
 use App\Repositories\CrossSectionSightingRepository;
+use App\Repositories\PracticeTiming;
 use App\Repositories\SectionPracticeRepository;
+use App\Repositories\SectionPracticeSlotRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\Audit\ActingFor;
 use App\Support\Audit\AuditEnvelope;
+use Carbon\CarbonImmutable;
 
 /**
  * A host section's leader adds a guest by hand: "X from another section
@@ -42,6 +45,10 @@ use App\Support\Audit\AuditEnvelope;
  * sighting of the guest that week still exists (read under a lock before their own practice's), so an Undo that lands
  * between the entry's commit and the makeup leaves nothing behind.
  *
+ * Only once the host practice is over (#634): a guest added before its hour ends is listed straight away, and their
+ * makeup waits (`pending`) until the scheduler's {@see ApplyGuestMakeupsDue} writes it after the hour, through the same
+ * path. A host section with no slot, or a week whose practice was cancelled, has no hour to wait for.
+ *
  * Adding a guest already listed here by hand is a retry, not a refusal: the makeup step runs after the entry committed,
  * so one that failed left the entry without its makeup, and adding the guest again runs that step once more (it is
  * idempotent, and keeps every guard). No new entry is written, and a host week sent or confirmed since refuses it as
@@ -61,6 +68,7 @@ class RecordGuestAttendanceHandler
         private readonly AuditEnvelope $audit,
         private readonly MarkAttendanceHandler $attendance,
         private readonly ActingFor $acting,
+        private readonly SectionPracticeSlotRepository $slots,
     ) {}
 
     /**
@@ -141,6 +149,12 @@ class RecordGuestAttendanceHandler
     /** The automatic makeup on the guest's own rollcall, through the capture's own path, and what became of it. */
     private function withMakeup(CrossSectionSighting $sighting, SectionPractice $practice, int $trooperId, int $actorId): RecordedGuest
     {
+        $end = PracticeTiming::hourEnd($practice->week_start, $practice, $this->slots->forSection($practice->section_id));
+
+        if ($end !== null && $end->greaterThan(CarbonImmutable::now())) {
+            return new RecordedGuest(sighting: $sighting, practice: $practice, makeup: 'pending');
+        }
+
         $makeups = $this->attendance->preMarkMakeups($practice, [$trooperId], $actorId);
 
         return new RecordedGuest(
