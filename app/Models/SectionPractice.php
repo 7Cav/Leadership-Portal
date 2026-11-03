@@ -20,7 +20,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * the leader marking the week's rollcall posted to the forum (3.10) — written only by the
  * Repository layer for the audited `MarkRollcallPosted` Command, so not mass-assignable either.
  * `confirmed_at`/`_by` record the leader confirming the practice's marks as reviewed (7.8), likewise
- * written only for the audited `ConfirmSectionPractice` Command.
+ * written only for the audited `ConfirmSectionPractice` Command, as is `not_held`, which says the leader confirmed the
+ * practice did not take place (#634).
  */
 #[Fillable(['section_id', 'week_start'])]
 class SectionPractice extends Model
@@ -37,6 +38,8 @@ class SectionPractice extends Model
             'is_demo' => 'boolean',
             'rollcall_posted_at' => 'immutable_datetime',
             'confirmed_at' => 'immutable_datetime',
+            // What the confirmation says (#634): held, or not held. Read only while `confirmed_at` is set.
+            'not_held' => 'boolean',
             // The window a capture read (#392), and a one-off move or cancellation of this week's slot: written only by
             // the Repository layer, so not mass-assignable.
             'window_start' => 'immutable_datetime',
