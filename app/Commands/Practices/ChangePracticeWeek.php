@@ -55,7 +55,7 @@ class ChangePracticeWeek
         $weekStart = WeekOf::start($week);
 
         // A slot that only starts in a later week has nothing to move in this one.
-        if ($this->slots->forSection($sectionId)?->placingFor($weekStart) === null) {
+        if ($this->slots->placingFor($sectionId, $weekStart) === null) {
             throw InvalidPracticeSlotException::noSlot();
         }
 

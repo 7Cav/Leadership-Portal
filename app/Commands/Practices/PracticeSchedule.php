@@ -50,10 +50,8 @@ class PracticeSchedule
     public function scheduledWindow(int $sectionId, CarbonImmutable $weekStart, ?SectionPractice $practice = null, ?SectionPracticeSlot $slot = null): ?PracticeWindow
     {
         $practice ??= $this->practices->find($sectionId, $weekStart);
-        $slot ??= $this->slots->forSection($sectionId);
-
-        // The slot in effect that week: one set while an earlier week was held starts later.
-        $placing = $slot?->placingFor($weekStart);
+        // The slot in effect that week, from the change history (#630): a later change or removal never rewrites it.
+        $placing = $this->slots->placingFor($sectionId, $weekStart);
 
         if ($placing === null || $practice?->slot_cancelled === true) {
             return null;
@@ -74,8 +72,10 @@ class PracticeSchedule
     public function props(int $sectionId, CarbonImmutable $weekStart, ?SectionPractice $practice): ?array
     {
         $slot = $this->slots->forSection($sectionId);
+        // A past week keeps the slot it had, even one removed since (#630).
+        $placing = $slot === null ? $this->slots->placingFor($sectionId, $weekStart) : null;
 
-        if ($slot === null) {
+        if ($slot === null && $placing === null) {
             return null;
         }
 
@@ -83,9 +83,9 @@ class PracticeSchedule
         $window = $this->windowFor($sectionId, $weekStart, $practice, $slot);
 
         return [
-            'weekday' => $slot->weekday,
-            'startMinute' => $slot->start_minute,
-            'effectiveFrom' => $slot->startsLater($weekStart) ? $slot->effective_from?->toDateString() : null,
+            'weekday' => $slot?->weekday ?? $placing[0],
+            'startMinute' => $slot?->start_minute ?? $placing[1],
+            'effectiveFrom' => $slot?->startsLater($weekStart) ? $slot->effective_from?->toDateString() : null,
             'week' => [
                 'start' => $window?->start->toIso8601ZuluString(),
                 'end' => $window?->end->toIso8601ZuluString(),
