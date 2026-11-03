@@ -52,7 +52,12 @@ const historyRows = computed(() => {
     const current = props.attendance.at(-1)?.week;
 
     return props.attendance
-        .map((week) => ({ ...week, ...historyCell(week, { current: week.week === current }), current: week.week === current }))
+        .map((week) => {
+            const cell = historyCell(week, { current: week.week === current, joined: props.trooper.tis, departedAt: props.trooper.departedAt });
+
+            // Before they joined there was no section to name (#623), whatever the placement history reads back.
+            return { ...week, ...cell, section: cell.rc === 'out' ? null : week.section, current: week.week === current };
+        })
         .reverse();
 });
 const RC_TONE = { ok: 'success', cn: 'warning', mr: 'info', ex: 'warning', bad: 'danger' };
@@ -73,6 +78,10 @@ const sectionLabel = computed(() => {
 
     return section.callsign ? `${section.callsign} ${section.name}` : section.name;
 });
+
+// What the trooper's unit is (#622): a platoon, company, ELOA or the Reservists can hold them too, so only a section
+// reads "Section".
+const sectionTerm = computed(() => (props.trooper.section?.type === 'section' ? 'Section' : 'Unit'));
 
 // "2y 3m", "7m", or "under a month": how long, from a whole-month count.
 function duration(months) {
@@ -194,10 +203,10 @@ const staleNotice = computed(() => {
                             <dd class="font-medium" data-testid="rank">{{ trooper.rank ?? 'None' }}</dd>
                         </div>
                         <div class="col-span-2 flex flex-col gap-0.5 border-t border-border px-4 py-3">
-                            <dt class="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Primary section</dt>
+                            <dt class="text-[11px] font-medium tracking-wide text-muted-foreground uppercase" data-testid="section-term">{{ sectionTerm }}</dt>
                             <dd class="font-medium" data-testid="section">
                                 <template v-if="sectionLabel">{{ sectionLabel }}</template>
-                                <span v-else class="text-muted-foreground" data-testid="unmapped">Not placed in a section yet</span>
+                                <span v-else class="text-muted-foreground" data-testid="unmapped">Not placed in a unit yet</span>
                             </dd>
                         </div>
                     </dl>

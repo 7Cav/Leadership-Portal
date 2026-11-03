@@ -68,8 +68,12 @@ const cells = computed(() =>
         week,
         index,
         mark: trooper.value.weeks[index],
-        ...weekCell(trooper.value.weeks[index], week, { current: week === current.value, joined: trooper.value.joined, excused: trooper.value.excusedWeeks?.[week] ?? null }),
+        ...weekCell(trooper.value.weeks[index], week, { current: week === current.value, joined: trooper.value.joined, departedAt: trooper.value.departedAt, departed: trooper.value.departed, inSection: trooper.value.inSection?.[index], excused: trooper.value.excusedWeeks?.[week] ?? null }),
     })),
+);
+// Only a section has a roll call (#622): a trooper placed in a platoon, company, ELOA or the Reservists has none.
+const rollcallHref = computed(() =>
+    props.links.rollcall && trooper.value?.section?.type === 'section' ? `${props.links.rollcall}${trooper.value.section.id}` : null,
 );
 const recent = computed(() => cells.value.slice(-8).reverse());
 // After a transfer, an earlier week was at another section (2026-10-27): its rows name that section.
@@ -224,10 +228,10 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                 </div>
 
                 <SheetFooter class="flex-row flex-wrap items-center gap-2 border-t border-border p-4">
-                    <Button v-if="links.rollcall" as-child>
-                        <Link :href="`${links.rollcall}${trooper.section.id}`" data-testid="sheet-open-rollcall"><PhClipboardText />Open roll call</Link>
+                    <Button v-if="rollcallHref" as-child>
+                        <Link :href="rollcallHref" data-testid="sheet-open-rollcall"><PhClipboardText />Open roll call</Link>
                     </Button>
-                    <Button v-if="links.trooper" as-child :variant="links.rollcall ? 'outline' : 'default'">
+                    <Button v-if="links.trooper" as-child :variant="rollcallHref ? 'outline' : 'default'">
                         <Link :href="`${links.trooper}${trooperId}`" data-testid="sheet-open-trooper"><PhIdentificationCard />Open milpac</Link>
                     </Button>
                     <Button as-child variant="outline">
