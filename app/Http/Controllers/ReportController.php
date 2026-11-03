@@ -604,6 +604,8 @@ class ReportController extends Controller
             $points[] = [
                 'week' => $week->toIso8601String(),
                 'current' => $back === 0,
+                // Whether there is a report for the week, apart from whether its rates could be worked out.
+                'reported' => $kpis !== null,
                 'rc' => $kpis === null ? null : ['numerator' => $kpis->rc30d->numerator, 'denominator' => $kpis->rc30d->denominator],
                 'sp' => $kpis === null ? null : ['numerator' => $kpis->sp30d->numerator, 'denominator' => $kpis->sp30d->denominator],
             ];

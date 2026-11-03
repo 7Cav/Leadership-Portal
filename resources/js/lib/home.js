@@ -20,8 +20,8 @@ export const TILES = KPIS.map((kpi) => ({ ...kpi, label: LABELS[kpi.key] }));
 // for the whole scope is a gap (`value: null`), never an estimate.
 export function tileSeries(kpi, current, history) {
     return [
-        ...history.map((point) => ({ week: point.week, value: kpiValue(point.kpis, kpi), live: false })),
-        { week: null, value: kpiValue(current, kpi), live: true },
+        ...history.map((point) => ({ week: point.week, value: kpiValue(point.kpis, kpi), reported: point.kpis !== null && point.kpis !== undefined, live: false })),
+        { week: null, value: kpiValue(current, kpi), reported: true, live: true },
     ];
 }
 
