@@ -6,6 +6,7 @@ use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\WeeklyReport;
 use App\Repositories\TrooperPlacementRepository;
+use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\Time\WeekOf;
@@ -17,7 +18,8 @@ use Illuminate\Support\Collection;
  * call (troopers in its sections, the KPI strength) for each Cav week of a range ending with the running week.
  *
  * A week the unit sent its report for reads the frozen snapshot (AD-12), never a recompute. Any other week from
- * {@see HISTORY_FROM} on is rebuilt from the placement history, where each trooper ended the week. A week before the
+ * {@see HISTORY_FROM} on is rebuilt from the placement history, where each trooper ended the week, and the running week
+ * is the live roster, who is serving and placed now (#624), the population its rollcall and report read. A week before the
  * history with no sent report is a gap (null), never a zero. The joins and departures ("in" and "out") are the troopers
  * who entered or left the unit's headcount between two rebuilt weeks. A sent snapshot that carries its own `joined` and
  * `left` counts gives those instead; otherwise they are null where either week is not rebuilt.
@@ -25,8 +27,8 @@ use Illuminate\Support\Collection;
  * A battalion's children also carry their own line children (its companies' platoons), so the comparison reaches one
  * level further where a company alone says little.
  *
- * Three queries whatever the range or the size of the subtree: the tree, the sent reports of every unit shown, and the
- * placement history.
+ * Four queries whatever the range or the size of the subtree: the tree, the sent reports of every unit shown, the
+ * placement history, and the live roster.
  */
 final class StrengthTrends
 {
@@ -43,6 +45,7 @@ final class StrengthTrends
         private readonly UnitRepository $units,
         private readonly WeeklyReportRepository $reports,
         private readonly TrooperPlacementRepository $placements,
+        private readonly TrooperRepository $troopers,
     ) {}
 
     /** A `?range=` query value as weeks: 26, 52 or null for "all", 12 for anything else. */
@@ -80,6 +83,12 @@ final class StrengthTrends
         $historyFrom = CarbonImmutable::parse(self::HISTORY_FROM, 'UTC');
         $rebuildFrom = $first->greaterThan($historyFrom) ? $first->subWeek() : $historyFrom;
         $placed = $rebuildFrom->greaterThan($running) ? [] : $this->placements->unitOfEachTrooperByWeek($rebuildFrom, $running);
+
+        // The running week is the live roster (#624), as its rollcall and report are: who is serving and placed now,
+        // so a trooper who left this week is under "out", not still in the headcount.
+        if (isset($placed[$running->toDateString()])) {
+            $placed[$running->toDateString()] = $this->troopers->servingPlacements();
+        }
 
         $snapshots = [];
         foreach ($sent as $report) {
