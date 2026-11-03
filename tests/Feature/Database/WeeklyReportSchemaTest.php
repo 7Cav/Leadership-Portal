@@ -42,13 +42,15 @@ it('makes (unit_id, week_start) unique', function () {
     expect($uniques)->toContain(['unit_id', 'week_start']);
 });
 
-it('points unit_id at units, sent_by and sent_by_admin at users and template_version_id at template_versions', function () {
+it('points unit_id at units, sent_by, sent_by_admin and reopened_by at users and template_version_id at template_versions', function () {
     $targets = collect(Schema::getForeignKeys('weekly_reports'))
         ->mapWithKeys(fn (array $fk) => [$fk['columns'][0] => $fk['foreign_table'].'.'.$fk['foreign_columns'][0]])
         ->sortKeys()
         ->all();
 
     expect($targets)->toBe([
+        // Who reopened a sent report to edit it.
+        'reopened_by' => 'users.id',
         // The unit whose billet an Admin held when sending it (#379).
         'sent_as_unit' => 'units.id',
         'sent_by' => 'users.id',

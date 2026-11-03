@@ -19,6 +19,12 @@ return new class extends Migration
             $table->timestamp('reopened_at')->nullable()->after('sent_by');
             $table->foreignId('reopened_by')->nullable()->after('reopened_at')->constrained('users')->restrictOnDelete();
             $table->json('revisions')->nullable()->after('makeup_checks');
+
+            // SQLite (the test DB) rebuilds the table to add a foreign key, and the rebuild drops the CHECK behind
+            // the `status` enum. Restating the column puts it back. MySQL alters in place and keeps its enum.
+            if (Schema::getConnection()->getDriverName() === 'sqlite') {
+                $table->enum('status', ['draft', 'sent'])->default('draft')->change();
+            }
         });
 
         Schema::table('staff_reports', function (Blueprint $table) {
@@ -32,6 +38,11 @@ return new class extends Migration
         Schema::table('weekly_reports', function (Blueprint $table) {
             $table->dropConstrainedForeignId('reopened_by');
             $table->dropColumn(['reopened_at', 'revisions']);
+
+            // The same SQLite rebuild as in `up()`.
+            if (Schema::getConnection()->getDriverName() === 'sqlite') {
+                $table->enum('status', ['draft', 'sent'])->default('draft')->change();
+            }
         });
 
         Schema::table('staff_reports', function (Blueprint $table) {
