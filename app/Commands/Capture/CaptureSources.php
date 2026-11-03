@@ -75,7 +75,7 @@ final class CaptureSources
                         try {
                             return $crcon->fetchPresence($start, $end, $serverId);
                         } catch (CrconUnavailable $e) {
-                            throw new CaptureSourceUnavailable("crcon: {$e->reason->value}", previous: $e);
+                            throw new CaptureSourceUnavailable(self::reason('crcon', $e->reason->value, $e->status), previous: $e);
                         }
                     },
                     $configured,
@@ -89,7 +89,7 @@ final class CaptureSources
                         try {
                             return $battleMetrics->fetchPresence($start, $end, $serverId);
                         } catch (BattleMetricsUnavailable $e) {
-                            throw new CaptureSourceUnavailable("battlemetrics: {$e->reason->value}", previous: $e);
+                            throw new CaptureSourceUnavailable(self::reason('battlemetrics', $e->reason->value, $e->status), previous: $e);
                         }
                     },
                     $configured,
@@ -106,7 +106,7 @@ final class CaptureSources
                         try {
                             return $nightwatch->fetchPresence($start, $end, $serverId);
                         } catch (NightwatchUnavailable $e) {
-                            throw new CaptureSourceUnavailable("nightwatch: {$e->reason->value}", previous: $e);
+                            throw new CaptureSourceUnavailable(self::reason('nightwatch', $e->reason->value, $e->status), previous: $e);
                         } catch (NightwatchWindowExpired $e) {
                             throw new CaptureSourceUnavailable("nightwatch: window expired ({$e->retentionHours}h retention)", previous: $e);
                         } catch (NightwatchRequestRefused $e) {
@@ -152,6 +152,25 @@ final class CaptureSources
                 [$serverSource($server), ...($server->fallback === null ? [] : [$serverSource($server->fallback)])],
             ))->values()->all();
         }, self::LEGACY_GAMES);
+    }
+
+    /**
+     * The failure a source is recorded with: the typed reason, and for an HTTP error its status and what to check
+     * (#632). Built only from the reason and the status, so no key, address or response body can reach it.
+     */
+    public static function reason(string $source, string $reason, ?int $status): string
+    {
+        if ($status === null) {
+            return "{$source}: {$reason}";
+        }
+
+        $hint = match ($status) {
+            401, 403 => ' The key was rejected.',
+            404 => ' Check the server ID or address.',
+            default => '',
+        };
+
+        return "{$source}: {$reason} (HTTP {$status}).{$hint}";
     }
 
     /** True when every named key is set: the legacy env server's check, which also needs its server id(s). */

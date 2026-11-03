@@ -225,3 +225,37 @@ it('says the credentials are not set, not that no server is selected, when the k
 
     expect($source->configured)->toBeFalse()->and($source->noServer)->toBeFalse();
 });
+
+// #632: an HTTP error carries its status and what to check, and nothing else.
+it('words a failure with its HTTP status and what to check', function (?int $status, string $expected) {
+    expect(CaptureSources::reason('battlemetrics', 'http_error', $status))->toBe($expected);
+})->with([
+    'rejected key' => [401, 'battlemetrics: http_error (HTTP 401). The key was rejected.'],
+    'forbidden' => [403, 'battlemetrics: http_error (HTTP 403). The key was rejected.'],
+    'not found' => [404, 'battlemetrics: http_error (HTTP 404). Check the server ID or address.'],
+    'outage' => [500, 'battlemetrics: http_error (HTTP 500).'],
+    'no status' => [null, 'battlemetrics: http_error'],
+]);
+
+it('reports each interface\'s HTTP error with its status, without the key, the address or the response body', function (string $slug, int $source, string $host, string $expected) {
+    $crcon = ['base_url' => 'https://crcon.test', 'api_key' => 'SECRETKEY-crcon'];
+    $bm = ['base_url' => 'https://bm.test', 'api_key' => 'SECRETKEY-bm', 'server_id' => '4242'];
+    $nw = ['base_url' => 'https://nw.test/api/public/stats', 'api_key' => 'SECRETKEY-nw', 'server_ids' => 'srv-a'];
+    MockClient::global(["{$host}/*" => MockResponse::make('BODY-SECRET', $source === 0 ? 401 : 404)]);
+    $sources = defaultSources($crcon, $bm, $nw);
+    $now = new DateTimeImmutable;
+
+    try {
+        ($sources->for(game($slug))[0]->sources[0]->fetch)($now->modify('-1 hour'), $now);
+        $message = null;
+    } catch (CaptureSourceUnavailable $e) {
+        $message = $e->getMessage();
+    }
+
+    expect($message)->toBe($expected)
+        ->not->toContain('SECRETKEY')->not->toContain('BODY-SECRET')->not->toContain('.test');
+})->with([
+    'crcon' => ['hll', 0, 'crcon.test', 'crcon: http_error (HTTP 401). The key was rejected.'],
+    'battlemetrics' => ['arma', 1, 'bm.test', 'battlemetrics: http_error (HTTP 404). Check the server ID or address.'],
+    'nightwatch' => ['wardogs', 1, 'nw.test', 'nightwatch: http_error (HTTP 404). Check the server ID or address.'],
+]);

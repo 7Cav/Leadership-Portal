@@ -146,6 +146,14 @@ describe('Settings/Servers', () => {
         expect(wrapper.get('[data-testid="test-result-2"]').text()).toContain('Arma Reforger server (BattleMetrics): no server selected, not read. Select a training server for this game.');
     });
 
+    it('shows a failed test with its HTTP status and what to check', () => {
+        const wrapper = factory({
+            testResult: { gameId: 2, outcomes: [{ server: 'Arma Reforger server', interface: 'battlemetrics', status: 'failed', reason: 'battlemetrics: http_error (HTTP 401). The key was rejected.' }] },
+        });
+
+        expect(wrapper.get('[data-testid="test-result-2"]').text()).toContain('could not be read. battlemetrics: http_error (HTTP 401). The key was rejected.');
+    });
+
     it('says which interfaces have their credentials set', () => {
         const wrapper = factory();
 
