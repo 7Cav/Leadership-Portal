@@ -133,6 +133,19 @@ describe('Settings/Servers', () => {
         expect(wrapper.find('[data-testid="test-result-1"]').exists()).toBe(false);
     });
 
+    it('says no server is selected, not that credentials are missing, when only the server ID is', () => {
+        const games = [{ ...GAMES[1], captureConfigured: false, connections: [{ label: 'Arma Reforger server', sources: [source({ interface: 'battlemetrics', configured: false, noServer: true })] }] }];
+        const wrapper = factory({
+            games,
+            testResult: { gameId: 2, outcomes: [{ server: 'Arma Reforger server', interface: 'battlemetrics', status: 'no_server' }] },
+        });
+
+        const line = wrapper.get('[data-testid="source-2-battlemetrics"]').text();
+        expect(line).toContain('no server selected: select a training server');
+        expect(line).not.toContain('credentials not set');
+        expect(wrapper.get('[data-testid="test-result-2"]').text()).toContain('Arma Reforger server (BattleMetrics): no server selected, not read. Select a training server for this game.');
+    });
+
     it('says which interfaces have their credentials set', () => {
         const wrapper = factory();
 

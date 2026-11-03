@@ -66,7 +66,7 @@ final class CaptureSources
      */
     public static function default(CrconApi $crcon, BattleMetricsApi $battleMetrics, ?array $crconConfig, ?array $battleMetricsConfig, NightwatchApi $nightwatch, ?array $nightwatchConfig, GameServerRepository $servers, TelemetryCredentials $credentials): self
     {
-        $source = function (TelemetryInterface $interface, ?string $serverId, ?int $gameServerId, bool $configured) use ($crcon, $battleMetrics, $nightwatch, $crconConfig, $battleMetricsConfig, $nightwatchConfig): CaptureSource {
+        $source = function (TelemetryInterface $interface, ?string $serverId, ?int $gameServerId, bool $configured, bool $noServer = false) use ($crcon, $battleMetrics, $nightwatch, $crconConfig, $battleMetricsConfig, $nightwatchConfig): CaptureSource {
             return match ($interface) {
                 TelemetryInterface::Crcon => new CaptureSource(
                     'crcon',
@@ -80,6 +80,7 @@ final class CaptureSources
                     },
                     $configured,
                     $gameServerId,
+                    $noServer,
                 ),
                 TelemetryInterface::BattleMetrics => new CaptureSource(
                     'battlemetrics',
@@ -93,6 +94,7 @@ final class CaptureSources
                     },
                     $configured,
                     $gameServerId,
+                    $noServer,
                 ),
                 // A window past Nightwatch's retention is as unanswerable as an outage: same typed failure. A refused
                 // request can only come from a NIGHTWATCH_BASE_URL outside /api/public/stats here, a deployment fault
@@ -113,14 +115,17 @@ final class CaptureSources
                     },
                     $configured,
                     $gameServerId,
+                    $noServer,
                 ),
                 TelemetryInterface::None => throw new \LogicException('No source reads the `none` interface.'),
             };
         };
 
         $crconSource = $source(TelemetryInterface::Crcon, null, null, self::filled($crconConfig, 'base_url', 'api_key'));
-        $battleMetricsSource = $source(TelemetryInterface::BattleMetrics, null, null, self::filled($battleMetricsConfig, 'base_url', 'api_key', 'server_id'));
-        $nightwatchSource = $source(TelemetryInterface::Nightwatch, null, null, self::filled($nightwatchConfig, 'base_url', 'api_key', 'server_ids'));
+        // The env BattleMetrics and Nightwatch servers also need their server id(s): with the key set and no id, no server
+        // is selected, which is not the same as missing credentials (#631).
+        $battleMetricsSource = $source(TelemetryInterface::BattleMetrics, null, null, self::filled($battleMetricsConfig, 'base_url', 'api_key', 'server_id'), self::filled($battleMetricsConfig, 'base_url', 'api_key') && ! self::filled($battleMetricsConfig, 'server_id'));
+        $nightwatchSource = $source(TelemetryInterface::Nightwatch, null, null, self::filled($nightwatchConfig, 'base_url', 'api_key', 'server_ids'), self::filled($nightwatchConfig, 'base_url', 'api_key') && ! self::filled($nightwatchConfig, 'server_ids'));
 
         // An exhaustive `match`, so a new interface case without its sources fails here (and in CaptureSourcesTest)
         // instead of reading as "not configured" on every rollcall of a game that uses it.

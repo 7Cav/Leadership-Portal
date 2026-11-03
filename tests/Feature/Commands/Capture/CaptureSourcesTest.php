@@ -206,3 +206,22 @@ it('records a Nightwatch base URL outside /api/public/stats as misconfigured, so
     expect(fn () => ($sources->for(game('wardogs'))[0]->sources[0]->fetch)($now->modify('-1 hour'), $now))
         ->toThrow(CaptureSourceUnavailable::class, 'nightwatch: misconfigured');
 });
+
+// #631: a key without a server id is "no server selected", not "credentials not set".
+it('marks the env BattleMetrics and Nightwatch sources as having no server when only the server id is missing', function () {
+    $sources = defaultSources(
+        bm: ['base_url' => 'https://bm.test', 'api_key' => 'k', 'server_id' => null],
+        nw: ['base_url' => 'https://nw.test/api/public/stats', 'api_key' => 'k', 'server_ids' => ''],
+    );
+    $arma = $sources->for(game('arma'))[0]->sources[0];
+    $wardogs = $sources->for(game('wardogs'))[0]->sources[0];
+
+    expect($arma->configured)->toBeFalse()->and($arma->noServer)->toBeTrue()
+        ->and($wardogs->configured)->toBeFalse()->and($wardogs->noServer)->toBeTrue();
+});
+
+it('says the credentials are not set, not that no server is selected, when the key is missing', function () {
+    $source = defaultSources(bm: ['base_url' => 'https://bm.test', 'api_key' => null, 'server_id' => null])->for(game('arma'))[0]->sources[0];
+
+    expect($source->configured)->toBeFalse()->and($source->noServer)->toBeFalse();
+});

@@ -90,6 +90,7 @@ class ServersController extends Controller
                         return [
                             'interface' => $interface->value,
                             'configured' => $source->configured,
+                            'noServer' => $source->noServer,
                             ...self::outcome($row),
                         ];
                     }, $server->sources),
