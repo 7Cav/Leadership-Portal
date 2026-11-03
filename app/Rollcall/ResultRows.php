@@ -6,7 +6,8 @@ namespace App\Rollcall;
  * The rows of the roll call result images (#641): each trooper's name and their Signed RC and Attended SP mark as the
  * forum post words them, in the order the post lists them. It is the server's twin of what the browser works out for the
  * post (`resources/js/lib/rollcallBbcode.js`, `rollcall.js`, `fireteams.js`), so a mark reads the same in the post and in
- * the images. Pure: the caller passes rows shaped as {@see RollcallRoster} builds them, plus `excused` (the automatic
+ * the images, except that an unmarked trooper reads `-` here where the post prints nothing, so the image never shows a
+ * blank. Pure: the caller passes rows shaped as {@see RollcallRoster} builds them, plus `excused` (the automatic
  * Excused reason, or null) and `locked` (covered by leave), which the roll call page adds from the one definitions of
  * those (`AutoExcused`, `LoaCoverage`).
  *

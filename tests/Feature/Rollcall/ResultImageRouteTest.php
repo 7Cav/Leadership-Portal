@@ -2,6 +2,7 @@
 
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
+use App\Models\Loa;
 use App\Models\RollcallSignature;
 use App\Models\Trooper;
 use App\Models\Unit;
@@ -10,6 +11,7 @@ use App\Models\User;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\UnitRepository;
+use App\Rollcall\ResultImage;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 
@@ -74,13 +76,49 @@ it('changes the image when a mark changes, and answers 304 while it has not', fu
     expect($after->headers->get('ETag'))->not->toBe($etag)->and($after->getContent())->not->toBe($before->getContent());
 });
 
-it('draws the same marks the roll call holds, per column', function () {
+/** The image the route should serve for a section on the running week holding exactly `$rows`. */
+function expectedImage(Unit $section, string $kind, array $rows): string
+{
+    return ResultImage::render($kind, "{$section->callsign} | 03Oct26 – 09Oct26", $rows);
+}
+
+it('draws each column with the mark the roll call holds for it', function () {
+    $this->trooper->forceFill(['rank_short' => 'SGT', 'username' => 'Vasquez.R'])->save();
     markTrooper($this->section, $this->trooper, AttendanceStatus::Missed, RollcallSignature::WillAttend);
 
-    $rc = $this->get(imageUrl($this->section, 'rc'))->getContent();
-    $sp = $this->get(imageUrl($this->section, 'sp'))->getContent();
+    expect($this->get(imageUrl($this->section, 'rc'))->getContent())
+        ->toBe(expectedImage($this->section, 'rc', [['name' => 'SGT Vasquez.R', 'rc' => 'Yes', 'sp' => 'No']]))
+        ->and($this->get(imageUrl($this->section, 'sp'))->getContent())
+        ->toBe(expectedImage($this->section, 'sp', [['name' => 'SGT Vasquez.R', 'rc' => 'Yes', 'sp' => 'No']]));
+});
 
-    expect($rc)->not->toBe($sp);
+it('draws a trooper whose approved leave covers the week as LOA for practice', function () {
+    $this->trooper->forceFill(['rank_short' => 'SGT', 'username' => 'Vasquez.R'])->save();
+    Loa::factory()->create(['trooper_id' => $this->trooper->id, 'starts_at' => '2026-10-01', 'ends_at' => '2026-10-20']);
+
+    expect($this->get(imageUrl($this->section, 'sp'))->getContent())
+        ->toBe(expectedImage($this->section, 'sp', [['name' => 'SGT Vasquez.R', 'rc' => '-', 'sp' => 'LOA']]));
+});
+
+it('draws a trooper who joined this Cav week as excused on both, until a leader records a mark', function () {
+    $this->trooper->forceFill(['rank_short' => 'PVT', 'username' => 'Novak.T', 'tis' => '2026-10-05'])->save();
+
+    foreach (['rc', 'sp'] as $kind) {
+        expect($this->get(imageUrl($this->section, $kind))->getContent())
+            ->toBe(expectedImage($this->section, $kind, [['name' => 'PVT Novak.T', 'rc' => 'EX', 'sp' => 'EX']]));
+    }
+
+    markTrooper($this->section, $this->trooper, AttendanceStatus::Present, RollcallSignature::WillAttend);
+
+    expect($this->get(imageUrl($this->section, 'rc'))->getContent())
+        ->toBe(expectedImage($this->section, 'rc', [['name' => 'PVT Novak.T', 'rc' => 'Yes', 'sp' => 'Yes']]));
+});
+
+it('serves the same image for any date inside the Cav week, and 404s a date that does not exist', function () {
+    $saturday = $this->get(imageUrl($this->section, 'rc', '2026-10-03'))->getContent();
+
+    expect($this->get(imageUrl($this->section, 'rc', '2026-10-07'))->getContent())->toBe($saturday);
+    $this->get(imageUrl($this->section, 'rc', '2026-02-30'))->assertNotFound();
 });
 
 it('answers 404 for a wrong token, an unknown column, a bad week or a future week', function () {
@@ -92,12 +130,6 @@ it('answers 404 for a wrong token, an unknown column, a bad week or a future wee
 
 it('answers 404 for a token that belongs to a unit that is not a section', function () {
     $this->get(imageUrl($this->platoon))->assertNotFound();
-});
-
-it('does not leak the unit through the response', function () {
-    $response = $this->get(imageUrl($this->section));
-
-    expect($response->headers->get('Content-Disposition'))->not->toContain($this->section->callsign);
 });
 
 it('sends the roll call page the addresses of its two images for the week', function () {

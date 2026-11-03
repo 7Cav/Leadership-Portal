@@ -9,13 +9,16 @@ use InvalidArgumentException;
  * Attended SP mark (`sp`), which the roll call BBCode embeds by URL so the forum post shows the latest marks without
  * being pasted again. Rank text only, no insignia: drawing them would mean fetching images server-side, and the only
  * path to an outside system is `Integration/` (AD-3). Uses GD with the bundled DejaVu Sans (`resources/fonts`), whose
- * glyphs cover every character a forum username can hold.
+ * glyphs cover Latin, Greek and Cyrillic; a name in another script draws missing-glyph boxes.
  *
  * Pure over the rows from {@see ResultRows}; never reads the database or the network.
  */
 final class ResultImage
 {
     public const KINDS = ['rc' => 'Signed RC', 'sp' => 'Attended SP'];
+
+    /** Raise it when the drawing changes (layout, font, colours), so a cached copy is not kept as "not modified". */
+    public const LAYOUT = 1;
 
     private const WIDTH = 460;
 

@@ -63,6 +63,25 @@ it('lists fireteam leaders above the rest only while fireteams are shown', funct
         ->and(array_column(ResultRows::for($troopers, false), 'name'))->toBe(['SGT Adams.A', 'PFC Brown.B']);
 });
 
+it('breaks ties by initial, then by id, and lists the ASL between the SL and the fireteam leaders', function () {
+    $rows = ResultRows::for([
+        trooper(['id' => 6, 'rankShort' => 'SGT', 'name' => 'Lee.B']),
+        trooper(['id' => 5, 'rankShort' => 'SGT', 'name' => 'Lee.A']),
+        trooper(['id' => 4, 'rankShort' => 'SGT', 'name' => 'Lee.A']),
+        trooper(['id' => 3, 'rankShort' => 'PFC', 'name' => 'Cole.C', 'role' => 'ftl']),
+        trooper(['id' => 2, 'rankShort' => 'PVT', 'name' => 'Dunn.D', 'role' => 'asl']),
+        trooper(['id' => 1, 'rankShort' => 'SPC', 'name' => 'Poe.E', 'role' => 'sl']),
+    ], true);
+
+    expect(array_column($rows, 'name'))->toBe(['SPC Poe.E', 'PVT Dunn.D', 'PFC Cole.C', 'SGT Lee.A', 'SGT Lee.A', 'SGT Lee.B']);
+});
+
+it('lists a rank it does not know below the known ones', function () {
+    $rows = ResultRows::for([trooper(['id' => 1, 'rankShort' => 'XYZ', 'name' => 'A.A']), trooper(['id' => 2, 'rankShort' => 'RCT', 'name' => 'B.B'])], false);
+
+    expect(array_column($rows, 'name'))->toBe(['RCT B.B', 'XYZ A.A']);
+});
+
 it('names a trooper with no username by their milpac id', function () {
     $rows = ResultRows::for([trooper(['name' => null, 'displayName' => null, 'cavId' => 4821])], false);
 

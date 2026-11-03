@@ -42,8 +42,8 @@ const MEANINGS = {
     count: ['How many troopers are in the section', '8'],
     signed: ['How many signed the roll call as will attend', '6'],
     attended: ['How many attended practice or completed a make-up', '5'],
-    rc_image: ["The address of the live Signed RC image: every trooper's roll call mark, drawn fresh each time the forum loads it, so the post stays current without being pasted again", '[IMG]{{rc_image}}[/IMG]'],
-    sp_image: ["The address of the live Attended SP image: every trooper's practice mark, drawn fresh each time the forum loads it", '[IMG]{{sp_image}}[/IMG]'],
+    rc_image: ["The address of the live Signed RC image: every trooper's roll call mark, drawn from the marks as they are when the forum fetches it (it may reuse an image for about a minute), so the post stays current without being pasted again", '[IMG]{{rc_image}}[/IMG]'],
+    sp_image: ["The address of the live Attended SP image: every trooper's practice mark, drawn from the marks as they are when the forum fetches it", '[IMG]{{sp_image}}[/IMG]'],
     troopers: ['Repeats what is inside once for each trooper. {{^troopers}}...{{/troopers}} shows when the section is empty', '{{#troopers}}{{n}}. {{display_name}}{{/troopers}}'],
     n: ["The trooper's row number, from 1. The list runs SL, ASL, fireteam leaders when the section shows them, then everyone else, each by rank", '1'],
     role: ["The trooper's role: Section Leader, Assistant Section Leader, or the fireteam they lead (FTL Alpha) when the section shows fireteam leaders. Empty for everyone else", 'Section Leader (FTL Alpha)'],
@@ -163,8 +163,8 @@ export function sampleContext() {
         signed: String(troopers.filter((trooper) => trooper.rc_yes).length),
         attended: String(troopers.filter((trooper) => trooper.sp_present || trooper.sp_makeup).length),
         // The live result images are drawn for a real section; the sample only shows where the address would go.
-        rc_image: 'https://portal.7cav.us/rollcall-images/sample/rc.png',
-        sp_image: 'https://portal.7cav.us/rollcall-images/sample/sp.png',
+        rc_image: 'https://example.com/rollcall-images/sample/rc.png',
+        sp_image: 'https://example.com/rollcall-images/sample/sp.png',
         fireteams_shown: troopers.some((trooper) => trooper.is_ftl),
         troopers,
     };

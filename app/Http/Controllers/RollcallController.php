@@ -244,7 +244,7 @@ class RollcallController extends Controller
             // offers it only with `canWrite`.
             'templatePicker' => $this->templates->pickerFor($section),
             // The live result images the post can embed (#641): the Signed RC and the Attended SP of this week, drawn
-            // on each fetch from the marks as they are then. The unit's secret in the URL is what lets the forum load them.
+            // from the marks as they are when a fetch reaches the portal (a cache may reuse one for a minute). The unit's secret in the URL is what lets the forum load them.
             'resultImages' => ResultImageUrls::for($section, $weekStart),
             'report' => $this->reportProps($section, $weekStart),
             ...$this->rosterProps($section, $weekStart, $currentWeek),

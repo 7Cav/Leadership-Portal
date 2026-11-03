@@ -78,7 +78,7 @@ export function rollcallContext({ section, week, troopers, fireteams = {}, resul
         count: String(rows.length),
         signed: String(rows.filter((row) => row.rc_yes).length),
         attended: String(rows.filter((row) => row.sp_present || row.sp_makeup).length),
-        // The live Signed RC and Attended SP images (#641), drawn by the server each time the forum loads them.
+        // The live Signed RC and Attended SP images (#641), drawn by the server from the marks as they are when the forum fetches them.
         rc_image: resultImages.rc ?? '',
         sp_image: resultImages.sp ?? '',
         fireteams_shown: names.size > 0,
