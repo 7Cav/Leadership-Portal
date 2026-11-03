@@ -49,6 +49,14 @@ describe('baselineText', () => {
 describe('readinessChecks', () => {
     const content = { trainingSubject: 'Room clearing', unaccounted: [] };
 
+    it('reads the roster checks as not applicable for a section with no troopers', () => {
+        const checks = readinessChecks({ isLeaf: true, troopers: [], content, reviewed: false });
+        const roster = checks.filter((c) => ['rollcall', 'practice', 'unaccounted'].includes(c.id));
+
+        expect(roster.map((c) => [c.na, c.done, c.count])).toEqual([[true, true, 'n/a'], [true, true, 'n/a'], [true, true, 'n/a']]);
+        expect(checks.find((c) => c.id === 'reviewed').na).toBeUndefined();
+    });
+
     it('passes every check for a fully marked, explained, reviewed section', () => {
         const checks = readinessChecks({ isLeaf: true, troopers: [trooper(1), trooper(2)], content, reviewed: true });
 
