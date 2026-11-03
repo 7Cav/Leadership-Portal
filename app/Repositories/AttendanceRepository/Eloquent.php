@@ -275,6 +275,7 @@ class Eloquent implements AttendanceRepository
             ->whereIn('section_practices.section_id', $sectionIds)
             ->whereBetween('section_practices.week_start', [$from, $to])
             ->leftJoinSub($held, 'held', 'held.section_practice_id', '=', 'section_practices.id')
+            ->leftJoin('section_practice_slots', 'section_practice_slots.section_id', '=', 'section_practices.section_id')
             ->leftJoin('attendance', function ($join) use ($trooperIds) {
                 $join->on('attendance.section_practice_id', '=', 'section_practices.id')
                     ->whereIn('attendance.trooper_id', $trooperIds);
@@ -289,13 +290,14 @@ class Eloquent implements AttendanceRepository
                 'attendance.status',
                 'attendance.rollcall',
                 'attendance.source',
+                ...self::timingColumns(),
             ]);
 
         $practices = $found->keyBy(fn (object $row) => $row->section_id.'|'.CarbonImmutable::parse($row->week_start, 'UTC')->toDateString());
         $rows = $found->whereNotNull('trooper_id')->keyBy(fn (object $row) => $row->trooper_id.'|'.$row->id);
         // A practice still to come, and not confirmed, holds nothing and its marks wait (#634).
-        $states = $this->practiceStates($found->pluck('id')->unique()->all());
-        $stateOf = fn (object $practice) => $states[(int) $practice->id] ?? PracticeTiming::OVER;
+        $now = CarbonImmutable::now();
+        $stateOf = fn (object $practice) => self::timingState($practice, $now);
 
         $statusOf = fn (array $option) => $option['row']?->status === null
             ? null
@@ -333,6 +335,7 @@ class Eloquent implements AttendanceRepository
                     held: PracticeTiming::held($stateOf($chosen['practice']), (bool) $chosen['practice']->held),
                     source: $row?->source === null ? null : AttendanceSource::from($row->source),
                     sectionId: (int) $chosen['practice']->section_id,
+                    recorded: $row?->status === null ? null : AttendanceStatus::from($row->status),
                 );
             }
         }
@@ -368,6 +371,7 @@ class Eloquent implements AttendanceRepository
                 $join->on('section_practices.section_id', '=', 'troopers.primary_section_id')
                     ->where('section_practices.week_start', '=', $weekStart);
             })
+            ->leftJoin('section_practice_slots', 'section_practice_slots.section_id', '=', 'section_practices.section_id')
             ->leftJoin('attendance', function ($join) {
                 $join->on('attendance.section_practice_id', '=', 'section_practices.id')
                     ->on('attendance.trooper_id', '=', 'troopers.id');
@@ -382,9 +386,10 @@ class Eloquent implements AttendanceRepository
             ->selectRaw("coalesce(sum(case when attendance.status = '{$loa}'{$excusedSql} then 1 else 0 end), 0) as on_loa", $excused)
             ->selectRaw("coalesce(sum(case when (attendance.status is null or attendance.status != '{$loa}') and (attendance.rollcall is null or attendance.rollcall = '{$unsigned}'){$notExcusedSql} then 1 else 0 end), 0) as not_signed", $excused)
             ->selectRaw('max(section_practices.rollcall_posted_at) as posted_at')
-            ->selectRaw('max(section_practices.id) as practice_id')
+            // One practice per section and week, so each of its columns is the same on every row of the group.
+            ->addSelect(array_map(fn (string $column) => DB::raw(preg_replace('/^(\S+) as /', 'max($1) as ', $column)), self::timingColumns()))
             ->get();
-        $states = $this->practiceStates($rows->pluck('practice_id')->filter()->all());
+        $now = CarbonImmutable::now();
 
         return $rows
             ->mapWithKeys(fn (object $row) => [(int) $row->section_id => new SectionWeekProgress(
@@ -392,7 +397,7 @@ class Eloquent implements AttendanceRepository
                 strength: (int) $row->strength,
                 signed: (int) $row->signed,
                 marked: (int) $row->marked,
-                held: PracticeTiming::held($states[(int) $row->practice_id] ?? PracticeTiming::OVER, (int) $row->held_marks > 0),
+                held: PracticeTiming::held(self::timingState($row, $now), (int) $row->held_marks > 0),
                 onLoa: (int) $row->on_loa,
                 unsigned: (int) $row->not_signed,
                 postedAt: $row->posted_at === null ? null : CarbonImmutable::parse($row->posted_at, 'UTC'),
@@ -428,20 +433,21 @@ class Eloquent implements AttendanceRepository
             ->toBase()
             ->whereIn('section_practices.section_id', array_keys($bySection))
             ->where('section_practices.week_start', '=', $weekStart)
+            ->leftJoin('section_practice_slots', 'section_practice_slots.section_id', '=', 'section_practices.section_id')
             ->leftJoin('attendance', function ($join) use ($trooperIds) {
                 $join->on('attendance.section_practice_id', '=', 'section_practices.id')
                     ->whereIn('attendance.trooper_id', $trooperIds);
             })
-            ->get(['section_practices.id as practice_id', 'section_practices.section_id', 'section_practices.rollcall_posted_at', 'attendance.trooper_id', 'attendance.rollcall', 'attendance.status', 'attendance.source']);
+            ->get(['section_practices.section_id', 'section_practices.rollcall_posted_at', 'attendance.trooper_id', 'attendance.rollcall', 'attendance.status', 'attendance.source', ...self::timingColumns()]);
 
         $posted = [];
         $marks = [];
-        $states = $this->practiceStates($rows->pluck('practice_id')->unique()->all());
+        $now = CarbonImmutable::now();
         $stateOf = [];
 
         foreach ($rows as $row) {
             $sectionId = (int) $row->section_id;
-            $stateOf[$sectionId] = $states[(int) $row->practice_id] ?? PracticeTiming::OVER;
+            $stateOf[$sectionId] = self::timingState($row, $now);
 
             if ($row->rollcall_posted_at !== null) {
                 $posted[$sectionId] = max($posted[$sectionId] ?? '', (string) $row->rollcall_posted_at);
@@ -495,27 +501,41 @@ class Eloquent implements AttendanceRepository
         return collect($progress);
     }
 
-    /**
-     * Each practice's {@see PracticeTiming} state now, by id: two reads (the practices and their sections' slots).
-     *
-     * @param  array<int|string>  $practiceIds
-     * @return array<int, string>
-     */
-    private function practiceStates(array $practiceIds): array
-    {
-        $ids = array_values(array_unique(array_map('intval', array_filter($practiceIds, fn ($id) => $id !== null))));
+    /** The practice and slot columns {@see timingState()} reads, joined in by the query that needs them (#634). */
+    private const TIMING_PRACTICE = ['week_start', 'confirmed_at', 'not_held', 'captured_at', 'window_end', 'slot_moved_to', 'slot_cancelled'];
 
-        if ($ids === []) {
-            return [];
+    private const TIMING_SLOT = ['weekday', 'start_minute', 'effective_from', 'previous_weekday', 'previous_start_minute'];
+
+    /**
+     * The select list for {@see timingState()}: `tp_*` from the practice, `ts_*` from its section's slot.
+     *
+     * @return list<string>
+     */
+    private static function timingColumns(): array
+    {
+        return [
+            ...array_map(fn (string $column) => "section_practices.{$column} as tp_{$column}", self::TIMING_PRACTICE),
+            ...array_map(fn (string $column) => "section_practice_slots.{$column} as ts_{$column}", self::TIMING_SLOT),
+        ];
+    }
+
+    /** The {@see PracticeTiming} state of the practice a joined row carries, or OVER for a row with no practice. */
+    private static function timingState(object $row, CarbonImmutable $now): string
+    {
+        if (($row->tp_week_start ?? null) === null) {
+            return PracticeTiming::OVER;
         }
 
-        $practices = SectionPractice::query()->whereKey($ids)->get();
-        $slots = SectionPracticeSlot::query()->whereIn('section_id', $practices->pluck('section_id')->unique()->all())->get()->keyBy('section_id');
-        $now = CarbonImmutable::now();
+        $practice = (new SectionPractice)->setRawAttributes(array_combine(
+            self::TIMING_PRACTICE,
+            array_map(fn (string $column) => $row->{"tp_{$column}"}, self::TIMING_PRACTICE),
+        ));
+        $slot = $row->ts_weekday === null ? null : (new SectionPracticeSlot)->setRawAttributes(array_combine(
+            self::TIMING_SLOT,
+            array_map(fn (string $column) => $row->{"ts_{$column}"}, self::TIMING_SLOT),
+        ));
 
-        return $practices
-            ->mapWithKeys(fn (SectionPractice $practice) => [$practice->id => PracticeTiming::state($practice, $slots->get($practice->section_id), $now)])
-            ->all();
+        return PracticeTiming::state($practice, $slot, $now);
     }
 
     /**

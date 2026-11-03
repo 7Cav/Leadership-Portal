@@ -15,6 +15,10 @@ use Carbon\CarbonImmutable;
  * `held` is true once any attendance row on this practice carries a leader's SP mark (any
  * `status` but the LOA-derived `loa`) — a row with only rollcall signatures has not been held, and
  * neither has one whose only marks are automatic makeups (a practice attended elsewhere).
+ *
+ * `status` is the mark as it counts (#634): an attended or not attended mark on a practice that is not over and not
+ * confirmed, or confirmed as not held, counts as no mark yet. `recorded` is the mark as the roll call holds it, for a
+ * page that lists the marks themselves.
  */
 final readonly class CountingMark
 {
@@ -28,5 +32,7 @@ final readonly class CountingMark
         public ?AttendanceSource $source = null,
         /** The section whose practice this is: the one the trooper was placed in that week, which after a transfer may not be their current one. */
         public ?int $sectionId = null,
+        /** The mark as recorded, whether or not it counts yet; null while unmarked. */
+        public ?AttendanceStatus $recorded = null,
     ) {}
 }
