@@ -99,6 +99,8 @@ class Eloquent implements StaffReportRepository
                 'sent_at' => CarbonImmutable::now('UTC'),
                 'sent_by' => $sentBy,
                 'revisions' => [...($row->revisions ?? []), $previous],
+                // The sheet holds the version replaced: the push runs again and overwrites its row.
+                'sheet_pushed_at' => null,
             ])->save();
 
             return $row;
@@ -110,7 +112,7 @@ class Eloquent implements StaffReportRepository
         return StaffReport::query()->find($id);
     }
 
-    public function markPushed(int $id): ?StaffReport
+    public function markPushed(int $id, ?string $range = null): ?StaffReport
     {
         $row = StaffReport::query()->find($id);
 
@@ -119,7 +121,7 @@ class Eloquent implements StaffReportRepository
         }
 
         // Not mass-assignable: only this bookkeeping writes it.
-        $row->forceFill(['sheet_pushed_at' => CarbonImmutable::now('UTC')])->save();
+        $row->forceFill(['sheet_pushed_at' => CarbonImmutable::now('UTC'), 'sheet_range' => $range ?? $row->sheet_range])->save();
 
         return $row;
     }

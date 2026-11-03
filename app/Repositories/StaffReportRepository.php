@@ -52,7 +52,8 @@ interface StaffReportRepository
     /**
      * Rewrite the sent report in place with what was sent again before its deadline: the same arguments as
      * {@see send()}, every field replaced (one left out of `$fields` is cleared), `sent_at` now and `sent_by`. The
-     * version it replaces is appended to `revisions`. Returns null when no report was sent for the trooper and week.
+     * version it replaces is appended to `revisions`, and `sheet_pushed_at` is cleared so the sheet push runs again and
+     * overwrites the row it wrote (`sheet_range`). Returns null when no report was sent for the trooper and week.
      *
      * @param  list<array{section_id: int, section: ?string}>  $practices
      * @param  array<string, mixed>  $fields
@@ -62,6 +63,9 @@ interface StaffReportRepository
     /** A sent report by id, or null. */
     public function findById(int $id): ?StaffReport;
 
-    /** Note that the report's row went to the Google Sheet now. Returns the row, or null when it is gone. */
-    public function markPushed(int $id): ?StaffReport;
+    /**
+     * Note that the report's row went to the Google Sheet now, and the A1 range it is in (kept from the first push when
+     * null), so an edit overwrites that row. Returns the row, or null when it is gone.
+     */
+    public function markPushed(int $id, ?string $range = null): ?StaffReport;
 }

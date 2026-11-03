@@ -12,7 +12,9 @@ use App\Repositories\UnitRepository;
 
 /**
  * Append one sent staff report to the reports Google Sheet ({@see StaffReportSheetRow}) and note when it went
- * (`sheet_pushed_at`). Platoon and company HQ staff go to the staff tab, battalion HQ staff to the battalion tab.
+ * (`sheet_pushed_at`) and where (`sheet_range`). Platoon and company HQ staff go to the staff tab, battalion HQ staff to
+ * the battalion tab. An edited report (its `sheet_pushed_at` cleared by the edit) overwrites the row it went to before
+ * rather than adding another; one whose earlier push did not say where its row went is appended.
  * Nothing happens when the sheet is not configured, when the report is gone, or when it was already pushed, so a retry
  * never adds a second row after a success it saw. A failure is rethrown for the queue to retry; the send it came from
  * stands either way.
@@ -36,7 +38,7 @@ class PushStaffReportToSheetHandler
     }
 
     /**
-     * Returns whether a row was appended.
+     * Returns whether a row was appended or overwritten.
      *
      * @throws GoogleSheetsUnavailable when the sheet did not take the row
      */
@@ -61,13 +63,19 @@ class PushStaffReportToSheetHandler
             return false;
         }
 
-        if ($hq->type === UnitType::Battalion) {
-            $this->sheet->append($this->sheet->battalionTab(), StaffReportSheetRow::battalion($report, $trooper, $hq));
-        } else {
-            $this->sheet->append($this->sheet->staffTab(), StaffReportSheetRow::staff($report, $trooper, $hq, $units));
+        [$tab, $row] = $hq->type === UnitType::Battalion
+            ? [$this->sheet->battalionTab(), StaffReportSheetRow::battalion($report, $trooper, $hq)]
+            : [$this->sheet->staffTab(), StaffReportSheetRow::staff($report, $trooper, $hq, $units)];
+
+        // Edited after an earlier push: its row is overwritten where it is, so the sheet keeps one row per week.
+        if ($report->sheet_range !== null) {
+            $this->sheet->update($report->sheet_range, $row);
+            $this->reports->markPushed($report->id);
+
+            return true;
         }
 
-        $this->reports->markPushed($report->id);
+        $this->reports->markPushed($report->id, $this->sheet->append($tab, $row));
 
         return true;
     }
