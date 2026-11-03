@@ -54,6 +54,18 @@ describe('Attendance matrix (roster-s3)', () => {
         expect(halves(16)).toEqual(['roster-h--ok', 'roster-h--ok']);
     });
 
+    it('shows HQ staff as no section that week and a departed trooper as left, not unsigned (#623)', () => {
+        const { units, troopers } = roster();
+        const blank = (t) => ({ ...t, weeks: t.weeks.map(() => null) });
+        const changed = troopers.map((t) => (t.id === 12 ? { ...blank(t), inSection: t.weeks.map(() => false) } : t.id === 10 ? { ...blank(t), departed: true, departedAt: '2026-09-01' } : t));
+        const mountWith = (filter) => mount(MatrixView, { props: { units, troopers: changed, weeks: WEEKS, currentWeek: CURRENT, query: '', filter }, attachTo: document.body });
+
+        const staff = mountWith('all').find('[data-testid="matrix-trooper-12"]').findAll('.cc-focus');
+        expect(staff[19].attributes('aria-label')).toContain('Roll call: No section that week. SP: No section that week.');
+        const gone = mountWith('departed').find('[data-testid="matrix-trooper-10"]').findAll('.cc-focus');
+        expect(gone[19].attributes('aria-label')).toContain('Roll call: Left the Cav. SP: Left the Cav.');
+    });
+
     it('narrows to 8 weeks', async () => {
         const wrapper = factory();
         await wrapper.find('[data-testid="window-8"]').trigger('click');

@@ -452,6 +452,37 @@ describe('time in service and grade', () => {
 });
 
 // Decided 2026-10-27: the milpac and the Sheet show a trooper's moves and their attendance across every unit.
+describe('weekCell by placement and departure (#623)', () => {
+    it('shows a departed trooper as left from the week after they left, not unsigned', () => {
+        expect(weekCell(null, '2026-10-03', { current: true, departedAt: '2026-09-20' })).toEqual({ rc: 'left', sp: 'left' });
+        expect(weekCell(mark({ rollcall: 'unsigned', status: 'missed' }), '2026-09-26', { departedAt: '2026-09-20' })).toEqual({ rc: 'left', sp: 'left' });
+        expect(weekCell(mark(), '2026-09-12', { departedAt: '2026-09-20' })).toEqual({ rc: 'ok', sp: 'ok' });
+        expect(RC_STATES.left).toBe('Left the Cav');
+        expect(SP_STATES.left).toBe('Left the Cav');
+    });
+
+    it('keeps what was recorded in the week they left, and shows that week as left when nothing was', () => {
+        expect(weekCell(mark(), '2026-09-19', { departedAt: '2026-09-20' })).toEqual({ rc: 'ok', sp: 'ok' });
+        expect(weekCell(null, '2026-09-19', { departedAt: '2026-09-20' })).toEqual({ rc: 'left', sp: 'left' });
+        expect(weekCell(mark({ rollcall: 'unsigned', status: null }), '2026-09-19', { departedAt: '2026-09-20' })).toEqual({ rc: 'left', sp: 'left' });
+    });
+
+    it('shows a departed trooper with no recorded date as left this week only', () => {
+        expect(weekCell(null, '2026-10-03', { current: true, departed: true })).toEqual({ rc: 'left', sp: 'left' });
+        expect(weekCell(null, '2026-09-26', { departed: true })).toEqual({ rc: 'nil', sp: 'nil' });
+    });
+
+    it('shows a week in no section (HQ staff, a group) as no section that week, unless a mark says otherwise', () => {
+        expect(weekCell(null, '2026-10-03', { current: true, inSection: false })).toEqual({ rc: 'none', sp: 'none' });
+        expect(weekCell(null, '2026-09-26', { inSection: false })).toEqual({ rc: 'none', sp: 'none' });
+        expect(weekCell(mark(), '2026-09-26', { inSection: false })).toEqual({ rc: 'ok', sp: 'ok' });
+    });
+
+    it('still shows weeks before the join date as not in the unit yet', () => {
+        expect(weekCell(null, '2026-09-19', { joined: '2026-09-28', inSection: false })).toEqual({ rc: 'out', sp: 'out' });
+    });
+});
+
 describe('transfers and the attendance history', () => {
     it('words a move, a first placement and a trooper left unplaced, with the forum date', () => {
         expect(transferLabel({ at: '2026-10-12T18:00:00Z', from: '2/1/A/1-7', to: '1/2/A/1-7' })).toBe('Moved from 2/1/A/1-7 to 1/2/A/1-7, 12OCT26');
@@ -476,5 +507,16 @@ describe('transfers and the attendance history', () => {
         expect(historyCell(week({ section: null, rollcall: null, status: null, held: false }))).toEqual({ rc: 'none', sp: 'none' });
         expect(historyCell(week({ rollcall: null, status: null, held: false }))).toEqual({ rc: 'nil', sp: 'nil' });
         expect(historyCell(week({ rollcall: null, status: null, held: false }), { current: true })).toEqual({ rc: 'open', sp: 'pending' });
+    });
+
+    it('shows weeks before the join date as not in the unit yet, and from a departure on as left (#623)', () => {
+        expect(historyCell(week(), { joined: '2026-09-30' })).toEqual({ rc: 'out', sp: 'out' });
+        expect(historyCell(week({ rollcall: null, status: null, held: false }), { joined: '2026-09-25' })).toEqual({ rc: 'nil', sp: 'nil' });
+        expect(historyCell(week({ week: '2026-09-26', rollcall: null, status: null, held: false }), { departedAt: '2026-09-20' })).toEqual({ rc: 'left', sp: 'left' });
+        expect(historyCell(week(), { departedAt: '2026-09-20' })).toEqual({ rc: 'ok', sp: 'ok' });
+    });
+
+    it('still shows each week's own section after a move', () => {
+        expect(historyCell(week({ section: { id: 9, label: '1/2/A/1-7' } }))).toEqual({ rc: 'ok', sp: 'ok' });
     });
 });

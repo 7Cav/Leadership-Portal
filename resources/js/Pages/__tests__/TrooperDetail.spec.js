@@ -93,7 +93,7 @@ describe('TrooperDetail', () => {
         it('says explicitly when the trooper is not placed in a section', () => {
             const wrapper = page({ trooper: trooper({ section: null }) });
 
-            expect(wrapper.get('[data-testid="unmapped"]').text()).toContain('Not placed in a section yet');
+            expect(wrapper.get('[data-testid="unmapped"]').text()).toContain('Not placed in a unit yet');
             expect(wrapper.get('[data-testid="trooper-subtitle"]').text()).not.toContain('Nightriders');
         });
 
@@ -154,6 +154,29 @@ describe('TrooperDetail', () => {
             expect(rows[3].text()).toContain('On LOA');
             expect(rows[19].get('[data-testid="attendance-section"]').text()).toBe('None');
             expect(rows[19].text()).toContain('No section that week');
+        });
+
+        it('shows weeks before the join date as not in the unit yet, with no section (#623)', () => {
+            const rows = page({ trooper: trooper({ tis: '2026-09-01' }), attendance: history() }).findAll('[data-testid="attendance-week"]');
+
+            // 22AUG26 to 28AUG26 ends before the join date; 29AUG26 to 04SEP26 holds it.
+            expect(rows[6].text()).toContain('Not in the unit yet');
+            expect(rows[6].get('[data-testid="attendance-section"]').text()).toBe('None');
+            expect(rows[5].text()).not.toContain('Not in the unit yet');
+            expect(rows[5].get('[data-testid="attendance-section"]').text()).toBe('1/1/E/2-7');
+        });
+
+        it('shows the weeks from a departure on as left the Cav, keeping what was recorded in the week they left (#623)', () => {
+            const rows = page({ trooper: trooper({ departed: true, departedAt: '2026-09-24' }), attendance: history() }).findAll('[data-testid="attendance-week"]');
+
+            expect(rows[0].text()).toContain('Left the Cav');
+            expect(rows[1].text()).toContain('Left the Cav');
+            expect(rows[2].text()).toContain('Will attend');
+        });
+
+        it('labels the field Section for a section and Unit for anything else (#622)', () => {
+            expect(page({ trooper: trooper({ section: { id: 3, type: 'section', name: 'Nightriders', callsign: '1/1/E/2-7' } }) }).get('[data-testid="section-term"]').text()).toBe('Section');
+            expect(page({ trooper: trooper({ section: { id: 4, type: 'company', name: 'ELOA', callsign: 'ELOA' } }) }).get('[data-testid="section-term"]').text()).toBe('Unit');
         });
 
         it('leaves the transfers out for a trooper who never moved, and the panel out with no history', () => {
