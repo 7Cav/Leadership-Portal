@@ -190,6 +190,9 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // checks the trooper against the viewer's scope (AD-8) — outside it is a 403. Both writes share the audited-writes
     // throttle.
     Route::get('/game-identities', [GameIdentityController::class, 'index'])->name('game-identities.index');
+    // An identity kept on file for a Cav name with no trooper: Admins only, checked in the Command. Before the
+    // {trooper}/{platform} routes so "kept" is never read as a trooper.
+    Route::delete('/game-identities/kept/{kept}', [GameIdentityController::class, 'destroyKept'])->whereNumber('kept')->middleware('throttle:audited-writes')->name('game-identities.kept.destroy');
     Route::put('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'update'])->middleware('throttle:audited-writes')->name('game-identities.update');
     Route::delete('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'destroy'])->middleware('throttle:audited-writes')->name('game-identities.destroy');
     Route::post('/game-identities/import/preview', [GameIdentityController::class, 'importPreview'])->middleware(['throttle:platform-lookup', 'throttle:audited-writes'])->name('game-identities.import.preview');

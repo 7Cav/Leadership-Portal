@@ -37,7 +37,8 @@ const TROOPERS = [
 const open = async (id) => {
     const wrapper = mount(GameIdentities, { props: { platforms: PLATFORMS, troopers: TROOPERS }, attachTo: document.body });
     await wrapper.get('[data-testid="view-everyone"]').trigger('click');
-    await wrapper.get(`[data-testid="open-${id}"]`).trigger('click');
+    // Add identity when a game is missing, else the name, which shows their identities.
+    await (wrapper.find(`[data-testid="open-${id}"]`).exists() ? wrapper.get(`[data-testid="open-${id}"]`) : wrapper.get(`[data-testid="name-${id}"]`)).trigger('click');
 
     return wrapper;
 };

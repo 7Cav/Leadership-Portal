@@ -384,7 +384,11 @@ link on any game, so one linked only on WW2 shows as missing Vietnam. The captur
 section's game is the game it plays as set on Org structure (its own or the nearest unit's above), and with none set, the
 one most of its troopers have a link for. Add identity opens on the trooper's usual game while it is missing: the game
 their unit plays when it is not retired, else the one most of their unit has linked, else the first game they are
-missing. Every serving trooper placed in your scope is listed:
+missing. Each row starts with a tab for the game the trooper's line unit plays (the one the roll call warns about), such
+as "HLLV linked" or "HLLV not linked", then a small chip for each other game they are linked on; a unit that plays no
+game shows no tab. "Main game not linked" lists only the troopers whose tab says not linked. Choosing a trooper's name
+shows their identities (game, kind, ID, gamertag, how it was made) with Edit, Remove and Fill in from game server; Add
+identity, shown only while a game is missing, opens the form for adding. Every serving trooper placed in your scope is listed:
 section members, HQ staff and group members (ELOA, Reservists, New Recruits, staff departments). Linking someone
 outside a section only lets the capture recognise them; attendance is still marked in sections only.
 
@@ -408,6 +412,21 @@ server)", and the server's name as its gamertag when the column is empty. A play
 game has no kind for, or a server that cannot be asked refuses the line until a kind is given. At most 60 lookups per
 preview, stopping after the first server that cannot be reached; an answer is kept for 10 minutes, so the import saves
 what the preview showed without asking again. A `?` on any other game or ID is refused.
+
+The trooper column is matched on the exact Cav name, ignoring case only, never by prefix: Atkins.D, Atkins.DS and
+Atkins.DA are different people. Two lines are saved for an Admin only (anyone else is refused, with a reason saying an
+Admin can save it). A trooper who is in the portal but not serving (they left after it began syncing) gets a normal
+identity, shown as "Not serving, kept for if they rejoin"; it is used again if they come back, and the capture never
+credits a trooper who is not serving. A Cav name with no trooper at all (they left before the portal began syncing) is
+"Kept on file" in `kept_game_identities` (the name as written and its lower case key, game, kind, ID stored as a save
+would store it, gamertag, who added it), in the same audited import. Kept lines check the game, kind, shape, Steam and
+`?` lookup as any other; an ID a trooper or another kept name holds on that game is refused naming them, and a trooper
+line is refused for an ID kept for a name. A capture never matches a kept identity. Each roster sync moves a kept
+identity onto the trooper of exactly that name once one is in the portal, whatever their status, as an Imported identity
+(one query when nothing matches, its own transaction after the trooper write, covered by the run's `sync_runs` row and
+logged). When that trooper already has an identity on the game, or another trooper holds the ID, it stays kept and the
+list shows why. Admins see Kept identities on Game identities (name, game, kind, ID, gamertag, added by and when) and
+can delete one with an optional reason (`kept_game_identity.removed`).
 
 Fill in from game server: on a game whose interface is CRCON, the page can ask the game's servers which platform a
 32-character ID belongs to and the player's current name (`get_player_profile`, read-only). The game's selected CRCON

@@ -17,6 +17,8 @@ The game server knows players by their player ID. Until a trooper is linked, the
 2. Choose a trooper, then enter the game's ID for them. The page says which ID the game uses.
 3. Choose **Save identity**.
 
+Each trooper's row shows whether they are linked on the game their unit plays, such as "HLLV linked" or "HLLV not linked", and the other games they are linked on. **Main game not linked** lists only the troopers still missing that game. Choose a trooper's name to see their identities, then **Edit** or **Remove** one. **Add identity** is only for adding a new one.
+
 ## Import many identities at once
 
 1. On **Game identities**, choose **Import identities**.
@@ -26,6 +28,10 @@ The game server knows players by their player ID. Until a trooper is linked, the
 5. Choose the import button, such as **Import 3 identities**, to save every line that adds or changes an identity. If anything changed since the preview, nothing is saved and you preview again.
 
 > [!good-to-know] For a 32-character Xbox, PlayStation or Epic ID on a Hell Let Loose game, write `?` as the ID kind (or leave it empty) and the preview asks the game server which kind it is and fills in the gamertag. A player the server has not seen is refused until you give the kind.
+
+> [!good-to-know] The trooper is matched on their exact Cav name. Atkins.D and Atkins.DS are different people.
+
+> [!good-to-know] An Admin can also import IDs for people who have left. A trooper who is not serving gets the identity as usual, ready for when they rejoin. A name with no trooper in the portal is kept on file and listed under **Kept identities**; when someone with exactly that name joins, the next roster sync gives them the identity. Other leaders see these lines refused.
 
 > [!good-to-know] The file can hold up to 500 lines. Steam IDs are checked with Steam where possible; a line marked "Not checked with Steam" is still saved.
 

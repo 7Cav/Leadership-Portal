@@ -11,6 +11,7 @@ use App\Models\SyncRun;
 use App\Models\TrooperStatus;
 use App\Models\UnitKind;
 use App\Repositories\AdminBilletRepository;
+use App\Repositories\KeptGameIdentityRepository;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitBilletMappingRepository;
@@ -75,6 +76,7 @@ class SyncRosterHandler
         private readonly UnitCommandMappingRepository $commandMappings,
         private readonly UnitRepository $units,
         private readonly AdminBilletRepository $adminBillets,
+        private readonly KeptGameIdentityRepository $keptIdentities,
     ) {}
 
     /**
@@ -143,6 +145,11 @@ class SyncRosterHandler
             );
 
             $this->troopers->updatePrimarySections($scope->filterSections($sections), $this->units->idsOfKind(UnitKind::Eloa)->all());
+
+            // A game identity kept on file for a Cav name with no trooper moves onto the trooper of exactly that name once
+            // one is here (whatever their status), in its own transaction like the mapping above: a crash between the
+            // two leaves it kept, and the next sync moves it. Covered by this run's `sync_runs` row (AD-16) and logged.
+            $this->keptIdentities->attachRejoined();
 
             // Only billets that already have a row: the import creates them, as it is what sees the group.
             $this->adminBillets->observe($this->titlesByPosition($scope->filterEntries($result->troopers)), createMissing: false);

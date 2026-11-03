@@ -15,6 +15,7 @@ use App\Commands\GameIdentities\LinkSharedAccountHandler;
 use App\Commands\GameIdentities\LookUpPlayerPlatform;
 use App\Commands\GameIdentities\PlatformLookup;
 use App\Commands\GameIdentities\PlatformLookupResult;
+use App\Commands\GameIdentities\RemoveKeptGameIdentity;
 use App\Commands\GameIdentities\RemoveSharedAccount;
 use App\Commands\GameIdentities\RemoveSharedAccountHandler;
 use App\Commands\GameIdentities\RemoveTrooperGameIdentity;
@@ -26,6 +27,7 @@ use App\Commands\GameIdentities\UnknownIdKindException;
 use App\Models\Game;
 use App\Models\Gamertag;
 use App\Models\IdKindFormat;
+use App\Models\KeptGameIdentity;
 use App\Models\SharedAccount;
 use App\Models\TelemetryInterface;
 use App\Models\Trooper;
@@ -33,6 +35,7 @@ use App\Models\TrooperGameIdentity;
 use App\Models\Unit;
 use App\Repositories\GameIdentityLinkException;
 use App\Repositories\GameRepository;
+use App\Repositories\KeptGameIdentityRepository;
 use App\Repositories\TrooperGameIdentityRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitGame;
@@ -73,6 +76,7 @@ class GameIdentityController extends Controller
         private readonly TrooperRepository $troopers,
         private readonly TrooperGameIdentityRepository $identities,
         private readonly GameRepository $games,
+        private readonly KeptGameIdentityRepository $kept,
     ) {}
 
     public function index(Request $request): Response
@@ -85,14 +89,30 @@ class GameIdentityController extends Controller
         $troopers = $this->troopers->placedInAny($units->keys());
         $identities = $this->identities->forTroopers($troopers->modelKeys())->groupBy('trooper_id');
         $games = $this->games->all();
-        $gameOf = $this->usualGames(UnitGame::resolve($tree), $troopers, $identities, $games);
+        $unitGames = UnitGame::resolve($tree);
+        $gameOf = $this->usualGames($unitGames, $troopers, $identities, $games);
+        $gamesById = $games->keyBy('id');
 
         return Inertia::render('GameIdentities', [
             // Import identities: for anyone who may change at least one trooper here; each line is checked on its own.
             'canImport' => $writable->isNotEmpty(),
+            // Kept identities: IDs kept on file for Cav names with no trooper in the portal, for Admins only (null otherwise).
+            'kept' => $this->scope->isAdmin($request->user()) ? $this->kept->all()->map(fn (KeptGameIdentity $row) => [
+                'id' => $row->id,
+                'cavName' => $row->cav_name,
+                'game' => $row->game->name,
+                'idKind' => $row->id_kind,
+                'platformId' => $row->platform_id,
+                'gamertag' => $row->gamertag,
+                'addedBy' => $row->creator?->username,
+                'addedAt' => $row->created_at?->toIso8601String(),
+                'conflict' => $row->conflict,
+            ])->values()->all() : null,
             'platforms' => $games->map(fn (Game $game) => [
                 'value' => $game->slug,
                 'label' => $game->name,
+                // The short name the trooper rows show on their game chips.
+                'abbreviation' => $game->abbreviation,
                 'idKinds' => $game->id_kinds,
                 // The shape each checked kind has, keyed by kind, for the hint under the ID field. A kind not here is not checked.
                 'idHints' => (object) collect($game->id_kinds)
@@ -115,6 +135,9 @@ class GameIdentityController extends Controller
                 // The game Add identity opens on while it is still missing: the game their unit plays, else the game most
                 // troopers placed with them have linked. Null when neither gives one.
                 'game' => $gameOf->get((int) $trooper->primary_section_id),
+                // The game their line unit plays, as the roll call's missing-identity warning reads it: the row's first
+                // tab says whether they are linked on it. Null when their unit plays no game (or a retired one).
+                'mainGame' => $this->mainGame($units->get($trooper->primary_section_id), $unitGames, $gamesById),
                 'identities' => ($identities->get($trooper->id) ?? collect())
                     ->mapWithKeys(fn (TrooperGameIdentity $identity) => [$identity->game->slug => [
                         'platformId' => $identity->platform_id,
@@ -275,6 +298,20 @@ class GameIdentityController extends Controller
         return back();
     }
 
+    /** Delete an identity kept on file for a Cav name with no trooper (Admins only), with an optional reason. */
+    public function destroyKept(Request $request, int $kept, RemoveKeptGameIdentity $command): RedirectResponse
+    {
+        $data = $request->validate(['reason' => ['nullable', 'string', 'max:500']]);
+
+        try {
+            $command->handle($request->user(), $kept, $data['reason'] ?? null);
+        } catch (GameIdentityForbiddenException $e) {
+            abort(403, $e->getMessage());
+        }
+
+        return back();
+    }
+
     public function destroy(Request $request, int $trooper, string $platform, RemoveTrooperGameIdentityHandler $handler): RedirectResponse
     {
         $game = $this->games->findBySlug($platform) ?? abort(404);
@@ -386,6 +423,17 @@ class GameIdentityController extends Controller
 
                 return $best?->slug;
             });
+    }
+
+    /**
+     * @param  array<int, UnitGame>  $unitGames  by unit id
+     * @param  Collection<int, Game>  $gamesById
+     */
+    private function mainGame(?Unit $unit, array $unitGames, Collection $gamesById): ?string
+    {
+        $game = $unit !== null && $unit->isLine() && isset($unitGames[$unit->id]) ? $gamesById->get($unitGames[$unit->id]->gameId) : null;
+
+        return $game === null || $game->isRetired() ? null : $game->slug;
     }
 
     private function designation(?Unit $unit): ?string
