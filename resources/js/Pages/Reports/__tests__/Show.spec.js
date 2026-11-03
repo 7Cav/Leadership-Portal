@@ -345,6 +345,35 @@ describe('Reports/Show', () => {
         expect(wrapper.get('#training-subject').attributes('disabled')).toBeDefined();
     });
 
+    it('badges a reopened report Being edited and says until when it can be sent again', () => {
+        const wrapper = mountShow({
+            report: { status: 'sent', editing: true, notes: 'Good.', trainingSubject: 'Land nav', unaccounted: [], savedAt: null, sentAt: '2026-10-08T16:24:00+00:00', sentBy: 'SGT Vasquez.R' },
+        });
+
+        expect(wrapper.get('[data-testid="status-badge"]').text()).toBe('Being edited');
+        expect(wrapper.find('[data-testid="editing-banner"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="sent-panel"]').exists()).toBe(false);
+        expect(wrapper.get('[data-testid="send-bar"]').text()).toContain('Send again');
+    });
+
+    it('names a unit that changed its report after the roll-up was sent, with Edit report beside it', () => {
+        const wrapper = mountShow({
+            unit: { id: 2, name: '1st Platoon', callsign: '1/A/1-7', type: 'platoon', isLeaf: false, parent: null },
+            troopers: null,
+            children: [],
+            report: {
+                status: 'sent', notes: '', trainingSubject: '', unaccounted: [], savedAt: null, sentAt: '2026-10-08T16:24:00+00:00', sentBy: 'SGT Vasquez.R',
+                canEdit: true,
+                changedChildren: [{ id: 4, name: '1st Section', callsign: '1/1/A/1-7', type: 'section' }],
+            },
+        });
+
+        expect(wrapper.get('[data-testid="changed-children"]').text().replace(/\s+/g, ' ')).toBe(
+            '1/1/A/1-7 changed its report after this one was sent. The numbers here are from before the change.',
+        );
+        expect(wrapper.find('[data-testid="edit-report"]').exists()).toBe(true);
+    });
+
     it('shows a rate with nothing eligible as a bare dash in the sent panel, not "—%"', () => {
         const wrapper = mountShow({
             report: { status: 'sent', notes: '', trainingSubject: '', unaccounted: [], savedAt: null, sentAt: '2026-10-08T16:24:00+00:00', sentBy: null },
