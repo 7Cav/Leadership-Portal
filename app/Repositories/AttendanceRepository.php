@@ -73,7 +73,8 @@ interface AttendanceRepository
     /**
      * Take back an automatic makeup (decided 2026-10-23): when the host leader removes the guest entry that alone
      * supported it, the `makeup`/`auto` mark {@see markMakeupAuto()} wrote on the trooper's own section's practice is
-     * cleared to unmarked (`status` and `source` null; the row and its rollcall signature stay). Anything else is left
+     * cleared to unmarked (`status` and `source` null; the row and its rollcall signature stay), or, when the row has no
+     * signature, deleted, so an Undo leaves no row the makeup created (the returned model then no longer `exists`). Anything else is left
      * exactly as it is: a leader's manual mark (a makeup marked by hand included), `present` (the trooper's own
      * practice was captured since), `loa`, `missed`, or no row. Decided against a locking read inside
      * this write's own transaction, as {@see markMakeupAuto()} is. Returns the cleared row, or null when nothing was

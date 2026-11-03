@@ -124,6 +124,13 @@ class Eloquent implements AttendanceRepository
                 return null;
             }
 
+            // A row the makeup itself created, with no signature on it, goes again: Undo leaves no row behind (#628).
+            if ($row->rollcall === RollcallSignature::Unsigned) {
+                $row->delete();
+
+                return $row;
+            }
+
             $row->fill(['status' => null, 'source' => null])->save();
 
             return $this->realise($row);

@@ -373,6 +373,16 @@ it('clears an automatic makeup to unmarked, keeping the row and its signature', 
         ->and(Attendance::query()->sole()->rollcall)->toBe(RollcallSignature::WillAttend);
 });
 
+it('deletes an automatic makeup row with no signature on it, leaving no row behind (#628)', function () {
+    $this->repo->markMakeupAuto($this->practice, $this->trooper->id);
+
+    $row = $this->repo->clearMakeupAuto($this->practice, $this->trooper->id);
+
+    expect($row->exists)->toBeFalse()
+        ->and($row->status)->toBe(AttendanceStatus::Makeup)
+        ->and(Attendance::query()->count())->toBe(0);
+});
+
 it('never clears anything but an automatic makeup', function (AttendanceStatus $status, AttendanceSource $source) {
     $this->repo->markPractice($this->practice, $this->trooper->id, $status, $source);
 
