@@ -5,6 +5,7 @@ namespace App\Commands\Practices;
 use App\Authorization\ScopeResolver;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Models\WeeklyReportStatus;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\SectionPracticeSlotRepository;
 use App\Repositories\UnitRepository;
@@ -44,7 +45,9 @@ class SetPracticeSlot
     {
         $thisWeek = WeekOf::start($now ?? CarbonImmutable::now());
 
-        $held = $this->reports->isSentFor($sectionId, $thisWeek)
+        // Sent holds the week even while it is reopened for editing (#619), when isSentFor() answers false.
+        $report = $this->reports->find($sectionId, $thisWeek);
+        $held = ($report?->status === WeeklyReportStatus::Sent && ! $report->is_demo)
             || $this->practices->find($sectionId, $thisWeek)?->captured_at !== null;
 
         return $held ? WeekOf::next($thisWeek) : $thisWeek;

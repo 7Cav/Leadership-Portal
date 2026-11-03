@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\UnitRepository;
+use App\Repositories\WeeklyReportRepository;
 use Carbon\CarbonImmutable;
 
 // A section's weekly practice slot (#392): weekday and start in Zulu, always one hour, set by the section's leaders,
@@ -233,6 +234,19 @@ it('names the current week as the first a change affects when it is not held, th
     WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->week]);
 
     expect($this->set->changesFrom($this->section->id)->toDateString())->toBe('2026-10-31');
+});
+
+it('changes the slot from the next week after the sent report is reopened for editing', function () {
+    $this->set->handle($this->sl, $this->section->id, 4, 120); // Thu 0200Z, from this week
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->week]);
+    app(WeeklyReportRepository::class)->reopen($this->section->id, $this->week, $this->admin->id);
+
+    expect($this->set->changesFrom($this->section->id)->toDateString())->toBe('2026-10-31');
+
+    $this->set->handle($this->sl, $this->section->id, 1, 60); // Mon 0100Z
+
+    expect($this->schedule->windowFor($this->section->id, $this->week)->start->toIso8601ZuluString())->toBe('2026-10-29T02:00:00Z')
+        ->and($this->schedule->windowFor($this->section->id, $this->week->addWeek())->start->toIso8601ZuluString())->toBe('2026-11-02T01:00:00Z');
 });
 
 it('keeps the slot a past week had after a later change and a removal', function () {
