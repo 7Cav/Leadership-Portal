@@ -8,6 +8,8 @@ use App\Commands\Attendance\InvalidAttendanceMarkException;
 use App\Commands\WeeklyReports\InvalidPlatoonTrainingTopicException;
 use App\Commands\WeeklyReports\InvalidReportContentException;
 use App\Commands\WeeklyReports\MakeupChecksIncompleteException;
+use App\Commands\WeeklyReports\ReopenWeeklyReport;
+use App\Commands\WeeklyReports\ReopenWeeklyReportHandler;
 use App\Commands\WeeklyReports\SaveReportDraft;
 use App\Commands\WeeklyReports\SaveReportDraftHandler;
 use App\Commands\WeeklyReports\SendWeeklyReport;
@@ -15,6 +17,7 @@ use App\Commands\WeeklyReports\SendWeeklyReportHandler;
 use App\Commands\WeeklyReports\SetPlatoonTrainingTopic;
 use App\Commands\WeeklyReports\SetPlatoonTrainingTopicHandler;
 use App\Commands\WeeklyReports\TrainingSubjectEnforcedException;
+use App\Commands\WeeklyReports\WeeklyReportLockedException;
 use App\Kpi\AutoExcused;
 use App\Kpi\ChildReport;
 use App\Kpi\ChildReportStatus;
@@ -41,6 +44,7 @@ use App\Models\WeeklyReportStatus;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\CountingMark;
 use App\Repositories\PlatoonTrainingTopicRepository;
+use App\Repositories\ReportEditWindow;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitGuidonRepository;
 use App\Repositories\UnitRepository;
@@ -101,9 +105,13 @@ class ReportController extends Controller
         $unit = $this->unitInScope($request, $unit);
         $weekStart = $this->weekStart($week);
         $report = $this->reports->find($unit->id, $weekStart);
-        $sent = $report?->status === WeeklyReportStatus::Sent;
+        // A sent report reopened inside its edit window is composed again like a draft until it is sent again;
+        // everywhere else on this screen "sent" means frozen.
+        $sent = ReportEditWindow::isFrozen($report);
+        $editing = ReportEditWindow::isEditing($report);
         $history = $this->reports->sentBefore($unit->id, $weekStart, self::HISTORY_WEEKS);
         $isLeaf = $unit->type === UnitType::Section;
+        $canWrite = $this->scope->writeScope($request->user())->contains($unit->id);
 
         $snapshot = null;
         $kpiError = null;
@@ -163,9 +171,17 @@ class ReportController extends Controller
                 // Older than the week floor: shown read-only, a draft or send for it is a 404.
                 'beforeFloor' => WeekOf::isBeforeFloor($weekStart),
             ],
-            'report' => $this->reportProps($report, $senders),
+            'report' => [
+                ...$this->reportProps($report, $senders),
+                'editing' => $editing,
+                // "Edit report": whoever could send it now, until its deadline. A view-as preview changes nothing.
+                'canEdit' => $sent && $canWrite && ReportEditWindow::isOpen($weekStart) && ! WeekOf::isBeforeFloor($weekStart)
+                    && $this->scope->activeViewAs($request->user()) === null,
+                // The children sent again since this roll-up froze: its numbers still hold their earlier reports.
+                'changedChildren' => $sent && ! $isLeaf ? $this->changedChildren($report, $children) : [],
+            ],
             // Whether this viewer may save or send it: command authority, not a staff grant, which only reads.
-            'canWrite' => $this->scope->writeScope($request->user())->contains($unit->id),
+            'canWrite' => $canWrite,
             'topic' => $topic === null ? null : $this->topicProps($topic, $isLeaf ? $parent : $unit),
             // Only the platoon's own chain of command (or an Admin) sets it, until the platoon's
             // report is sent, and not for a week before the floor (the write is a 404 there). A
@@ -292,6 +308,25 @@ class ReportController extends Controller
         // leader learns that what they just confirmed was not what got frozen.
         if ($result->alreadySent) {
             throw ValidationException::withMessages(['report' => 'This report was already sent. It is shown as it was frozen; your latest changes were not saved.']);
+        }
+
+        return redirect()->route('reports.show', ['unit' => $unit->id, 'week' => $weekStart->toDateString()]);
+    }
+
+    /** "Edit report": reopen the sent report so it can be changed and sent again before its deadline. */
+    public function edit(Request $request, ReopenWeeklyReportHandler $handler, int $unit, string $week): RedirectResponse
+    {
+        $unit = $this->unitInScope($request, $unit);
+        $weekStart = $this->writableWeekStart($week);
+        $data = $request->validate(['reason' => ['required', 'string', 'max:1000']], [
+            'reason.required' => 'Give a reason for the record before you edit the report.',
+            'reason.max' => 'Keep the reason to :max characters.',
+        ]);
+
+        try {
+            $handler->handle($request->user(), new ReopenWeeklyReport($unit->id, $weekStart, $data['reason']));
+        } catch (WeeklyReportLockedException $e) {
+            throw ValidationException::withMessages(['report' => $e->getMessage()]);
         }
 
         return redirect()->route('reports.show', ['unit' => $unit->id, 'week' => $weekStart->toDateString()]);
@@ -649,6 +684,32 @@ class ReportController extends Controller
             'sentAt' => null,
             'trainingSubject' => null,
         ])->values()->all();
+    }
+
+    /**
+     * The children whose report was sent again after this roll-up was sent, in the order listed. Their numbers in the
+     * roll-up are the ones it froze; nothing is updated for them, so the leader decides whether to edit and send again.
+     *
+     * @param  Collection<int, Unit>  $children
+     * @return list<array{id: int, name: string, callsign: ?string, type: string}>
+     */
+    private function changedChildren(WeeklyReport $report, Collection $children): array
+    {
+        if ($children->isEmpty() || $report->sent_at === null) {
+            return [];
+        }
+
+        $reports = $this->reports->forUnits($children->modelKeys(), $report->week_start);
+
+        return $children
+            ->filter(function (Unit $child) use ($reports, $report) {
+                $sent = $reports->get($child->id);
+
+                return $sent?->status === WeeklyReportStatus::Sent && $sent->revisions !== null && $sent->sent_at?->greaterThan($report->sent_at);
+            })
+            ->map(fn (Unit $child) => $this->unitProps($child))
+            ->values()
+            ->all();
     }
 
     /**

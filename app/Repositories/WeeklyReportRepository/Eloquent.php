@@ -7,11 +7,13 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Models\WeeklyReportStatus;
+use App\Repositories\ReportEditWindow;
 use App\Repositories\WeeklyReportAlreadySentException;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Closure;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -38,9 +40,10 @@ class Eloquent implements WeeklyReportRepository
             ->where('unit_id', $unitId)
             ->where('week_start', $this->assertWeekStart($weekStart))
             ->sharedLock()
-            ->first(['id', 'status', 'is_demo']);
+            ->first(['id', 'week_start', 'status', 'reopened_at', 'is_demo']);
 
-        return $report !== null && $report->status === WeeklyReportStatus::Sent && ! $report->is_demo;
+        // Reopened inside its edit window, the week is the leader's to fix again until they send.
+        return ReportEditWindow::isFrozen($report) && ! $report->is_demo;
     }
 
     public function forUnits(array $unitIds, CarbonInterface $weekStart): Collection
@@ -99,12 +102,13 @@ class Eloquent implements WeeklyReportRepository
         ?string $trainingSubject = null,
         array $unaccounted = [],
     ): WeeklyReport {
+        // A reopened report stays sent until it is sent again: its snapshot is not a draft to overwrite.
         return $this->write($unitId, $weekStart, [
             'kpis' => $kpis,
             'notes' => $notes,
             'training_subject' => $trainingSubject,
             'unaccounted' => $unaccounted,
-        ]);
+        ], allowEditing: false);
     }
 
     public function send(
@@ -129,7 +133,11 @@ class Eloquent implements WeeklyReportRepository
             throw new InvalidArgumentException("Template version {$templateVersionId} does not exist; a sent report can only name a stored version.");
         }
 
-        return $this->write($unitId, $weekStart, [
+        return $this->write($unitId, $weekStart, fn (WeeklyReport $report) => [
+            // Sent again from the edit window: the version it replaces is kept, oldest first.
+            ...($report->status === WeeklyReportStatus::Sent ? ['revisions' => [...($report->revisions ?? []), self::revisionOf($report)]] : []),
+            'reopened_at' => null,
+            'reopened_by' => null,
             'status' => WeeklyReportStatus::Sent,
             'kpis' => $kpis,
             'notes' => $notes,
@@ -157,23 +165,73 @@ class Eloquent implements WeeklyReportRepository
             throw new LogicException('WeeklyReportRepository::lockForSend() must run inside the send\'s transaction; on its own the lock would be released at once.');
         }
 
-        $this->lockUnsent($unitId, $this->assertWeekStart($weekStart));
+        $this->lockUnsent($unitId, $this->assertWeekStart($weekStart), allowEditing: true);
+    }
+
+    public function reopen(int $unitId, CarbonInterface $weekStart, int $reopenedBy): WeeklyReport
+    {
+        $weekStart = $this->assertWeekStart($weekStart);
+
+        return DB::transaction(function () use ($unitId, $weekStart, $reopenedBy) {
+            $report = WeeklyReport::query()
+                ->where('unit_id', $unitId)
+                ->where('week_start', $weekStart)
+                ->lockForUpdate()
+                ->first();
+
+            if ($report === null || $report->status !== WeeklyReportStatus::Sent) {
+                throw new LogicException("The weekly report for unit {$unitId}, week of {$weekStart->toDateString()}, is not sent, so there is nothing to reopen.");
+            }
+
+            if (! ReportEditWindow::isOpen($weekStart)) {
+                throw WeeklyReportAlreadySentException::for($unitId, $weekStart);
+            }
+
+            // Reopened already: the first reopen stands.
+            if ($report->reopened_at === null) {
+                $report->forceFill(['reopened_at' => CarbonImmutable::now('UTC'), 'reopened_by' => $reopenedBy])->save();
+            }
+
+            return $report;
+        });
+    }
+
+    /**
+     * What a send froze, as `revisions` keeps it once the report is sent again.
+     *
+     * @return array<string, mixed>
+     */
+    private static function revisionOf(WeeklyReport $report): array
+    {
+        return [
+            'kpis' => $report->kpis,
+            'notes' => $report->notes,
+            'training_subject' => $report->training_subject,
+            'unaccounted' => $report->unaccounted,
+            'makeup_checks' => $report->makeup_checks,
+            'sent_at' => $report->sent_at?->toIso8601String(),
+            'sent_by' => $report->sent_by,
+            'content_digest' => $report->content_digest,
+            'template_version_id' => $report->template_version_id,
+        ];
     }
 
     /**
      * Update-or-create the unit-week's row, refusing a sent one, in one transaction: lock the row
      * ({@see lockUnsent()}), then write `$values` over it.
      *
-     * @param  array<string, mixed>  $values  built only by this class, so they are force-filled
+     * @param  array<string, mixed>|Closure(WeeklyReport): array<string, mixed>  $values  built only by this class, so
+     *                                                                                they are force-filled; a closure
+     *                                                                                is given the locked row
      */
-    private function write(int $unitId, CarbonInterface $weekStart, array $values): WeeklyReport
+    private function write(int $unitId, CarbonInterface $weekStart, array|Closure $values, bool $allowEditing = true): WeeklyReport
     {
         $weekStart = $this->assertWeekStart($weekStart);
 
-        return DB::transaction(function () use ($unitId, $weekStart, $values) {
-            $report = $this->lockUnsent($unitId, $weekStart);
+        return DB::transaction(function () use ($unitId, $weekStart, $values, $allowEditing) {
+            $report = $this->lockUnsent($unitId, $weekStart, $allowEditing);
 
-            $report->forceFill($values)->save();
+            $report->forceFill($values instanceof Closure ? $values($report) : $values)->save();
 
             return $report;
         });
@@ -192,7 +250,8 @@ class Eloquent implements WeeklyReportRepository
      *    shared lock on the duplicate, and three or more writers then deadlock upgrading it.
      *    The placeholder values never outlive the transaction; a duplicate touches only
      *    `updated_at`, which the write sets again anyway.
-     * 3. Lock that row and refuse it if sent.
+     * 3. Lock that row and refuse it if sent, unless `$allowEditing` and it is reopened inside its edit window
+     *    ({@see ReportEditWindow::isEditing()}): a send may freeze that one again.
      *
      * Every read here is a locking read, so on MySQL's REPEATABLE READ none of them opens the
      * transaction's read view: the first plain read after this — the send's KPI snapshot — sees
@@ -200,7 +259,7 @@ class Eloquent implements WeeklyReportRepository
      *
      * @throws WeeklyReportAlreadySentException when the unit-week is already sent.
      */
-    private function lockUnsent(int $unitId, CarbonImmutable $weekStart): WeeklyReport
+    private function lockUnsent(int $unitId, CarbonImmutable $weekStart, bool $allowEditing): WeeklyReport
     {
         if (Unit::query()->whereKey($unitId)->sharedLock()->first() === null) {
             throw new InvalidArgumentException("Unit {$unitId} does not exist; a weekly report belongs to a unit.");
@@ -227,7 +286,7 @@ class Eloquent implements WeeklyReportRepository
             ->lockForUpdate()
             ->sole();
 
-        if ($report->status === WeeklyReportStatus::Sent) {
+        if ($report->status === WeeklyReportStatus::Sent && ! ($allowEditing && ReportEditWindow::isEditing($report))) {
             throw WeeklyReportAlreadySentException::for($unitId, $weekStart);
         }
 

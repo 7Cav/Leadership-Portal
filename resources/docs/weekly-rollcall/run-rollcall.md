@@ -87,4 +87,4 @@ If your section plays a game and has no slot, a warning sits at the top of the r
 2. If you change a mark later, the page says the copied BBCode is out of date. Repost the updated BBCode, then choose **Mark posted again**.
 3. Then [write and send your report](/docs/weekly-report/send-your-report).
 
-> [!good-to-know] Once your section's report is sent, that week's roll call is locked: marks, the practice confirmation and guests can no longer change. A week too far back is read only too.
+> [!good-to-know] Once your section's report is sent, that week's roll call is locked: marks, the practice confirmation and guests can no longer change. Choosing **Edit report** on the report before it is due opens the roll call again until you send the report again or the deadline passes. A week too far back is read only too.

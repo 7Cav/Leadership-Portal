@@ -3,6 +3,7 @@
 namespace App\Commands\StaffReports;
 
 use App\Support\Time\WeekLabel;
+use App\Support\Time\WeekOf;
 use Carbon\CarbonInterface;
 use RuntimeException;
 
@@ -37,6 +38,20 @@ class StaffReportRefusedException extends RuntimeException
     public static function notOwed(string $name, CarbonInterface $weekStart): self
     {
         return new self("{$name} was not on a platoon, company or battalion HQ when the ".WeekLabel::phrase($weekStart).' closed, so there is no staff report to send for it.', 'not_owed', 'report');
+    }
+
+    /** Sent, and its deadline has passed: it can no longer be edited. */
+    public static function locked(CarbonInterface $weekStart): self
+    {
+        $due = WeekOf::reportDue(WeekOf::start($weekStart));
+
+        return new self('The staff report for the '.WeekLabel::phrase($weekStart).' locked at its deadline, '.WeekLabel::date($due).' '.WeekLabel::zulu($due).', so it can no longer change.', 'locked', 'report');
+    }
+
+    /** Editing a sent report is recorded with why. */
+    public static function reasonRequired(): self
+    {
+        return new self('Give a reason for the record before you send the edited report.', 'reason_required', 'reason');
     }
 
     public static function weekBeforeFloor(CarbonInterface $weekStart): self

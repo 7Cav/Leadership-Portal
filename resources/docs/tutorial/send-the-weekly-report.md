@@ -27,4 +27,4 @@ Your report is what your chain of command reads about your unit's week. It is du
 1. Tick **I have read the preview and my notes as command will see them**.
 2. Choose **Freeze and send**, give a reason for the record and confirm.
 
-> [!warning] Sending freezes the numbers. What your chain of command reads never changes after you send, and that week's roll call is locked.
+> [!warning] Sending freezes the numbers, and that week's roll call is locked. Until the report is due you can still choose **Edit report**, change it and send it again. After that, what your chain of command reads never changes.

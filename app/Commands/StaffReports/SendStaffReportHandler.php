@@ -13,6 +13,7 @@ use App\Repositories\AuditedBatch;
 use App\Repositories\CrossSectionSightingRepository;
 use App\Repositories\GameRepository;
 use App\Repositories\PracticeCapturePlayerRepository;
+use App\Repositories\ReportEditWindow;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\StaffReportRepository;
 use App\Repositories\TrooperRepository;
@@ -27,8 +28,10 @@ use Carbon\CarbonImmutable;
  * at least one section practice that Cav week, what kind (a section practice, an FTX or, for battalion HQ staff, an
  * office hour), which, the other events they
  * attended and their notes. Only they send it, signed in as themselves
- * ({@see StaffReportAccess::maySend()}); nobody fills it in for them, Admins included. A sent report is final, as a
- * unit's weekly report is: there is no draft, no edit and no second send.
+ * ({@see StaffReportAccess::maySend()}); nobody fills it in for them, Admins included. There is no draft. Until it locks
+ * at its deadline ({@see ReportEditWindow}, as a unit's weekly report does) they may send it again with a reason: the
+ * row is rewritten in place, the version it replaces kept in `revisions`, and the week's entries set again as below,
+ * audited as `staff_report.edited` (reason required). After the deadline a sent report is final.
  *
  * The practices picked are stored as the staff member's staff practice entries (`cross_section_sightings`, source
  * `staff`), the same store the milpac uses, so the host section's rollcall lists them and the milpac shows them. The
@@ -43,7 +46,7 @@ use Carbon\CarbonImmutable;
  * goes by who was on the HQ then) or no longer serving, "Yes" to an SP with nothing picked or "No" with picks or an FTX,
  * a practice type other than SP or FTX (or, on a battalion HQ, an office hour), an FTX without a name or with a date
  * outside the week, an office hour without a note or with a date outside the week or with sections picked, text over its limit, a
- * pick that is not a section, and a report already sent. Then one audited transaction (`staff_report.sent`, AD-16, target the report,
+ * pick that is not a section, a report already sent and past its deadline, and an edit with no reason. Then one audited transaction (`staff_report.sent`, AD-16, target the report,
  * digest over it and the week's entries): the report row is inserted under its UNIQUE key, so two sends at once land on
  * one and the second is told it was already sent. The game server check ({@see presenceCheck()}) is computed before the transaction and frozen on the row. The HQ's own weekly report does not lock this: the staff member's
  * week is theirs to report until they send it.
@@ -52,6 +55,10 @@ class SendStaffReportHandler
 {
     /** The most practices one report takes: far more than a week holds, a bound on the request only. */
     public const MAX_PRACTICES = 20;
+
+    public const SENT = 'staff_report.sent';
+
+    public const EDITED = 'staff_report.edited';
 
     public const MAX_FTX_NAME = 120;
 
@@ -105,8 +112,15 @@ class SendStaffReportHandler
         $fields = $this->fields($command, $weekStart, $hq);
         $sections = $this->pickedSections($command, $fields['practice_type']);
 
-        if ($this->reports->find($trooper->id, $weekStart) !== null) {
-            throw StaffReportRefusedException::alreadySent($weekStart);
+        // Sent already: an edit until the deadline, with a reason; after it, locked.
+        $editing = $this->reports->find($trooper->id, $weekStart) !== null;
+
+        if ($editing && ! ReportEditWindow::isOpen($weekStart)) {
+            throw StaffReportRefusedException::locked($weekStart);
+        }
+
+        if ($editing && blank($command->reason)) {
+            throw StaffReportRefusedException::reasonRequired();
         }
 
         $fields = [...$fields, ...$this->presenceCheck($trooper->id, $weekStart, $fields['practice_type'], $sections)];
@@ -114,12 +128,17 @@ class SendStaffReportHandler
         $report = null;
         $this->audit->recordBatch(
             actorId: $actor->id,
-            action: 'staff_report.sent',
-            reason: null,
-            reasonRequired: false,
-            mutation: function () use ($actor, $trooper, $weekStart, $hq, $sections, $fields, $command, &$report) {
-                if ($this->reports->isSent($trooper->id, $weekStart)) {
+            action: $editing ? self::EDITED : self::SENT,
+            reason: $editing ? $command->reason : null,
+            reasonRequired: $editing,
+            mutation: function () use ($actor, $trooper, $weekStart, $hq, $sections, $fields, $command, $editing, &$report) {
+                // The edit locks the sent row before it touches the week's entries; a first send must find none.
+                if ($editing ? $this->reports->lockSent($trooper->id, $weekStart) === null : $this->reports->isSent($trooper->id, $weekStart)) {
                     throw StaffReportRefusedException::alreadySent($weekStart);
+                }
+
+                if ($editing && ! ReportEditWindow::isOpen($weekStart)) {
+                    throw StaffReportRefusedException::locked($weekStart);
                 }
 
                 $entries = [];
@@ -143,7 +162,7 @@ class SendStaffReportHandler
                     }
                 }
 
-                $report = $this->reports->send(
+                $report = ($editing ? $this->reports->edit(...) : $this->reports->send(...))(
                     $trooper->id,
                     $hq->id,
                     $weekStart,

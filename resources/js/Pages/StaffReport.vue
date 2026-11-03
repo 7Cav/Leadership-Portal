@@ -12,6 +12,7 @@ import {
     PhChalkboardTeacher,
     PhLockSimple,
     PhMagnifyingGlass,
+    PhPencilSimpleLine,
     PhTent,
     PhUserCheck,
     PhUsersThree,
@@ -55,6 +56,8 @@ const props = defineProps({
     // Whether the reports Google Sheet is set up: only then is a report not yet copied there called out.
     sheetConfigured: { type: Boolean, default: false },
     canSend: { type: Boolean, default: false },
+    // Sent, and the staff member may still send it again with a reason, until it locks at its deadline.
+    canEdit: { type: Boolean, default: false },
     // The week's staff practice entries already there, `[{ sectionId, section, enteredBy, selfReported }]`.
     entries: { type: Array, default: () => [] },
     // Section ids whose capture saw them on the game server this week: a hint, never ticked for them.
@@ -86,7 +89,31 @@ const form = useForm({
     office_hour_note: '',
     other_events: '',
     notes: '',
+    reason: '',
 });
+
+// Edit report: the form again, filled in with what was sent. Sending it replaces the sent report.
+const editingReport = ref(false);
+function startEdit() {
+    const sent = props.report;
+    form.defaults({
+        attended: sent.attended,
+        section_ids: sent.practices.map((practice) => practice.sectionId),
+        practice_type: sent.practiceType ?? 'sp',
+        ftx_name: sent.ftx?.name ?? '',
+        ftx_date: sent.ftx?.date ?? '',
+        office_hour_date: sent.officeHour?.date ?? '',
+        office_hour_note: sent.officeHour?.note ?? '',
+        other_events: sent.otherEvents ?? '',
+        notes: sent.notes ?? '',
+        reason: '',
+    });
+    form.reset();
+    form.clearErrors();
+    notesVisited.value = true;
+    step.value = 'attended';
+    editingReport.value = true;
+}
 
 const ATTENDED = [
     { value: true, label: 'Yes', hint: 'A practice, an FTX or an office hour', icon: PhCheckCircle },
@@ -156,7 +183,7 @@ const missing = computed(() => {
 
     return null;
 });
-const canSubmit = computed(() => !form.processing && missing.value === null);
+const canSubmit = computed(() => !form.processing && missing.value === null && (!editingReport.value || !!form.reason.trim()));
 
 // One question at a time: Yes or No, then (for Yes) what it was and its details, then the optional extras. A step is
 // reachable once every step before it is answered; Send stays beside the steps the whole way.
@@ -258,10 +285,14 @@ function submit() {
             office_hour_note: kind === 'office_hour' ? data.office_hour_note : null,
             other_events: data.other_events,
             notes: data.notes,
+            reason: editingReport.value ? data.reason : null,
         };
     }).post(`/staff-report/${props.trooper.id}/${props.week.date}`, {
         preserveScroll: true,
-        onSuccess: () => toast.success('Staff report sent'),
+        onSuccess: () => {
+            toast.success(editingReport.value ? 'Staff report sent again' : 'Staff report sent');
+            editingReport.value = false;
+        },
         onHttpException: onHttpException('The staff report was not sent', (message) => toast.error(message)),
     });
 }
@@ -281,7 +312,7 @@ function entryNote(id) {
 <template>
     <Head :title="`Staff report, ${weekPhrase(week.start)} · 7Cav Leadership Portal`" />
 
-    <div class="flex flex-col gap-4" :class="canSend && !report ? 'max-w-5xl' : 'max-w-3xl'" data-testid="staff-report-page">
+    <div class="flex flex-col gap-4" :class="(canSend && !report) || editingReport ? 'max-w-5xl' : 'max-w-3xl'" data-testid="staff-report-page">
         <section aria-labelledby="page-title" class="flex flex-wrap items-end gap-x-6 gap-y-3">
             <div class="min-w-0">
                 <p class="text-xs text-muted-foreground" data-testid="staff-report-who">
@@ -320,7 +351,7 @@ function entryNote(id) {
         </Card>
 
         <!-- Sent: read back as it was sent. -->
-        <Card v-else-if="report" class="gap-0 py-0 text-[13px]" data-testid="staff-report-sent">
+        <Card v-else-if="report && !editingReport" class="gap-0 py-0 text-[13px]" data-testid="staff-report-sent">
             <div class="flex items-start gap-3 border-b border-border px-4 py-3.5">
                 <PhCheckCircle class="mt-0.5 size-5 shrink-0 text-success" weight="fill" aria-hidden="true" />
                 <div class="min-w-0 flex-1">
@@ -341,9 +372,13 @@ function entryNote(id) {
                         <StaffReportPresence :presence="report.presence" />
                     </h2>
                     <p class="mt-0.5 text-xs text-muted-foreground">
-                        Sent {{ stamp(report.sentAt) }}. A sent staff report is final.
+                        Sent {{ stamp(report.sentAt) }}.<template v-if="!canEdit"> A sent staff report is final.</template>
                         <span v-if="sheetLine" data-testid="staff-report-sheet">{{ sheetLine }}.</span>
                     </p>
+                </div>
+                <div v-if="canEdit" class="flex flex-none flex-col items-end gap-1">
+                    <Button variant="outline" size="sm" data-testid="staff-report-edit" @click="startEdit"><PhPencilSimpleLine aria-hidden="true" />Edit report</Button>
+                    <span class="text-xs text-muted-foreground">Open until {{ stamp(week.due) }}</span>
                 </div>
             </div>
             <p v-if="report.officeHour?.note" class="border-b border-border px-4 py-3 whitespace-pre-line" data-testid="staff-report-office-hour">
@@ -368,7 +403,7 @@ function entryNote(id) {
         </Card>
 
         <!-- Not sent, and this viewer may send it: one question at a time, with the answer so far beside it. -->
-        <form v-else-if="canSend" class="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]" data-testid="staff-report-form" @submit.prevent="send">
+        <form v-else-if="canSend || editingReport" class="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]" data-testid="staff-report-form" @submit.prevent="send">
             <!-- Send asks first when the Notes step was never opened. -->
             <AlertDialog :open="askingNotes" @update:open="(open) => (askingNotes = open)">
                 <AlertDialogContent class="sm:max-w-md" data-testid="notes-dialog">
@@ -618,8 +653,15 @@ function entryNote(id) {
                 </dl>
                 <div class="border-t px-4 py-3">
                     <p v-if="missing" class="mb-2 text-xs text-muted-foreground" data-testid="send-missing">{{ missing }}</p>
-                    <p v-else class="mb-2 text-xs text-muted-foreground">Once sent, your staff report cannot be changed.</p>
-                    <Button type="submit" class="w-full" :disabled="!canSubmit" data-testid="staff-report-send">Send staff report</Button>
+                    <p v-else-if="editingReport && !form.reason.trim()" class="mb-2 text-xs text-muted-foreground">Give a reason for the record.</p>
+                    <p v-else class="mb-2 text-xs text-muted-foreground">You can edit it until {{ stamp(week.due) }}.</p>
+                    <div v-if="editingReport" class="mb-3 space-y-1.5">
+                        <label for="edit-reason" class="text-xs font-medium">Reason for the record</label>
+                        <Textarea id="edit-reason" v-model="form.reason" rows="2" maxlength="1000" data-testid="staff-report-reason" />
+                        <p v-if="form.errors.reason" role="alert" class="text-xs text-destructive">{{ form.errors.reason }}</p>
+                    </div>
+                    <Button type="submit" class="w-full" :disabled="!canSubmit" data-testid="staff-report-send">{{ editingReport ? 'Send again' : 'Send staff report' }}</Button>
+                    <Button v-if="editingReport" type="button" variant="ghost" class="mt-2 w-full" :disabled="form.processing" data-testid="staff-report-cancel-edit" @click="editingReport = false">Cancel</Button>
                     <p v-if="dropped.length && form.attended !== null" class="mt-2 text-xs text-warning" data-testid="dropped-note">
                         Sending takes off the {{ dropped.length === 1 ? 'entry' : 'entries' }} you left out:
                         {{ dropped.map((entry) => entry.section).join(', ') }}.

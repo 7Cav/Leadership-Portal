@@ -20,7 +20,10 @@ use LogicException;
  * result to and from it, and computing `$contentDigest`, belong to the caller.
  *
  * A sent report is frozen (AD-12): any write to a sent unit-week throws
- * `WeeklyReportAlreadySentException` and leaves the row untouched.
+ * `WeeklyReportAlreadySentException` and leaves the row untouched, with one exception: a report
+ * reopened inside its edit window ({@see ReportEditWindow}) may be sent again, which freezes a new
+ * snapshot and keeps the one it replaces in `revisions`. A draft is never saved over a sent report,
+ * reopened or not.
  *
  * Every `$weekStart` must be a Saturday 00:00 UTC (AD-11), given in any timezone (it is compared
  * as an instant); anything else throws `InvalidArgumentException` rather than keying a report to
@@ -41,7 +44,8 @@ interface WeeklyReportRepository
      * generated demo report (`is_demo`, #115). A sent report freezes its week's facts (AD-12), so
      * the rollcall of that unit-week is locked from then on; a draft, no report at all, or a demo
      * report leaves it open — the demo design relies on a leader marking over a demo week to make
-     * it real. A read that never creates a row.
+     * it real. A sent report reopened inside its edit window ({@see ReportEditWindow::isEditing()})
+     * leaves it open too, until it is sent again or its deadline passes. A read that never creates a row.
      *
      * Takes a shared lock on the unit-week's row (or, when there is none yet, on the gap its key
      * would go into), so called inside a write transaction it holds until that transaction ends: a
@@ -126,7 +130,8 @@ interface WeeklyReportRepository
      *                                  `users` row, `$templateVersionId` is not a
      *                                  `template_versions` row, or `$weekStart` is not a Saturday
      *                                  00:00 UTC.
-     * @throws WeeklyReportAlreadySentException when the unit-week is already sent.
+     * @throws WeeklyReportAlreadySentException when the unit-week is already sent and not reopened inside
+     *                                          its edit window.
      */
     public function send(
         int $unitId,
@@ -158,6 +163,17 @@ interface WeeklyReportRepository
      * @throws LogicException when called outside a transaction, where the lock would end at once.
      */
     public function lockForSend(int $unitId, CarbonInterface $weekStart): void;
+
+    /**
+     * Reopen the unit-week's sent report for editing: record `reopened_at` (now) and `reopened_by`, and change
+     * nothing else, so its snapshot stays the record until it is sent again. Reopening one already reopened leaves it
+     * as it is.
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     * @throws WeeklyReportAlreadySentException when its deadline has passed: it is locked.
+     * @throws LogicException when the unit-week has no sent report.
+     */
+    public function reopen(int $unitId, CarbonInterface $weekStart, int $reopenedBy): WeeklyReport;
 
     /**
      * Whether `$unit` has any report, draft or sent, in any week — `weekly_reports.unit_id`

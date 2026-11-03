@@ -220,10 +220,10 @@ it('refuses a week before the floor, a future week and the running week', functi
     'next week' => ['2026-10-17', 'future'],
 ]);
 
-it('is final once sent: no second send, and the week\'s staff entries no longer change on the milpac', function () {
+it('takes no second send without a reason, and the week\'s staff entries no longer change on the milpac', function () {
     sendStaffReport($this->tree['users']['psg'], $this->psg, true, [$this->host->id]);
 
-    expect(staffReportRefusal(fn () => sendStaffReport($this->tree['users']['psg'], $this->psg, false, [])))->toBe('already_sent');
+    expect(staffReportRefusal(fn () => sendStaffReport($this->tree['users']['psg'], $this->psg, false, [])))->toBe('reason_required');
 
     foreach ([
         fn () => app(RecordStaffPracticeHandler::class)->handle($this->tree['users']['pl'], new RecordStaffPractice($this->psg->id, $this->tree['units']['other']->id, $this->week)),
