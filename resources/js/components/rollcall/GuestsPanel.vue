@@ -42,6 +42,7 @@ const MAKEUP_ADDED = {
     marked: 'Their own section\'s roll call shows Make-up complete for this week.',
     kept: 'Their own roll call already had a mark for this week, so it stayed.',
     locked: 'Their own section\'s week is locked, so no make-up was recorded there.',
+    pending: 'Their own section\'s roll call gets Make-up complete once this practice is over.',
 };
 const MAKEUP_REMOVED = {
     withdrawn: 'The Make-up complete it put on their own roll call was taken back.',
