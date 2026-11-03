@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Models\WeeklyReportStatus;
 use App\Repositories\PlatoonTrainingTopicRepository;
 use App\Repositories\ReportEditWindow;
+use App\Repositories\SectionPracticeRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportAlreadySentException;
@@ -75,6 +76,11 @@ use Carbon\CarbonInterface;
  * through {@see MarkAttendanceHandler} (its own audited write, by the sender) before the snapshot is taken, so the
  * frozen numbers count it; a "did not" leaves the mark as it is. Both answers are frozen with the report as
  * `makeup_checks`. If the send then fails, the make-ups stay recorded: the leader said they happened.
+ *
+ * **Practice confirmed.** A section's send is refused with {@see PracticeNotConfirmedException} until its leader has
+ * confirmed the week's practice as held or as not held on the roll call (#634), checked before anything is written and
+ * again under the report's lock (a mark saved meanwhile clears the confirmation). A section with nobody on its roll
+ * call has nothing to confirm, and a platoon's or company's send is not asked.
  */
 class SendWeeklyReportHandler
 {
@@ -93,6 +99,7 @@ class SendWeeklyReportHandler
         private readonly ActingFor $acting,
         private readonly KpiService $kpis,
         private readonly MarkAttendanceHandler $attendance,
+        private readonly SectionPracticeRepository $practices,
     ) {}
 
     /**
@@ -104,6 +111,7 @@ class SendWeeklyReportHandler
      * @throws TrainingSubjectEnforcedException when the platoon enforces a different subject.
      * @throws ReportKpisUnavailableException when the unit's KPIs cannot be reported yet, or the
      *                                        prior week's sent snapshot is unreadable.
+     * @throws PracticeNotConfirmedException when a section's practice is not confirmed as held or not held.
      */
     public function handle(User $actor, SendWeeklyReport $command): SentWeeklyReport
     {
@@ -131,6 +139,8 @@ class SendWeeklyReportHandler
         if (ReportEditWindow::isFrozen($existing)) {
             return new SentWeeklyReport($existing, alreadySent: true);
         }
+
+        $this->refuseUnconfirmedPractice($unit, $weekStart);
 
         $content = ReportContent::checked($unit, $weekStart, $command->notes, $command->trainingSubject, $command->unaccounted, $this->troopers);
         $trainingSubject = SectionTrainingSubject::forSend($unit->id, $this->topics->forSection($unit, $weekStart), $content->trainingSubject);
@@ -160,6 +170,7 @@ class SendWeeklyReportHandler
                     // committing in between would be missing from the frozen KPIs while the week
                     // then locked under it (AD-12).
                     $this->reports->lockForSend($unit->id, $weekStart);
+                    $this->refuseUnconfirmedPractice($unit, $weekStart);
 
                     $kpis = $this->snapshots->snapshot($unit, $weekStart)->toArray();
 
@@ -225,6 +236,21 @@ class SendWeeklyReportHandler
             'unaccounted' => $unaccounted,
             'template_version_id' => $templateVersionId,
         ]), JSON_THROW_ON_ERROR | JSON_PRESERVE_ZERO_FRACTION));
+    }
+
+    /**
+     * @throws PracticeNotConfirmedException when `$unit` is a section with troopers on its roll call and the week's
+     *                                       practice is not confirmed.
+     */
+    private function refuseUnconfirmedPractice(Unit $unit, CarbonImmutable $weekStart): void
+    {
+        if ($unit->type !== UnitType::Section || $this->practices->find($unit->id, $weekStart)?->confirmed_at !== null) {
+            return;
+        }
+
+        if ($this->troopers->onRollcall($unit, $weekStart)->troopers->isNotEmpty()) {
+            throw new PracticeNotConfirmedException;
+        }
     }
 
     /**
