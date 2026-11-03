@@ -203,3 +203,36 @@ it('shows Edit report only before the deadline, and reopens through the page wit
     $this->actingAs($this->leader)->get($url)->assertInertia(fn (AssertableInertia $p) => $p->where('report.canEdit', false)->where('report.editing', false));
     $this->actingAs($this->leader)->post("{$url}/edit", ['reason' => 'Late'])->assertSessionHasErrors('report');
 });
+
+it('lists the versions an edit replaced in History, with who reopened and sent it again and why', function () {
+    editSend($this->leader, $this->section);
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-08 12:00:00', 'UTC'));
+    editReopen($this->leader, $this->section, 'Wrong marks');
+    // A second reopen while open changes nothing: the first one is the one that opened it.
+    editReopen($this->platoonLeader, $this->section, 'Also wrong');
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-08 12:05:00', 'UTC'));
+    editSend($this->leader, $this->section, 'Fixed the marks', 'Corrected.');
+    $url = "/reports/{$this->section->id}/2026-10-03";
+
+    $this->actingAs($this->platoonLeader)->get($url)->assertInertia(fn (AssertableInertia $p) => $p
+        ->has('report.revisions', 1)
+        ->where('report.revisions.0.sentAt', '2026-10-07T18:00:00+00:00')
+        ->where('report.revisions.0.notes', 'All good.')
+        ->where('report.revisions.0.reopened.at', '2026-10-08T12:00:00+00:00')
+        ->where('report.revisions.0.reopened.reason', 'Wrong marks')
+        ->where('report.revisions.0.replaced.at', '2026-10-08T12:05:00+00:00')
+        ->where('report.revisions.0.replaced.reason', 'Fixed the marks')
+        ->whereNot('report.revisions.0.kpis', null)
+        ->where('report.notes', 'Corrected.'));
+
+    // Someone who cannot read the section's report does not reach its history either.
+    $outsider = User::factory()->commanding(Unit::factory()->create(['type' => UnitType::Section, 'path' => '900/901/']))->create();
+    $this->actingAs($outsider)->get($url)->assertForbidden();
+});
+
+it('lists no earlier versions for a report never edited', function () {
+    editSend($this->leader, $this->section);
+
+    $this->actingAs($this->leader)->get("/reports/{$this->section->id}/2026-10-03")
+        ->assertInertia(fn (AssertableInertia $p) => $p->where('report.revisions', []));
+});

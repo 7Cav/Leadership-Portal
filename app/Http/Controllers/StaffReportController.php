@@ -15,9 +15,14 @@ use App\Kpi\Headcount;
 use App\Kpi\KpiService;
 use App\Kpi\StaffHqHealth;
 use App\Milpac\StaffReportWeek;
+use App\Models\AuditLogEntry;
+use App\Models\StaffReport;
+use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
+use App\Repositories\AuditLogRepository;
 use App\Repositories\ReportEditWindow;
+use App\Repositories\ReportRevisionTrail;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitGame;
 use App\Repositories\UnitRepository;
@@ -65,7 +70,7 @@ class StaffReportController extends Controller
         ]);
     }
 
-    public function show(Request $request, int $trooper, string $week): Response
+    public function show(Request $request, AuditLogRepository $audit, int $trooper, string $week): Response
     {
         $trooper = $this->troopers->find($trooper) ?? abort(404);
         $weekStart = $this->weekStart($week);
@@ -104,7 +109,11 @@ class StaffReportController extends Controller
                 'ended' => $ended,
                 'opensAt' => WeekOf::next($weekStart)->toIso8601String(),
             ],
-            'report' => $report === null ? null : $this->withOwn($report, $hq),
+            'report' => $report === null ? null : [
+                ...$this->withOwn($report, $hq),
+                // The versions an edit replaced, newest first.
+                'revisions' => $this->revisionRows($this->week->find($trooper, $weekStart), $trooper, $audit),
+            ],
             // Whether the reports Google Sheet is set up, so a reader is told when a row has not gone to it yet.
             'sheetConfigured' => $this->sheet->sheetConfigured(),
             'canSend' => $canSend,
@@ -316,6 +325,42 @@ class StaffReportController extends Controller
      * @param  array{sentAt: string, attended: bool, practices: list<array{sectionId: int, section: ?string}>}  $report
      * @return array<string, mixed>
      */
+    /**
+     * The earlier versions of a sent staff report, newest first, each as the page reads a sent report, with who sent it
+     * again, when and why (`replaced`: `{at, by, reason}`, null when the trail has no entry for it).
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function revisionRows(?StaffReport $report, Trooper $trooper, AuditLogRepository $audit): array
+    {
+        $revisions = array_values($report?->revisions ?? []);
+
+        if ($report === null || $revisions === []) {
+            return [];
+        }
+
+        $trail = ReportRevisionTrail::pair($revisions, $audit->forTarget($report, [SendStaffReportHandler::EDITED]), SendStaffReportHandler::EDITED);
+        // Only the staff member sends their report, so each version is theirs; an actor is named as the roster has them.
+        $by = fn (AuditLogEntry $entry) => $entry->actor?->cav_id === $trooper->cav_id ? $trooper->display_name : $entry->actor?->username;
+
+        $rows = [];
+        foreach ($revisions as $i => $revision) {
+            $replaced = $trail[$i]['replaced'];
+            $rows[] = [
+                // Read back as the report it was, so it is shown the way the sent report is.
+                ...StaffReportWeek::reportProps((new StaffReport)->forceFill($revision)),
+                'sentBy' => $trooper->display_name,
+                'replaced' => $replaced === null ? null : [
+                    'at' => $replaced->created_at?->toIso8601String(),
+                    'by' => $by($replaced),
+                    'reason' => $replaced->reason,
+                ],
+            ];
+        }
+
+        return array_reverse($rows);
+    }
+
     private function withOwn(array $report, ?Unit $hq): array
     {
         $paths = $this->units->tree()->keyBy('id');

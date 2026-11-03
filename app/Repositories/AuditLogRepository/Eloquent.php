@@ -339,6 +339,18 @@ class Eloquent implements AuditLogRepository
                 ->whereIn('section_practices.section_id', $units()))));
     }
 
+    public function forTarget(Model $target, array $actions): Collection
+    {
+        return AuditLogEntry::query()
+            ->with('actor')
+            ->where('target_type', class_basename($target))
+            ->where('target_id', (string) $target->getKey())
+            ->whereIn('action', $actions)
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+    }
+
     public function actors(): Collection
     {
         return User::query()

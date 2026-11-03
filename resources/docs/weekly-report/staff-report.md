@@ -42,6 +42,7 @@ The form asks one question at a time. The numbered steps at the top show where y
 2. Each practice you picked lists you on that section's roll call: as a **Staff guest** in your own platoon, company or battalion, and as a **Guest** anywhere else. You never count in that section's numbers.
 3. The portal compares the practices you picked with the game server's capture for that week (CRCON for Hell Let Loose). If a picked practice was captured and none of them saw you, your report is still sent but shows **Self-report conflicts with CRCON data** to you and to your chain of command. With no capture it shows a red **No CRCON data** alert, since your report could not be checked. Link your game identity so the capture can find you.
 4. Your report is also copied to the regiment's reports sheet. Your report page says **Sent to the sheet** once it is there. When you send it again, its row on the sheet is replaced with the new version.
+5. A report sent again lists the versions it replaced under **Earlier versions**. Open one to see what it said, and when and why it was sent again. Whoever reads your report sees them too.
 
 > [!good-to-know] Your unit's report shows whether its HQ staff sent theirs, for the leaders above it. Sending your HQ's own report does not stop you sending yours. For a week that has ended, the portal goes by the HQ you were on when it ended, so you still send it after a move.
 

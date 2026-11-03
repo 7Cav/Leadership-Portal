@@ -448,6 +448,7 @@ const historyEntries = computed(() => [
                   trainingSubject: props.report.trainingSubject,
                   unaccounted: props.report.unaccounted ?? [],
                   missingChildren: props.missingChildren,
+                  revisions: props.report.revisions ?? [],
               },
           ]
         : []),

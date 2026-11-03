@@ -48,6 +48,7 @@ Until the report is due, 2359Z on the Saturday after the Cav week, a sent report
 1. On the sent report, choose **Edit report**, give a reason for the record, and confirm. That week's roll call opens again, so you can fix marks too.
 2. Change what you need. Edits are not saved as a draft: they stay on the page until you send.
 3. Choose **Send again**, give a reason, and confirm. The new numbers and notes replace the sent ones. The version you replaced is kept, and the audit log records both reasons.
+4. The **History** tab lists the versions you replaced under **Earlier versions**. Open one to see its numbers and notes, who reopened it and who sent it again, when and why.
 
 > [!good-to-know] Until you send again, the version you sent stays the report your chain of command reads. If you never send again, it locks at the deadline as it was.
 

@@ -24,6 +24,7 @@ import ReportDeadlineBanner from '@/components/reports/ReportDeadlineBanner.vue'
 import StaffHqHealth from '@/components/reports/StaffHqHealth.vue';
 import StaffReportDiscrepancy from '@/components/reports/StaffReportDiscrepancy.vue';
 import StaffReportPresence from '@/components/reports/StaffReportPresence.vue';
+import StaffReportRevisions from '@/components/reports/StaffReportRevisions.vue';
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -51,7 +52,8 @@ const props = defineProps({
     // `{ date, start, due, overdueUntil, previous, next, beforeFloor, ended, opensAt }`.
     week: { type: Object, required: true },
     // The report as sent, `{ sentAt, attended, practiceType, ftx: { name, date }, officeHour: { date, note }, otherEvents,
-    // notes, sheetPushedAt, practices: [{ sectionId, section, own }] }`, or null.
+    // notes, sheetPushedAt, practices: [{ sectionId, section, own }], revisions }`, or null. `revisions` are the versions an
+    // edit replaced, newest first.
     report: { type: Object, default: null },
     // Whether the reports Google Sheet is set up: only then is a report not yet copied there called out.
     sheetConfigured: { type: Boolean, default: false },
@@ -400,6 +402,7 @@ function entryNote(id) {
                     <dd class="whitespace-pre-line" data-testid="staff-report-notes">{{ report.notes }}</dd>
                 </div>
             </dl>
+            <StaffReportRevisions v-if="report.revisions?.length" :revisions="report.revisions" />
         </Card>
 
         <!-- Not sent, and this viewer may send it: one question at a time, with the answer so far beside it. -->

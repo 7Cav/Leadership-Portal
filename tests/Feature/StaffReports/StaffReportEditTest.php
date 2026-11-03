@@ -103,3 +103,24 @@ it('offers Edit report on the staff member\'s own page only until the deadline',
     CarbonImmutable::setTestNow($this->due->addMinute());
     $this->actingAs($this->user)->get($url)->assertInertia(fn (AssertableInertia $p) => $p->where('canEdit', false));
 });
+
+it('shows the versions an edit replaced, with when and why it was sent again, to whoever reads the report', function () {
+    editStaff($this->user, $this->psg, true, [$this->host->id], notes: 'First.');
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-10 18:00:00', 'UTC'));
+    editStaff($this->user, $this->psg, false, [], 'Picked the wrong week', 'Second.');
+    $url = route('staff-report.show', ['trooper' => $this->psg->id, 'week' => '2026-10-03']);
+
+    foreach ([$this->user, $this->tree['users']['co']] as $viewer) {
+        $this->actingAs($viewer)->get($url)->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('report.notes', 'Second.')
+            ->has('report.revisions', 1)
+            ->where('report.revisions.0.sentAt', '2026-10-10T12:00:00+00:00')
+            ->where('report.revisions.0.attended', true)
+            ->where('report.revisions.0.notes', 'First.')
+            ->where('report.revisions.0.practices.0.sectionId', $this->host->id)
+            ->where('report.revisions.0.sentBy', $this->psg->display_name)
+            ->where('report.revisions.0.replaced.at', '2026-10-10T18:00:00+00:00')
+            ->where('report.revisions.0.replaced.by', $this->psg->display_name)
+            ->where('report.revisions.0.replaced.reason', 'Picked the wrong week'));
+    }
+});

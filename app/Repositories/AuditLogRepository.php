@@ -96,6 +96,15 @@ interface AuditLogRepository
     public function targetsOf(iterable $entries): array;
 
     /**
+     * The entries about one model with one of `$actions`, oldest first, `actor` loaded: what a report's history reads
+     * to say who reopened or replaced each earlier version, and why.
+     *
+     * @param  list<string>  $actions
+     * @return Collection<int, AuditLogEntry>
+     */
+    public function forTarget(Model $target, array $actions): Collection;
+
+    /**
      * Every user who has at least one `audit_log` entry, for the review screen's actor filter —
      * scoped to actors who actually appear, not every portal-known identity (Story 1.12's
      * `nonAdminUsers()` is the wrong shape here: an Admin can act too, and a user who has never
