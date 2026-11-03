@@ -98,6 +98,15 @@ interface CrossSectionSightingRepository
     public function forHostPractice(int $hostPracticeId): Collection;
 
     /**
+     * Every guest a leader added by hand at a practice of one of these Cav weeks, with its host `practice` loaded, by
+     * id: what the scheduler gives a make-up once that practice is over (#634).
+     *
+     * @param  list<CarbonInterface>  $weekStarts
+     * @return Collection<int, CrossSectionSighting>
+     */
+    public function manualInWeeks(array $weekStarts): Collection;
+
+    /**
      * Whether `$trooperId` is recorded as a guest at any host practice of this Cav week, from either guest source: what still supports an
      * automatic makeup on their own rollcall once one entry is removed.
      */

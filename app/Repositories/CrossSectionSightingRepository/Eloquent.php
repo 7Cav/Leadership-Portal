@@ -151,6 +151,21 @@ class Eloquent implements CrossSectionSightingRepository
             ->first();
     }
 
+    public function manualInWeeks(array $weekStarts): Collection
+    {
+        if ($weekStarts === []) {
+            return collect();
+        }
+
+        return CrossSectionSighting::query()
+            ->with('practice')
+            ->where('source', CrossSectionSighting::SOURCE_MANUAL)
+            ->whereIn('week_start', array_map(fn (CarbonInterface $week) => WeekOf::requireStart($week), $weekStarts))
+            ->orderBy('id')
+            ->get()
+            ->toBase();
+    }
+
     public function forHostPractice(int $hostPracticeId): Collection
     {
         return CrossSectionSighting::query()
