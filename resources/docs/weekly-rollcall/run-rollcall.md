@@ -26,7 +26,7 @@ minutes: 10
 3. Use the arrows beside the week to go back or forward a week, and **This week** to come back. An arrow is flagged when a week it leads to is unfinished.
 4. On the Saturday after a week ends, until the report is due at 2359Z, roll call opens on that closing week if your section has not sent its report yet. Choose **This week** for the new week.
 
-> [!good-to-know] A past week lists the troopers who were in your section when that week ended, so you can still finish it after a move or a departure. Their rows say **Moved out** or **Departed**, and **Joined** marks someone who moved in partway through the week. A trooper who joined the Cav after that week is not on it. The current week lists who is in your section now.
+> [!good-to-know] A past week lists everyone who was in your section during that week, so you can still finish it after a move or a departure. Those who left say **Moved out** or **Departed**, and **Joined** marks someone who moved in partway through the week. A trooper who joined the Cav after that week is not on it. The current week lists who is in your section now.
 
 ## Record the signatures
 
