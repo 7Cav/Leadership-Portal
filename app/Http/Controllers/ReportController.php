@@ -8,9 +8,9 @@ use App\Commands\Attendance\InvalidAttendanceMarkException;
 use App\Commands\WeeklyReports\InvalidPlatoonTrainingTopicException;
 use App\Commands\WeeklyReports\InvalidReportContentException;
 use App\Commands\WeeklyReports\MakeupChecksIncompleteException;
+use App\Commands\WeeklyReports\PracticeNotConfirmedException;
 use App\Commands\WeeklyReports\ReopenWeeklyReport;
 use App\Commands\WeeklyReports\ReopenWeeklyReportHandler;
-use App\Commands\WeeklyReports\PracticeNotConfirmedException;
 use App\Commands\WeeklyReports\SaveReportDraft;
 use App\Commands\WeeklyReports\SaveReportDraftHandler;
 use App\Commands\WeeklyReports\SendWeeklyReport;
@@ -682,7 +682,8 @@ class ReportController extends Controller
                 'username' => $trooper->username,
                 'rankShort' => $trooper->rank_short,
                 'rollcall' => $mark?->rollcall->value ?? 'unsigned',
-                'status' => $mark?->status?->value,
+                // The mark as recorded: one on a practice not over yet still shows, though it does not count yet (#634).
+                'status' => ($mark?->recorded ?? $mark?->status)?->value,
                 'source' => $mark?->source?->value,
                 'atRisk' => $reading?->atRisk() ?? false,
                 'missed' => $reading->missed ?? 0,
