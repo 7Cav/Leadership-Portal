@@ -16,6 +16,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReportStatus;
 use App\Repositories\PlatoonTrainingTopicRepository;
+use App\Repositories\ReportEditWindow;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportAlreadySentException;
@@ -43,7 +44,12 @@ use Carbon\CarbonInterface;
  * one. A roll-up whose children have not all sent **is** sent: their ids are frozen
  * as `missing_children` and never substituted with live numbers (5.7, AD-13).
  *
- * **Re-send is a clean no-op.** A report already sent for the unit-week is returned as it was
+ * **Editing.** A report reopened inside its edit window ({@see ReopenWeeklyReportHandler}, {@see ReportEditWindow})
+ * is sent again like a first send — same scope, reason and checks — and freezes a new snapshot, audited as
+ * `weekly_report.resent`; the repository keeps the one it replaces in `revisions`. Its roll-up parent is not
+ * touched: the parent's own snapshot stands until its leader edits and sends it again.
+ *
+ * **Re-send is otherwise a clean no-op.** A report already sent for the unit-week and not reopened is returned as it was
  * frozen, with `alreadySent` set; nothing is rewritten and no second audit entry is recorded —
  * the original send's entry and `content_digest` stay the record. A concurrent send ends the same
  * way: the repository serializes writers of one unit-week on its UNIQUE row, the loser finds the
@@ -73,6 +79,8 @@ use Carbon\CarbonInterface;
 class SendWeeklyReportHandler
 {
     public const ACTION = 'weekly_report.sent';
+
+    public const RESENT = 'weekly_report.resent';
 
     public function __construct(
         private readonly ScopeResolver $scope,
@@ -120,7 +128,7 @@ class SendWeeklyReportHandler
 
         $existing = $this->reports->find($unit->id, $weekStart);
 
-        if ($existing?->status === WeeklyReportStatus::Sent) {
+        if (ReportEditWindow::isFrozen($existing)) {
             return new SentWeeklyReport($existing, alreadySent: true);
         }
 
@@ -141,7 +149,7 @@ class SendWeeklyReportHandler
         try {
             $report = $this->audit->record(
                 actorId: $actor->id,
-                action: self::ACTION,
+                action: $existing?->status === WeeklyReportStatus::Sent ? self::RESENT : self::ACTION,
                 reason: $command->reason,
                 reasonRequired: true,
                 mutation: function () use ($unit, $weekStart, $content, $actor, $templateVersionId, $trainingSubject, $makeupChecks) {

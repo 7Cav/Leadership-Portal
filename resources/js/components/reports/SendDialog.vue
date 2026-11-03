@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { KPIS, formatKpi, kpiChange, unitLabel } from '@/lib/report';
+import { KPIS, formatKpi, kpiChange, stamp, unitLabel } from '@/lib/report';
 import DeltaBadge from './DeltaBadge.vue';
 
 // The pre-send overview (5.5): exactly what will freeze — the six KPIs with their change, the
@@ -30,6 +30,9 @@ const props = defineProps({
     // `[{ trooperId, name }]`: asked for a make-up on this week's roll call and none recorded. Each needs an answer.
     makeupOwed: { type: Array, default: () => [] },
     defaultReason: { type: String, required: true },
+    // The report's deadline: until then a sent report can still be edited. `again` when this send replaces an edited one.
+    due: { type: String, default: null },
+    again: { type: Boolean, default: false },
     processing: { type: Boolean, default: false },
     error: { type: String, default: null },
 });
@@ -82,7 +85,7 @@ const blank = computed(() => !reason.value.trim());
                         </AlertDialogTitle>
                         <AlertDialogDescription class="mt-1 text-[13px] text-muted-foreground">
                             The draft becomes a fixed snapshot in the portal for {{ destination }}. Nothing is posted outside the
-                            portal, and you cannot edit the report afterward.
+                            portal.<template v-if="due"> You can edit it until {{ stamp(due) }}.</template>
                         </AlertDialogDescription>
                     </div>
                 </div>
@@ -156,7 +159,7 @@ const blank = computed(() => !reason.value.trim());
                     <dt class="text-muted-foreground">Notes</dt>
                     <dd class="line-clamp-4 whitespace-pre-line">{{ content.notes?.trim() || 'None' }}</dd>
                     <dt class="text-muted-foreground">After sending</dt>
-                    <dd>Read-only. Later roll call edits do not change it.</dd>
+                    <dd>{{ again ? 'Replaces the version sent before, which the portal keeps.' : 'Read-only. Later roll call edits do not change it.' }}</dd>
                 </dl>
 
                 <div class="mt-4 space-y-1.5">

@@ -30,6 +30,7 @@ import PlatoonTopicField from '@/components/reports/PlatoonTopicField.vue';
 import ReadinessChecklist from '@/components/reports/ReadinessChecklist.vue';
 import ReportDeadlineBanner from '@/components/reports/ReportDeadlineBanner.vue';
 import ReportPreview from '@/components/reports/ReportPreview.vue';
+import EditReportDialog from '@/components/reports/EditReportDialog.vue';
 import SendDialog from '@/components/reports/SendDialog.vue';
 import StaffReportsPanel from '@/components/reports/StaffReportsPanel.vue';
 import TimeAgo from '@/components/TimeAgo.vue';
@@ -90,7 +91,10 @@ const props = defineProps({
 
 const page = usePage();
 
-const sent = computed(() => props.report.status === 'sent');
+// "Sent" here means frozen. A sent report reopened with Edit report (`report.editing`) is composed again like a draft,
+// but nothing is saved until it is sent again: its sent version stays the record until then.
+const editing = computed(() => !!props.report.editing);
+const sent = computed(() => props.report.status === 'sent' && !editing.value);
 // View-as (1.13) and a staff grant are read-only: every write is refused server-side, so say so
 // here rather than let a save fail.
 const viewAs = computed(() => page.props.viewAs ?? null);
@@ -173,7 +177,7 @@ function payload() {
 function saveDraft() {
     clearTimeout(timer);
     timer = null;
-    if (readOnly.value) return;
+    if (readOnly.value || editing.value) return;
 
     const sentRevision = revision;
     save.state = 'saving';
@@ -232,7 +236,8 @@ watch(
         revision++;
         save.state = 'pending';
         clearTimeout(timer);
-        timer = setTimeout(saveDraft, 800);
+        // An edited sent report has no draft to save into: the edits are kept here until it is sent again.
+        if (!editing.value) timer = setTimeout(saveDraft, 800);
     },
 );
 
@@ -322,18 +327,20 @@ function openSend() {
 
 // The send cleared the pending autosave; when it fails, keep the edits saving as a draft.
 function rearm() {
-    if (save.state === 'pending' && !timer) timer = setTimeout(saveDraft, 800);
+    if (save.state === 'pending' && !timer && !editing.value) timer = setTimeout(saveDraft, 800);
 }
 
 function confirmSend(reason, makeupChecks = []) {
     clearTimeout(timer);
     timer = null;
     sending.value = true;
+    const again = editing.value;
     router.post(`${baseUrl.value}/send`, { ...payload(), reason, makeup_checks: makeupChecks }, {
         preserveScroll: true,
         onSuccess: () => {
             dialogOpen.value = false;
-            toast.success(`Report sent${parentLabel.value ? ` to ${parentLabel.value}` : ''}`, {
+            save.state = 'saved';
+            toast.success(`Report sent${again ? ' again' : ''}${parentLabel.value ? ` to ${parentLabel.value}` : ''}`, {
                 description: `Frozen ${stamp(props.report.sentAt)}.`,
             });
             nextTick(() => document.getElementById('sent-title')?.focus());
@@ -356,6 +363,43 @@ function confirmSend(reason, makeupChecks = []) {
         },
         onFinish: () => {
             sending.value = false;
+        },
+    });
+}
+
+// ---- Edit report: reopen a sent report until its deadline ----
+const editOpen = ref(false);
+const reopening = ref(false);
+const editError = ref(null);
+
+function openEdit() {
+    editError.value = null;
+    editOpen.value = true;
+}
+
+function confirmEdit(reason) {
+    reopening.value = true;
+    router.post(`${baseUrl.value}/edit`, { reason }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            editOpen.value = false;
+            reviewed.value = false;
+        },
+        onError: (errors) => {
+            editError.value = errors.reason ?? errors.report ?? Object.values(errors)[0];
+        },
+        onHttpException: (response) => {
+            editError.value = httpProblem(response, 'The portal could not open the report for editing. Try again.');
+
+            return false;
+        },
+        onNetworkError: () => {
+            editError.value = 'Could not reach the portal. Try again.';
+
+            return false;
+        },
+        onFinish: () => {
+            reopening.value = false;
         },
     });
 }
@@ -404,6 +448,7 @@ const historyEntries = computed(() => [
                   trainingSubject: props.report.trainingSubject,
                   unaccounted: props.report.unaccounted ?? [],
                   missingChildren: props.missingChildren,
+                  revisions: props.report.revisions ?? [],
               },
           ]
         : []),
@@ -452,6 +497,7 @@ function useSuggestion() {
                 <h1 id="page-title" class="flex flex-wrap items-center gap-2.5 text-xl font-semibold tracking-tight sm:text-[22px]">
                     <WeekHeading :week="week.start" />
                     <Badge v-if="sent" variant="success" data-testid="status-badge"><PhLockSimple aria-hidden="true" />Sent</Badge>
+                    <Badge v-else-if="editing" variant="warning" data-testid="status-badge">Being edited</Badge>
                     <Badge v-else variant="warning" data-testid="status-badge">Draft</Badge>
                 </h1>
             </div>
@@ -516,6 +562,18 @@ function useSuggestion() {
                     </p>
                 </div>
 
+                <div
+                    v-if="editing"
+                    class="mb-4 flex items-start gap-2.5 rounded-lg border border-warning/35 bg-warning/8 px-4 py-3 text-[13px]"
+                    data-testid="editing-banner"
+                >
+                    <PhPencilSimpleLine class="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
+                    <p>
+                        You are editing the report sent {{ stamp(report.sentAt) }}. Until you send it again, the sent version stays the
+                        record and your changes are kept on this page only. It locks at {{ stamp(week.due) }}.
+                    </p>
+                </div>
+
                 <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
                     <div class="flex min-w-0 flex-col gap-5">
                         <section v-if="sent" class="rounded-lg border border-border bg-card p-5" aria-labelledby="sent-title" data-testid="sent-panel">
@@ -548,7 +606,25 @@ function useSuggestion() {
                                     <dd>{{ missingChildren.length }} {{ missingChildren.length === 1 ? 'unit' : 'units' }} that had not reported</dd>
                                 </template>
                             </dl>
-                            <p class="mt-4 text-xs text-muted-foreground">
+                            <div
+                                v-if="report.changedChildren?.length"
+                                class="mt-4 flex items-start gap-2.5 rounded-md border border-info/30 bg-info/8 px-3 py-2.5 text-[13px]"
+                                data-testid="changed-children"
+                            >
+                                <PhInfo class="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
+                                <p>
+                                    {{ report.changedChildren.map(unitLabel).join(', ') }}
+                                    {{ report.changedChildren.length === 1 ? 'changed its report' : 'changed their reports' }} after this one was
+                                    sent. The numbers here are from before the {{ report.changedChildren.length === 1 ? 'change' : 'changes' }}.
+                                </p>
+                            </div>
+                            <div v-if="report.canEdit" class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+                                <Button variant="outline" size="sm" data-testid="edit-report" @click="openEdit">
+                                    <PhPencilSimpleLine aria-hidden="true" />Edit report
+                                </Button>
+                                <p class="text-xs text-muted-foreground">Open until {{ stamp(week.due) }}.</p>
+                            </div>
+                            <p v-else class="mt-4 text-xs text-muted-foreground">
                                 The snapshot never changes. Later roll call edits stay out of it.
                             </p>
                         </section>
@@ -575,6 +651,7 @@ function useSuggestion() {
                                 <span class="ml-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground" aria-live="polite" data-testid="save-state">
                                     <template v-if="sent"><PhLockSimple aria-hidden="true" />Locked with the snapshot</template>
                                     <template v-else-if="readOnlyNote"><PhLockSimple aria-hidden="true" />{{ readOnlyNote }}</template>
+                                    <template v-else-if="editing">{{ save.state === 'pending' ? 'Unsaved changes' : 'Saved when you send it again' }}</template>
                                     <template v-else>
                                         <component :is="saveIcon" aria-hidden="true" :class="{ 'text-destructive': save.state === 'error' }" />
                                         <span v-if="save.state === 'saved' && save.at">Draft saved <TimeAgo :at="save.at" quiet>{{ timeOf(save.at) }}</TimeAgo></span>
@@ -707,7 +784,7 @@ function useSuggestion() {
                                     Next:
                                     <button type="button" class="underline underline-offset-2 hover:text-foreground" @click="jumpToNext">{{ openChecks[0].next }}</button>
                                 </template>
-                                <template v-else>Goes to {{ parentLabel ?? 'command' }}. The snapshot cannot be edited afterward.</template>
+                                <template v-else>Goes to {{ parentLabel ?? 'command' }}. You can edit it until {{ stamp(week.due) }}.</template>
                             </p>
                         </div>
                     </div>
@@ -731,7 +808,7 @@ function useSuggestion() {
                         >
                             <PhPaperPlaneTilt v-if="!openChecks.length" aria-hidden="true" />
                             <PhLockSimple v-else aria-hidden="true" />
-                            Freeze and send
+                            {{ editing ? 'Send again' : 'Freeze and send' }}
                         </Button>
                     </div>
                 </div>
@@ -752,9 +829,12 @@ function useSuggestion() {
             :missing-units="missingUnits"
             :makeup-owed="makeupOwed"
             :default-reason="defaultSendReason(openItems, missingUnits)"
+            :due="week.due"
+            :again="editing"
             :processing="sending"
             :error="sendError"
             @confirm="confirmSend"
         />
+        <EditReportDialog v-model:open="editOpen" :due="week.due" :processing="reopening" :error="editError" @confirm="confirmEdit" />
     </div>
 </template>

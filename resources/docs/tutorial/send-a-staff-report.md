@@ -22,4 +22,4 @@ If you are placed on a platoon, company or battalion HQ, you attend at least one
 1. Choose **Send staff report** on the **Your report** card.
 2. Each practice you picked lists you on that section's roll call as a **Staff guest** or a **Guest**. You never count in that section's numbers.
 
-> [!warning] Nobody can send your staff report for you, and once sent it cannot be changed. It is due when the unit reports are: 2359Z on the Saturday after the Cav week.
+> [!warning] Nobody can send your staff report for you. Once sent, you can change it only until it is due: choose **Edit report**, change your answers, give a reason and choose **Send again**. It is due when the unit reports are: 2359Z on the Saturday after the Cav week.

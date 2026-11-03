@@ -111,7 +111,7 @@ it('lists the other platoons by battalion, company letter and platoon, other uni
         ]));
 });
 
-it('sends from the page and reads back as sent, picker gone', function () {
+it('sends from the page and reads back as sent, editable until its deadline', function () {
     $this->actingAs($this->tree['users']['psg'])
         ->post($this->url, ['attended' => true, 'section_ids' => [$this->host->id]])
         ->assertRedirect($this->url);
@@ -120,7 +120,9 @@ it('sends from the page and reads back as sent, picker gone', function () {
         ->where('canSend', false)
         ->where('report.attended', true)
         ->where('report.practices', [['sectionId' => $this->host->id, 'section' => '1/1/A/1-7', 'own' => true]])
-        ->where('sections', []));
+        // Sent, but still inside its edit window: the picker stays for an edit.
+        ->where('canEdit', true)
+        ->where('sections', fn ($sections) => collect($sections)->isNotEmpty()));
 });
 
 it('turns a refusal into a message on its field', function () {

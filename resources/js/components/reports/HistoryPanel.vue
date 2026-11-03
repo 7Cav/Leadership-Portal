@@ -1,11 +1,11 @@
 <script setup>
-import { computed, ref } from 'vue';
-import { PhClockCounterClockwise, PhFileText, PhGitDiff, PhLockSimple } from '@phosphor-icons/vue';
+import { computed, ref, watch } from 'vue';
+import { PhCaretRight, PhClockCounterClockwise, PhFileText, PhGitDiff, PhLockSimple } from '@phosphor-icons/vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import EmptyState from '@/components/EmptyState.vue';
 import NoValue from '@/components/NoValue.vue';
 import TimeAgo from '@/components/TimeAgo.vue';
-import { weekLabel } from '@/lib/forumDate';
+import { forumDate, weekLabel, zuluTime } from '@/lib/forumDate';
 import WeekHeading from '@/components/week/WeekHeading.vue';
 import { KPIS, formatKpi, kpiValue, percent, sentenceDiff, stamp } from '@/lib/report';
 import DeltaBadge from './DeltaBadge.vue';
@@ -13,6 +13,8 @@ import KpiGrid from './KpiGrid.vue';
 
 // History (P3): the unit's sent reports, newest first, each exactly as frozen. "Changes" compares
 // one with the sent report before it — numbers, subject and notes; "Full snapshot" shows it whole.
+// A report edited before its deadline lists the versions it replaced under "Earlier versions" (`entry.revisions`,
+// newest first), each opening to what it froze and who reopened and replaced it, and why.
 const props = defineProps({
     entries: { type: Array, required: true },
     reasonLabels: { type: Object, required: true },
@@ -23,6 +25,16 @@ const props = defineProps({
 const selected = ref(0);
 const mode = ref('diff');
 const current = computed(() => props.entries[selected.value]);
+// The earlier version open under "Earlier versions", by its sentAt; one at a time.
+const openRevision = ref(null);
+watch(selected, () => {
+    openRevision.value = null;
+});
+
+// "24OCT26 23 59Z": the moment an earlier version was sent, reopened or replaced.
+function at(value) {
+    return value ? `${forumDate(value)} ${zuluTime(value)}` : null;
+}
 const previous = computed(() => props.entries[selected.value + 1] ?? null);
 
 // Like for like: the change between the two frozen snapshots, never a recompute.
@@ -175,6 +187,62 @@ const DIFF = { added: 'text-foreground', removed: 'text-muted-foreground line-th
                     </p>
                 </div>
             </template>
+
+            <div v-if="current.revisions?.length" class="border-t border-border px-5 py-4" data-testid="history-revisions">
+                <h3 class="mb-1.5 text-[13px] font-semibold">Earlier versions</h3>
+                <ul class="space-y-1">
+                    <li v-for="revision in current.revisions" :key="revision.sentAt" data-testid="history-revision">
+                        <button
+                            type="button"
+                            class="flex w-full items-center gap-1.5 rounded-md py-1 text-left text-[13px] hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                            :aria-expanded="openRevision === revision.sentAt"
+                            @click="openRevision = openRevision === revision.sentAt ? null : revision.sentAt"
+                        >
+                            <PhCaretRight class="size-3.5 flex-none transition-transform" :class="{ 'rotate-90': openRevision === revision.sentAt }" aria-hidden="true" />
+                            <span>Sent {{ at(revision.sentAt) }}<template v-if="revision.sentBy"> by {{ revision.sentBy }}</template></span>
+                        </button>
+                        <div v-if="openRevision === revision.sentAt" class="mt-1.5 mb-3 ml-5 space-y-3" data-testid="history-revision-body">
+                            <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-[13px]">
+                                <template v-if="revision.reopened">
+                                    <dt class="text-muted-foreground">Reopened</dt>
+                                    <dd>
+                                        {{ at(revision.reopened.at) }}<template v-if="revision.reopened.by"> by {{ revision.reopened.by }}</template
+                                        ><template v-if="revision.reopened.reason">: {{ revision.reopened.reason }}</template>
+                                    </dd>
+                                </template>
+                                <template v-if="revision.replaced">
+                                    <dt class="text-muted-foreground">Sent again</dt>
+                                    <dd>
+                                        {{ at(revision.replaced.at) }}<template v-if="revision.replaced.by"> by {{ revision.replaced.by }}</template
+                                        ><template v-if="revision.replaced.reason">: {{ revision.replaced.reason }}</template>
+                                    </dd>
+                                </template>
+                                <template v-if="isLeaf">
+                                    <dt class="text-muted-foreground">Trained</dt>
+                                    <dd :class="{ 'text-muted-foreground italic': !revision.trainingSubject }">{{ revision.trainingSubject || 'Nothing written' }}</dd>
+                                </template>
+                            </dl>
+                            <p v-if="!revision.kpis" class="text-[13px] text-muted-foreground">This snapshot cannot be read. An Admin needs to look at it.</p>
+                            <div v-else class="overflow-hidden rounded-md border border-border"><KpiGrid :kpis="revision.kpis" :delta="revision.delta" /></div>
+                            <div v-if="revision.unaccounted?.length">
+                                <h4 class="mb-1 text-xs text-muted-foreground">Unaccounted troopers</h4>
+                                <ul class="space-y-1 text-[13px]">
+                                    <li v-for="row in revision.unaccounted" :key="row.trooper_id">
+                                        <span class="font-medium">{{ names[row.trooper_id] ?? 'A trooper no longer in the section' }}</span>
+                                        <span class="text-muted-foreground">, {{ reasonLabels[row.reason] }}</span>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div>
+                                <h4 class="mb-1 text-xs text-muted-foreground">Leader notes</h4>
+                                <p class="text-[13px] leading-relaxed whitespace-pre-line" :class="{ 'text-muted-foreground italic': !revision.notes }">
+                                    {{ revision.notes || 'Nothing written' }}
+                                </p>
+                            </div>
+                        </div>
+                    </li>
+                </ul>
+            </div>
         </section>
     </div>
 </template>

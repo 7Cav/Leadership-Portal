@@ -396,6 +396,29 @@ describe('StaffReport page', () => {
         expect(wrapper.find('[data-testid="staff-report-discrepancy"]').exists()).toBe(false);
     });
 
+    it('offers Edit report on a sent report until its deadline, and lists its earlier versions', () => {
+        const wrapper = page({
+            canSend: false,
+            canEdit: true,
+            report: {
+                sentAt: '2026-10-10T18:00:00+00:00',
+                attended: false,
+                practices: [],
+                revisions: [
+                    {
+                        sentAt: '2026-10-10T12:00:00+00:00', sentBy: 'SSG Brandt.L', attended: true, practiceType: 'sp', ftx: null, officeHour: null,
+                        practices: [{ sectionId: 4, section: '1/1/A/1-7' }], otherEvents: null, notes: null,
+                        replaced: { at: '2026-10-10T18:00:00+00:00', by: 'SSG Brandt.L', reason: 'Picked the wrong week' },
+                    },
+                ],
+            },
+        });
+
+        expect(wrapper.find('[data-testid="staff-report-edit"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="staff-report-sent"]').text()).not.toContain('A sent staff report is final.');
+        expect(wrapper.findAll('[data-testid="staff-report-revision"]')).toHaveLength(1);
+    });
+
     it('reads "No" and an office hour back', () => {
         expect(page({ canSend: false, report: { sentAt: '2026-10-08T20:00:00+00:00', attended: false, practices: [] } }).find('[data-testid="staff-report-answer"]').text())
             .toBe('Did not attend a section practice.');

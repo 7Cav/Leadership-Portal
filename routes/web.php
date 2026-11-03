@@ -84,6 +84,9 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
         ->where('week', '\d{4}-\d{2}-\d{2}')->middleware('throttle:report-drafts')->name('reports.draft');
     Route::post('/reports/{unit}/{week}/send', [ReportController::class, 'send'])
         ->where('week', '\d{4}-\d{2}-\d{2}')->middleware('throttle:report-sends')->name('reports.send');
+    // "Edit report": reopens a sent report until its deadline, with a reason. Throttled with the sends.
+    Route::post('/reports/{unit}/{week}/edit', [ReportController::class, 'edit'])
+        ->where('week', '\d{4}-\d{2}-\d{2}')->middleware('throttle:report-sends')->name('reports.edit');
     // The training topic a platoon sets for its sections this week. Who may set it (the platoon's
     // chain of command, or an Admin) is checked in the Command's handler. No `whereNumber('unit')`:
     // it would replace the 18-digit global pattern above.

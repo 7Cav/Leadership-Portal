@@ -40,3 +40,16 @@ minutes: 10
 > [!good-to-know] If a trooper asked for a make-up this week and none is recorded, the dialog lists them under **Make-ups still owed**. Answer **Made it up** or **Did not** for each before you send. **Made it up** marks them **Make-up complete** on the roll call; **Did not** leaves their mark as it is. Your answers are kept with the report.
 
 > [!good-to-know] A platoon's or higher unit's report adds up the sent reports of the units below it. A unit that has not sent yet is left out of the numbers and named, so send yours on time. A unit with nobody in any section under it, such as a platoon whose only troopers are its leaders, has no report to send, and the unit above it does not wait on it.
+
+## Edit a sent report
+
+Until the report is due, 2359Z on the Saturday after the Cav week, a sent report can still be changed. Anyone who could send it can edit it, not only whoever sent it.
+
+1. On the sent report, choose **Edit report**, give a reason for the record, and confirm. That week's roll call opens again, so you can fix marks too.
+2. Change what you need. Edits are not saved as a draft: they stay on the page until you send.
+3. Choose **Send again**, give a reason, and confirm. The new numbers and notes replace the sent ones. The version you replaced is kept, and the audit log records both reasons.
+4. The **History** tab lists the versions you replaced under **Earlier versions**. Open one to see its numbers and notes, who reopened it and who sent it again, when and why.
+
+> [!good-to-know] Until you send again, the version you sent stays the report your chain of command reads. If you never send again, it locks at the deadline as it was.
+
+> [!good-to-know] If a unit below yours changes its report after you sent yours, your sent report names it. Your numbers do not change on their own: edit your report and send it again to include the change.

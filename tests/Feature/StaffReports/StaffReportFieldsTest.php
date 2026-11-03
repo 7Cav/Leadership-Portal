@@ -25,11 +25,17 @@ require_once __DIR__.'/../StaffPractices/fixture.php';
 // Battalion HQ staff file the weekly staff report too, the report carries the rest of what the regiment's Google Forms
 // asked (practice type, FTX, other events, notes), and a sent report is copied to the reports Google Sheet.
 
-/** A stand-in for the reports sheet: records each row, or fails every append. Google is never called in a test. */
+/**
+ * A stand-in for the reports sheet: records each row appended (answering with its range, as Google does) and each row
+ * overwritten, or fails every write. Google is never called in a test.
+ */
 class FakeSheetsClient implements SheetsClient
 {
     /** @var list<array{tab: string, row: list<string>}> */
     public array $rows = [];
+
+    /** @var list<array{range: string, row: list<string>}> */
+    public array $updates = [];
 
     public function __construct(public bool $configured = true, public bool $fails = false) {}
 
@@ -48,13 +54,25 @@ class FakeSheetsClient implements SheetsClient
         return 'Weekly Battalion Report 2O26';
     }
 
-    public function append(string $tab, array $row): void
+    public function append(string $tab, array $row): ?string
     {
         if ($this->fails) {
             throw GoogleSheetsUnavailable::httpError(503);
         }
 
         $this->rows[] = ['tab' => $tab, 'row' => $row];
+        $line = count($this->rows) + 1;
+
+        return "'{$tab}'!A{$line}:V{$line}";
+    }
+
+    public function update(string $range, array $row): void
+    {
+        if ($this->fails) {
+            throw GoogleSheetsUnavailable::httpError(503);
+        }
+
+        $this->updates[] = ['range' => $range, 'row' => $row];
     }
 }
 
@@ -88,6 +106,7 @@ function sendFields(User $actor, Trooper $trooper, bool $attended, array $sectio
         $fields['notes'] ?? null,
         $fields['office_hour_date'] ?? null,
         $fields['office_hour_note'] ?? null,
+        $fields['reason'] ?? null,
     ));
 }
 
@@ -453,4 +472,55 @@ it('puts the office hour at the front of the other events cell on the battalion 
         '10/10/2026 12:00:00', 'Stone.A', '1st Battalion', '09OCT26', 'Battalion XO', 'Yes', '', 'Office hour (10/6/2026): Q and A; Range day', '',
         '', '', '', '', '', '', '',
     ]]]);
+});
+
+it('overwrites the row an edited report went to, instead of adding a second one', function () {
+    $fake = fakeSheet();
+    $report = sendFields($this->tree['users']['psg'], $this->psg, true, [$this->host->id], ['notes' => 'All good.']);
+    pushToSheet($report);
+
+    expect($report->refresh()->sheet_range)->toBe("'Weekly Staff Report 2O26'!A2:V2");
+
+    Carbon::setTestNow(CarbonImmutable::parse('2026-10-10 18:00:00', 'UTC'));
+    $edited = sendFields($this->tree['users']['psg'], $this->psg, false, [], ['reason' => 'Missed it after all.']);
+
+    expect($edited->refresh()->sheet_pushed_at)->toBeNull()
+        ->and(pushToSheet($edited))->toBeTrue()
+        ->and($fake->rows)->toHaveCount(1)
+        ->and($fake->updates)->toHaveCount(1)
+        ->and($fake->updates[0]['range'])->toBe("'Weekly Staff Report 2O26'!A2:V2")
+        ->and($fake->updates[0]['row'][0])->toBe('10/10/2026 18:00:00')
+        ->and($fake->updates[0]['row'][6])->toBe('No')
+        ->and($edited->refresh()->sheet_pushed_at?->toIso8601String())->toBe('2026-10-10T18:00:00+00:00')
+        ->and($edited->sheet_range)->toBe("'Weekly Staff Report 2O26'!A2:V2")
+        // Done once: a retry writes nothing more.
+        ->and(pushToSheet($edited))->toBeFalse()
+        ->and($fake->updates)->toHaveCount(1);
+});
+
+it('appends an edited report whose first push never went out, once', function () {
+    $fake = fakeSheet(fails: true);
+    sendFields($this->tree['users']['psg'], $this->psg, true, [$this->host->id]);
+
+    $fake->fails = false;
+    $edited = sendFields($this->tree['users']['psg'], $this->psg, false, [], ['reason' => 'Missed it after all.']);
+
+    expect(pushToSheet($edited))->toBeTrue()
+        ->and($fake->rows)->toHaveCount(1)
+        ->and($fake->rows[0]['row'][6])->toBe('No')
+        ->and($fake->updates)->toBe([]);
+});
+
+it('queues the push again when the report is edited', function () {
+    $fake = fakeSheet();
+    $url = route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']);
+
+    $this->actingAs($this->tree['users']['psg'])->post($url, ['attended' => true, 'section_ids' => [$this->host->id]])->assertRedirect();
+    $this->actingAs($this->tree['users']['psg'])
+        ->post($url, ['attended' => false, 'section_ids' => [], 'reason' => 'Missed it after all.'])
+        ->assertSessionHasNoErrors();
+
+    expect($fake->rows)->toHaveCount(1)
+        ->and($fake->updates)->toHaveCount(1)
+        ->and(StaffReport::query()->sole()->sheet_pushed_at)->not->toBeNull();
 });

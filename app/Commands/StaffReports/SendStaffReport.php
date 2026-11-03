@@ -10,7 +10,8 @@ use Carbon\CarbonImmutable;
  * and the sections whose practice they attended (`$sectionIds`: one or more for an SP, optional for an FTX, which
  * names itself with `$ftxName` and `$ftxDate`). `$otherEvents` and `$notes` are optional free text.
  * A battalion HQ staff member may report an office hour instead (`$practiceType` `office_hour`), with its
- * `$officeHourDate` and `$officeHourNote`.
+ * `$officeHourDate` and `$officeHourNote`. `$reason` is required when the report was sent already and this edits it
+ * before its deadline, and ignored on a first send.
  */
 final readonly class SendStaffReport
 {
@@ -29,5 +30,6 @@ final readonly class SendStaffReport
         public ?string $notes = null,
         public ?string $officeHourDate = null,
         public ?string $officeHourNote = null,
+        public ?string $reason = null,
     ) {}
 }

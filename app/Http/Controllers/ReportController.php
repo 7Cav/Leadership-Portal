@@ -8,6 +8,8 @@ use App\Commands\Attendance\InvalidAttendanceMarkException;
 use App\Commands\WeeklyReports\InvalidPlatoonTrainingTopicException;
 use App\Commands\WeeklyReports\InvalidReportContentException;
 use App\Commands\WeeklyReports\MakeupChecksIncompleteException;
+use App\Commands\WeeklyReports\ReopenWeeklyReport;
+use App\Commands\WeeklyReports\ReopenWeeklyReportHandler;
 use App\Commands\WeeklyReports\SaveReportDraft;
 use App\Commands\WeeklyReports\SaveReportDraftHandler;
 use App\Commands\WeeklyReports\SendWeeklyReport;
@@ -15,6 +17,7 @@ use App\Commands\WeeklyReports\SendWeeklyReportHandler;
 use App\Commands\WeeklyReports\SetPlatoonTrainingTopic;
 use App\Commands\WeeklyReports\SetPlatoonTrainingTopicHandler;
 use App\Commands\WeeklyReports\TrainingSubjectEnforcedException;
+use App\Commands\WeeklyReports\WeeklyReportLockedException;
 use App\Kpi\AutoExcused;
 use App\Kpi\ChildReport;
 use App\Kpi\ChildReportStatus;
@@ -30,6 +33,7 @@ use App\Kpi\WeeklyReportKpis;
 use App\Loa\LoaProvenance;
 use App\Milpac\RosterProvenance;
 use App\Milpac\StaffReportWeek;
+use App\Models\AuditLogEntry;
 use App\Models\PlatoonTrainingTopic;
 use App\Models\Trooper;
 use App\Models\UnaccountedReason;
@@ -39,8 +43,11 @@ use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Models\WeeklyReportStatus;
 use App\Repositories\AttendanceRepository;
+use App\Repositories\AuditLogRepository;
 use App\Repositories\CountingMark;
 use App\Repositories\PlatoonTrainingTopicRepository;
+use App\Repositories\ReportEditWindow;
+use App\Repositories\ReportRevisionTrail;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitGuidonRepository;
 use App\Repositories\UnitRepository;
@@ -96,14 +103,18 @@ class ReportController extends Controller
         private readonly UnitGuidonRepository $guidons,
     ) {}
 
-    public function show(Request $request, UnaccountedSuggestions $suggestions, int $unit, string $week): Response
+    public function show(Request $request, UnaccountedSuggestions $suggestions, AuditLogRepository $audit, int $unit, string $week): Response
     {
         $unit = $this->unitInScope($request, $unit);
         $weekStart = $this->weekStart($week);
         $report = $this->reports->find($unit->id, $weekStart);
-        $sent = $report?->status === WeeklyReportStatus::Sent;
+        // A sent report reopened inside its edit window is composed again like a draft until it is sent again;
+        // everywhere else on this screen "sent" means frozen.
+        $sent = ReportEditWindow::isFrozen($report);
+        $editing = ReportEditWindow::isEditing($report);
         $history = $this->reports->sentBefore($unit->id, $weekStart, self::HISTORY_WEEKS);
         $isLeaf = $unit->type === UnitType::Section;
+        $canWrite = $this->scope->writeScope($request->user())->contains($unit->id);
 
         $snapshot = null;
         $kpiError = null;
@@ -163,9 +174,19 @@ class ReportController extends Controller
                 // Older than the week floor: shown read-only, a draft or send for it is a 404.
                 'beforeFloor' => WeekOf::isBeforeFloor($weekStart),
             ],
-            'report' => $this->reportProps($report, $senders),
+            'report' => [
+                ...$this->reportProps($report, $senders),
+                'editing' => $editing,
+                // "Edit report": whoever could send it now, until its deadline. A view-as preview changes nothing.
+                'canEdit' => $sent && $canWrite && ReportEditWindow::isOpen($weekStart) && ! WeekOf::isBeforeFloor($weekStart)
+                    && $this->scope->activeViewAs($request->user()) === null,
+                // The children sent again since this roll-up froze: its numbers still hold their earlier reports.
+                'changedChildren' => $sent && ! $isLeaf ? $this->changedChildren($report, $children) : [],
+                // The versions an edit replaced, newest first, for the History tab.
+                'revisions' => $report?->status === WeeklyReportStatus::Sent ? $this->revisionRows($report, $audit) : [],
+            ],
             // Whether this viewer may save or send it: command authority, not a staff grant, which only reads.
-            'canWrite' => $this->scope->writeScope($request->user())->contains($unit->id),
+            'canWrite' => $canWrite,
             'topic' => $topic === null ? null : $this->topicProps($topic, $isLeaf ? $parent : $unit),
             // Only the platoon's own chain of command (or an Admin) sets it, until the platoon's
             // report is sent, and not for a week before the floor (the write is a 404 there). A
@@ -195,7 +216,10 @@ class ReportController extends Controller
                 default => $this->childRows($unit, $weekStart, $children),
             },
             'missingChildren' => $snapshot?->missingChildren ?? [],
-            'history' => $history->map(fn (WeeklyReport $past) => $this->historyRow($past, $senders))->values(),
+            'history' => $history->map(fn (WeeklyReport $past) => [
+                ...$this->historyRow($past, $senders),
+                'revisions' => $this->revisionRows($past, $audit),
+            ])->values(),
             'reasons' => collect(UnaccountedReason::cases())->map(fn (UnaccountedReason $r) => ['value' => $r->value, 'label' => $r->label()])->values(),
             'rosterSync' => ['source' => $lastSync->source, 'at' => $lastSync->lastSyncedAt?->toIso8601String()],
             // A section's live draft counts leave (on LOA, at-risk), so it names the leave data's source and last sync
@@ -292,6 +316,25 @@ class ReportController extends Controller
         // leader learns that what they just confirmed was not what got frozen.
         if ($result->alreadySent) {
             throw ValidationException::withMessages(['report' => 'This report was already sent. It is shown as it was frozen; your latest changes were not saved.']);
+        }
+
+        return redirect()->route('reports.show', ['unit' => $unit->id, 'week' => $weekStart->toDateString()]);
+    }
+
+    /** "Edit report": reopen the sent report so it can be changed and sent again before its deadline. */
+    public function edit(Request $request, ReopenWeeklyReportHandler $handler, int $unit, string $week): RedirectResponse
+    {
+        $unit = $this->unitInScope($request, $unit);
+        $weekStart = $this->writableWeekStart($week);
+        $data = $request->validate(['reason' => ['required', 'string', 'max:1000']], [
+            'reason.required' => 'Give a reason for the record before you edit the report.',
+            'reason.max' => 'Keep the reason to :max characters.',
+        ]);
+
+        try {
+            $handler->handle($request->user(), new ReopenWeeklyReport($unit->id, $weekStart, $data['reason']));
+        } catch (WeeklyReportLockedException $e) {
+            throw ValidationException::withMessages(['report' => $e->getMessage()]);
         }
 
         return redirect()->route('reports.show', ['unit' => $unit->id, 'week' => $weekStart->toDateString()]);
@@ -652,6 +695,32 @@ class ReportController extends Controller
     }
 
     /**
+     * The children whose report was sent again after this roll-up was sent, in the order listed. Their numbers in the
+     * roll-up are the ones it froze; nothing is updated for them, so the leader decides whether to edit and send again.
+     *
+     * @param  Collection<int, Unit>  $children
+     * @return list<array{id: int, name: string, callsign: ?string, type: string}>
+     */
+    private function changedChildren(WeeklyReport $report, Collection $children): array
+    {
+        if ($children->isEmpty() || $report->sent_at === null) {
+            return [];
+        }
+
+        $reports = $this->reports->forUnits($children->modelKeys(), $report->week_start);
+
+        return $children
+            ->filter(function (Unit $child) use ($reports, $report) {
+                $sent = $reports->get($child->id);
+
+                return $sent?->status === WeeklyReportStatus::Sent && $sent->revisions !== null && $sent->sent_at?->greaterThan($report->sent_at);
+            })
+            ->map(fn (Unit $child) => $this->unitProps($child))
+            ->values()
+            ->all();
+    }
+
+    /**
      * @param  Collection<int, Unit>  $children
      * @return list<array<string, mixed>>
      */
@@ -725,6 +794,58 @@ class ReportController extends Controller
     }
 
     /**
+     * The earlier versions of a sent report, newest first, each as {@see historyRow()} shows a sent report, with who
+     * reopened it and who replaced it by sending again, when and why (`reopened`, `replaced`: `{at, by, reason}` or
+     * null when the trail has no entry for it). Empty for a report never edited.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function revisionRows(WeeklyReport $report, AuditLogRepository $audit): array
+    {
+        $revisions = array_values($report->revisions ?? []);
+
+        if ($revisions === []) {
+            return [];
+        }
+
+        $trail = ReportRevisionTrail::pair(
+            $revisions,
+            $audit->forTarget($report, [ReopenWeeklyReportHandler::ACTION, SendWeeklyReportHandler::RESENT]),
+            SendWeeklyReportHandler::RESENT,
+            ReopenWeeklyReportHandler::ACTION,
+        );
+        $actors = collect($trail)->flatMap(fn (array $pair) => [$pair['reopened']?->actor, $pair['replaced']?->actor]);
+        $labels = $this->userLabels(collect($revisions)->pluck('sent_by')->filter()->unique()->map(fn ($id) => $this->users->find((int) $id))->merge($actors));
+        $event = fn (?AuditLogEntry $entry) => $entry === null ? null : [
+            'at' => $entry->created_at?->toIso8601String(),
+            'by' => $labels->get($entry->actor_id),
+            'reason' => $entry->reason,
+        ];
+
+        $rows = [];
+        foreach ($revisions as $i => $revision) {
+            // Read back as the report it was, so it is shown the way any sent report is.
+            $past = (new WeeklyReport)->forceFill([
+                'week_start' => $report->week_start,
+                'kpis' => $revision['kpis'] ?? null,
+                'notes' => $revision['notes'] ?? null,
+                'training_subject' => $revision['training_subject'] ?? null,
+                'unaccounted' => $revision['unaccounted'] ?? [],
+                'sent_at' => $revision['sent_at'] ?? null,
+                'sent_by' => $revision['sent_by'] ?? null,
+            ]);
+
+            $rows[] = [
+                ...$this->historyRow($past, $labels),
+                'reopened' => $event($trail[$i]['reopened']),
+                'replaced' => $event($trail[$i]['replaced']),
+            ];
+        }
+
+        return array_reverse($rows);
+    }
+
+    /**
      * Who sent a report: the sender's label, "Hale.S for SGT Mercer.J" when an Admin acting as them sent it, or
      * "Hale.S acting as Section Leader 2/1/A/1-7" when an Admin holding the billet did (#379).
      *
@@ -751,10 +872,19 @@ class ReportController extends Controller
      */
     private function senderLabels(Collection $sent): Collection
     {
-        $users = $sent->map(fn (WeeklyReport $r) => $r->relationLoaded('sender') ? $r->sender : $this->users->find($r->sent_by))
-            ->merge($sent->pluck('sent_by_admin')->filter()->unique()->map(fn ($id) => $this->users->find((int) $id)))
-            ->filter()
-            ->unique('id');
+        return $this->userLabels($sent->map(fn (WeeklyReport $r) => $r->relationLoaded('sender') ? $r->sender : $this->users->find($r->sent_by))
+            ->merge($sent->pluck('sent_by_admin')->filter()->unique()->map(fn ($id) => $this->users->find((int) $id))));
+    }
+
+    /**
+     * `RANK Name` for each user, or their forum username when the roster has none.
+     *
+     * @param  Collection<int, ?User>  $users
+     * @return Collection<int, string> user id => label
+     */
+    private function userLabels(Collection $users): Collection
+    {
+        $users = $users->filter()->unique('id');
         $troopers = $this->troopers->byCavId($users->pluck('cav_id')->filter()->values()->all());
 
         return $users->mapWithKeys(fn (User $user) => [

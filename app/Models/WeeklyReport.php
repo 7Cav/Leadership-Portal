@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Repositories\ReportEditWindow;
 use Database\Factories\WeeklyReportFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -27,6 +28,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * `status` and the send metadata (`sent_at`, `sent_by`, `content_digest`, `template_version_id`)
  * are deliberately not mass-assignable: only the Repository layer's send path sets them, so a
  * stray `update()` can neither reopen a sent report nor mark one sent without its metadata.
+ *
+ * **Edit window.** A sent report can be reopened for editing until it locks at its deadline (`WeekOf::reportDue()`):
+ * `reopened_at`/`reopened_by` are set, `status` stays sent and the frozen snapshot stays the record until it is sent
+ * again, which freezes a new snapshot, appends the one it replaces to `revisions` and clears the reopen. Whether a row
+ * is open right now depends on the clock, so {@see ReportEditWindow} decides it.
  */
 #[Fillable(['unit_id', 'week_start', 'kpis', 'notes'])]
 class WeeklyReport extends Model
@@ -48,6 +54,8 @@ class WeeklyReport extends Model
             'unaccounted' => 'array',
             'makeup_checks' => 'array',
             'sent_at' => 'immutable_datetime',
+            'reopened_at' => 'immutable_datetime',
+            'revisions' => 'array',
             // Demo history (#115): set only by the demo writer, never mass-assigned.
             'is_demo' => 'boolean',
         ];

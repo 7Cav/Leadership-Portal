@@ -4,11 +4,14 @@ namespace App\Integration\GoogleSheets;
 
 use App\Integration\GoogleDrive\GoogleDriveApi;
 use App\Integration\GoogleSheets\Requests\AppendRowRequest;
+use App\Integration\GoogleSheets\Requests\UpdateRowRequest;
+use Saloon\Http\Request;
+use Saloon\Http\Response;
 use Throwable;
 
 /**
  * The single door out to the reports Google Sheet (AD-3): it appends a weekly staff report's row to one tab of the
- * spreadsheet the env names, and does nothing else. It signs in as the same service account as the counseling Drive
+ * spreadsheet the env names, or overwrites that row when the report is edited, and does nothing else. It signs in as the same service account as the counseling Drive
  * copy ({@see GoogleDriveApi}, which asks for the Sheets scope too), so the sheet must be shared with that account's
  * email as an editor.
  *
@@ -43,15 +46,27 @@ class GoogleSheetsApi implements SheetsClient
         return $this->tab('battalion_tab', self::BATTALION_TAB);
     }
 
-    public function append(string $tab, array $row): void
+    public function append(string $tab, array $row): ?string
+    {
+        $range = $this->send(new AppendRowRequest($this->spreadsheetId(), $tab, array_values($row)))->json('updates.updatedRange');
+
+        return is_string($range) && $range !== '' ? $range : null;
+    }
+
+    public function update(string $range, array $row): void
+    {
+        $this->send(new UpdateRowRequest($this->spreadsheetId(), $range, array_values($row)));
+    }
+
+    /** @throws GoogleSheetsUnavailable when it is not configured, cannot be reached or answers with an error */
+    private function send(Request $request): Response
     {
         if (! $this->isConfigured()) {
             throw GoogleSheetsUnavailable::misconfigured('GOOGLE_SHEETS_REPORTS_SPREADSHEET_ID, GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL and GOOGLE_DRIVE_PRIVATE_KEY must all be set');
         }
 
         try {
-            $response = (new GoogleSheetsConnector($this->auth->accessToken()))
-                ->send(new AppendRowRequest($this->spreadsheetId(), $tab, array_values($row)));
+            $response = (new GoogleSheetsConnector($this->auth->accessToken()))->send($request);
         } catch (GoogleSheetsUnavailable $e) {
             throw $e;
         } catch (Throwable $e) {
@@ -61,6 +76,8 @@ class GoogleSheetsApi implements SheetsClient
         if ($response->failed()) {
             throw GoogleSheetsUnavailable::httpError($response->status());
         }
+
+        return $response;
     }
 
     private function spreadsheetId(): string

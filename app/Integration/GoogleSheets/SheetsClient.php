@@ -18,11 +18,21 @@ interface SheetsClient
     public function battalionTab(): string;
 
     /**
-     * Append one row, its cells in the tab's column order, below the last row of `$tab`.
+     * Append one row, its cells in the tab's column order, below the last row of `$tab`. Returns the A1 range the row
+     * landed in (`'Tab'!A57:V57`), or null when the sheet did not say.
      *
      * @param  list<string>  $row
      *
      * @throws GoogleSheetsUnavailable when the sheet does not take it
      */
-    public function append(string $tab, array $row): void;
+    public function append(string $tab, array $row): ?string;
+
+    /**
+     * Overwrite the row at `$range`, an A1 range {@see append()} returned, with `$row`.
+     *
+     * @param  list<string>  $row
+     *
+     * @throws GoogleSheetsUnavailable when the sheet does not take it
+     */
+    public function update(string $range, array $row): void;
 }

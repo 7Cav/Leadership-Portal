@@ -48,6 +48,14 @@ final class WeekLabel
         return self::date(WeekOf::start($moment)->addDays(6));
     }
 
+    /** `23 59Z` with a hair space between the hours and minutes, as the UI writes a Zulu time, read at its UTC instant. */
+    public static function zulu(DateTimeInterface $moment): string
+    {
+        $utc = CarbonImmutable::instance($moment)->utc();
+
+        return $utc->format('H')."\u{200A}".$utc->format('i').'Z';
+    }
+
     /** `24OCT26`: a day in the portal's date format, the month in capitals, read at its UTC instant. */
     public static function date(DateTimeInterface $moment): string
     {

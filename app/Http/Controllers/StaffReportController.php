@@ -15,8 +15,14 @@ use App\Kpi\Headcount;
 use App\Kpi\KpiService;
 use App\Kpi\StaffHqHealth;
 use App\Milpac\StaffReportWeek;
+use App\Models\AuditLogEntry;
+use App\Models\StaffReport;
+use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
+use App\Repositories\AuditLogRepository;
+use App\Repositories\ReportEditWindow;
+use App\Repositories\ReportRevisionTrail;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitGame;
 use App\Repositories\UnitRepository;
@@ -64,7 +70,7 @@ class StaffReportController extends Controller
         ]);
     }
 
-    public function show(Request $request, int $trooper, string $week): Response
+    public function show(Request $request, AuditLogRepository $audit, int $trooper, string $week): Response
     {
         $trooper = $this->troopers->find($trooper) ?? abort(404);
         $weekStart = $this->weekStart($week);
@@ -81,6 +87,9 @@ class StaffReportController extends Controller
         $ended = WeekOf::hasEnded($weekStart, CarbonImmutable::now());
         $canSend = $self && $report === null && $hq !== null && $trooper->status->isServing() && ! $beforeFloor && $ended
             && $this->access->maySend($user, $trooper);
+        // Sent: the staff member may send it again, with a reason, until it locks at its deadline.
+        $canEdit = $self && $report !== null && $hq !== null && $trooper->status->isServing() && ! $beforeFloor
+            && ReportEditWindow::isOpen($weekStart) && $this->access->maySend($user, $trooper);
         $current = WeekOf::start(CarbonImmutable::now());
 
         return Inertia::render('StaffReport', [
@@ -100,15 +109,20 @@ class StaffReportController extends Controller
                 'ended' => $ended,
                 'opensAt' => WeekOf::next($weekStart)->toIso8601String(),
             ],
-            'report' => $report === null ? null : $this->withOwn($report, $hq),
+            'report' => $report === null ? null : [
+                ...$this->withOwn($report, $hq),
+                // The versions an edit replaced, newest first.
+                'revisions' => $this->revisionRows($this->week->find($trooper, $weekStart), $trooper, $audit),
+            ],
             // Whether the reports Google Sheet is set up, so a reader is told when a row has not gone to it yet.
             'sheetConfigured' => $this->sheet->sheetConfigured(),
             'canSend' => $canSend,
+            'canEdit' => $canEdit,
             // What the picker starts from: the week's staff practice entries (ticked, with who entered each) and the
             // practices the game server saw them at (a hint, never ticked for them).
             'entries' => $report === null ? $this->week->entries($trooper, $weekStart) : [],
-            'seen' => $canSend ? $this->week->seenSectionIds($trooper, $weekStart) : [],
-            'sections' => $canSend ? $this->sections($hq) : [],
+            'seen' => $canSend || $canEdit ? $this->week->seenSectionIds($trooper, $weekStart) : [],
+            'sections' => $canSend || $canEdit ? $this->sections($hq) : [],
             'maxPractices' => SendStaffReportHandler::MAX_PRACTICES,
             'limits' => [
                 'ftxName' => SendStaffReportHandler::MAX_FTX_NAME,
@@ -143,6 +157,8 @@ class StaffReportController extends Controller
             'notes' => ['nullable', 'string', 'max:'.SendStaffReportHandler::MAX_NOTES],
             'office_hour_date' => ['nullable', 'string', 'max:10'],
             'office_hour_note' => ['nullable', 'string', 'max:'.SendStaffReportHandler::MAX_OFFICE_HOUR_NOTE],
+            // Required by the handler when this edits a report already sent.
+            'reason' => ['nullable', 'string', 'max:1000'],
         ], [
             'attended.required' => 'Answer whether you attended a section practice this week.',
             'section_ids.max' => 'Pick at most :max practices.',
@@ -151,6 +167,7 @@ class StaffReportController extends Controller
             'ftx_name.max' => 'Keep the FTX name to :max characters.',
             'other_events.max' => 'Keep the other events to :max characters.',
             'notes.max' => 'Keep the notes to :max characters.',
+            'reason.max' => 'Keep the reason to :max characters.',
         ]);
 
         try {
@@ -166,6 +183,7 @@ class StaffReportController extends Controller
                 $data['notes'] ?? null,
                 $data['office_hour_date'] ?? null,
                 $data['office_hour_note'] ?? null,
+                $data['reason'] ?? null,
             ));
         } catch (StaffReportForbiddenException $e) {
             abort(403, $e->getMessage());
@@ -307,6 +325,42 @@ class StaffReportController extends Controller
      * @param  array{sentAt: string, attended: bool, practices: list<array{sectionId: int, section: ?string}>}  $report
      * @return array<string, mixed>
      */
+    /**
+     * The earlier versions of a sent staff report, newest first, each as the page reads a sent report, with who sent it
+     * again, when and why (`replaced`: `{at, by, reason}`, null when the trail has no entry for it).
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function revisionRows(?StaffReport $report, Trooper $trooper, AuditLogRepository $audit): array
+    {
+        $revisions = array_values($report?->revisions ?? []);
+
+        if ($report === null || $revisions === []) {
+            return [];
+        }
+
+        $trail = ReportRevisionTrail::pair($revisions, $audit->forTarget($report, [SendStaffReportHandler::EDITED]), SendStaffReportHandler::EDITED);
+        // Only the staff member sends their report, so each version is theirs; an actor is named as the roster has them.
+        $by = fn (AuditLogEntry $entry) => $entry->actor?->cav_id === $trooper->cav_id ? $trooper->display_name : $entry->actor?->username;
+
+        $rows = [];
+        foreach ($revisions as $i => $revision) {
+            $replaced = $trail[$i]['replaced'];
+            $rows[] = [
+                // Read back as the report it was, so it is shown the way the sent report is.
+                ...StaffReportWeek::reportProps((new StaffReport)->forceFill($revision)),
+                'sentBy' => $trooper->display_name,
+                'replaced' => $replaced === null ? null : [
+                    'at' => $replaced->created_at?->toIso8601String(),
+                    'by' => $by($replaced),
+                    'reason' => $replaced->reason,
+                ],
+            ];
+        }
+
+        return array_reverse($rows);
+    }
+
     private function withOwn(array $report, ?Unit $hq): array
     {
         $paths = $this->units->tree()->keyBy('id');
