@@ -16,6 +16,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReportStatus;
 use App\Repositories\PlatoonTrainingTopicRepository;
+use App\Repositories\ReportEditWindow;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportAlreadySentException;

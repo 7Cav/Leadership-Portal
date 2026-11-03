@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Repositories\ReportEditWindow;
 use Database\Factories\WeeklyReportFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -31,7 +32,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * **Edit window.** A sent report can be reopened for editing until it locks at its deadline (`WeekOf::reportDue()`):
  * `reopened_at`/`reopened_by` are set, `status` stays sent and the frozen snapshot stays the record until it is sent
  * again, which freezes a new snapshot, appends the one it replaces to `revisions` and clears the reopen. Whether a row
- * is open right now depends on the clock, so {@see \App\Repositories\ReportEditWindow} decides it.
+ * is open right now depends on the clock, so {@see ReportEditWindow} decides it.
  */
 #[Fillable(['unit_id', 'week_start', 'kpis', 'notes'])]
 class WeeklyReport extends Model

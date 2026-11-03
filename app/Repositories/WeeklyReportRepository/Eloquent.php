@@ -221,8 +221,8 @@ class Eloquent implements WeeklyReportRepository
      * ({@see lockUnsent()}), then write `$values` over it.
      *
      * @param  array<string, mixed>|Closure(WeeklyReport): array<string, mixed>  $values  built only by this class, so
-     *                                                                                they are force-filled; a closure
-     *                                                                                is given the locked row
+     *                                                                                    they are force-filled; a closure
+     *                                                                                    is given the locked row
      */
     private function write(int $unitId, CarbonInterface $weekStart, array|Closure $values, bool $allowEditing = true): WeeklyReport
     {
