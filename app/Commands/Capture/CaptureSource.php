@@ -11,7 +11,8 @@ use Closure;
  * that throws {@see CaptureSourceUnavailable} when it cannot answer. `$configured` is false when the
  * source's env keys are unset (AD-23): the run skips it without calling out, because an absent key is
  * "not set up", not an outage (7.9). `$gameServerId` is the stored server it reads (#389), so the read can be
- * recorded against it; null for the legacy env server.
+ * recorded against it; null for the legacy env server. `$noServer` is true when the credentials are set but no server
+ * id is (an env source without its server id), so the page can say what is actually missing (#631).
  */
 final readonly class CaptureSource
 {
@@ -24,5 +25,6 @@ final readonly class CaptureSource
         public Closure $fetch,
         public bool $configured = true,
         public ?int $gameServerId = null,
+        public bool $noServer = false,
     ) {}
 }

@@ -131,6 +131,7 @@ function outcomeLine(outcome) {
     const name = `${outcome.server} (${interfaceLabel(outcome.interface)})`;
 
     if (outcome.status === 'not_configured') return `${name}: credentials not set, not read.`;
+    if (outcome.status === 'no_server') return `${name}: no server selected, not read. Select a training server for this game.`;
     if (outcome.status === 'failed') return `${name}: could not be read. ${outcome.reason}`;
 
     return `${name}: answered.`;
@@ -240,7 +241,8 @@ function outcomeLine(outcome) {
                             >
                                 <span>{{ connection.label }}</span>
                                 <span class="text-muted-foreground">{{ interfaceLabel(source.interface) }}</span>
-                                <span v-if="!source.configured" class="text-destructive">credentials not set</span>
+                                <span v-if="!source.configured && source.noServer" class="text-destructive">no server selected: select a training server</span>
+                                <span v-else-if="!source.configured" class="text-destructive">credentials not set</span>
                                 <span class="text-muted-foreground">
                                     {{ source.lastSucceededAt ? `Last read ${zulu(source.lastSucceededAt)}` : 'Never read' }}
                                 </span>

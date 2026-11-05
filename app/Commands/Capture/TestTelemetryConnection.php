@@ -30,7 +30,8 @@ class TestTelemetryConnection
 
     /**
      * One outcome per source, in the order a capture reads them: `ok`, `failed` with the typed reason, or
-     * `not_configured` when its credentials are unset (not read, not recorded). Empty for a game read by no interface
+     * `not_configured` when its credentials are unset, or `no_server` when they are set but no server id is (neither
+     * read nor recorded). Empty for a game read by no interface
      * or with nothing to read.
      *
      * @return list<array{server: string, interface: string, status: string, reason?: string}>
@@ -47,7 +48,7 @@ class TestTelemetryConnection
                 $row = ['server' => $server->label, 'interface' => $interface->value];
 
                 if (! $source->configured) {
-                    $outcomes[] = [...$row, 'status' => 'not_configured'];
+                    $outcomes[] = [...$row, 'status' => $source->noServer ? 'no_server' : 'not_configured'];
 
                     continue;
                 }

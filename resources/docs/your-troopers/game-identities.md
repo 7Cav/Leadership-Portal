@@ -13,7 +13,7 @@ page: /game-identities
 ## Open Game identities
 
 1. Choose **Game identities** in the sidebar.
-2. Every serving trooper in your units is listed. **Needs a link** shows only the troopers with no link yet; **Everyone** shows them all.
+2. Every serving trooper in your units is listed. **Needs a link** shows the troopers missing a link for at least one game; **Everyone** shows them all.
 
 ## Link a trooper
 

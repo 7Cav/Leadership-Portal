@@ -68,7 +68,7 @@ it('lists every game with its interface, configured state and the last outcome o
         ->where('games.0.interface', 'crcon')
         ->where('games.0.captureConfigured', true)
         ->where('games.0.connections', [['label' => 'Hell Let Loose (WW2) server', 'sources' => [
-            ['interface' => 'crcon', 'configured' => true, 'lastSucceededAt' => '2026-10-08T19:00:00+00:00', 'lastFailedAt' => null, 'lastFailureReason' => null],
+            ['interface' => 'crcon', 'configured' => true, 'noServer' => false, 'lastSucceededAt' => '2026-10-08T19:00:00+00:00', 'lastFailedAt' => null, 'lastFailureReason' => null],
         ]]])
         // Down: Arma's training server failed a minute ago, with its typed reason.
         ->where('games.1.connections.0.label', 'Arma Training')
@@ -158,4 +158,15 @@ it('refuses a non-Admin the page and the test, before looking the game up', func
     $this->actingAs($leader)->get('/settings/servers')->assertForbidden();
     $this->actingAs($leader)->post('/settings/servers/games/999999/test')->assertForbidden();
     $this->actingAs($this->admin)->post('/settings/servers/games/999999/test')->assertNotFound();
+});
+
+it('tells a source with its key set but no server id apart from one without credentials', function () {
+    $noServer = new CaptureSource('battlemetrics', 'bm', fn () => throw new LogicException('not read'), configured: false, noServer: true);
+    connectionSources(['battlemetrics' => [$noServer]]);
+
+    $this->actingAs($this->admin)->post('/settings/servers/games/'.game('arma')->id.'/test')
+        ->assertSessionHas('connection_test.outcomes', [['server' => 'Arma Reforger server', 'interface' => 'battlemetrics', 'status' => 'no_server']]);
+
+    $this->actingAs($this->admin)->get('/settings/servers')
+        ->assertInertia(fn (Assert $page) => $page->where('games.1.connections.0.sources.0.noServer', true)->where('games.1.connections.0.sources.0.configured', false));
 });
