@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { Link } from '@inertiajs/vue3';
-import { PhArrowSquareOut, PhCaretDown, PhCheckCircle, PhCircleDashed, PhEye, PhTextAa } from '@phosphor-icons/vue';
+import { PhArrowSquareOut, PhCaretDown, PhCheckCircle, PhCircleDashed, PhMinusCircle, PhEye, PhTextAa } from '@phosphor-icons/vue';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
@@ -87,15 +87,16 @@ const waiting = computed(() => props.children.filter((c) => c.status !== 'sent')
                     :aria-controls="`check-${check.id}`"
                     @click="toggle(check.id)"
                 >
-                    <PhCheckCircle v-if="check.done" class="size-[1.125rem] text-success" aria-hidden="true" />
+                    <PhMinusCircle v-if="check.na" class="size-[1.125rem] text-muted-foreground" aria-hidden="true" />
+                    <PhCheckCircle v-else-if="check.done" class="size-[1.125rem] text-success" aria-hidden="true" />
                     <PhCircleDashed v-else class="size-[1.125rem] text-warning" aria-hidden="true" />
                     <span class="min-w-0">
                         <span class="block text-[13px] font-medium" :class="{ 'text-muted-foreground': check.done }">
-                            {{ check.title }}<span class="sr-only">{{ check.done ? ', done' : ', not done' }}</span>
+                            {{ check.title }}<span class="sr-only">{{ check.na ? ', not applicable' : check.done ? ', done' : ', not done' }}</span>
                         </span>
                         <span class="mt-0.5 block truncate text-xs text-muted-foreground">{{ check.detail }}</span>
                     </span>
-                    <span class="text-xs font-medium tabular-nums" :class="check.done ? 'text-success' : 'text-warning'">{{ check.count }}</span>
+                    <span class="text-xs font-medium tabular-nums" :class="check.na ? 'text-muted-foreground' : check.done ? 'text-success' : 'text-warning'">{{ check.count }}</span>
                     <PhCaretDown class="mt-0.5 text-muted-foreground transition-transform" :class="{ 'rotate-180': open.has(check.id) }" aria-hidden="true" />
                 </button>
 

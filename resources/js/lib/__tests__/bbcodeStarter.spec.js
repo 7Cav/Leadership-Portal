@@ -39,6 +39,17 @@ describe('the starter template', () => {
         expect(out).toContain('[TR][TD]2[/TD][TD]Specialist Adams.P[/TD][TD]✗[/TD][TD]LOA[/TD][/TR]');
     });
 
+    it('marks an excused practice EX, and a make-up requested or excused roll call MU and EX (#629)', () => {
+        const rows = [
+            { n: '1', rank: 'Private', rank_icon: '', rank_icon_width: '', name: 'Bell.A', rc_makeup_requested: true, ...flags('sp_excused') },
+            { n: '2', rank: 'Private', rank_icon: '', rank_icon_width: '', name: 'Cole.B', rc_excused: true, ...flags('sp_missed') },
+        ];
+        const out = render(STARTER, { ...CONTEXT, troopers: rows }).text;
+
+        expect(out).toContain('[TR][TD]1[/TD][TD]Private Bell.A[/TD][TD]MU[/TD][TD]EX[/TD][/TR]');
+        expect(out).toContain('[TR][TD]2[/TD][TD]Private Cole.B[/TD][TD]EX[/TD][TD]✗[/TD][/TR]');
+    });
+
     it('says so for an empty section', () => {
         expect(render(STARTER, { ...CONTEXT, troopers: [] }).text).toContain('[TR][TD]No troopers are placed in this section.[/TD][/TR]');
     });

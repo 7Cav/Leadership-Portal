@@ -124,3 +124,15 @@ it('reads the health in the same number of queries however big the unit is', fun
     expect($count())->toBe($small)
         ->and($small)->toBeLessThanOrEqual(StaffHqHealth::TREND_WEEKS * 12 + 3);
 });
+
+it('leaves the roll call and at risk trend empty for weeks with no placement history, keeping the headline', function () {
+    $health = app(StaffHqHealth::class)->forUnit($this->tree['units']['platoon'], $this->week);
+
+    // Every trend week here is before the placement history begins.
+    foreach ($health['trend'] as $point) {
+        expect($point['inRollcall'])->toBeNull()
+            ->and($point['rc'])->toBeNull()
+            ->and($point['atRisk'])->toBeNull();
+    }
+    expect($health['atRisk'])->toBe(0);
+});

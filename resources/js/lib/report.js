@@ -76,6 +76,9 @@ export function unitLabel(unit) {
 // What the deltas are measured against (5.4), as one sentence under the KPI grid.
 export function baselineText(baseline) {
     if (baseline?.kind === 'prior') return `Change compared with your sent report for the ${weekPhrase(baseline.week)}.`;
+    if (baseline?.kind === 'incomplete') {
+        return `No change shown: this week or the ${weekPhrase(baseline.week)} is missing a unit's report, so the two cover different units.`;
+    }
     if (baseline?.kind === 'no_prior') {
         return `No prior baseline: last week was not sent. The last sent report is for the ${weekPhrase(baseline.week)}.`;
     }
@@ -136,24 +139,30 @@ export function readinessChecks({ isLeaf, troopers, children, content, reviewed,
     const explained = unaccounted.filter((t) => reasons.get(t.id)).length;
     const toConfirm = unaccounted.filter((t) => !reasons.get(t.id) && suggested.includes(t.id));
     const subject = (content.trainingSubject ?? '').trim();
+    // A section with no troopers has no roll call, practice or misses to check: those read as not applicable (they do
+    // not hold the send back), never as 0/0 done.
+    const notApplicable = (check) =>
+        roster.length ? check : { ...check, done: true, na: true, count: 'n/a', detail: 'No troopers in this section.' };
 
     return [
-        {
-            id: 'rollcall',
-            title: 'Roll call complete',
-            done: signed === roster.length,
-            count: `${signed}/${roster.length}`,
-            detail: signed === roster.length ? 'Everyone signed, is excused or is on LOA.' : `${roster.length - signed} not signed yet.`,
-            next: 'Chase the unsigned troopers in roll call',
-        },
-        {
-            id: 'practice',
-            title: 'Practice marked',
-            done: unmarked.length === 0,
-            count: `${marked}/${eligible.length}`,
-            detail: unmarked.length ? `${unmarked.map((t) => t.name).join(', ')} not marked.` : 'Every trooper has a practice mark.',
-            next: 'Mark the rest of practice in roll call',
-        },
+        ...[
+            {
+                id: 'rollcall',
+                title: 'Roll call complete',
+                done: signed === roster.length,
+                count: `${signed}/${roster.length}`,
+                detail: signed === roster.length ? 'Everyone signed, is excused or is on LOA.' : `${roster.length - signed} not signed yet.`,
+                next: 'Chase the unsigned troopers in roll call',
+            },
+            {
+                id: 'practice',
+                title: 'Practice marked',
+                done: unmarked.length === 0,
+                count: `${marked}/${eligible.length}`,
+                detail: unmarked.length ? `${unmarked.map((t) => t.name).join(', ')} not marked.` : 'Every trooper has a practice mark.',
+                next: 'Mark the rest of practice in roll call',
+            },
+        ].map(notApplicable),
         ...(practice
             ? [
                   {
@@ -171,19 +180,21 @@ export function readinessChecks({ isLeaf, troopers, children, content, reviewed,
                   },
               ]
             : []),
-        {
-            id: 'unaccounted',
-            title: 'Unaccounted troopers explained',
-            done: explained === unaccounted.length,
-            count: `${explained}/${unaccounted.length}`,
-            detail:
-                explained === unaccounted.length
-                    ? 'Every miss without a makeup has a reason command can read.'
-                    : toConfirm.length === unaccounted.length - explained
-                      ? `${plural(toConfirm.length, 'suggested reason')} to keep or change.`
-                      : `${unaccounted.length - explained} ${unaccounted.length - explained === 1 ? 'miss has' : 'misses have'} no reason yet.`,
-            next: `Choose a reason for ${unaccounted.filter((t) => !reasons.get(t.id)).map((t) => t.name).join(' and ')}`,
-        },
+        ...[
+            {
+                id: 'unaccounted',
+                title: 'Unaccounted troopers explained',
+                done: explained === unaccounted.length,
+                count: `${explained}/${unaccounted.length}`,
+                detail:
+                    explained === unaccounted.length
+                        ? 'Every miss without a makeup has a reason command can read.'
+                        : toConfirm.length === unaccounted.length - explained
+                          ? `${plural(toConfirm.length, 'suggested reason')} to keep or change.`
+                          : `${unaccounted.length - explained} ${unaccounted.length - explained === 1 ? 'miss has' : 'misses have'} no reason yet.`,
+                next: `Choose a reason for ${unaccounted.filter((t) => !reasons.get(t.id)).map((t) => t.name).join(' and ')}`,
+            },
+        ].map(notApplicable),
         {
             id: 'subject',
             title: 'Training subject filled',

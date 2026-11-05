@@ -22,6 +22,8 @@ const props = defineProps({
     unit: { type: Object, required: true },
     week: { type: Object, required: true },
     sent: { type: Boolean, default: false },
+    // No saved row yet: "Not started" rather than a draft.
+    notStarted: { type: Boolean, default: false },
     sentAt: { type: String, default: null },
     sentBy: { type: String, default: null },
     kpis: { type: Object, default: null },
@@ -52,7 +54,10 @@ const hints = computed(() => {
 
     return {
         // The headcount sits beside the rollcall figure, labelled apart (#424); a report frozen before it has none.
-        strength: [props.kpis.headcount != null ? `Headcount ${props.kpis.headcount}, with staff` : null, props.unit.isLeaf ? 'Assigned troopers' : 'From sent reports only'].filter(Boolean).join(' · '),
+        // A roll-up's roll call figure sums the sent reports; its headcount is the roster's for the week, sent or not (#624).
+        strength: props.unit.isLeaf
+            ? [props.kpis.headcount != null ? `Headcount ${props.kpis.headcount}, with staff` : null, 'Assigned troopers'].filter(Boolean).join(' · ')
+            : ['In roll call from sent reports', props.kpis.headcount != null ? `Headcount ${props.kpis.headcount} from the roster, with staff` : null].filter(Boolean).join(' · '),
         rc: 'Signed, last 30 days',
         sp: 'Credited, last 30 days',
         atRisk: names((t) => t.atRisk) || '',
@@ -125,6 +130,7 @@ const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id ===
             </div>
             <div class="flex flex-none flex-col items-end gap-1.5">
                 <Badge v-if="sent" variant="success"><PhLockSimple aria-hidden="true" />Sent {{ timeOf(sentAt) }}</Badge>
+                <Badge v-else-if="notStarted" variant="outline">Not started</Badge>
                 <Badge v-else variant="warning"><PhPencilSimple aria-hidden="true" />Draft, live</Badge>
                 <Button variant="ghost" size="xs" data-testid="copy-summary" @click="copySummary"><PhCopy aria-hidden="true" />Copy summary</Button>
             </div>

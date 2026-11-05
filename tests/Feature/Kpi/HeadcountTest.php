@@ -7,6 +7,7 @@ use App\Kpi\KpiService;
 use App\Kpi\ReportSnapshot;
 use App\Kpi\RollupKpis;
 use App\Kpi\WeeklyReportKpis;
+use App\Models\PlacementSource;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
@@ -14,6 +15,7 @@ use App\Models\UnitKind;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReport;
+use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use Carbon\CarbonImmutable;
@@ -136,4 +138,75 @@ it('persists a sent platoon report\'s headcount, staff included, apart from its 
     expect($stored['strength'])->toBe(3)
         ->and($stored['headcount'])->toBe(4)
         ->and(ReportSnapshot::fromArray($stored)->headcount)->toBe(4);
+});
+
+// #624: one dated rule for a week's people. A week that has ended counts each trooper who served it where they ended it,
+// as its rollcall lists them; the running week counts who is serving and placed now, as its rollcall does.
+
+function hcMove(Trooper $trooper, ?Unit $to, string $at): void
+{
+    app(TrooperPlacementRepository::class)->record([$trooper->id => [$trooper->primary_section_id, $to?->id]], PlacementSource::Manual, CarbonImmutable::parse($at, 'UTC'));
+    $trooper->forceFill(['primary_section_id' => $to?->id])->save();
+}
+
+it('counts a past week\'s headcount from the placement history, not from today\'s roster', function () {
+    // Both of 1st Section's troopers move to 2nd Section in the running week.
+    Trooper::query()->where('primary_section_id', $this->s1->id)->get()->each(fn (Trooper $t) => hcMove($t, $this->s2, '2026-10-06 12:00:00'));
+    $headcount = app(Headcount::class);
+    $lastWeek = hcWeek()->subWeek();
+
+    expect($headcount->forUnit($this->s1, $lastWeek))->toBe(2)
+        ->and($headcount->forUnit($this->s2, $lastWeek))->toBe(1)
+        ->and($headcount->forUnit($this->platoon, $lastWeek))->toBe(4)
+        ->and($headcount->forUnit($this->s1, hcWeek()))->toBe(0)
+        ->and($headcount->forUnit($this->s1))->toBe(0)
+        ->and($headcount->forUnit($this->s2, hcWeek()))->toBe(3);
+});
+
+it('counts a trooper who moved to HQ staff during a past week in the section whose rollcall lists them as moved out', function () {
+    $mover = Trooper::query()->where('primary_section_id', $this->s1->id)->first();
+    hcMove($mover, $this->platoon, '2026-09-29 12:00:00');
+    $headcount = app(Headcount::class);
+    $lastWeek = hcWeek()->subWeek();
+
+    expect($headcount->forUnit($this->s1, $lastWeek))->toBe(2)
+        ->and($headcount->forUnit($this->platoon, $lastWeek))->toBe(4)
+        // Now, and in the running week, they are on the platoon's HQ.
+        ->and($headcount->forUnit($this->s1, hcWeek()))->toBe(1)
+        ->and($headcount->forUnit($this->platoon, hcWeek()))->toBe(4);
+});
+
+it('leaves a trooper out of the weeks before they joined, and keeps one who left in the weeks they served', function () {
+    hcPlace($this->s1, ['tis' => '2026-10-05']);
+    $gone = Trooper::query()->where('primary_section_id', $this->s2->id)->where('status', TrooperStatus::Combat)->sole();
+    $gone->forceFill(['status' => TrooperStatus::Inactive, 'departed_at' => CarbonImmutable::parse('2026-10-06 12:00:00', 'UTC')])->save();
+    $headcount = app(Headcount::class);
+    $lastWeek = hcWeek()->subWeek();
+
+    expect($headcount->forUnit($this->s1, $lastWeek))->toBe(2)
+        ->and($headcount->forUnit($this->s2, $lastWeek))->toBe(1)
+        ->and($headcount->forUnit($this->s1, hcWeek()))->toBe(3)
+        ->and($headcount->forUnit($this->s2, hcWeek()))->toBe(0);
+});
+
+it('freezes a past week\'s headcount as it stood that week', function () {
+    hcPlace($this->platoon);
+
+    expect(app(WeeklyReportKpis::class)->snapshot($this->platoon, hcWeek()->subWeek())->headcount)->toBe(5);
+
+    Trooper::query()->where('primary_section_id', $this->s1->id)->get()->each(fn (Trooper $t) => hcMove($t, null, '2026-10-06 12:00:00'));
+
+    expect(app(WeeklyReportKpis::class)->snapshot($this->platoon, hcWeek()->subWeek())->headcount)->toBe(5)
+        ->and(app(WeeklyReportKpis::class)->snapshot($this->platoon, hcWeek())->headcount)->toBe(3);
+});
+
+it('does not wait on a section everyone left during the running week, but still does for the week before', function () {
+    Trooper::query()->where('primary_section_id', $this->s1->id)->get()->each(fn (Trooper $t) => hcMove($t, $this->s2, '2026-10-06 12:00:00'));
+    $headcount = app(Headcount::class);
+    $units = collect([$this->s1, $this->s2]);
+
+    expect($headcount->reportingLineUnits($units, hcWeek())->pluck('id')->all())->toBe([$this->s2->id])
+        ->and($headcount->reportingLineUnits($units, hcWeek()->subWeek())->pluck('id')->all())->toBe([$this->s1->id, $this->s2->id])
+        // Unless it sent this week's report before they went.
+        ->and($headcount->reportingLineUnits($units, hcWeek(), [$this->s1->id])->pluck('id')->all())->toBe([$this->s1->id, $this->s2->id]);
 });

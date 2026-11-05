@@ -74,6 +74,24 @@ describe('PracticeSlot', () => {
         expect(document.body.querySelector('[data-testid="practice-week"]')).toBeNull();
     });
 
+    it('names the first week a change affects on the current week', async () => {
+        const wrapper = factory({ canEdit: true, changesFrom: '2026-10-24', currentWeek: '2026-10-24' });
+
+        await wrapper.get('[data-testid="practice-slot-edit"]').trigger('click');
+        await flushPromises();
+        expect(document.body.querySelector('[data-testid="practice-slot-changes-from"]').textContent).toBe('Takes effect from week 24OCT26 to 30OCT26.');
+    });
+
+    it('says a change from a past week changes the weekly slot from then on', async () => {
+        const wrapper = factory({ canEdit: true, week: '2026-10-10', changesFrom: '2026-10-24', currentWeek: '2026-10-24' });
+
+        await wrapper.get('[data-testid="practice-slot-edit"]').trigger('click');
+        await flushPromises();
+        expect(document.body.querySelector('[data-testid="practice-slot-changes-from"]').textContent).toBe(
+            'This is a past week, so it keeps what it had. Changes the weekly slot from week 24OCT26 to 30OCT26 on.',
+        );
+    });
+
     it('shows a slot that starts next week', () => {
         const slot = { weekday: 3, startMinute: 1439, effectiveFrom: '2026-10-31', week: { start: null, end: null, cancelled: false, moved: false, captured: false } };
         const wrapper = factory({ slot });

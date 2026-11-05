@@ -199,7 +199,7 @@ function cellsFor(trooper) {
         return {
             week,
             index,
-            ...weekCell(trooper.weeks[index], week, { current: week === props.currentWeek, joined: trooper.joined, excused: trooper.excusedWeeks?.[week] ?? null }),
+            ...weekCell(trooper.weeks[index], week, { current: week === props.currentWeek, joined: trooper.joined, departedAt: trooper.departedAt, departed: trooper.departed, inSection: trooper.inSection?.[index], excused: trooper.excusedWeeks?.[week] ?? null }),
             auto: trooper.weeks[index]?.source === 'auto',
         };
     });
@@ -231,7 +231,7 @@ function resolveTip(key) {
     if (kind === 'm') {
         const trooper = byId.value.get(Number(id));
         const mark = trooper.weeks[index];
-        const cell = weekCell(mark, week, { current, joined: trooper.joined, excused: trooper.excusedWeeks?.[week] ?? null });
+        const cell = weekCell(mark, week, { current, joined: trooper.joined, departedAt: trooper.departedAt, departed: trooper.departed, inSection: trooper.inSection?.[index], excused: trooper.excusedWeeks?.[week] ?? null });
 
         return { title, rows: [['Roll call', RC_STATES[cell.rc]], ['SP', SP_STATES[cell.sp], sourceLabel(mark)]] };
     }

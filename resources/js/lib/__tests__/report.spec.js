@@ -44,6 +44,10 @@ describe('baselineText', () => {
         expect(baselineText({ kind: 'no_prior', week: '2026-09-19T00:00:00+00:00' })).toMatch(/No prior baseline.*the week ending 25SEP26 \(19SEP26 to 25SEP26\)/);
         expect(baselineText({ kind: 'first', week: null })).toMatch(/^First report/);
     });
+
+    it('says why no change shows while either week is missing a unit report', () => {
+        expect(baselineText({ kind: 'incomplete', week: '2026-09-26T00:00:00+00:00' })).toMatch(/^No change shown: .*the week ending 02OCT26 .*different units/);
+    });
 });
 
 describe('readinessChecks', () => {
@@ -64,6 +68,14 @@ describe('readinessChecks', () => {
     });
 
     const content = { trainingSubject: 'Room clearing', unaccounted: [] };
+
+    it('reads the roster checks as not applicable for a section with no troopers', () => {
+        const checks = readinessChecks({ isLeaf: true, troopers: [], content, reviewed: false });
+        const roster = checks.filter((c) => ['rollcall', 'practice', 'unaccounted'].includes(c.id));
+
+        expect(roster.map((c) => [c.na, c.done, c.count])).toEqual([[true, true, 'n/a'], [true, true, 'n/a'], [true, true, 'n/a']]);
+        expect(checks.find((c) => c.id === 'reviewed').na).toBeUndefined();
+    });
 
     it('passes every check for a fully marked, explained, reviewed section', () => {
         const checks = readinessChecks({ isLeaf: true, troopers: [trooper(1), trooper(2)], content, reviewed: true });

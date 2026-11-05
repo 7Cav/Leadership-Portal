@@ -178,6 +178,15 @@ describe('Trooper sheet', () => {
         expect([...document.body.querySelectorAll('button')].some((b) => b.textContent.includes('Try again'))).toBe(false);
     });
 
+    it('offers no roll call for a trooper placed in a platoon, company or ELOA (#622)', async () => {
+        respond(200, detail({ section: { id: 5, type: 'platoon', name: '1st Platoon', callsign: '1/A/1-7' } }));
+        factory();
+        await flushPromises();
+
+        expect(document.body.querySelector('[data-testid="sheet-open-rollcall"]')).toBeNull();
+        expect(document.body.querySelector('[data-testid="sheet-open-trooper"]')).not.toBeNull();
+    });
+
     it('hides Open rollcall until the rollcall screen exists', async () => {
         respond(200, detail());
         mount(TrooperSheet, { props: { trooperId: 12, links: { ...LINKS, rollcall: null }, syncLabel: 'milpac' }, attachTo: document.body });

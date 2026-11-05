@@ -42,7 +42,7 @@ const path = computed(() => {
 
 const description = computed(() =>
     `${props.label} over the last ${props.series.length - 1} weeks: ${props.series
-        .map((point) => (point.value === null ? 'no sent report' : props.format(point.value)))
+        .map((point) => (point.value !== null ? props.format(point.value) : point.reported === false ? 'no sent report' : 'no data'))
         .join(', ')}`,
 );
 const last = computed(() => props.series.length - 1);

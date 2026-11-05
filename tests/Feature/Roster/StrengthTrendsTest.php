@@ -3,6 +3,7 @@
 use App\Kpi\StrengthTrends;
 use App\Models\PlacementSource;
 use App\Models\Trooper;
+use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
@@ -76,6 +77,22 @@ it('rebuilds unsent ended weeks from the placement history', function () {
         ->and(stWeek($props, '2026-11-07'))->toMatchArray(['headcount' => 5, 'strength' => 4, 'in' => 1, 'out' => 0, 'source' => 'history'])
         ->and(stWeek($props, '2026-11-21'))->toMatchArray(['headcount' => 5, 'strength' => 4, 'source' => 'live'])
         ->and($props['change'])->toBe(['headcount' => 1, 'strength' => 1]);
+});
+
+it('reads the running week from the live roster, so a departure this week is under out (#624)', function () {
+    $gone = stPlace($this->section2);
+    $gone->forceFill(['status' => TrooperStatus::Inactive, 'departed_at' => CarbonImmutable::parse('2026-11-23 12:00:00', 'UTC')])->save();
+    // Moved to the platoon's HQ this week: out of the section on the live roster, still in the platoon's headcount.
+    $mover = Trooper::query()->where('primary_section_id', $this->section->id)->first();
+    app(TrooperPlacementRepository::class)->record([$mover->id => [$this->section->id, $this->platoon->id]], PlacementSource::Manual, CarbonImmutable::parse('2026-11-23 12:00:00', 'UTC'));
+    $mover->forceFill(['primary_section_id' => $this->platoon->id])->save();
+
+    $props = stProps($this, $this->platoon);
+    $section = collect($props['children'])->firstWhere('id', $this->section->id);
+
+    expect(stWeek($props, '2026-11-14'))->toMatchArray(['headcount' => 6, 'strength' => 5])
+        ->and(stWeek($props, '2026-11-21'))->toMatchArray(['headcount' => 5, 'strength' => 3, 'in' => 0, 'out' => 1, 'source' => 'live'])
+        ->and(collect($section['points'])->firstWhere('week', '2026-11-21')['headcount'])->toBe(2);
 });
 
 it('reads a sent week from its frozen snapshot', function () {
@@ -198,7 +215,7 @@ it('reads in a fixed number of queries whatever the range or the size of the uni
         ]);
     }
 
-    expect($small)->toBeLessThanOrEqual(3)
+    expect($small)->toBeLessThanOrEqual(4)
         ->and(stQueries($this->platoon, null))->toBe($small)
         ->and(stQueries($this->platoon, 52))->toBe($small);
 });
@@ -225,6 +242,6 @@ it('reads a battalion with its platoons in the same fixed number of queries', fu
         }
     }
 
-    expect($small)->toBeLessThanOrEqual(3)
+    expect($small)->toBeLessThanOrEqual(4)
         ->and(stQueries($battalion, null))->toBe($small);
 });

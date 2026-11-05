@@ -67,7 +67,8 @@ The portal follows the counseling rules on the 7Cav wiki (7CAV-R-012, 7CAV-R-014
 2. An expired DCS is never deleted: the record, its document and its Google Drive copy all stay.
 3. Leaders and the trooper no longer see it. Admins still see it, marked "Expired" with the date, read only, and can download its document.
 4. It no longer counts toward the no favorable action notice or the filing form's warnings for a record dated today. It still counts for a record dated within 90 days of it, so a repeat DCS keeps its flag after the first one expires.
-5. Leaders cannot correct or delete an expired DCS. Admins can.
+5. Nobody can correct or delete an expired DCS, Admins included: it has been frozen since 72 hours after it was filed.
+6. The DCS form says records are kept for 90 days only. That line is the official form text; the portal keeps an expired DCS as described above.
 
 ## Correct or delete a record
 

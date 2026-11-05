@@ -35,6 +35,7 @@ use App\Models\User;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\CountingMark;
 use App\Repositories\SyncRunRepository;
+use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitActingLeadRepository;
 use App\Repositories\UnitCommandMappingRepository;
@@ -93,6 +94,7 @@ class RosterController extends Controller
         private readonly AutoExcused $autoExcused,
         private readonly MissingGameIdentities $missingIdentities,
         private readonly AutomaticAttendance $automatic,
+        private readonly TrooperPlacementRepository $placements,
     ) {}
 
     /**
@@ -216,7 +218,7 @@ class RosterController extends Controller
         $marks = $this->historyMarks($section, $week)->get($found->id, collect());
         // The unit's lead as its roster header names it, acting leads included, and the trooper's own billet tag (#443).
         $lead = $this->leads->leadsOf([$section->id])->get($section->id);
-        $row = $this->trooperRow($found, $kpis, $marks, $week, $this->billetTags->of(collect([$found]))->get($found->id), $this->excusedWeeks([$found->id], $week)[$found->id] ?? []);
+        $row = $this->trooperRow($found, $kpis, $marks, $week, $this->billetTags->of(collect([$found]))->get($found->id), $this->excusedWeeks([$found->id], $week)[$found->id] ?? [], $this->inSectionWeeks([$found->id], $week)[$found->id] ?? null);
         // Each week's section by name, for the weeks they were somewhere else (2026-10-27).
         $labels = $marks->pluck('sectionId')->filter()->unique()
             ->mapWithKeys(fn (int $id) => [$id => ($unit = $this->units->find($id)) === null ? null : ($unit->callsign ?? $unit->name)]);
@@ -316,6 +318,7 @@ class RosterController extends Controller
         $attendance = $this->kpis->trooperAttendance($unit, $week);
         $marks = $this->historyMarks($unit, $week);
         $excused = $this->excusedWeeks($placed->modelKeys(), $week);
+        $inSection = $this->inSectionWeeks($placed->modelKeys(), $week);
         // The unit headers name the unit's lead, acting leads and portfolio officers included (2026-10-25); each
         // trooper's tag is the command billet they hold in their unit, or their acting lead (#443).
         $tags = $this->billetTags->of($placed);
@@ -361,6 +364,7 @@ class RosterController extends Controller
             $week,
             $tags->get($t->id),
             $excused[$t->id] ?? [],
+            $inSection[$t->id] ?? null,
         ))->values()->all();
         // The game each serving trooper has no identity linked for, so the capture cannot see them; read-only.
         $missingGame = $this->missingIdentities->forTroopers($placed);
@@ -418,7 +422,7 @@ class RosterController extends Controller
      * @param  array<string, string>  $excused  their automatically excused history weeks ({@see AutoExcused})
      * @return array<string, mixed>
      */
-    private function trooperRow(Trooper $t, ?TrooperAttendance $kpis, Collection $marks, CarbonImmutable $week, ?string $role, array $excused = []): array
+    private function trooperRow(Trooper $t, ?TrooperAttendance $kpis, Collection $marks, CarbonImmutable $week, ?string $role, array $excused = [], ?array $inSection = null): array
     {
         $byWeek = $marks->keyBy(fn (CountingMark $m) => $m->weekStart->toDateString());
 
@@ -433,6 +437,9 @@ class RosterController extends Controller
             'billet' => $t->billet,
             'status' => $t->status->value,
             'departed' => ! $t->status->isServing(),
+            // When the sync saw them leave (#623), `Y-m-d`: their weeks from then on read "Left the Cav". Null while
+            // serving, or for someone who left before the date was recorded.
+            'departedAt' => $t->status->isServing() ? null : $t->departed_at?->toDateString(),
             'sectionId' => $t->primary_section_id,
             // ELOA's "was" (2026-10-24): the line unit they left, when the sync saw them move.
             'was' => $t->relationLoaded('lastLineUnit') && $t->lastLineUnit !== null ? ($t->lastLineUnit->callsign ?? $t->lastLineUnit->name) : null,
@@ -467,7 +474,43 @@ class RosterController extends Controller
             // The history weeks excused automatically (2026-10-30), `Y-m-d` => `recruit` or `transfer`: the cell shows
             // Excused on whichever half nobody recorded.
             'excusedWeeks' => (object) $excused,
+            // Per history week, oldest first, whether they were placed in a section (#623): false on HQ staff or in a
+            // group, so a week with no mark reads "No section that week" rather than unsigned. Null when unknown.
+            'inSection' => $inSection,
         ];
+    }
+
+    /**
+     * Each trooper's history weeks, oldest first, as whether the placement history puts them in a section that week:
+     * a unit of type section, not an HQ node or a group they were read into without history. A trooper placed nowhere
+     * now is left out (unknown).
+     *
+     * @param  list<int>  $trooperIds
+     * @return array<int, list<bool>>
+     */
+    private function inSectionWeeks(array $trooperIds, CarbonImmutable $week): array
+    {
+        if ($trooperIds === []) {
+            return [];
+        }
+
+        $placed = $this->placements->sectionsByWeek($trooperIds, $week->subWeeks(self::HISTORY_WEEKS - 1), $week);
+        // One query for every unit met, so the cost does not grow with the roster.
+        $isSection = Unit::query()->whereIn('id', $placed->sectionIds())->pluck('type', 'id')
+            ->map(fn (UnitType $type) => $type === UnitType::Section)->all();
+
+        $weeks = $this->weeks($week);
+        $out = [];
+
+        foreach (array_keys($placed->current) as $trooperId) {
+            $out[$trooperId] = array_map(function (string $date) use ($placed, $trooperId, $isSection) {
+                $section = $placed->sectionIn($trooperId, $date);
+
+                return $section !== null && ($isSection[$section] ?? false);
+            }, $weeks);
+        }
+
+        return $out;
     }
 
     /**

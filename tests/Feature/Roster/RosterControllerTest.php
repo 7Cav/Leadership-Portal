@@ -504,3 +504,32 @@ it('keeps a leader by billet on their billet\'s unit when they are also acting l
 
     $this->actingAs($this->leader)->get('/roster')->assertInertia(fn ($page) => $page->where('unit.id', $this->section1->id));
 });
+
+describe('week cells by placement and departure (#623)', function () {
+    it('sends when a departed trooper left, and none for a serving one', function () {
+        $gone = rosterTrooper($this->section1, ['status' => TrooperStatus::Inactive, 'departed_at' => '2026-09-30 10:00:00']);
+        $serving = rosterTrooper($this->section1);
+
+        $this->actingAs($this->leader)->getJson("/roster/troopers/{$gone->id}")->assertJsonPath('trooper.departedAt', '2026-09-30');
+        $this->getJson("/roster/troopers/{$serving->id}")->assertJsonPath('trooper.departedAt', null);
+    });
+
+    it('marks every week of a trooper in a section as in one', function () {
+        $t = rosterTrooper($this->section1);
+
+        $weeks = $this->actingAs($this->leader)->getJson("/roster/troopers/{$t->id}")->json('trooper.inSection');
+
+        expect($weeks)->toHaveCount(20)->and(array_unique($weeks))->toBe([true]);
+    });
+
+    it('marks HQ staff placed in a company as in no section, on the Sheet and the roster rows', function () {
+        $staff = rosterTrooper($this->company);
+        $this->actingAs(User::factory()->admin()->create());
+
+        $weeks = $this->getJson("/roster/troopers/{$staff->id}")->json('trooper.inSection');
+        expect(array_unique($weeks))->toBe([false]);
+
+        $row = collect($this->get(route('roster.index', $this->company->id))->viewData('page')['props']['troopers'])->firstWhere('id', $staff->id);
+        expect(array_unique($row['inSection']))->toBe([false]);
+    });
+});

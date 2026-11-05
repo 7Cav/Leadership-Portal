@@ -21,12 +21,14 @@ const props = defineProps({
     week: { type: String, required: true },
     slot: { type: Object, default: null },
     // Why the slot cannot be changed here (a preview or a section the viewer only reads), or null. A sent week does not
-    // stop the slot: a change then starts with the next week (`changesFrom`).
+    // stop the slot: a change starts with `changesFrom`.
     disabledReason: { type: String, default: null },
     // Why this week's practice cannot be moved or cancelled (its report was sent), or null.
     weekLockedReason: { type: String, default: null },
-    // The Cav week (`YYYY-MM-DD`) a slot saved now starts with, or null when it applies straight away.
+    // The Cav week (`YYYY-MM-DD`) a slot change made now starts with: the current week, or the next when it is held.
     changesFrom: { type: String, default: null },
+    // The running Cav week (`YYYY-MM-DD`), to tell a past week's roll call from the current one.
+    currentWeek: { type: String, default: null },
     canEdit: { type: Boolean, default: false },
 });
 
@@ -49,6 +51,15 @@ const startsNextWeek = computed(() => {
     if (!startsFrom.value) return false;
 
     return Date.parse(startsFrom.value) - Date.parse(props.week) === 7 * 86_400_000;
+});
+// The dialog's notice of the first week a change affects (#630), wherever it was opened from.
+const changeNotice = computed(() => {
+    if (!props.changesFrom) return null;
+    const from = `week ${weekLabel(props.changesFrom)}`;
+    if (props.currentWeek && props.week < props.currentWeek) return `This is a past week, so it keeps what it had. Changes the weekly slot from ${from} on.`;
+    if (props.changesFrom > props.week) return `This week's report is sent or its practice is captured, so it keeps what it had. Takes effect from ${from}.`;
+
+    return `Takes effect from ${from}.`;
 });
 const localHint = computed(() => (props.slot ? localLabel(nextStart(props.slot)) : null));
 // This week's practice when it differs from the slot: moved, or cancelled.
@@ -154,9 +165,7 @@ function restoreWeek() {
                 <DialogDescription>A section practice lasts one hour. Times are in Zulu.</DialogDescription>
             </DialogHeader>
 
-            <p v-if="changesFrom" class="text-sm text-muted-foreground" data-testid="practice-slot-changes-from">
-                This week's report is sent or its practice is captured, so it keeps what it had. Takes effect from week {{ weekLabel(changesFrom) }}.
-            </p>
+            <p v-if="changeNotice" class="text-sm text-muted-foreground" data-testid="practice-slot-changes-from">{{ changeNotice }}</p>
 
             <form class="grid gap-3" data-testid="practice-slot-form" @submit.prevent="saveSlot">
                 <div class="grid grid-cols-2 gap-3">

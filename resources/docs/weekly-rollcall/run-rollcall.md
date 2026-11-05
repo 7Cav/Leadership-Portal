@@ -26,7 +26,7 @@ minutes: 10
 3. Use the arrows beside the week to go back or forward a week, and **This week** to come back. An arrow is flagged when a week it leads to is unfinished.
 4. On the Saturday after a week ends, until the report is due at 2359Z, roll call opens on that closing week if your section has not sent its report yet. Choose **This week** for the new week.
 
-> [!good-to-know] A past week lists the troopers who were in your section when that week ended, so you can still finish it after a move or a departure. Their rows say **Moved out** or **Departed**, and **Joined** marks someone who moved in partway through the week. A trooper who joined the Cav after that week is not on it. The current week lists who is in your section now.
+> [!good-to-know] A past week lists everyone who was in your section during that week, so you can still finish it after a move or a departure. Those who left say **Moved out** or **Departed**, and **Joined** marks someone who moved in partway through the week. A trooper who joined the Cav after that week is not on it. The current week lists who is in your section now.
 
 ## Record the signatures
 
@@ -53,7 +53,7 @@ The header shows when your section practices, in Zulu, with your own time beside
 2. Pick the weekday and the start time in Zulu, then choose **Save slot**. **Remove slot** takes it away.
 3. To change one week only, use **This week only**: pick another day and time in the same Cav week and choose **Move this week**, or choose **Cancel this week**. **Back to the usual time** undoes either.
 
-A week the game server already read, or whose report was sent, keeps its time. You can still set or change the slot then: the editor says which week it takes effect from, the new slot starts with the next Cav week, and the header shows it as, for example, "Practice Wed 23 59Z from 07NOV26". This week only cannot be used on a week whose report was sent.
+A change or removal never touches a week before the one it starts with: those weeks keep the slot they had. The editor always names the first week it changes. On the current week that is this week, unless the game server already read it or its report was sent (or reopened for editing): it then keeps its time and the new slot starts with the next Cav week, shown in the header as, for example, "Practice Wed 23 59Z from 07NOV26". Opened from a past week, the editor changes the weekly slot from the first week it can, not that past week. This week only cannot be used on a week whose report was sent.
 
 If your section plays a game and has no slot, a warning sits at the top of the roll call. If your game's attendance is read from a game server, it also says why: without a slot, its practices are not captured automatically and make-ups are not given from the game server. Choose **Set the practice slot** on the warning to open the same editor. It goes away once a slot is saved, even one that starts next week.
 

@@ -85,13 +85,15 @@ final class TrooperMilpac
             'mos' => $trooper->mos,
             'status' => $trooper->status->value,
             'departed' => $departed,
+            // When the sync saw them leave (#623): the attendance weeks from then on read "Left the Cav".
+            'departedAt' => $departed ? $trooper->departed_at?->toDateString() : null,
             'tis' => $trooper->tis?->toDateString(),
             // The roster records no departure date, so a departed trooper's tenure to today would be wrong
             // and ever-growing: leave it unknown rather than show that figure.
             'tisMonths' => $departed ? null : $this->monthsSince($trooper->tis?->toDateString(), $today),
             'tig' => $trooper->tig?->toDateString(),
             'tigMonths' => $departed ? null : $this->monthsSince($trooper->tig?->toDateString(), $today),
-            'section' => $section === null ? null : ['id' => $section->id, 'name' => $section->name, 'callsign' => $section->callsign],
+            'section' => $section === null ? null : ['id' => $section->id, 'name' => $section->name, 'callsign' => $section->callsign, 'type' => $section->type->value],
             'milpacUrl' => Trooper::MILPAC_PROFILE_URL.$trooper->cav_id,
         ];
     }
@@ -188,10 +190,13 @@ final class TrooperMilpac
 
         if ($scope->contains($section->id)) {
             $actions[] = ['key' => 'section-roster', 'label' => 'Open section roster', 'href' => route('roster.index', $section->id, absolute: false)];
+            // Only a section has a rollcall (#622): a trooper on HQ staff, in ELOA or the Reservists has none to open.
             // Only a serving trooper has a card on the rollcall (the serving allow-list, `TrooperStatus::serving()`).
-            $actions[] = $trooper->status?->isServing() !== true
-                ? ['key' => 'rollcall', 'label' => 'Open in roll call', 'href' => route('rollcall.show', $section->id, absolute: false)]
-                : ['key' => 'rollcall', 'label' => 'Jump to roll call', 'href' => route('rollcall.show', ['unit' => $section->id, 'focus' => $trooper->id], absolute: false)];
+            if ($section->type === UnitType::Section) {
+                $actions[] = $trooper->status?->isServing() !== true
+                    ? ['key' => 'rollcall', 'label' => 'Open in roll call', 'href' => route('rollcall.show', $section->id, absolute: false)]
+                    : ['key' => 'rollcall', 'label' => 'Jump to roll call', 'href' => route('rollcall.show', ['unit' => $section->id, 'focus' => $trooper->id], absolute: false)];
+            }
         }
 
         $platoon = $section->parent_id === null ? null : $this->units->find($section->parent_id);

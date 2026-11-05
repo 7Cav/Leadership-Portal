@@ -19,7 +19,7 @@ page: /roster
 ## Choose a view
 
 1. **Order of battle** lists the units and their troopers by billet.
-2. **Attendance matrix** shows each trooper's section practice mark for the last 20 Cav weeks. Weeks on leave are marked LOA.
+2. **Attendance matrix** shows each trooper's section practice mark for the last 20 Cav weeks. Weeks on leave are marked LOA. Weeks before a trooper joined read "Not in the unit yet", weeks on HQ staff or in a group "No section that week", and weeks from the one they left in "Left the Cav".
 3. **Strength** shows the unit's strength over time (see below).
 4. Filter by name, rank or billet with the box above the list.
 5. **Headcount** under the unit's name and on each unit in the order of battle is its headcount: everyone serving placed in the unit or under it, HQ staff and staff departments included. New Recruits, ELOA and Reservists count only on their own group. RC and SP are counted over the troopers in sections only, so the headcount never changes them.
@@ -42,7 +42,7 @@ The presence minimum is how many minutes a trooper must be on the practice's ser
 
 1. Choose the **Strength** tab on the roster, or **Strength** on a unit row on Home.
 2. The chart shows the unit's headcount and how many are in roll call (troopers in its sections) for each Cav week. Pick **12 weeks**, **26 weeks**, **52 weeks** or **All**.
-3. A week the unit sent its report for shows the numbers frozen in that report. Other weeks from late October 2026 on are rebuilt from where each trooper was placed. A week with neither is left blank, never shown as zero.
+3. A week the unit sent its report for shows the numbers frozen in that report. Other weeks from late October 2026 on are rebuilt from where each trooper was placed when the week ended, the same people as that week's roll call. The current week is the roster as it stands, so someone who left this week is counted under left. A week with neither is left blank, never shown as zero.
 4. Above the chart is the change over the range. The table under it lists each week's numbers, with how many joined and left the unit. **Change** is the headcount up or down from the week before: green when it grew, red when it shrank.
 5. For a unit with units under it, **Headcount by unit** shows each one's headcount on the same scale, so you can see which one is shrinking.
 6. For a battalion, each company also lists its platoons in small rows under its chart, each with a line of its headcount and its change over the range.
@@ -50,7 +50,7 @@ The presence minimum is how many minutes a trooper must be on the practice's ser
 ## Open a trooper
 
 1. Choose a trooper to open their details on the side: their section, leader, numbers and 20 weeks of marks, with where each mark came from.
-2. From there, open their milpac page or their section's roll call.
+2. From there, open their milpac page, or their section's roll call when they are placed in a section.
 3. **Leave from** and a date under their name means their leave starts next Cav week.
 
 > [!good-to-know] The roster is refreshed from the Cav roster by a scheduled sync. The page says when it last ran. If someone moved units today, their new place may not show until the next sync.

@@ -1008,6 +1008,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                     :disabled-reason="slotDisabled"
                     :week-locked-reason="lockedReason"
                     :changes-from="practiceSlotChangesFrom"
+                    :current-week="week.current"
                     @updated="(slot) => (slotOverride = slot)"
                 />
                 <span role="status" aria-live="polite" class="inline-flex items-center gap-1.5 text-foreground" data-testid="save-state">

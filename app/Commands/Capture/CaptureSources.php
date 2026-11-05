@@ -66,7 +66,7 @@ final class CaptureSources
      */
     public static function default(CrconApi $crcon, BattleMetricsApi $battleMetrics, ?array $crconConfig, ?array $battleMetricsConfig, NightwatchApi $nightwatch, ?array $nightwatchConfig, GameServerRepository $servers, TelemetryCredentials $credentials): self
     {
-        $source = function (TelemetryInterface $interface, ?string $serverId, ?int $gameServerId, bool $configured) use ($crcon, $battleMetrics, $nightwatch, $crconConfig, $battleMetricsConfig, $nightwatchConfig): CaptureSource {
+        $source = function (TelemetryInterface $interface, ?string $serverId, ?int $gameServerId, bool $configured, bool $noServer = false) use ($crcon, $battleMetrics, $nightwatch, $crconConfig, $battleMetricsConfig, $nightwatchConfig): CaptureSource {
             return match ($interface) {
                 TelemetryInterface::Crcon => new CaptureSource(
                     'crcon',
@@ -75,11 +75,12 @@ final class CaptureSources
                         try {
                             return $crcon->fetchPresence($start, $end, $serverId);
                         } catch (CrconUnavailable $e) {
-                            throw new CaptureSourceUnavailable("crcon: {$e->reason->value}", previous: $e);
+                            throw new CaptureSourceUnavailable(self::reason('crcon', $e->reason->value, $e->status), previous: $e);
                         }
                     },
                     $configured,
                     $gameServerId,
+                    $noServer,
                 ),
                 TelemetryInterface::BattleMetrics => new CaptureSource(
                     'battlemetrics',
@@ -88,11 +89,12 @@ final class CaptureSources
                         try {
                             return $battleMetrics->fetchPresence($start, $end, $serverId);
                         } catch (BattleMetricsUnavailable $e) {
-                            throw new CaptureSourceUnavailable("battlemetrics: {$e->reason->value}", previous: $e);
+                            throw new CaptureSourceUnavailable(self::reason('battlemetrics', $e->reason->value, $e->status), previous: $e);
                         }
                     },
                     $configured,
                     $gameServerId,
+                    $noServer,
                 ),
                 // A window past Nightwatch's retention is as unanswerable as an outage: same typed failure. A refused
                 // request can only come from a NIGHTWATCH_BASE_URL outside /api/public/stats here, a deployment fault
@@ -104,7 +106,7 @@ final class CaptureSources
                         try {
                             return $nightwatch->fetchPresence($start, $end, $serverId);
                         } catch (NightwatchUnavailable $e) {
-                            throw new CaptureSourceUnavailable("nightwatch: {$e->reason->value}", previous: $e);
+                            throw new CaptureSourceUnavailable(self::reason('nightwatch', $e->reason->value, $e->status), previous: $e);
                         } catch (NightwatchWindowExpired $e) {
                             throw new CaptureSourceUnavailable("nightwatch: window expired ({$e->retentionHours}h retention)", previous: $e);
                         } catch (NightwatchRequestRefused $e) {
@@ -113,14 +115,17 @@ final class CaptureSources
                     },
                     $configured,
                     $gameServerId,
+                    $noServer,
                 ),
                 TelemetryInterface::None => throw new \LogicException('No source reads the `none` interface.'),
             };
         };
 
         $crconSource = $source(TelemetryInterface::Crcon, null, null, self::filled($crconConfig, 'base_url', 'api_key'));
-        $battleMetricsSource = $source(TelemetryInterface::BattleMetrics, null, null, self::filled($battleMetricsConfig, 'base_url', 'api_key', 'server_id'));
-        $nightwatchSource = $source(TelemetryInterface::Nightwatch, null, null, self::filled($nightwatchConfig, 'base_url', 'api_key', 'server_ids'));
+        // The env BattleMetrics and Nightwatch servers also need their server id(s): with the key set and no id, no server
+        // is selected, which is not the same as missing credentials (#631).
+        $battleMetricsSource = $source(TelemetryInterface::BattleMetrics, null, null, self::filled($battleMetricsConfig, 'base_url', 'api_key', 'server_id'), self::filled($battleMetricsConfig, 'base_url', 'api_key') && ! self::filled($battleMetricsConfig, 'server_id'));
+        $nightwatchSource = $source(TelemetryInterface::Nightwatch, null, null, self::filled($nightwatchConfig, 'base_url', 'api_key', 'server_ids'), self::filled($nightwatchConfig, 'base_url', 'api_key') && ! self::filled($nightwatchConfig, 'server_ids'));
 
         // An exhaustive `match`, so a new interface case without its sources fails here (and in CaptureSourcesTest)
         // instead of reading as "not configured" on every rollcall of a game that uses it.
@@ -147,6 +152,25 @@ final class CaptureSources
                 [$serverSource($server), ...($server->fallback === null ? [] : [$serverSource($server->fallback)])],
             ))->values()->all();
         }, self::LEGACY_GAMES);
+    }
+
+    /**
+     * The failure a source is recorded with: the typed reason, and for an HTTP error its status and what to check
+     * (#632). Built only from the reason and the status, so no key, address or response body can reach it.
+     */
+    public static function reason(string $source, string $reason, ?int $status): string
+    {
+        if ($status === null) {
+            return "{$source}: {$reason}";
+        }
+
+        $hint = match ($status) {
+            401, 403 => ' The key was rejected.',
+            404 => ' Check the server ID or address.',
+            default => '',
+        };
+
+        return "{$source}: {$reason} (HTTP {$status}).{$hint}";
     }
 
     /** True when every named key is set: the legacy env server's check, which also needs its server id(s). */

@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\UnitRepository;
+use App\Repositories\WeeklyReportRepository;
 use Carbon\CarbonImmutable;
 
 // A section's weekly practice slot (#392): weekday and start in Zulu, always one hour, set by the section's leaders,
@@ -138,7 +139,11 @@ it('refuses a move outside the week, a section with no slot, a captured practice
     app(SectionPracticeRepository::class)->stampCapture($practice, 'srv', now(), 'crcon', $this->week->addDays(5)->addHours(2), $this->week->addDays(5)->addHours(3));
     expect(fn () => $this->change->handle($this->sl, $this->section->id, $this->week, null, true))->toThrow(InvalidPracticeSlotException::class);
 
+    // A slot set this week does not reach back to last week (#630), so last week gets its own.
     $previous = $this->week->subWeek();
+    CarbonImmutable::setTestNow('2026-10-21 12:00:00');
+    $this->set->handle($this->sl, $this->section->id, 3, 60);
+    CarbonImmutable::setTestNow('2026-10-28 12:00:00');
     WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $previous]);
     expect(fn () => $this->change->handle($this->sl, $this->section->id, $previous, null, true))->toThrow(RollcallWeekLockedException::class);
 });
@@ -195,8 +200,8 @@ it('sets a first slot on a sent week from the next week, audited, and leaves the
 });
 
 it('changes the slot on a sent week from the next week, the current week keeping the slot it had', function () {
-    $this->set->handle($this->sl, $this->section->id, 4, 120); // Thu 0200Z, straight away
-    expect(SectionPracticeSlot::query()->sole()->effective_from)->toBeNull();
+    $this->set->handle($this->sl, $this->section->id, 4, 120); // Thu 0200Z, from this week
+    expect(SectionPracticeSlot::query()->sole()->effective_from->toDateString())->toBe('2026-10-24');
 
     WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->week]);
     $this->set->handle($this->sl, $this->section->id, 1, 60); // Mon 0100Z
@@ -221,4 +226,68 @@ it('sets the slot over HTTP on a sent week and the roll call says from when', fu
         ->assertInertia(fn ($page) => $page->where('practiceSlotChangesFrom', '2026-10-31')
             ->where('practiceSlot.effectiveFrom', '2026-10-31')
             ->where('practiceSlotMissing', false));
+});
+
+it('names the current week as the first a change affects when it is not held, the next when it is', function () {
+    expect($this->set->changesFrom($this->section->id)->toDateString())->toBe('2026-10-24');
+
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->week]);
+
+    expect($this->set->changesFrom($this->section->id)->toDateString())->toBe('2026-10-31');
+});
+
+it('changes the slot from the next week after the sent report is reopened for editing', function () {
+    $this->set->handle($this->sl, $this->section->id, 4, 120); // Thu 0200Z, from this week
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->week]);
+    app(WeeklyReportRepository::class)->reopen($this->section->id, $this->week, $this->admin->id);
+
+    expect($this->set->changesFrom($this->section->id)->toDateString())->toBe('2026-10-31');
+
+    $this->set->handle($this->sl, $this->section->id, 1, 60); // Mon 0100Z
+
+    expect($this->schedule->windowFor($this->section->id, $this->week)->start->toIso8601ZuluString())->toBe('2026-10-29T02:00:00Z')
+        ->and($this->schedule->windowFor($this->section->id, $this->week->addWeek())->start->toIso8601ZuluString())->toBe('2026-11-02T01:00:00Z');
+});
+
+it('keeps the slot a past week had after a later change and a removal', function () {
+    CarbonImmutable::setTestNow('2026-10-14 12:00:00'); // week of 10OCT26
+    $this->set->handle($this->sl, $this->section->id, 4, 120); // Thu 0200Z
+    CarbonImmutable::setTestNow('2026-10-21 12:00:00'); // week of 17OCT26
+    $this->set->handle($this->sl, $this->section->id, 1, 60); // Mon 0100Z
+    CarbonImmutable::setTestNow('2026-10-28 12:00:00'); // week of 24OCT26
+    $this->set->handle($this->sl, $this->section->id, 2, 60); // Tue 0100Z
+
+    $start = fn (string $week) => $this->schedule->windowFor($this->section->id, CarbonImmutable::parse($week, 'UTC'))?->start->toIso8601ZuluString();
+    expect($start('2026-10-03'))->toBeNull()
+        ->and($start('2026-10-10'))->toBe('2026-10-15T02:00:00Z')
+        ->and($start('2026-10-17'))->toBe('2026-10-19T01:00:00Z')
+        ->and($start('2026-10-24'))->toBe('2026-10-27T01:00:00Z');
+
+    $this->set->handle($this->sl, $this->section->id, null, null);
+
+    expect($start('2026-10-10'))->toBe('2026-10-15T02:00:00Z')
+        ->and($start('2026-10-17'))->toBe('2026-10-19T01:00:00Z')
+        ->and($start('2026-10-24'))->toBeNull()
+        ->and($this->schedule->props($this->section->id, CarbonImmutable::parse('2026-10-17', 'UTC'), null))->toMatchArray(['weekday' => 1, 'startMinute' => 60])
+        ->and($this->schedule->props($this->section->id, $this->week, null))->toBeNull();
+});
+
+it('keeps a sent week on its slot when the slot is removed, removing it from the next week', function () {
+    $this->set->handle($this->sl, $this->section->id, 4, 120);
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->week]);
+
+    $this->set->handle($this->sl, $this->section->id, null, null);
+
+    expect($this->schedule->windowFor($this->section->id, $this->week)->start->toIso8601ZuluString())->toBe('2026-10-29T02:00:00Z')
+        ->and($this->schedule->windowFor($this->section->id, $this->week->addWeek()))->toBeNull();
+});
+
+it('records the slot a section had before its first recorded change', function () {
+    // A slot from before the change history, with a pending start.
+    SectionPracticeSlot::query()->create(['section_id' => $this->section->id, 'weekday' => 4, 'start_minute' => 120, 'effective_from' => '2026-10-24', 'previous_weekday' => 3, 'previous_start_minute' => 1439]);
+
+    $this->set->handle($this->sl, $this->section->id, 1, 60);
+
+    expect($this->schedule->windowFor($this->section->id, CarbonImmutable::parse('2026-10-17', 'UTC'))->start->toIso8601ZuluString())->toBe('2026-10-21T23:59:00Z')
+        ->and($this->schedule->windowFor($this->section->id, $this->week)->start->toIso8601ZuluString())->toBe('2026-10-26T01:00:00Z');
 });

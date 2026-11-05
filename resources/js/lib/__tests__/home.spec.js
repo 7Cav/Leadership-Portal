@@ -73,6 +73,12 @@ describe('tile series', () => {
     const kpi = TILES.find((tile) => tile.key === 'rc');
     const point = (week, n, d) => ({ week, kpis: n === null ? null : { strength: 5, rc: { numerator: n, denominator: d } } });
 
+    it('tells a week with no sent report apart from a sent week with no rate', () => {
+        const series = tileSeries(kpi, { rc: { numerator: 9, denominator: 10 } }, [point('a', null), point('b', 0, 0)]);
+
+        expect(series.map((p) => [p.value, p.reported])).toEqual([[null, false], [null, true], [90, true]]);
+    });
+
     it('needs a sent week behind the live value to draw a trend', () => {
         const none = tileSeries(kpi, { rc: { numerator: 9, denominator: 10 } }, [point('a', null), point('b', null)]);
         const some = tileSeries(kpi, { rc: { numerator: 9, denominator: 10 } }, [point('a', null), point('b', 8, 10)]);

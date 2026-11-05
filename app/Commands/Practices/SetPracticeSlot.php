@@ -5,6 +5,7 @@ namespace App\Commands\Practices;
 use App\Authorization\ScopeResolver;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Models\WeeklyReportStatus;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\SectionPracticeSlotRepository;
 use App\Repositories\UnitRepository;
@@ -20,10 +21,10 @@ use InvalidArgumentException;
  * Set or clear a section's weekly practice slot (#392): a weekday and a start time in Zulu, the practice lasting one
  * hour. Gated by the section's write scope (AD-8): its leaders, the command above them and Admins; a staff grant only
  * reads, and a view-as preview is refused before it gets here. Audited (AD-16); a change that changes nothing is not
- * logged. A new slot applies from the next practice not yet captured: a captured week keeps the window it was read for
- * (`section_practices.window_start`/`window_end`). The slot can be set whatever state the current week is in: when that
- * week is held (its report sent, AD-12, or its practice captured), the new slot starts with the next Cav week and the
- * current week keeps the slot it had, or none ({@see changesFrom()}).
+ * logged. A change or removal starts with the first week not yet held ({@see changesFrom()}): the current week, or the
+ * next one when the current week is held (its report sent, AD-12, reopened for editing or not, or its practice
+ * captured). Every week before keeps the slot it had, or none, whichever week the editor was opened from (#630); the
+ * repository keeps each change so a later one never rewrites a past week.
  */
 class SetPracticeSlot
 {
@@ -37,17 +38,19 @@ class SetPracticeSlot
     ) {}
 
     /**
-     * The Cav week a slot set now would start with: null when it applies straight away, or the next week's Saturday
-     * when the current week is held (its report sent or its practice captured).
+     * The Cav week (its Saturday) a slot change made now starts with: the current week, or the next one when the
+     * current week is held (its report sent, including one reopened for editing, or its practice captured).
      */
-    public function changesFrom(int $sectionId, ?DateTimeInterface $now = null): ?CarbonImmutable
+    public function changesFrom(int $sectionId, ?DateTimeInterface $now = null): CarbonImmutable
     {
         $thisWeek = WeekOf::start($now ?? CarbonImmutable::now());
 
-        $held = $this->reports->isSentFor($sectionId, $thisWeek)
+        // Sent holds the week even while it is reopened for editing (#619), when isSentFor() answers false.
+        $report = $this->reports->find($sectionId, $thisWeek);
+        $held = ($report?->status === WeeklyReportStatus::Sent && ! $report->is_demo)
             || $this->practices->find($sectionId, $thisWeek)?->captured_at !== null;
 
-        return $held ? WeekOf::next($thisWeek) : null;
+        return $held ? WeekOf::next($thisWeek) : $thisWeek;
     }
 
     /**
@@ -70,10 +73,11 @@ class SetPracticeSlot
         }
 
         $current = $this->slots->forSection($sectionId);
+        $effectiveFrom = $this->changesFrom($sectionId);
 
         if ($weekday === null || $startMinute === null) {
             if ($current !== null) {
-                $this->audit->record($actor->id, 'practice_slot.cleared', null, false, fn () => $this->slots->delete($current));
+                $this->audit->record($actor->id, 'practice_slot.cleared', null, false, fn () => $this->slots->delete($current, $effectiveFrom));
             }
 
             return;
@@ -89,9 +93,8 @@ class SetPracticeSlot
             return;
         }
 
-        $effectiveFrom = $this->changesFrom($sectionId);
-        // The weeks before keep the slot in effect this week, which may itself be the one before a pending change.
-        $previous = $effectiveFrom === null ? null : $current?->placingFor(WeekOf::previous($effectiveFrom));
+        // The weeks before keep the slot in effect the week before, which may itself be the one before a pending change.
+        $previous = $this->slots->placingFor($sectionId, WeekOf::previous($effectiveFrom));
 
         $this->audit->record($actor->id, 'practice_slot.set', null, false, fn () => $this->slots->set($sectionId, $weekday, $startMinute, $effectiveFrom, $previous));
     }

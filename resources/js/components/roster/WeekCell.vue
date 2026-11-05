@@ -81,7 +81,8 @@ defineProps({
     background: repeating-linear-gradient(90deg, color-mix(in oklab, var(--warning) 60%, transparent) 0 2px, transparent 2px 5px);
 }
 .roster-h--out,
-.roster-h--none {
+.roster-h--none,
+.roster-h--left {
     background: linear-gradient(var(--border), var(--border)) center / 0.5rem 1px no-repeat;
 }
 .roster-cc--auto::after {

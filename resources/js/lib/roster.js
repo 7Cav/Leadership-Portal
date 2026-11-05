@@ -98,6 +98,7 @@ export const RC_STATES = {
     loa: 'On LOA',
     out: 'Not in the unit yet',
     none: 'No section that week',
+    left: 'Left the Cav',
 };
 
 export const SP_STATES = {
@@ -111,6 +112,7 @@ export const SP_STATES = {
     loa: 'On LOA',
     out: 'Not in the unit yet',
     none: 'No section that week',
+    left: 'Left the Cav',
 };
 
 const SP_BY_STATUS = { present: 'ok', makeup: 'mk', excused: 'ex', missed: 'bad', loa: 'loa' };
@@ -122,10 +124,17 @@ const RC_BY_SIGNATURE = { will_attend: 'ok', cannot_attend: 'cn', makeup_request
  * practice row that week); `joined` the trooper's Cav join date. `excused` (or the mark's own `excused`) is why the
  * week is excused automatically (`recruit` or `transfer`, 2026-10-30): it shows on each half nobody recorded, an
  * unsigned signature and an empty or automatic, unattended practice mark, as the KPIs read it.
+ *
+ * A departed trooper (#623) shows `left` from the week of `departedAt` (`Y-m-d`) on; in that week itself only when
+ * nothing was recorded, so a signature or practice mark from before they left still shows. Without a recorded date,
+ * `departed` marks the current week only. `inSection` false is a week they were in no section (HQ staff, a group):
+ * `none`, unless a mark says otherwise.
  */
-export function weekCell(mark, weekStart, { current = false, joined = null, excused = null } = {}) {
+export function weekCell(mark, weekStart, { current = false, joined = null, excused = null, departedAt = null, departed = false, inSection = true } = {}) {
     const auto = excused ?? mark?.excused ?? null;
     if (joined && endOfWeek(weekStart) < joined) return { rc: 'out', sp: 'out' };
+    if (hasLeft(mark, weekStart, { current, departedAt, departed })) return { rc: 'left', sp: 'left' };
+    if (!mark && inSection === false) return { rc: 'none', sp: 'none' };
     if (!mark) return auto ? { rc: 'ex', sp: 'ex' } : { rc: current ? 'open' : 'nil', sp: current ? 'pending' : 'nil' };
     if (mark.status === 'loa') return { rc: 'loa', sp: 'loa' };
 
@@ -135,6 +144,15 @@ export function weekCell(mark, weekStart, { current = false, joined = null, excu
     if (!sp) sp = mark.held ? 'open' : current ? 'pending' : 'nil';
 
     return { rc, sp };
+}
+
+function hasLeft(mark, weekStart, { current, departedAt, departed }) {
+    if (!departedAt) return !!departed && current;
+    const day = departedAt.slice(0, 10);
+    if (endOfWeek(weekStart) < day) return false;
+    if (weekStart > day) return true;
+
+    return !(mark && (RC_BY_SIGNATURE[mark.rollcall] || SP_BY_STATUS[mark.status]));
 }
 
 function endOfWeek(weekStart) {
@@ -180,16 +198,20 @@ export function transferLabel(move) {
 
 /**
  * How one milpac attendance week (`Kpi\AttendanceHistory`) renders, as the same RC and SP states as a roster week. A
- * week in no section (on HQ staff, in a group, or before the placement history began) is `none`, "No section that
- * week": not `out`, which says they were not in the unit yet, wrong for a company commander. A week leave covers is
- * `loa` whatever the marks say.
+ * week before `joined` is `out`, "Not in the unit yet"; a week from `departedAt` on is `left`, as on the roster (#623).
+ * Any other week in no section (on HQ staff, in a group, or before the placement history began) is `none`, "No
+ * section that week": not `out`, which says they were not in the unit yet, wrong for a company commander. A week
+ * leave covers is `loa` whatever the marks say.
  */
-export function historyCell(week, { current = false } = {}) {
+export function historyCell(week, { current = false, joined = null, departedAt = null } = {}) {
+    const mark = week.rollcall === null ? null : week;
+    if (joined && endOfWeek(week.week) < joined) return { rc: 'out', sp: 'out' };
+    if (hasLeft(mark, week.week, { current, departedAt, departed: false })) return { rc: 'left', sp: 'left' };
     if (week.loa) return { rc: 'loa', sp: 'loa' };
     if (!week.section) return { rc: 'none', sp: 'none' };
 
     // No practice row at that section that week: nothing was posted or held, unless the week is excused automatically.
-    return weekCell(week.rollcall === null ? null : week, week.week, { current, excused: week.excused ?? null });
+    return weekCell(mark, week.week, { current, excused: week.excused ?? null });
 }
 
 /** The trooper joined within the last 8 Cav weeks (the order-of-battle strip's window). */

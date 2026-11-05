@@ -235,14 +235,14 @@ class Eloquent implements TrooperPlacementRepository
             $placed = self::placedWeeks($history, $head->current_unit === null ? null : (int) $head->current_unit, $weeks);
 
             foreach ($placed['sections'] as $date => $sections) {
-                if ($gone === null || $gone->greaterThan(CarbonImmutable::parse($date, 'UTC'))) {
+                if (self::servedIn($head, $gone, $date)) {
                     // The section they ended the week in, the one whose roster lists them (PlacementWeeks::sectionIn).
                     $byWeek[$date][$sections[array_key_last($sections)]] = true;
                 }
             }
 
             foreach ($placed['others'] as $date => $units) {
-                if ($gone === null || $gone->greaterThan(CarbonImmutable::parse($date, 'UTC'))) {
+                if (self::servedIn($head, $gone, $date)) {
                     $byWeek[$date] += array_fill_keys($units, true);
                 }
             }
@@ -272,7 +272,7 @@ class Eloquent implements TrooperPlacementRepository
             $placed = self::placedWeeks($history, $head->current_unit === null ? null : (int) $head->current_unit, $weeks);
 
             foreach (array_keys($byWeek) as $date) {
-                if ($gone !== null && ! $gone->greaterThan(CarbonImmutable::parse($date, 'UTC'))) {
+                if (! self::servedIn($head, $gone, $date)) {
                     continue;
                 }
 
@@ -285,6 +285,18 @@ class Eloquent implements TrooperPlacementRepository
         }
 
         return $byWeek;
+    }
+
+    /**
+     * Whether a trooper (their open row, from {@see rowsOf()}) served the Cav week starting `$date`, as a past week's
+     * rollcall reads it: they had joined by its end (`tis`), and had not left before it opened.
+     */
+    private static function servedIn(object $head, ?CarbonImmutable $gone, string $date): bool
+    {
+        $week = CarbonImmutable::parse($date, 'UTC');
+
+        return ($gone === null || $gone->greaterThan($week))
+            && ($head->tis === null || CarbonImmutable::parse($head->tis, 'UTC')->lessThan($week->addWeek()));
     }
 
     public function sectionsByWeek(iterable|Builder $troopers, CarbonInterface $firstWeek, CarbonInterface $lastWeek): PlacementWeeks
@@ -438,6 +450,7 @@ class Eloquent implements TrooperPlacementRepository
                 'troopers.primary_section_id as current_unit',
                 'troopers.status',
                 'troopers.departed_at',
+                'troopers.tis',
                 'trooper_placements.id as placement_id',
                 'trooper_placements.unit_id',
                 'trooper_placements.placed_from',

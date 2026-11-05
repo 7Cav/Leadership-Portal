@@ -26,7 +26,7 @@ final class StaffHqHealth
     ) {}
 
     /**
-     * @return array{unit: array{id: int, label: string}, week: string, sp: ?float, rc: ?float, headcount: ?int, inRollcall: ?int, atRisk: int, trend: list<array{week: string, sp: ?float, rc: ?float, headcount: ?int, inRollcall: ?int, atRisk: int}>}
+     * @return array{unit: array{id: int, label: string}, week: string, sp: ?float, rc: ?float, headcount: ?int, inRollcall: ?int, atRisk: int, trend: list<array{week: string, sp: ?float, rc: ?float, headcount: ?int, inRollcall: ?int, atRisk: ?int}>}
      */
     public function forUnit(Unit $unit, CarbonImmutable $weekStart, ?CarbonImmutable $now = null): array
     {
@@ -40,17 +40,21 @@ final class StaffHqHealth
         for ($week = $first; $week->lessThanOrEqualTo($weekStart); $week = $week->addWeek()) {
             $kpis = $this->kpis->forUnit($unit, $week);
             $point = $strength->get($week->toDateString());
+            // A week with no placement history (and no sent report) has nobody known to be in roll call, so its roll
+            // call rate and at-risk count are not data either: every trooper would read as placed, with no signatures.
+            $known = ($point['strength'] ?? null) !== null;
             $trend[] = [
                 'week' => $week->toDateString(),
                 'sp' => $kpis->sp30d->value(),
-                'rc' => $kpis->rc30d->value(),
+                'rc' => $known ? $kpis->rc30d->value() : null,
                 'headcount' => $point['headcount'] ?? null,
                 'inRollcall' => $point['strength'] ?? null,
-                'atRisk' => $kpis->atRisk,
+                'atRisk' => $known ? $kpis->atRisk : null,
             ];
         }
 
-        $last = $trend[array_key_last($trend)];
+        // The headline is the week's own live numbers, as on Home and the roster; only the trend leaves a week out.
+        $last = [...$trend[array_key_last($trend)], 'rc' => $kpis->rc30d->value(), 'atRisk' => $kpis->atRisk];
 
         return [
             'unit' => ['id' => $unit->id, 'label' => $unit->callsign ?? $unit->name],
