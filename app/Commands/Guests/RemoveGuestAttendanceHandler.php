@@ -30,8 +30,8 @@ use App\Support\Audit\AuditEnvelope;
  * are. Since a sighting is only ever deleted here (and with demo history, #115), an automatic makeup with no sighting
  * left that week can only be the one this entry produced.
  *
- * Audited as `guest.removed` (AD-16) on the host practice, digest over the guest's trooper row (the entry itself is
- * gone), and, when the makeup is cleared, `attendance.auto_unmarked` on the guest's own practice with the same actor.
+ * Audited as `guest.removed` (AD-16) on the host practice, digest over the guest's trooper row and the entry as it
+ * last read (the entry itself is gone, and the details name the guest), and, when the makeup is cleared, `attendance.auto_unmarked` on the guest's own practice with the same actor.
  */
 class RemoveGuestAttendanceHandler
 {
@@ -79,7 +79,7 @@ class RemoveGuestAttendanceHandler
             action: 'guest.removed',
             reason: null,
             reasonRequired: false,
-            mutation: function () use ($actor, $command, $weekStart, $practice, $trooper, &$makeup) {
+            mutation: function () use ($actor, $command, $weekStart, $practice, $trooper, $sighting, &$makeup) {
                 if ($this->reports->isSentFor($command->sectionId, $weekStart)) {
                     throw RollcallWeekLockedException::for($command->sectionId, $weekStart);
                 }
@@ -92,12 +92,14 @@ class RemoveGuestAttendanceHandler
                 if (! $this->sightings->removeManual($practice->id, $trooper->id)) {
                     throw GuestAttendanceRefusedException::notListed();
                 }
+                // Gone now: the entry's details read it as taken back, naming the guest (#628).
+                $sighting->exists = false;
 
                 $makeup = $this->sightings->existsForTrooperInWeek($trooper->id, $weekStart)
                     ? MakeupWithdrawal::Kept
                     : $this->attendance->withdrawMakeup($trooper->id, $weekStart, $actor->id);
 
-                return new AuditedBatch($practice, $trooper);
+                return new AuditedBatch($practice, $trooper, $sighting);
             },
         );
 

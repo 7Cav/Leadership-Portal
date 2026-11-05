@@ -8,6 +8,7 @@ use App\Commands\Demo\GenerateDemoHistory;
 use App\Commands\Demo\GenerateDemoHistoryHandler;
 use App\Commands\Demo\PurgeDemoHistory;
 use App\Commands\Demo\PurgeDemoHistoryHandler;
+use App\Commands\Guests\ApplyGuestMakeupsDue;
 use App\Commands\PortalRoleGrants\ExpireEndedStaffGrants;
 use App\Commands\Users\SetAdminFlag;
 use App\Jobs\CaptureSectionPracticeJob;
@@ -83,6 +84,15 @@ Artisan::command('portal:capture-practices {--dry-run : List what would be queue
 })->purpose('Queue a capture of each section practice that has ended and was not captured yet');
 
 Schedule::command('portal:capture-practices')->everyTenMinutes()->withoutOverlapping();
+
+// The makeups of guests added by hand before their host practice was over (#634): written once its hour has ended.
+Artisan::command('portal:guest-makeups', function (ApplyGuestMakeupsDue $due) {
+    $this->info(sprintf('%d guest make-ups recorded.', $due->at(CarbonImmutable::now())));
+
+    return 0;
+})->purpose('Record the make-ups of guests added before their host practice was over');
+
+Schedule::command('portal:guest-makeups')->everyTenMinutes()->withoutOverlapping();
 
 // Capture past practices again over their slot's hour (#558), so a section that set its slot after practising gets
 // the present marks and make-ups a live run would have given. Every unlocked week from the week floor, run here in the

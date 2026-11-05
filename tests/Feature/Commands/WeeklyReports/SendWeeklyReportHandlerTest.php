@@ -52,6 +52,8 @@ beforeEach(function () {
 
     $this->troopers = Trooper::factory()->count(2)->create(['primary_section_id' => $this->section->id]);
     sendMark($this->section, $this->troopers[0], $this->weekStart, AttendanceStatus::Present);
+    // A section's report waits on the practice confirmation (#634); the refusal has its own tests.
+    confirmPracticeHeld($this->section, $this->weekStart);
 });
 
 function sendMark(Unit $section, Trooper $trooper, CarbonInterface $weekStart, AttendanceStatus $status): void
@@ -62,6 +64,8 @@ function sendMark(Unit $section, Trooper $trooper, CarbonInterface $weekStart, A
 
 function sendReport(User $actor, int $unitId, DateTimeImmutable $moment, ?string $reason = 'Weekly report', ?string $notes = 'All good.'): SentWeeklyReport
 {
+    confirmPracticeHeld($unitId, $moment);
+
     return app(SendWeeklyReportHandler::class)->handle($actor, new SendWeeklyReport($unitId, $moment, $reason, $notes));
 }
 

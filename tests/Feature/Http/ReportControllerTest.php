@@ -10,6 +10,7 @@ use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
 use App\Models\Loa;
 use App\Models\RollcallSignature;
+use App\Models\SectionPractice;
 use App\Models\SyncRun;
 use App\Models\Trooper;
 use App\Models\Unit;
@@ -46,6 +47,9 @@ beforeEach(function () {
     $this->trooper = Trooper::factory()->create(['rank_short' => 'PFC', 'username' => null, 'primary_section_id' => $this->section->id]);
     // The sibling has someone in it too, so it is not an empty unit the roll-up leaves out (#442).
     manUnits($this->sibling);
+    // A section's report waits on the practice confirmation (#634); the refusal has its own tests.
+    confirmPracticeHeld($this->section, $this->week);
+    confirmPracticeHeld($this->sibling, $this->week);
 });
 
 afterEach(fn () => CarbonImmutable::setTestNow());
@@ -101,6 +105,7 @@ it('renders a section\'s live draft with its KPIs, troopers and a first-report b
 });
 
 it('renders zeroed KPIs, not an error, when no attendance is marked yet', function () {
+    SectionPractice::query()->update(['confirmed_at' => null]);
     $this->actingAs($this->leader)->get(reportUrl($this->section, $this->week))
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page

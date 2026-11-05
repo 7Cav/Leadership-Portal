@@ -99,7 +99,9 @@ export function unaccountedTroopers(troopers) {
 // The readiness checklist (P3). `content` is the leader's live form state; `reviewed` the local
 // "I have read the preview" tick. Leaf and roll-up reports check different things. `suggested` lists the troopers
 // whose reason is a pre-selected suggestion the leader has not kept yet: their check stays open until they do.
-export function readinessChecks({ isLeaf, troopers, children, content, reviewed, suggested = [] }) {
+// `practice` is `{ confirmed, held }` for a section with troopers on its roll call, null when nothing needs confirming:
+// its check is `blocking`, since the server refuses the send until the practice is confirmed as held or not held.
+export function readinessChecks({ isLeaf, troopers, children, content, reviewed, suggested = [], practice = null }) {
     const reviewCheck = {
         id: 'reviewed',
         title: 'Notes reviewed',
@@ -160,6 +162,25 @@ export function readinessChecks({ isLeaf, troopers, children, content, reviewed,
                 detail: unmarked.length ? `${unmarked.map((t) => t.name).join(', ')} not marked.` : 'Every trooper has a practice mark.',
                 next: 'Mark the rest of practice in roll call',
             },
+        ].map(notApplicable),
+        ...(practice
+            ? [
+                  {
+                      id: 'confirmed',
+                      title: 'Practice confirmed',
+                      done: practice.confirmed,
+                      count: '',
+                      detail: practice.confirmed
+                          ? practice.held === false
+                              ? 'Confirmed as not held.'
+                              : 'Confirmed as held.'
+                          : 'Say on the roll call whether the practice was held. The report cannot be sent until you do.',
+                      next: 'Confirm the practice in roll call',
+                      blocking: true,
+                  },
+              ]
+            : []),
+        ...[
             {
                 id: 'unaccounted',
                 title: 'Unaccounted troopers explained',

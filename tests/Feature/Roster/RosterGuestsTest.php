@@ -44,6 +44,7 @@ beforeEach(function () {
 });
 
 it('shows a section its guests with their visits, last week seen, own SP and the candidate badge', function () {
+    practiceOver($this->home); // the guest's own practice this week counts once it is over (#634)
     $this->actingAs($this->leader)->get("/roster/{$this->host->id}")
         ->assertInertia(fn ($page) => $page
             ->where('guests.criteria', ['minVisits' => 3, 'minOwnSpPercent' => 75, 'windowWeeks' => 12])

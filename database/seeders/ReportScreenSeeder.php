@@ -97,6 +97,8 @@ class ReportScreenSeeder extends Seeder
             $this->mark($this->section, $trooper, $week, $statuses[$i], $i === 5 ? RollcallSignature::CannotAttend : RollcallSignature::WillAttend);
         }
         app(WeeklyReportRepository::class)->saveDraft($this->section->id, $week, [], 'Mbeki.K ran the CLS lane on his own for the first time.');
+        // The leader confirmed the practice as held on the roll call, which the send needs (#634).
+        app(SectionPracticeRepository::class)->confirm(app(SectionPracticeRepository::class)->findOrCreate($this->section->id, $week), $this->sectionLeader->id);
 
         // Section 1 has sent this week; section 3 is still a draft.
         foreach (Trooper::query()->where('primary_section_id', $first->id)->get() as $trooper) {
@@ -117,6 +119,11 @@ class ReportScreenSeeder extends Seeder
 
     private function send(User $actor, Unit $unit, CarbonImmutable $week, ?string $subject, ?string $notes): void
     {
+        // A section's report waits on its leader confirming the practice (#634): confirmed as held, as a leader would.
+        if ($unit->type === UnitType::Section) {
+            app(SectionPracticeRepository::class)->confirm(app(SectionPracticeRepository::class)->findOrCreate($unit->id, $week), $actor->id);
+        }
+
         app(SendWeeklyReportHandler::class)->handle($actor, new SendWeeklyReport($unit->id, $week, 'Weekly report', $notes, $subject));
 
         // Backdate a past week's freeze to its Friday evening, as it would have happened.

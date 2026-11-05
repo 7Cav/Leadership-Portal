@@ -24,7 +24,7 @@ minutes: 10
 
 ## Work through Ready to send
 
-1. **Ready to send** lists what is still open: roll call complete, practice marked, unaccounted troopers explained, training subject filled, notes reviewed.
+1. **Ready to send** lists what is still open: roll call complete, practice marked, practice confirmed, unaccounted troopers explained, training subject filled, notes reviewed.
 2. Under **Unaccounted troopers**, pick a reason for each one. When the portal knows why, such as a trooper who moved out of your section this week, left the Cav, or posted leave the sync could not read, that reason is already chosen and the hint says why. Choose **Keep suggested reason**, or pick another. A suggestion you have not kept is not saved or sent.
 3. Fill in the **Training subject**. Last week's subject is offered; choose **Use it again** to keep it.
 4. Write your **Notes to send with this report**.
@@ -36,6 +36,8 @@ minutes: 10
 1. Tick **I have read the preview and my notes as command will see them**.
 2. Choose **Freeze and send**, give a reason for the record, and confirm.
 3. If something is still open and the report must go out anyway, choose **Send anyway**. What was open is recorded with it.
+
+> [!good-to-know] The practice must be confirmed before the report can be sent, even with **Send anyway**. On the roll call, choose **Confirm held** or **Not held** once the practice is over. A section with nobody on its roll call has nothing to confirm.
 
 > [!good-to-know] If a trooper asked for a make-up this week and none is recorded, the dialog lists them under **Make-ups still owed**. Answer **Made it up** or **Did not** for each before you send. **Made it up** marks them **Make-up complete** on the roll call; **Did not** leaves their mark as it is. Your answers are kept with the report.
 

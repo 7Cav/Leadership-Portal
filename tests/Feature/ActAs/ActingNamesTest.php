@@ -53,6 +53,7 @@ function anActAs(object $test, User $user): void
 it('shows a report sent while acting as sent by the Admin for the leader', function () {
     anActAs($this, $this->sectionLeader);
 
+    confirmPracticeHeld($this->section, $this->week);
     $this->actingAs($this->admin)->post("/reports/{$this->section->id}/{$this->week}/send", ['reason' => 'Weekly report', 'notes' => 'Leader on leave.'])
         ->assertSessionHasNoErrors();
 

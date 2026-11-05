@@ -256,6 +256,7 @@ it('still answers saved when only the at-risk refresh fails, so the screen never
 });
 
 it('returns the at-risk flags recomputed from the saved marks', function () {
+    practiceOver($this->section);
     $prior = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->week->subWeek()]);
     Attendance::factory()->create(['trooper_id' => $this->trooper->id, 'section_practice_id' => $prior->id, 'status' => AttendanceStatus::Missed]);
 

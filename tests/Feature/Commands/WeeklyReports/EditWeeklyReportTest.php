@@ -38,12 +38,16 @@ beforeEach(function () {
     CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-07 18:00:00', 'UTC'));
 
     $this->troopers = Trooper::factory()->count(2)->create(['primary_section_id' => $this->section->id]);
+    confirmPracticeHeld($this->section, $this->weekStart);
 });
 
 afterEach(fn () => CarbonImmutable::setTestNow());
 
 function editSend(User $actor, Unit $unit, ?string $reason = 'Weekly report', ?string $notes = 'All good.'): SentWeeklyReport
 {
+    // A mark fixed while the report is reopened clears the confirmation, which a re-send needs again (#634).
+    confirmPracticeHeld($unit, '2026-10-03');
+
     return app(SendWeeklyReportHandler::class)->handle($actor, new SendWeeklyReport($unit->id, CarbonImmutable::parse('2026-10-05 12:00:00', 'UTC'), $reason, $notes));
 }
 

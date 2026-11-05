@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
 use App\Commands\Attendance\AttendanceMark;
+use App\Commands\Attendance\ConfirmPracticeRefusedException;
 use App\Commands\Attendance\ConfirmSectionPractice;
 use App\Commands\Attendance\ConfirmSectionPracticeForbiddenException;
 use App\Commands\Attendance\ConfirmSectionPracticeHandler;
@@ -65,6 +66,7 @@ use App\Repositories\CrossSectionSightingRepository;
 use App\Repositories\GameIdentityLinkException;
 use App\Repositories\GameRepository;
 use App\Repositories\PracticeCapturePlayerRepository;
+use App\Repositories\PracticeTiming;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\TrooperGameIdentityRepository;
 use App\Repositories\TrooperRepository;
@@ -384,6 +386,7 @@ class RollcallController extends Controller
         $validator = Validator::make($request->all(), [
             'week' => ['required', 'date_format:Y-m-d'],
             'confirmedAt' => ['nullable', 'date'],
+            'held' => ['sometimes', 'boolean'],
         ]);
 
         if ($validator->fails()) {
@@ -403,9 +406,11 @@ class RollcallController extends Controller
                 $request->input('confirmedAt') === null => null,
                 default => CarbonImmutable::parse($request->input('confirmedAt'))->toDateTimeImmutable(),
             };
-            $practice = $handler->handle($request->user(), new ConfirmSectionPractice($unit, $weekStart, $seen));
+            $practice = $handler->handle($request->user(), new ConfirmSectionPractice($unit, $weekStart, $seen, $request->boolean('held', true)));
         } catch (ConfirmSectionPracticeForbiddenException $e) {
             return response()->json(['message' => $e->getMessage()], 403);
+        } catch (ConfirmPracticeRefusedException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
         } catch (InvalidAttendanceMarkException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         } catch (RollcallWeekLockedException $e) {
@@ -654,7 +659,7 @@ class RollcallController extends Controller
     }
 
     /**
-     * @return array{at: string, by: ?string}|null
+     * @return array{at: string, by: ?string, held: bool}|null
      */
     private function confirmationProps(?SectionPractice $practice): ?array
     {
@@ -662,7 +667,7 @@ class RollcallController extends Controller
             return null;
         }
 
-        return ['at' => $practice->confirmed_at->toIso8601String(), 'by' => $practice->confirmedBy?->username];
+        return ['at' => $practice->confirmed_at->toIso8601String(), 'by' => $practice->confirmedBy?->username, 'held' => ! $practice->not_held];
     }
 
     private function requestedWeek(?string $week, CarbonImmutable $currentWeek): CarbonImmutable
@@ -859,6 +864,9 @@ class RollcallController extends Controller
                 'lastMarkedAt' => $week->marks->max(fn (Attendance $row) => $row->updated_at)?->toIso8601String(),
                 'posted' => $this->postedProps($practice),
                 'confirmation' => $this->confirmationProps($practice),
+                // When the week's practice hour ends (#634), or null with no hour (no slot, or cancelled): confirming
+                // is refused before then.
+                'endsAt' => PracticeTiming::hourEnd($weekStart, $practice, $this->schedule->slotOf($section->id))?->toIso8601String(),
             ],
         ];
     }
@@ -1087,7 +1095,10 @@ class RollcallController extends Controller
      */
     private function guestMakeupsMissing(?SectionPractice $practice): array
     {
-        if ($practice === null) {
+        // Before the practice is over a guest's makeup is not due yet (#634), so nothing is missing.
+        $end = $practice === null ? null : PracticeTiming::hourEnd($practice->week_start, $practice, $this->schedule->slotOf($practice->section_id));
+
+        if ($practice === null || ($end !== null && $end->greaterThan(CarbonImmutable::now()))) {
             return [];
         }
 

@@ -64,6 +64,7 @@ afterEach(fn () => CarbonImmutable::setTestNow());
 /** Marks `$trooper` in `$section` for `$week`; null `$status` leaves practice unmarked. */
 function markWeek(Unit $section, Trooper $trooper, CarbonImmutable $week, ?AttendanceStatus $status, RollcallSignature $rollcall = RollcallSignature::WillAttend): void
 {
+    practiceOver($section);
     $practice = app(SectionPracticeRepository::class)->findOrCreate($section->id, $week);
     app(AttendanceRepository::class)->signRollcall($practice, $trooper->id, $rollcall);
     if ($status !== null) {

@@ -13,6 +13,8 @@ use DateTimeImmutable;
  * or null for "not confirmed". When the practice holds a confirmation other than that one, someone
  * else confirmed it in the meantime, and the handler answers theirs instead of stamping a second.
  * Left `false`, nothing is compared and every confirmation re-stamps.
+ *
+ * `$held` is what the leader confirms (#634): the practice took place (every trooper marked), or it did not.
  */
 final readonly class ConfirmSectionPractice
 {
@@ -20,5 +22,6 @@ final readonly class ConfirmSectionPractice
         public int $sectionId,
         public DateTimeImmutable $week,
         public DateTimeImmutable|false|null $seenConfirmedAt = false,
+        public bool $held = true,
     ) {}
 }

@@ -83,6 +83,18 @@ describe('GuestsPanel', () => {
         expect(toastSuccess).toHaveBeenCalledWith('Added PFC Visitor.V as a guest', { description: "Their own section's roll call shows Make-up complete for this week." });
     });
 
+    it('says the make-up waits for the end of the practice when the guest is added before it (#634)', async () => {
+        answerSearch([{ id: 9, name: 'Visitor.V', rank: 'PFC', section: '1/1/B/1-7' }]);
+        post.mockResolvedValue({ ok: true, status: 200, data: { guest: { trooperId: 9, name: 'Visitor.V', displayName: 'PFC Visitor.V', rank: 'PFC', section: '1/1/B/1-7', source: 'manual', recordedBy: 'Host.L' }, makeup: 'pending' } });
+        const wrapper = factory();
+
+        await search(wrapper, 'vis');
+        await wrapper.find('[data-testid="guest-result-9"]').trigger('click');
+        await flushPromises();
+
+        expect(toastSuccess).toHaveBeenCalledWith('Added PFC Visitor.V as a guest', { description: "Their own section's roll call gets Make-up complete once this practice is over." });
+    });
+
     it('says why a guest was refused, and keeps the list as it was', async () => {
         answerSearch([{ id: 9, name: 'Visitor.V', rank: 'PFC', section: '1/1/B/1-7' }]);
         post.mockResolvedValue({ ok: false, status: 422, data: { message: 'This practice is confirmed, so its guests can no longer change.', reason: 'confirmed' } });

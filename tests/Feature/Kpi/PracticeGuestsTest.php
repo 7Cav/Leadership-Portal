@@ -53,6 +53,7 @@ function guestVisit(Trooper $trooper, Unit $host, int $weeksBack, string $source
 /** A leader's mark on `$trooper`'s own section practice `$weeksBack` weeks back (held: a manual SP mark). */
 function ownMark(Trooper $trooper, int $weeksBack, AttendanceStatus $status): void
 {
+    practiceOver($trooper->primary_section_id);
     $practice = app(SectionPracticeRepository::class)->findOrCreate($trooper->primary_section_id, guestsWeek($weeksBack));
     Attendance::factory()->create(['trooper_id' => $trooper->id, 'section_practice_id' => $practice->id, 'status' => $status, 'source' => AttendanceSource::Manual]);
 }

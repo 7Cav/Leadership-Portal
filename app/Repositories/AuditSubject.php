@@ -83,7 +83,7 @@ final class AuditSubject
 
     /** The fields shown as before and after, per target class, with the name each reads as. */
     private const FIELDS = [
-        SectionPractice::class => ['slot_moved_to' => 'Moved to', 'slot_cancelled' => 'Cancelled', 'confirmed_at' => 'Confirmed'],
+        SectionPractice::class => ['slot_moved_to' => 'Moved to', 'slot_cancelled' => 'Cancelled', 'confirmed_at' => 'Confirmed', 'not_held' => 'Not held'],
         Attendance::class => ['status' => 'Practice', 'rollcall' => 'Roll call'],
         WeeklyReport::class => ['status' => 'Status'],
         StaffReport::class => ['attended' => 'Attended', 'practice_type' => 'Practice type', 'ftx_date' => 'FTX date', 'office_hour_date' => 'Office hour'],
@@ -254,7 +254,35 @@ final class AuditSubject
             return $gamertagChanged ? [...$sourceChanges, ['field' => 'Gamertag', 'from' => $gamertagFrom ?? 'none', 'to' => $gamertagTo ?? 'none']] : $sourceChanges;
         }
 
+        // A guest a leader added or took back (#628): the entry names whose attendance changed.
+        if ($model instanceof CrossSectionSighting) {
+            if (! $model->isManual()) {
+                return [];
+            }
+            $name = self::rel((clone $model)->loadMissing('trooper'), 'trooper')?->display_name ?? 'a trooper since removed';
+
+            return match (true) {
+                ! $model->exists => [['field' => 'Guest', 'from' => $name, 'to' => 'none']],
+                $model->wasRecentlyCreated => [['field' => 'Guest', 'from' => 'none', 'to' => $name]],
+                default => [],
+            };
+        }
+
         $fields = self::FIELDS[$model::class] ?? [];
+
+        // A mark row deleted outright (Undo of a guest's makeup, #628): each value it held goes back to none.
+        if ($model instanceof Attendance && ! $model->exists) {
+            $changes = [];
+            foreach ($fields as $field => $label) {
+                $from = self::format($model->{$field});
+                if ($from !== 'none') {
+                    $changes[] = ['field' => $label, 'from' => $from, 'to' => 'none'];
+                }
+            }
+
+            return $changes;
+        }
+
         if ($fields === [] || ! $model->exists) {
             return [];
         }
@@ -291,6 +319,11 @@ final class AuditSubject
         // An identity in a batch reads as whose and on which game (#174), for a fan-out over games or a backfill of troopers.
         if ($model instanceof TrooperGameIdentity) {
             return (self::rel($model, 'trooper')?->display_name ?? 'A trooper').' on '.(self::rel($model, 'game')?->name ?? 'a game');
+        }
+
+        // A guest entry's change already names the guest.
+        if ($model instanceof CrossSectionSighting) {
+            return null;
         }
 
         $trooper = self::rel($model, 'trooper');

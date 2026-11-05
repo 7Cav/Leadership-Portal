@@ -606,8 +606,24 @@ const confirming = ref(false);
 const confirmationLabel = computed(() =>
     confirmation.value ? `Confirmed ${forumDateTime(confirmation.value.at)}Z${confirmation.value.by ? ` by ${confirmation.value.by}` : ''}` : null,
 );
+// Held unless the leader said otherwise: a confirmation from before "not held" existed says held.
+const confirmedHeld = computed(() => confirmation.value !== null && confirmation.value.held !== false);
+// The practice counts once it is over (#634): confirming is refused before its hour ends. With no hour (no slot, or the
+// week cancelled) it can be confirmed any time in the week.
+const now = ref(Date.now());
+let clock;
+onMounted(() => (clock = setInterval(() => (now.value = Date.now()), 30000)));
+onBeforeUnmount(() => clearInterval(clock));
+const practiceEndsAt = computed(() => props.practice?.endsAt ?? null);
+const practiceOver = computed(() => !practiceEndsAt.value || new Date(practiceEndsAt.value).getTime() <= now.value);
+const notOverReason = computed(() => {
+    if (practiceOver.value) return null;
+    const at = new Date(practiceEndsAt.value);
 
-async function confirmPractice() {
+    return `Confirm the practice once it ends, ${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][at.getUTCDay()]} ${forumDateTime(at)}Z`;
+});
+
+async function confirmPractice(held = true) {
     confirming.value = true;
     try {
         if (!(await commitHeld())) {
@@ -620,10 +636,13 @@ async function confirmPractice() {
         const result = await postJson(`/rollcall/${props.section.id}/confirm`, {
             week: props.week.date,
             confirmedAt: confirmation.value?.at ?? null,
+            held,
         }).catch(unreachable);
         if (result.ok && result.data?.confirmation) {
             confirmation.value = result.data.confirmation;
-            toast.success('Practice confirmed', { description: `${props.section.designation}, week ${weekRange.value}` });
+            toast.success(confirmedHeld.value ? 'Practice confirmed as held' : 'Practice confirmed as not held', {
+                description: `${props.section.designation}, week ${weekRange.value}`,
+            });
         } else {
             toast.error('Could not confirm the practice', { description: messageFor(result) });
             // The report was sent since the page loaded: show the week as the server now has it.
@@ -940,26 +959,38 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                     <span class="sr-only">Switch section</span>
                 </Button>
             </div>
-            <div v-if="capture || telemetry" class="flex items-center gap-2 sm:ml-auto" data-testid="confirm-cluster">
+            <div v-if="rows.length" class="flex flex-wrap items-center gap-2 sm:ml-auto" data-testid="confirm-cluster">
                 <Badge
                     :variant="confirmation ? 'secondary' : 'outline'"
                     :class="cn('font-normal', confirmation && 'border-success/35 bg-success/8 text-success')"
                     data-testid="confirm-badge"
                 >
-                    <PhCheckCircle v-if="confirmation" aria-hidden="true" />{{ confirmation ? 'Confirmed' : 'Not confirmed' }}
+                    <PhCheckCircle v-if="confirmation" aria-hidden="true" />{{
+                        confirmation ? (confirmedHeld ? 'Confirmed held' : 'Confirmed not held') : 'Not confirmed'
+                    }}
                 </Badge>
                 <Button
                     size="sm"
-                    :variant="confirmation ? 'outline' : 'default'"
-                    :disabled="!editable || confirming"
-                    :title="readOnlyReason ?? confirmationLabel ?? undefined"
+                    :variant="confirmedHeld ? 'outline' : 'default'"
+                    :disabled="!editable || confirming || !practiceOver"
+                    :title="readOnlyReason ?? notOverReason ?? confirmationLabel ?? undefined"
                     data-testid="confirm-practice"
-                    @click="confirmPractice"
+                    @click="confirmPractice(true)"
                 >
-                    <PhCheck />{{ confirmation ? 'Confirm again' : 'Confirm practice' }}
+                    <PhCheck />{{ confirmedHeld ? 'Confirm held again' : 'Confirm held' }}
+                </Button>
+                <Button
+                    size="sm"
+                    variant="outline"
+                    :disabled="!editable || confirming || !practiceOver"
+                    :title="readOnlyReason ?? notOverReason ?? undefined"
+                    data-testid="confirm-not-held"
+                    @click="confirmPractice(false)"
+                >
+                    Not held
                 </Button>
             </div>
-            <div :class="cn('flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground sm:w-auto', capture || telemetry ? 'sm:ml-0' : 'sm:ml-auto')">
+            <div :class="cn('flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground sm:w-auto', rows.length ? 'sm:ml-0' : 'sm:ml-auto')">
                 <span class="inline-flex items-center gap-1.5" data-testid="roster-provenance">
                     <PhArrowsClockwise class="size-4" aria-hidden="true" />
                     <template v-if="syncedLabel">Roster from {{ roster.source }}, synced <TimeAgo :at="roster.syncedAt">{{ syncedLabel }}</TimeAgo></template>

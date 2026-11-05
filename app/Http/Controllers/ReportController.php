@@ -8,6 +8,7 @@ use App\Commands\Attendance\InvalidAttendanceMarkException;
 use App\Commands\WeeklyReports\InvalidPlatoonTrainingTopicException;
 use App\Commands\WeeklyReports\InvalidReportContentException;
 use App\Commands\WeeklyReports\MakeupChecksIncompleteException;
+use App\Commands\WeeklyReports\PracticeNotConfirmedException;
 use App\Commands\WeeklyReports\ReopenWeeklyReport;
 use App\Commands\WeeklyReports\ReopenWeeklyReportHandler;
 use App\Commands\WeeklyReports\SaveReportDraft;
@@ -48,6 +49,7 @@ use App\Repositories\CountingMark;
 use App\Repositories\PlatoonTrainingTopicRepository;
 use App\Repositories\ReportEditWindow;
 use App\Repositories\ReportRevisionTrail;
+use App\Repositories\SectionPracticeRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitGuidonRepository;
 use App\Repositories\UnitRepository;
@@ -101,6 +103,7 @@ class ReportController extends Controller
         private readonly StaffReportWeek $staffReportWeek,
         private readonly AutoExcused $autoExcused,
         private readonly UnitGuidonRepository $guidons,
+        private readonly SectionPracticeRepository $practices,
     ) {}
 
     public function show(Request $request, UnaccountedSuggestions $suggestions, AuditLogRepository $audit, int $unit, string $week): Response
@@ -207,6 +210,9 @@ class ReportController extends Controller
             'baseline' => $this->baseline($snapshot, $sent ? $report : null, $history, $weekStart),
             'trend' => $this->trend($weekStart, $snapshot, $history),
             'troopers' => $isLeaf && ! $sent ? $this->trooperRows($unit, $weekStart, $roster) : null,
+            // A section's draft with troopers on its roll call: whether the week's practice is confirmed as held or not
+            // held (#634), which the send needs. Null when nothing needs confirming.
+            'practice' => $isLeaf && ! $sent && $roster->isNotEmpty() ? $this->practiceProps($unit, $weekStart) : null,
             // An object even when empty: `[]` fails the page's Object prop check.
             'names' => (object) $roster->mapWithKeys(fn (Trooper $t) => [$t->id => $this->trooperLabel($t)])->all(),
             'children' => match (true) {
@@ -228,6 +234,17 @@ class ReportController extends Controller
             'computedAt' => CarbonImmutable::now('UTC')->toIso8601String(),
             'staffReports' => $this->staffReportRows($request, $unit, $weekStart),
         ]);
+    }
+
+    /**
+     * @return array{confirmed: bool, held: ?bool}
+     */
+    private function practiceProps(Unit $section, CarbonImmutable $weekStart): array
+    {
+        $practice = $this->practices->find($section->id, $weekStart);
+        $confirmed = $practice?->confirmed_at !== null;
+
+        return ['confirmed' => $confirmed, 'held' => $confirmed ? ! $practice->not_held : null];
     }
 
     /**
@@ -411,6 +428,9 @@ class ReportController extends Controller
         } catch (TrainingSubjectEnforcedException) {
             // The platoon leader locked the topic after this page loaded.
             throw ValidationException::withMessages(['training_subject' => "Your platoon set this week's training topic and locked it, so it cannot be changed here. Reload the page to see it."]);
+        } catch (PracticeNotConfirmedException $e) {
+            // A mark saved since the page loaded clears the confirmation too.
+            throw ValidationException::withMessages(['practice' => $e->getMessage()]);
         } catch (ReportKpisUnavailableException $e) {
             throw ValidationException::withMessages(['report' => $this->unavailableMessage($e)]);
         } catch (WeeklyReportAlreadySentException) {
@@ -673,7 +693,8 @@ class ReportController extends Controller
                 'username' => $trooper->username,
                 'rankShort' => $trooper->rank_short,
                 'rollcall' => $mark?->rollcall->value ?? 'unsigned',
-                'status' => $mark?->status?->value,
+                // The mark as recorded: one on a practice not over yet still shows, though it does not count yet (#634).
+                'status' => ($mark?->recorded ?? $mark?->status)?->value,
                 'source' => $mark?->source?->value,
                 'atRisk' => $reading?->atRisk() ?? false,
                 'missed' => $reading->missed ?? 0,

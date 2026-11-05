@@ -2,6 +2,7 @@
 
 use App\Commands\Attendance\MakeupWithdrawal;
 use App\Commands\Attendance\MarkAttendanceHandler;
+use App\Commands\Guests\ApplyGuestMakeupsDue;
 use App\Commands\Guests\RecordGuestAttendance;
 use App\Commands\Guests\RecordGuestAttendanceHandler;
 use App\Commands\Guests\RemoveGuestAttendance;
@@ -13,6 +14,7 @@ use App\Models\AuditLogEntry;
 use App\Models\CrossSectionSighting;
 use App\Models\Loa;
 use App\Models\SectionPractice;
+use App\Models\SectionPracticeSlot;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
@@ -124,13 +126,41 @@ it('takes the makeup back with the entry when nothing else supports it, audited 
 
     expect(withdrawGuest($this))->toBe(MakeupWithdrawal::Withdrawn);
 
-    $mark = homeMark($this);
+    $home = SectionPractice::query()->where('section_id', $this->home->id)->sole();
     $entry = AuditLogEntry::query()->where('action', 'attendance.auto_unmarked')->sole();
-    expect($mark->status)->toBeNull()
-        ->and($mark->source)->toBeNull()
+    expect(homeMark($this))->toBeNull()
         ->and($entry->actor_id)->toBe($this->leader->id)
-        ->and((int) $entry->target_id)->toBe($mark->section_practice_id)
+        ->and((int) $entry->target_id)->toBe($home->id)
+        ->and($entry->details['changes'])->toContain(
+            ['field' => "{$this->guest->display_name}: Practice", 'from' => 'Make-up complete', 'to' => 'none'],
+            ['field' => "{$this->guest->display_name}: Roll call", 'from' => 'Unsigned', 'to' => 'none'],
+        )
         ->and(CrossSectionSighting::query()->count())->toBe(0);
+});
+
+it('keeps the row on Undo when the guest had signed their own roll call, clearing only the makeup', function () {
+    $practice = app(SectionPracticeRepository::class)->findOrCreate($this->home->id, $this->week);
+    Attendance::factory()->create(['trooper_id' => $this->guest->id, 'section_practice_id' => $practice->id, 'status' => null, 'source' => null, 'rollcall' => 'will_attend']);
+    recordGuest($this);
+
+    expect(withdrawGuest($this))->toBe(MakeupWithdrawal::Withdrawn)
+        ->and(homeMark($this))->not->toBeNull()
+        ->and(homeMark($this)->status)->toBeNull()
+        ->and(homeMark($this)->rollcall->value)->toBe('will_attend');
+});
+
+it('names the guest and the host section in the guest.recorded and guest.removed entries', function () {
+    recordGuest($this);
+    withdrawGuest($this);
+
+    $recorded = AuditLogEntry::query()->where('action', 'guest.recorded')->sole();
+    $removed = AuditLogEntry::query()->where('action', 'guest.removed')->sole();
+    $name = $this->guest->display_name;
+
+    expect($recorded->details['subject'])->toStartWith('1/1/A/1-7 practice')
+        ->and($recorded->details['changes'])->toBe([['field' => 'Guest', 'from' => 'none', 'to' => $name]])
+        ->and($removed->details['subject'])->toStartWith('1/1/A/1-7 practice')
+        ->and($removed->details['changes'])->toBe([['field' => 'Guest', 'from' => $name, 'to' => 'none']]);
 });
 
 it('takes the makeup back from the section it was written to when the guest has moved section since', function () {
@@ -138,9 +168,8 @@ it('takes the makeup back from the section it was written to when the guest has 
     $this->guest->forceFill(['primary_section_id' => $this->other->id])->save();
 
     expect(withdrawGuest($this))->toBe(MakeupWithdrawal::Withdrawn)
-        ->and(homeMark($this)->status)->toBeNull()
-        ->and(homeMark($this)->source)->toBeNull()
-        ->and(AuditLogEntry::query()->where('action', 'attendance.auto_unmarked')->sole()->target_id)->toEqual(homeMark($this)->section_practice_id);
+        ->and(homeMark($this))->toBeNull()
+        ->and(AuditLogEntry::query()->where('action', 'attendance.auto_unmarked')->sole()->target_id)->toEqual(SectionPractice::query()->where('section_id', $this->home->id)->sole()->id);
 });
 
 it('leaves the makeup on the old section when that week is locked, after the guest moved', function () {
@@ -296,6 +325,11 @@ it('writes no makeup when an Undo removes the entry between its commit and the m
             return $this->inner->find($hostPracticeId, $trooperId);
         }
 
+        public function manualInWeeks(array $weekStarts): Collection
+        {
+            return $this->inner->manualInWeeks($weekStarts);
+        }
+
         public function forHostPractice(int $hostPracticeId): Collection
         {
             return $this->inner->forHostPractice($hostPracticeId);
@@ -321,4 +355,44 @@ it('writes no makeup when an Undo removes the entry between its commit and the m
         ->and(CrossSectionSighting::query()->count())->toBe(0)
         ->and(homeMark($this))->toBeNull()
         ->and(AuditLogEntry::query()->where('action', 'attendance.auto_marked')->count())->toBe(0);
+});
+
+// #634: a guest added before the host practice is over gets their makeup only once it is.
+it('waits with the makeup of a guest added before the host practice ends, and the scheduler writes it after', function () {
+    SectionPracticeSlot::query()->create(['section_id' => $this->host->id, 'weekday' => 4, 'start_minute' => 1200]);
+
+    expect(recordGuest($this))->toBe('pending')
+        ->and(homeMark($this))->toBeNull()
+        ->and(CrossSectionSighting::query()->count())->toBe(1);
+
+    // Not over yet: nothing is due.
+    expect(app(ApplyGuestMakeupsDue::class)->at(CarbonImmutable::parse('2026-10-08 20:59:00', 'UTC')))->toBe(0)
+        ->and(homeMark($this))->toBeNull();
+
+    Carbon::setTestNow(CarbonImmutable::parse('2026-10-08 21:10:00', 'UTC'));
+    expect(app(ApplyGuestMakeupsDue::class)->at(now()))->toBe(1);
+
+    $entry = AuditLogEntry::query()->where('action', 'attendance.auto_marked')->sole();
+    expect(homeMark($this)->status)->toBe(AttendanceStatus::Makeup)
+        ->and(homeMark($this)->source)->toBe(AttendanceSource::Auto)
+        ->and($entry->actor_id)->toBe($this->leader->id)
+        // A later run finds nothing missing.
+        ->and(app(ApplyGuestMakeupsDue::class)->at(now()))->toBe(0)
+        ->and(AuditLogEntry::query()->where('action', 'attendance.auto_marked')->count())->toBe(1);
+});
+
+it('gives the makeup straight away to a guest added after the host practice ended, or at a host with no slot', function () {
+    SectionPracticeSlot::query()->create(['section_id' => $this->host->id, 'weekday' => 3, 'start_minute' => 1200]);
+
+    expect(recordGuest($this))->toBe('marked')
+        ->and(homeMark($this)->status)->toBe(AttendanceStatus::Makeup);
+});
+
+it('runs the guest makeups from the scheduler command', function () {
+    SectionPracticeSlot::query()->create(['section_id' => $this->host->id, 'weekday' => 4, 'start_minute' => 1200]);
+    recordGuest($this);
+    Carbon::setTestNow(CarbonImmutable::parse('2026-10-08 21:10:00', 'UTC'));
+
+    $this->artisan('portal:guest-makeups')->expectsOutput('1 guest make-ups recorded.')->assertSuccessful();
+    expect(homeMark($this)->status)->toBe(AttendanceStatus::Makeup);
 });

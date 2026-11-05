@@ -6,8 +6,14 @@ use App\Commands\Capture\CaptureSources;
 use App\Integration\Forum\Requests\ExchangeCodeRequest;
 use App\Integration\Forum\Requests\FetchProfileRequest;
 use App\Models\Game;
+use App\Models\SectionPractice;
+use App\Models\SectionPracticeSlot;
 use App\Models\Trooper;
 use App\Models\Unit;
+use App\Models\UnitType;
+use App\Repositories\SectionPracticeRepository;
+use App\Support\Time\WeekOf;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Saloon\Http\Faking\MockClient;
@@ -112,6 +118,39 @@ function game(string $slug): Game
  * Home: a line unit nobody is placed in or under is left out of all three. On a platoon or higher the trooper is HQ
  * staff, in the headcount and in no section's KPIs.
  */
+/**
+ * The leader's confirmation that the section's practice was held that week (#634), which a section's report needs
+ * before it can be sent. Creates the practice row when there is none.
+ */
+function confirmPracticeHeld(Unit|int $section, DateTimeInterface|string $week): ?SectionPractice
+{
+    $unit = $section instanceof Unit ? $section : Unit::query()->find($section);
+
+    // Only a section has a practice to confirm; a platoon's or company's send is not asked.
+    if ($unit?->type !== UnitType::Section) {
+        return null;
+    }
+
+    $practice = app(SectionPracticeRepository::class)->findOrCreate(
+        $section instanceof Unit ? $section->id : $section,
+        WeekOf::start(CarbonImmutable::parse($week instanceof DateTimeInterface ? $week->format('Y-m-d') : $week, 'UTC')),
+    );
+    $practice->forceFill(['confirmed_at' => now(), 'not_held' => false])->save();
+
+    return $practice;
+}
+
+/**
+ * A practice slot on Wednesday 2000Z for each section, unless it has one: in the Cav week of 03OCT26 the practice is
+ * over from Wed 07OCT26 2100Z, so its marks count (#634) for a test pinned to Thursday 08OCT26.
+ */
+function practiceOver(Unit|int ...$sections): void
+{
+    foreach ($sections as $section) {
+        SectionPracticeSlot::query()->firstOrCreate(['section_id' => $section instanceof Unit ? $section->id : $section], ['weekday' => 3, 'start_minute' => 1200]);
+    }
+}
+
 function manUnits(Unit ...$units): void
 {
     foreach ($units as $unit) {
