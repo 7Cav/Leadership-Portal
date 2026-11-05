@@ -14,6 +14,7 @@ use App\Models\TrooperCourse;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitCommandMapping;
+use App\Models\UnitKind;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\AttendanceRepository;
@@ -142,7 +143,7 @@ describe('the ID block (6.3)', function () {
             ->where('trooper.tisMonths', 20)
             ->where('trooper.tig', '2026-04-08')
             ->where('trooper.tigMonths', 6)
-            ->where('trooper.section', ['id' => $this->section1->id, 'name' => '1st Section', 'callsign' => '1/1/A/1-7'])
+            ->where('trooper.section', ['id' => $this->section1->id, 'name' => '1st Section', 'callsign' => '1/1/A/1-7', 'type' => 'section'])
             ->where('trooper.milpacUrl', 'https://7cav.us/rosters/profile?uniqueid='.$trooper->cav_id));
     });
 
@@ -514,11 +515,31 @@ describe('the leadership quick actions (6.7)', function () {
             ->where('troopers', fn ($troopers) => collect($troopers)->pluck('id')->contains($trooper->id)));
     });
 
+    it('sends when a departed trooper left (#623)', function () {
+        $departed = milpacTrooper($this->section1, ['status' => TrooperStatus::Inactive, 'departed_at' => '2026-09-30 10:00:00']);
+
+        milpacOpen($this->actingAs($this->leader), $departed)->assertInertia(fn ($page) => $page->where('trooper.departedAt', '2026-09-30'));
+    });
+
     it('opens the rollcall plainly for a departed trooper, who has no card on it', function () {
         $departed = milpacTrooper($this->section1, ['status' => TrooperStatus::Inactive]);
 
         expect(collect(milpacActions($this->actingAs($this->leader), $departed))->firstWhere('key', 'rollcall'))
             ->toBe(['key' => 'rollcall', 'label' => 'Open in roll call', 'href' => "/rollcall/{$this->section1->id}"]);
+    });
+
+    it('offers no rollcall for a trooper placed above a section, in ELOA or the Reservists (#622)', function () {
+        $units = app(UnitRepository::class);
+        $this->actingAs(User::factory()->admin()->create());
+        $platoon = $units->find($this->section1->parent_id);
+        $eloa = $units->create(UnitType::Company, 'ELOA', 'ELOA', $units->find($platoon->parent_id)->parent_id, UnitKind::Eloa);
+        $reserve = $units->create(UnitType::Company, 'Reservists', 'RES', $units->find($platoon->parent_id)->parent_id, UnitKind::Reserve);
+
+        foreach ([$platoon, $eloa, $reserve] as $unit) {
+            expect(collect(milpacActions($this, milpacTrooper($unit)))->pluck('key')->all())->not->toContain('rollcall');
+        }
+
+        milpacOpen($this, milpacTrooper($platoon))->assertInertia(fn ($page) => $page->where('trooper.section.type', 'platoon'));
     });
 
     it('hides the platoon readiness matrix from a section leader, whose scope does not hold the platoon', function () {

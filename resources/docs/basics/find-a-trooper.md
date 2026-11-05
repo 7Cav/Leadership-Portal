@@ -26,9 +26,9 @@ page: /troopers/{trooper}
 
 ## Read the milpac page
 
-1. The top block shows rank, billet, MOS, time in service and grade, and section.
+1. The top block shows rank, billet, MOS, time in service and grade, and unit (**Section** when they are placed in one).
 2. Below it are their courses, their service record and their transfers between units, newest first.
-3. The quick links open their section's roster and roll call, and their platoon's training readiness.
+3. The quick links open their unit's roster, their section's roll call when they are in one, and their platoon's training readiness.
 4. The **Counseling** panel holds the trooper's DCSs and LORs that you may see.
 5. On a staff member's page, **Section practices attended** lists the practices they went to. See [Record a practice a staff member attended](/docs/your-troopers/staff-practices).
 
