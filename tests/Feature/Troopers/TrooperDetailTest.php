@@ -578,6 +578,7 @@ describe('the makeup PM (Command Brief principle 2)', function () {
         $trooper = milpacTrooper($this->section1, ['username' => 'Reyes.M']);
         milpacMark($trooper, $this->section1, 2, AttendanceStatus::Missed);
         milpacMark($trooper, $this->section1, 1, AttendanceStatus::Present);
+        practiceOver($this->section1); // this week's miss counts once the practice is over (#634)
         milpacMark($trooper, $this->section1, 0, AttendanceStatus::Missed);
 
         milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page

@@ -140,6 +140,7 @@ it('404s a unit id too long for an integer rather than erroring', function () {
 it('shows a granted unit\'s whole subtree, grouped with per-unit KPIs from the shared service (4.6)', function () {
     $staff = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $this->platoon1->id]);
+    practiceOver($this->section2); // this week's Missed mark counts once the practice is over (#634)
     $a = rosterTrooper($this->section2);
     rosterMark($a, $this->section2, 0, AttendanceStatus::Missed, RollcallSignature::WillAttend);
     rosterMark($a, $this->section2, 1, AttendanceStatus::Missed, RollcallSignature::WillAttend);
@@ -168,6 +169,7 @@ it('shows a granted unit\'s whole subtree, grouped with per-unit KPIs from the s
 });
 
 it('flags at-risk from the shared helper, and never an LOA-covered or unmarked trooper (4.8, 4.9)', function () {
+    practiceOver($this->section1); // this week's marks count once the practice is over (#634)
     $atRisk = rosterTrooper($this->section1);
     rosterMark($atRisk, $this->section1, 0, AttendanceStatus::Missed);
     rosterMark($atRisk, $this->section1, 2, AttendanceStatus::Missed);
@@ -188,6 +190,7 @@ it('flags at-risk from the shared helper, and never an LOA-covered or unmarked t
 
 it('lays out 20 Cav weeks of marks per trooper with each mark\'s source, null where no practice ran (4.7)', function () {
     $t = rosterTrooper($this->section1);
+    practiceOver($this->section1); // the current week is held once its practice is over (#634)
     rosterMark($t, $this->section1, 0, AttendanceStatus::Present, RollcallSignature::WillAttend, AttendanceSource::Auto);
     rosterMark($t, $this->section1, 19, AttendanceStatus::Excused, RollcallSignature::MakeupRequested);
     rosterMark($t, $this->section1, 20, AttendanceStatus::Missed); // before the window
@@ -371,6 +374,7 @@ describe('trooper detail (Sheet)', function () {
         $this->travelTo(rosterWeek(1)->addDays(4)->setTime(18, 0));
         app(TrooperRepository::class)->updatePrimarySections([$t->cav_id => $this->section1->id]);
         $this->travelTo(CarbonImmutable::parse(ROSTER_NOW, 'UTC'));
+        practiceOver($this->section1); // this week's mark counts once the practice is over (#634)
         rosterMark($t, $this->section1, 0, AttendanceStatus::Present, RollcallSignature::WillAttend);
 
         $this->actingAs($this->leader)->getJson("/roster/troopers/{$t->id}")
@@ -418,6 +422,7 @@ describe('trooper detail (Sheet)', function () {
 
     it('names the weeks the trooper missed, for the Sheet\'s makeup PM, and none for a departed trooper', function () {
         $t = rosterTrooper($this->section1);
+        practiceOver($this->section1); // this week's miss counts once the practice is over (#634)
         rosterMark($t, $this->section1, 0, AttendanceStatus::Missed);
         rosterMark($t, $this->section1, 2, AttendanceStatus::Missed);
         rosterMark($t, $this->section1, 1, AttendanceStatus::Present);
