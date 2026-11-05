@@ -74,6 +74,11 @@ interface UnitRepository
     public function find(int $id): ?Unit;
 
     /**
+     * The unit whose roll call result image URLs carry `$token` (#641), or null for any other value.
+     */
+    public function findByRollcallImageToken(string $token): ?Unit;
+
+    /**
      * Every unit id in the tree — the Admin tier's full scope (AD-6, AD-8).
      *
      * @return ScalarCollection<int, int>

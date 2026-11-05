@@ -13,6 +13,7 @@ use App\Http\Controllers\RollcallController;
 use App\Http\Controllers\RollcallFireteamController;
 use App\Http\Controllers\RollcallGuestController;
 use App\Http\Controllers\RollcallPracticeSlotController;
+use App\Http\Controllers\RollcallResultImageController;
 use App\Http\Controllers\RollcallTemplateController;
 use App\Http\Controllers\RosterController;
 use App\Http\Controllers\RosterPresenceMinimumController;
@@ -39,9 +40,20 @@ use App\Http\Controllers\TrooperSearchController;
 use App\Http\Controllers\UnitGuidonController;
 use App\Http\Controllers\UnitRosterSyncController;
 use App\Http\Controllers\ViewAsController;
+use App\Http\Middleware\ActAsUser;
+use App\Http\Middleware\BlockedWhilePreviewing;
 use App\Http\Middleware\EnsureServingMember;
+use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\PreventCachingAuthenticatedResponses;
+use App\Http\Middleware\ReadOnlyWhileViewingAs;
+use App\Http\Middleware\RecordPageVisit;
 use App\Repositories\UserRepository;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 // Every id in a path is a positive integer of at most 18 digits, for every route that names it.
 // `whereNumber` alone (`[0-9]+`) let `/reports/99999999999999999999` through to an `int`
@@ -57,6 +69,26 @@ foreach (['unit', 'grant', 'trooper', 'version', 'game', 'server', 'counseling',
 // `/` is only a doorway (Story 1.15 retired the Story 1.1 sample page): signed-in users land on
 // home, everyone else on the login screen, in one hop either way.
 Route::get('/', fn () => redirect()->route(auth()->check() ? 'home' : 'login'));
+
+// The roll call result images the forum post embeds (#641). Public: the unit's secret token in the URL is the key.
+// Outside the session and cookie middleware so the response carries no cookie and a cache may keep it.
+Route::get('/rollcall-images/{token}/{week}/{kind}.png', [RollcallResultImageController::class, 'show'])
+    ->where(['token' => '[A-Za-z0-9]{40}', 'week' => '[0-9]{4}-[0-9]{2}-[0-9]{2}', 'kind' => '[a-z]{2}'])
+    ->middleware('throttle:rollcall-images')
+    ->withoutMiddleware([
+        EncryptCookies::class,
+        AddQueuedCookiesToResponse::class,
+        StartSession::class,
+        ShareErrorsFromSession::class,
+        PreventRequestForgery::class,
+        ActAsUser::class,
+        HandleInertiaRequests::class,
+        BlockedWhilePreviewing::class,
+        ReadOnlyWhileViewingAs::class,
+        RecordPageVisit::class,
+        PreventCachingAuthenticatedResponses::class,
+    ])
+    ->name('rollcall.image');
 
 // 7Cav SSO (Story 1.4). `login` is the name Laravel's auth middleware redirects to.
 // Login screen + starting the handshake are guest-only; the callback stays public so

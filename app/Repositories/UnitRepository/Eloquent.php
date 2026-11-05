@@ -114,6 +114,11 @@ class Eloquent implements UnitRepository
         return Unit::find($id);
     }
 
+    public function findByRollcallImageToken(string $token): ?Unit
+    {
+        return $token === '' ? null : Unit::query()->where('rollcall_image_token', $token)->first();
+    }
+
     public function allIds(): ScalarCollection
     {
         return Unit::query()->pluck('id');

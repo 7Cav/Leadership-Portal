@@ -26,10 +26,10 @@ const SP_WORDS = { present: 'Yes', missed: 'No', excused: 'EX', makeup: 'MU', lo
  * ({@link orderTroopers}), so `{{n}}` numbers them in that order. Shown fireteams are named by letter
  * ({@link fireteamNames}), and `fireteams_shown` is set only when the section shows FTLs and has at least one.
  *
- * @param {{section: object, week: object, troopers: object[], fireteams?: {show: boolean, order: string, alphabet: string}}} input
+ * @param {{section: object, week: object, troopers: object[], fireteams?: {show: boolean, order: string, alphabet: string}, resultImages?: {rc: string, sp: string}}} input
  *   the props the rollcall page received, with the working marks
  */
-export function rollcallContext({ section, week, troopers, fireteams = {} }) {
+export function rollcallContext({ section, week, troopers, fireteams = {}, resultImages = {} }) {
     const ordered = orderTroopers(troopers, fireteams);
     const names = fireteamNames(ordered, fireteams);
     const rows = ordered.map((trooper, index) => {
@@ -78,6 +78,9 @@ export function rollcallContext({ section, week, troopers, fireteams = {} }) {
         count: String(rows.length),
         signed: String(rows.filter((row) => row.rc_yes).length),
         attended: String(rows.filter((row) => row.sp_present || row.sp_makeup).length),
+        // The live Signed RC and Attended SP images (#641), drawn by the server from the marks as they are when the forum fetches them.
+        rc_image: resultImages.rc ?? '',
+        sp_image: resultImages.sp ?? '',
         fireteams_shown: names.size > 0,
         troopers: rows,
     };

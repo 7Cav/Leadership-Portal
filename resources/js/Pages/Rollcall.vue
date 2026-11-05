@@ -147,6 +147,8 @@ const props = defineProps({
     report: { type: Object, default: null },
     // How the post shows fireteams and who may change it (`SectionFireteams::options()` on the server). Null for the picker.
     fireteams: { type: Object, default: null },
+    // The live Signed RC and Attended SP image addresses a template prints as `{{rc_image}}` and `{{sp_image}}` (#641).
+    resultImages: { type: Object, default: null },
 });
 
 const page = usePage();
@@ -540,7 +542,7 @@ async function pickTemplate(id) {
 // The forum post (3.10, 3.11): the section's template filled with the current marks, generated client-side and copied
 // by the leader. The portal makes no outbound call on copy or on marking posted (AD-20).
 const post = computed(() =>
-    props.section ? rollcallPost(currentTemplate.value, { section: props.section, week: props.week, troopers: rows.value, fireteams: fireteams.value ?? {} }) : null,
+    props.section ? rollcallPost(currentTemplate.value, { section: props.section, week: props.week, troopers: rows.value, fireteams: fireteams.value ?? {}, resultImages: props.resultImages ?? {} }) : null,
 );
 const bbcode = computed(() => (post.value?.state === 'ready' ? post.value.text : ''));
 // The BBCode as the leader last copied it. "Copied" holds only while the post on screen is still that text: a mark or a

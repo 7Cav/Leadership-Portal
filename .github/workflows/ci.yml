@@ -68,7 +68,7 @@ jobs:
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
           php-version: '8.4'
-          extensions: mbstring, dom, curl, pdo_sqlite, sqlite3, bcmath
+          extensions: mbstring, dom, curl, pdo_sqlite, sqlite3, bcmath, gd
           coverage: none
           tools: composer:v2
 
@@ -131,7 +131,7 @@ jobs:
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
           php-version: '8.4'
-          extensions: mbstring, dom, curl, pdo_mysql, bcmath
+          extensions: mbstring, dom, curl, pdo_mysql, bcmath, gd
           coverage: none
           tools: composer:v2
 
@@ -231,7 +231,7 @@ jobs:
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
           php-version: '8.4'
-          extensions: mbstring, dom, curl, pdo_sqlite, sqlite3, bcmath
+          extensions: mbstring, dom, curl, pdo_sqlite, sqlite3, bcmath, gd
           coverage: none
           tools: composer:v2
 

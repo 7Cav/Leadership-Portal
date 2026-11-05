@@ -20,7 +20,8 @@ RUN npm run build
 FROM serversideup/php:8.4-fpm-nginx AS runtime
 
 USER root
-RUN install-php-extensions intl bcmath
+# gd draws the roll call result images the forum embeds (#641)
+RUN install-php-extensions intl bcmath gd
 USER www-data
 
 WORKDIR /var/www/html

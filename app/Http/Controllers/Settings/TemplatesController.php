@@ -23,6 +23,7 @@ use App\Repositories\TemplateVersionRepository;
 use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitDesignationOrder;
 use App\Repositories\UnitRepository;
+use App\Rollcall\ResultImageUrls;
 use App\Rollcall\RollcallRoster;
 use App\Rollcall\SectionFireteams;
 use App\Rollcall\TemplateSyntax;
@@ -195,6 +196,7 @@ class TemplatesController extends Controller
         return response()->json([
             'section' => $this->roster->section($section, $sections),
             'week' => [...$this->roster->week($week, $week), 'beforeFloor' => WeekOf::isBeforeFloor($week)],
+            'resultImages' => ResultImageUrls::for($section, $week),
             'troopers' => array_map(fn (array $row) => [
                 ...$row,
                 'loa' => $covers[$row['id']]->suppressesAtRisk() ? $covers[$row['id']]->toArray() : null,
