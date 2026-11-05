@@ -53,8 +53,6 @@ const WEEK = {
     previous: '2026-09-26',
     next: null,
     beforeFloor: false,
-    ended: true,
-    opensAt: '2026-10-10T00:00:00+00:00',
 };
 const HQ = { id: 3, label: '1/A/1-7', type: 'platoon' };
 const SECTIONS = [
@@ -458,13 +456,6 @@ describe('StaffReport page', () => {
         expect(wrapper.find('[data-testid="staff-report-sheet"]').text()).toBe('Not sent to the sheet yet.');
         expect(page({ canSend: false, sheetConfigured: true, report: { ...report, sheetPushedAt: '2026-10-10T12:01:00+00:00' } }).find('[data-testid="staff-report-sheet"]').text()).toBe('Sent to the sheet.');
         expect(page({ canSend: false, report }).find('[data-testid="staff-report-sheet"]').exists()).toBe(false);
-    });
-
-    it('tells the staff member a running week is sent once it ends', () => {
-        const wrapper = page({ canSend: false, week: { ...WEEK, ended: false } });
-
-        expect(wrapper.find('[data-testid="staff-report-form"]').exists()).toBe(false);
-        expect(wrapper.find('[data-testid="staff-report-unsent"]').text()).toContain('once the week ends');
     });
 
     it('tells a reader who is not the staff member that only they send it', () => {

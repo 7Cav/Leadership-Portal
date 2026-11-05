@@ -84,8 +84,7 @@ class StaffReportController extends Controller
 
         $report = $this->week->report($trooper, $weekStart);
         $beforeFloor = WeekOf::isBeforeFloor($weekStart);
-        $ended = WeekOf::hasEnded($weekStart, CarbonImmutable::now());
-        $canSend = $self && $report === null && $hq !== null && $trooper->status->isServing() && ! $beforeFloor && $ended
+        $canSend = $self && $report === null && $hq !== null && $trooper->status->isServing() && ! $beforeFloor
             && $this->access->maySend($user, $trooper);
         // Sent: the staff member may send it again, with a reason, until it locks at its deadline.
         $canEdit = $self && $report !== null && $hq !== null && $trooper->status->isServing() && ! $beforeFloor
@@ -105,9 +104,6 @@ class StaffReportController extends Controller
                 'previous' => $weekStart->subWeek()->toDateString(),
                 'next' => $weekStart->addWeek()->lessThanOrEqualTo($current) ? $weekStart->addWeek()->toDateString() : null,
                 'beforeFloor' => $beforeFloor,
-                // A running week is sent from the Saturday it ends.
-                'ended' => $ended,
-                'opensAt' => WeekOf::next($weekStart)->toIso8601String(),
             ],
             'report' => $report === null ? null : [
                 ...$this->withOwn($report, $hq),

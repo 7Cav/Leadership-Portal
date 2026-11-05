@@ -35,8 +35,3 @@ it('names the week by its Saturday and Friday', function (Closure $refusal) {
     'report before the floor' => [fn ($week) => InvalidReportContentException::weekBeforeFloor($week)],
     'training topic before the floor' => [fn ($week) => InvalidPlatoonTrainingTopicException::weekBeforeFloor($week)],
 ]);
-
-it('says a running week ends on its Friday and opens for its staff report the next day', function () {
-    expect(StaffReportRefusedException::weekNotEnded(CarbonImmutable::parse('2026-10-24 00:00:00', 'UTC'))->getMessage())
-        ->toBe('The week ending 30OCT26 (24OCT26 to 30OCT26) has not ended yet. You can send its staff report from 31OCT26.');
-});
