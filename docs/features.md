@@ -54,8 +54,9 @@ Your scope's units and troopers, from the cached Cav roster.
   week before (green up, red down, muted for none), a table of the same numbers, and the headcount of each unit under it as small multiples on one scale. For a
   battalion, each company's card also lists its platoons as compact sparkline rows on one shared scale, with each
   platoon's change. A sent week reads the report's frozen snapshot; another week from 2026-10-24 on is rebuilt from the
-  placement history; a week with neither is a gap. The numbers load only when the tab is open (a partial reload), in
-  three reads whatever the range or the size of the subtree, grandchildren included. Scoped like the roster (view as
+  placement history, and the running week is the live roster (a departure this week counts under Left); a week with
+  neither is a gap. The numbers load only when the tab is open (a partial reload), in
+  four reads whatever the range or the size of the subtree, grandchildren included. Scoped like the roster (view as
   previews it), read only. The old address `/roster/<id>/strength` redirects to the tab.
 - A unit picker for any unit in scope, and a breadcrumb trail up the chain. The ORBAT and the picker leave out line
   units with no troopers (see "Units with no troopers"); one opened by its link still shows. The picker opens scrolled to the unit on screen, highlighted.

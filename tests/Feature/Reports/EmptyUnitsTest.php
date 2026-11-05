@@ -212,20 +212,22 @@ it('keeps a unit listed as missing on a report sent before it was emptied', func
         ->assertInertia(fn (AssertableInertia $page) => $page->has('children', 1)->where('missingChildren', [$this->manned->id]));
 });
 
-it('keeps a section emptied by a move in its platoon\'s roll-up for the weeks it had troopers, and only those', function () {
+it('keeps a section emptied by a move in its platoon\'s roll-up for the weeks it ended with troopers, and only those', function () {
     // The section sent last week's report, then the sync moved both its troopers out on Tuesday of this week.
     sendEmptyUnitsReport($this->manned->id, CarbonImmutable::parse('2026-09-26 00:00:00', 'UTC'));
     $changes = $this->troopers->mapWithKeys(fn (Trooper $t) => [$t->id => [$this->manned->id, null]])->all();
     app(TrooperPlacementRepository::class)->record($changes, PlacementSource::Sync, CarbonImmutable::parse('2026-10-06 12:00:00', 'UTC'));
     $this->troopers->each(fn (Trooper $t) => $t->forceFill(['primary_section_id' => null])->save());
 
-    // Last week it sent, and this week it still had troopers until Tuesday: the platoon's drafts wait on it.
-    foreach (['2026-09-26', $this->week] as $week) {
-        $this->actingAs($this->admin)->get("/reports/{$this->platoon->id}/{$week}")
-            ->assertInertia(fn (AssertableInertia $page) => $page->where('children.0.id', $this->manned->id));
-    }
+    // Last week it sent, so last week's roll-up keeps it.
+    $this->actingAs($this->admin)->get("/reports/{$this->platoon->id}/2026-09-26")
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('children.0.id', $this->manned->id));
 
-    // Next week it is empty from the start, so it is left out.
+    // This week's roll call has nobody on it since Tuesday, so the running week's roll-up does not wait on it (#624).
+    $this->actingAs($this->admin)->get("/reports/{$this->platoon->id}/{$this->week}")
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('children', []));
+
+    // Nor does next week's, empty from the start.
     CarbonImmutable::setTestNow('2026-10-15 16:20:30');
     $this->actingAs($this->admin)->get("/reports/{$this->platoon->id}/2026-10-10")
         ->assertInertia(fn (AssertableInertia $page) => $page->where('children', []));
@@ -411,7 +413,7 @@ it('adds a section emptied since to the past weeks it sent on Home\'s sparkline'
         ->assertInertia(fn (AssertableInertia $page) => $page->where('kpis.history.3.kpis.strength', 3));
 });
 
-it('opens a past week for a section leader whose section has been emptied since, and lists it in that week\'s steps', function () {
+it('opens a past week for a section leader whose section has been emptied since, and leaves it out of the running week\'s steps', function () {
     $leader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $leader->id, 'unit_id' => $this->manned->id]);
     sendEmptyUnitsReport($this->manned->id, $this->weekStart->subWeek());
@@ -424,9 +426,10 @@ it('opens a past week for a section leader whose section has been emptied since,
     $this->actingAs($leader)->get('/reports?week=2026-09-26')
         ->assertRedirect("/reports/{$this->manned->id}/2026-09-26");
 
-    // It had troopers until Tuesday, so the running week's step matrix lists it, as Needs attention does.
+    // Its running week's roll call has nobody on it since Tuesday, so neither the step matrix nor Needs attention waits
+    // on it (#624).
     $this->actingAs($this->admin)->get('/home')
         ->assertInertia(fn (AssertableInertia $page) => $page
-            ->where('steps', fn ($steps) => collect($steps)->pluck('id')->all() === [$this->manned->id])
-            ->where('attention.items', fn ($items) => collect($items)->where('kind', 'holding')->pluck('unit.id')->all() === [$this->manned->id]));
+            ->where('steps', fn ($steps) => collect($steps)->pluck('id')->all() === [])
+            ->where('attention', fn ($attention) => collect($attention['items'] ?? [])->where('kind', 'holding')->isEmpty()));
 });

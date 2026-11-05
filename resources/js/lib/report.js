@@ -76,6 +76,9 @@ export function unitLabel(unit) {
 // What the deltas are measured against (5.4), as one sentence under the KPI grid.
 export function baselineText(baseline) {
     if (baseline?.kind === 'prior') return `Change compared with your sent report for the ${weekPhrase(baseline.week)}.`;
+    if (baseline?.kind === 'incomplete') {
+        return `No change shown: this week or the ${weekPhrase(baseline.week)} is missing a unit's report, so the two cover different units.`;
+    }
     if (baseline?.kind === 'no_prior') {
         return `No prior baseline: last week was not sent. The last sent report is for the ${weekPhrase(baseline.week)}.`;
     }

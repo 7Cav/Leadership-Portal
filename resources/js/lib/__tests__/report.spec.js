@@ -44,6 +44,10 @@ describe('baselineText', () => {
         expect(baselineText({ kind: 'no_prior', week: '2026-09-19T00:00:00+00:00' })).toMatch(/No prior baseline.*the week ending 25SEP26 \(19SEP26 to 25SEP26\)/);
         expect(baselineText({ kind: 'first', week: null })).toMatch(/^First report/);
     });
+
+    it('says why no change shows while either week is missing a unit report', () => {
+        expect(baselineText({ kind: 'incomplete', week: '2026-09-26T00:00:00+00:00' })).toMatch(/^No change shown: .*the week ending 02OCT26 .*different units/);
+    });
 });
 
 describe('readinessChecks', () => {

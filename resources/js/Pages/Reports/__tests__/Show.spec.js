@@ -431,6 +431,16 @@ describe('Reports/Show', () => {
         expect(put).not.toHaveBeenCalled();
     });
 
+    it('labels a roll-up headcount as roster data, apart from the sent reports the roll call figure sums', () => {
+        const unit = { id: 2, name: '1st Platoon', callsign: '1/A/1-7', type: 'platoon', isLeaf: false, parent: null };
+        const rollUp = mountShow({ unit, troopers: null, children: [], kpis: { ...KPIS, headcount: 9 } });
+        const section = mountShow({ kpis: { ...KPIS, headcount: 3 } });
+
+        const hint = (wrapper) => wrapper.findAll('[data-kpi="strength"] dd')[1].text();
+        expect(hint(rollUp)).toBe('In roll call from sent reports · Headcount 9 from the roster, with staff');
+        expect(hint(section)).toBe('Headcount 3, with staff · Assigned troopers');
+    });
+
     it('shows a roll-up with its children and warns about the ones holding up the chain', async () => {
         const wrapper = mountShow({
             unit: { id: 2, name: '1st Platoon', callsign: '1/A/1-7', type: 'platoon', isLeaf: false, parent: null },

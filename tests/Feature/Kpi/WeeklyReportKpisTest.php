@@ -2,6 +2,7 @@
 
 use App\Kpi\KpiDelta;
 use App\Kpi\KpiService;
+use App\Kpi\Ratio;
 use App\Kpi\ReportKpisUnavailableException;
 use App\Kpi\ReportSnapshot;
 use App\Kpi\UnitKpis;
@@ -106,3 +107,41 @@ it('refuses, naming the unit and week, when the prior week\'s sent snapshot cann
     'a ratio stored as a number' => [['strength' => 4, 'rc_30d' => 5, 'sp_30d' => 5, 'at_risk' => 0, 'on_loa' => 0, 'makeups' => 0, 'delta' => null]],
     'a count stored as text' => [['strength' => 'x', 'rc_30d' => ['numerator' => 0, 'denominator' => 0], 'sp_30d' => ['numerator' => 0, 'denominator' => 0], 'at_risk' => 0, 'on_loa' => 0, 'makeups' => 0, 'delta' => null]],
 ]);
+
+// #625: a roll-up short of a child's report sums fewer units than last week, so a change would only be the missing ones.
+function wrkSendRollup(Unit $unit, CarbonImmutable $week, UnitKpis $kpis, array $missing = []): void
+{
+    app(WeeklyReportRepository::class)->send(
+        $unit->id, $week, (new ReportSnapshot($kpis, null, $missing))->toArray(), null, User::factory()->create()->id, 'digest', null,
+    );
+}
+
+it('gives a roll-up no delta while a child report is missing, so it never freezes one', function () {
+    wrkSendRollup($this->platoon, $this->week->subWeek(), new UnitKpis(16, new Ratio(8, 16), new Ratio(8, 16), 0, 0, 0));
+
+    $snapshot = $this->snapshots->snapshot($this->platoon, $this->week);
+
+    expect($snapshot->missingChildren)->toBe([$this->section->id])
+        ->and($snapshot->delta)->toBeNull()
+        ->and($snapshot->toArray()['delta'])->toBeNull();
+});
+
+it('still diffs a roll-up whose children are all in, as last week\'s were', function () {
+    $kpis = app(KpiService::class)->forUnit($this->section, $this->week);
+    wrkSendRollup($this->section, $this->week, $kpis);
+    wrkSendRollup($this->platoon, $this->week->subWeek(), new UnitKpis(3, $kpis->rc30d, $kpis->sp30d, 0, 0, 0));
+
+    $snapshot = $this->snapshots->snapshot($this->platoon, $this->week);
+
+    expect($snapshot->missingChildren)->toBe([])
+        ->and($snapshot->delta)->not->toBeNull()
+        ->and($snapshot->delta->strength)->toBe($kpis->strength - 3);
+});
+
+it('gives a complete roll-up no delta against a last week that was sent without a child', function () {
+    $kpis = app(KpiService::class)->forUnit($this->section, $this->week);
+    wrkSendRollup($this->section, $this->week, $kpis);
+    wrkSendRollup($this->platoon, $this->week->subWeek(), UnitKpis::none(), missing: [$this->section->id]);
+
+    expect($this->snapshots->snapshot($this->platoon, $this->week)->delta)->toBeNull();
+});

@@ -162,6 +162,17 @@ class Eloquent implements TrooperRepository
             ->map(fn ($total) => (int) $total);
     }
 
+    public function servingPlacements(): array
+    {
+        return Trooper::query()
+            ->whereNotNull('primary_section_id')
+            ->whereIn('status', TrooperStatus::servingValues())
+            ->orderBy('id')
+            ->pluck('primary_section_id', 'id')
+            ->map(fn ($unitId) => (int) $unitId)
+            ->all();
+    }
+
     public function place(int $trooperId, int $sectionId): ?Trooper
     {
         // One conditional UPDATE rather than read-then-write: it only lands while the trooper is

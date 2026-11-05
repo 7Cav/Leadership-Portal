@@ -104,6 +104,15 @@ interface TrooperRepository
     public function countsBySection(): Collection;
 
     /**
+     * Where each serving trooper is placed now, trooper id => unit id, in trooper id order: the troopers
+     * {@see countsBySection()} counts, one by one, so the strength trends can tell who joined or left the running week
+     * against the live roster (#624). One query.
+     *
+     * @return array<int, int>
+     */
+    public function servingPlacements(): array;
+
+    /**
      * Place an unplaced trooper into `$sectionId` (any unit since 2026-10-24) by hand (2.7), marking `placement_source = manual`.
      * Touches only the two placement columns, never a synced roster field. One conditional write: it
      * applies only while the trooper is still unplaced and still on a roster, and returns the placed

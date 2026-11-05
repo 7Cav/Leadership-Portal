@@ -11,7 +11,8 @@ use InvalidArgumentException;
  * for a roll-up, the children it was sent without (`missing_children`).
  * Readers of a sent report rebuild it through `fromArray()`, never by recomputing it.
  *
- * `headcount` (#424) is the unit's whole serving headcount at send time, HQ staff and groups included ({@see Headcount}). It
+ * `headcount` (#424) is the unit's whole serving headcount for the report's week, HQ staff and groups included, read from
+ * the placement history for a week that has ended and from who is placed now for the running one ({@see Headcount}). It
  * is beside the six KPIs, never one of them: it is not summed by a roll-up and no rate reads it. A snapshot frozen
  * before it existed has none, and says so (null) rather than guessing.
  *

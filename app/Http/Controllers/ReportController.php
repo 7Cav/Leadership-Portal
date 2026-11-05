@@ -566,7 +566,8 @@ class ReportController extends Controller
     /**
      * What the deltas compare against (5.4): the prior week's sent snapshot; or, when that week
      * was not sent, the most recent earlier sent week ("no prior baseline"); or nothing at all —
-     * the unit's first report. For a sent report this is what was true when it froze: a week
+     * the unit's first report; or, when last week was sent but either week is a roll-up short of a child's report,
+     * "incomplete", with no change shown (#625). For a sent report this is what was true when it froze: a week
      * sent late, after it, never changes how it reads.
      *
      * @param  Collection<int, WeeklyReport>  $history
@@ -576,6 +577,14 @@ class ReportController extends Controller
     {
         if ($snapshot?->delta !== null) {
             return ['kind' => 'prior', 'week' => $weekStart->subWeek()->toIso8601String()];
+        }
+
+        // Last week was sent, but one of the two weeks is short of a child's report, so no change is shown (#625).
+        $prior = $history->first(fn (WeeklyReport $past) => $past->week_start->equalTo($weekStart->subWeek())
+            && ($sent === null || $past->sent_at?->lessThan($sent->sent_at)));
+
+        if ($snapshot !== null && $prior !== null && ($snapshot->missingChildren !== [] || ($prior->kpis['missing_children'] ?? []) !== [])) {
+            return ['kind' => 'incomplete', 'week' => $prior->week_start->toIso8601String()];
         }
 
         $latest = $history->first(fn (WeeklyReport $past) => $sent === null || $past->sent_at?->lessThan($sent->sent_at));
