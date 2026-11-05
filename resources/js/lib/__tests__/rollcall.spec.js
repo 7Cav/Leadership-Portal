@@ -119,6 +119,12 @@ describe('rollcall vocabulary', () => {
         ]);
     });
 
+    it('says "No troopers" in a neutral state for an empty section, never "All 0 signed"', () => {
+        const steps = stepsOf([]);
+
+        expect(steps.slice(0, 2).map((s) => [s.sub, s.state])).toEqual([['No troopers', 'neutral'], ['No troopers', 'neutral']]);
+    });
+
     it('marks a step done only once nothing is left on it', () => {
         expect(stepsOf([t(1, 'unsigned', null)]).map((s) => s.state)).toEqual(['warn', 'warn', 'todo']);
         expect(stepsOf([t(1, 'will_attend', 'present')], '2026-10-08T16:20:00Z').map((s) => s.state)).toEqual(['done', 'done', 'done']);

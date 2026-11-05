@@ -22,6 +22,8 @@ const props = defineProps({
     unit: { type: Object, required: true },
     week: { type: Object, required: true },
     sent: { type: Boolean, default: false },
+    // No saved row yet: "Not started" rather than a draft.
+    notStarted: { type: Boolean, default: false },
     sentAt: { type: String, default: null },
     sentBy: { type: String, default: null },
     kpis: { type: Object, default: null },
@@ -128,6 +130,7 @@ const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id ===
             </div>
             <div class="flex flex-none flex-col items-end gap-1.5">
                 <Badge v-if="sent" variant="success"><PhLockSimple aria-hidden="true" />Sent {{ timeOf(sentAt) }}</Badge>
+                <Badge v-else-if="notStarted" variant="outline">Not started</Badge>
                 <Badge v-else variant="warning"><PhPencilSimple aria-hidden="true" />Draft, live</Badge>
                 <Button variant="ghost" size="xs" data-testid="copy-summary" @click="copySummary"><PhCopy aria-hidden="true" />Copy summary</Button>
             </div>

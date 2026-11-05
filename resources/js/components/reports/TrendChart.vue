@@ -26,7 +26,7 @@ const H = 132;
 const PAD = { left: 30, right: 12, top: 8, bottom: 20 };
 
 const values = computed(() =>
-    props.points.map((p) => ({ week: p.week, current: p.current, rc: percent(p.rc), sp: percent(p.sp) })),
+    props.points.map((p) => ({ week: p.week, current: p.current, reported: p.reported ?? (p.rc !== null || p.sp !== null), rc: percent(p.rc), sp: percent(p.sp) })),
 );
 
 // The axis floor drops in steps of ten to fit the lowest value, so a 70–100 history is not
@@ -74,7 +74,7 @@ function onMove(event) {
     hover.value = Math.max(0, Math.min(values.value.length - 1, Math.round((event.clientX - rect.left - PAD.left) / step)));
 }
 
-const fmt = (v) => (v === null ? 'no sent report' : `${v}%`);
+const fmt = (v, reported) => (v !== null ? `${v}%` : reported ? 'no data' : 'no sent report');
 const hoverLabel = (v) => `${weekLabel(v.week)}${v.current ? (props.live ? ', this draft' : ', this report') : ''}`;
 </script>
 
@@ -173,8 +173,8 @@ const hoverLabel = (v) => `${weekLabel(v.week)}${v.current ? (props.live ? ', th
                 aria-hidden="true"
             >
                 <div class="mb-0.5 font-medium">{{ hoverLabel(values[hover]) }}</div>
-                <div class="tabular-nums">Roll call {{ fmt(values[hover].rc) }}</div>
-                <div class="tabular-nums">SP {{ fmt(values[hover].sp) }}</div>
+                <div class="tabular-nums">Roll call {{ fmt(values[hover].rc, values[hover].reported) }}</div>
+                <div class="tabular-nums">SP {{ fmt(values[hover].sp, values[hover].reported) }}</div>
             </div>
         </div>
 
@@ -187,8 +187,8 @@ const hoverLabel = (v) => `${weekLabel(v.week)}${v.current ? (props.live ? ', th
             <tbody>
                 <tr v-for="v in values" :key="v.week">
                     <th scope="row">{{ hoverLabel(v) }}</th>
-                    <td>{{ fmt(v.rc) }}</td>
-                    <td>{{ fmt(v.sp) }}</td>
+                    <td>{{ fmt(v.rc, v.reported) }}</td>
+                    <td>{{ fmt(v.sp, v.reported) }}</td>
                 </tr>
             </tbody>
         </table>

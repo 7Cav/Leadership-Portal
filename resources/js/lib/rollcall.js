@@ -223,19 +223,21 @@ export function feedLabel(telemetry) {
 // so a leader on any step sees that someone who was online is not accounted for, even with every trooper marked.
 export function stepsOf(troopers, postedAt = null, unlinked = 0) {
     const c = countsOf(troopers);
+    // With nobody in the section there is nothing to sign or mark: neutral, never "All 0 signed".
+    const empty = c.total === 0;
 
     return [
         {
             n: 1,
             title: 'Signatures',
-            sub: c.unsigned ? `${c.total - c.unsigned} of ${c.total} signed` : `All ${c.total} signed`,
-            state: c.unsigned ? 'warn' : 'done',
+            sub: empty ? 'No troopers' : c.unsigned ? `${c.total - c.unsigned} of ${c.total} signed` : `All ${c.total} signed`,
+            state: empty ? 'neutral' : c.unsigned ? 'warn' : 'done',
         },
         {
             n: 2,
             title: 'Section practice',
-            sub: c.unmarked ? `${c.unmarked} left to mark` : 'All marked',
-            state: c.unmarked || unlinked ? 'warn' : 'done',
+            sub: empty ? 'No troopers' : c.unmarked ? `${c.unmarked} left to mark` : 'All marked',
+            state: c.unmarked || unlinked ? 'warn' : empty ? 'neutral' : 'done',
             unlinked,
         },
         {

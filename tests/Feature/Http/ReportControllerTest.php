@@ -141,7 +141,10 @@ it('shows "no prior baseline" when only an older week was sent', function () {
             ->where('baseline.week', $this->weekStart->subWeeks(2)->toIso8601String())
             ->where('delta', null)
             ->where('trend.5.rc', ['numerator' => 6, 'denominator' => 8])
-            ->where('trend.6.rc', null));
+            ->where('trend.5.reported', true)
+            ->where('trend.6.rc', null)
+            ->where('trend.6.reported', false)
+            ->where('trend.7.reported', true));
 });
 
 it('renders a sent report from its frozen snapshot, never recomputed, with who sent it', function () {

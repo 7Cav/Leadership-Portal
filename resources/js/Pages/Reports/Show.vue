@@ -166,6 +166,8 @@ const staleReview = ref(false);
 const subjectTouched = ref(false);
 
 const save = reactive({ state: props.report.savedAt ? 'saved' : 'idle', at: props.report.savedAt });
+// A report nobody has saved yet (no row, `status: none`) is "Not started", as on Home; it is a draft from the first save.
+const notStarted = computed(() => props.report.status === 'none' && !save.at);
 let timer = null;
 // Bumped on every edit, so a save that lands can tell whether it carried the latest content.
 let revision = 0;
@@ -498,6 +500,7 @@ function useSuggestion() {
                     <WeekHeading :week="week.start" />
                     <Badge v-if="sent" variant="success" data-testid="status-badge"><PhLockSimple aria-hidden="true" />Sent</Badge>
                     <Badge v-else-if="editing" variant="warning" data-testid="status-badge">Being edited</Badge>
+                    <Badge v-else-if="notStarted" variant="outline" data-testid="status-badge">Not started</Badge>
                     <Badge v-else variant="warning" data-testid="status-badge">Draft</Badge>
                 </h1>
             </div>
@@ -557,8 +560,8 @@ function useSuggestion() {
                 >
                     <PhInfo class="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
                     <p>
-                        No attendance yet this week. The numbers below are zero until roll call is signed and section practice is marked;
-                        the draft fills in as you go.
+                        No roll call signatures or practice marks yet this week. The 30-day rates below include earlier weeks; this
+                        week's numbers fill in as roll call is signed and practice is marked.
                     </p>
                 </div>
 
@@ -740,6 +743,7 @@ function useSuggestion() {
                             :unit="unit"
                             :week="week"
                             :sent="sent"
+                            :not-started="notStarted"
                             :sent-at="report.sentAt"
                             :sent-by="report.sentBy"
                             :kpis="kpis"
