@@ -53,7 +53,7 @@ The header shows when your section practices, in Zulu, with your own time beside
 2. Pick the weekday and the start time in Zulu, then choose **Save slot**. **Remove slot** takes it away.
 3. To change one week only, use **This week only**: pick another day and time in the same Cav week and choose **Move this week**, or choose **Cancel this week**. **Back to the usual time** undoes either.
 
-A week the game server already read, or whose report was sent, keeps its time. You can still set or change the slot then: the editor says which week it takes effect from, the new slot starts with the next Cav week, and the header shows it as, for example, "Practice Wed 23 59Z from 07NOV26". This week only cannot be used on a week whose report was sent.
+A change or removal never touches a week before the one it starts with: those weeks keep the slot they had. The editor always names the first week it changes. On the current week that is this week, unless the game server already read it or its report was sent (or reopened for editing): it then keeps its time and the new slot starts with the next Cav week, shown in the header as, for example, "Practice Wed 23 59Z from 07NOV26". Opened from a past week, the editor changes the weekly slot from the first week it can, not that past week. This week only cannot be used on a week whose report was sent.
 
 If your section plays a game and has no slot, a warning sits at the top of the roll call. If your game's attendance is read from a game server, it also says why: without a slot, its practices are not captured automatically and make-ups are not given from the game server. Choose **Set the practice slot** on the warning to open the same editor. It goes away once a slot is saved, even one that starts next week.
 

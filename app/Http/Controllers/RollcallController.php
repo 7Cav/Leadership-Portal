@@ -849,8 +849,8 @@ class RollcallController extends Controller
             'telemetry' => $this->telemetryProps($section->id, $practice),
             // The section's weekly practice slot and this week's practice (#392), or null when it has none.
             'practiceSlot' => $this->schedule->props($section->id, $weekStart, $practice),
-            // The Cav week (`Y-m-d`) a slot set now starts with when the current week is held, or null for straight away.
-            'practiceSlotChangesFrom' => $this->setPracticeSlot->changesFrom($section->id)?->toDateString(),
+            // The Cav week (`Y-m-d`) a slot change made now starts with: the current week, or the next when it is held.
+            'practiceSlotChangesFrom' => $this->setPracticeSlot->changesFrom($section->id)->toDateString(),
             // True when the section needs a slot and has none (plays a game, has troopers): the page warns at the top.
             'practiceSlotMissing' => $slotMissing !== [],
             // Whether the section's game is read from its server at all; the warning says what a slot changes only then.
