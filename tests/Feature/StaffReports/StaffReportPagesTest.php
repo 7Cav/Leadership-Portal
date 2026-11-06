@@ -182,6 +182,20 @@ it('lets the staff member send the running week before it ends', function () {
     $this->actingAs($this->tree['users']['psg'])->get('/staff-report')->assertRedirect($this->url);
 });
 
+it('opens the running week from the sidebar once the ended week is sent', function () {
+    sendOwnStaffReport($this->tree['users']['psg'], $this->psg, false, []);
+
+    $this->actingAs($this->tree['users']['psg'])->get('/staff-report')
+        ->assertRedirect(route('staff-report.show', ['trooper' => $this->psg->id, 'week' => '2026-10-10']));
+});
+
+it('opens the running week from the sidebar for a trooper with no HQ in the ended week', function () {
+    $sl = $this->tree['users']['sl'];
+
+    $this->actingAs($sl)->get('/staff-report')
+        ->assertRedirect(route('staff-report.show', ['trooper' => pageTrooperOf($sl)->id, 'week' => '2026-10-10']));
+});
+
 it('shows "Staff report" to HQ staff who read only their own and "Staff reports" to readers', function (string $viewer, ?string $nav) {
     $this->actingAs($this->tree['users'][$viewer])->get('/home')->assertInertia(fn (AssertableInertia $page) => $page->where('features.staffReports', $nav));
 })->with([
