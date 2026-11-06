@@ -219,6 +219,8 @@ describe('Steam', function () {
     });
 });
 
+// Laravel's trim still runs here; it strips only \s (Unicode White_Space under /u), U+FEFF, U+200B and U+200E at the
+// edges. U+3164 is a letter, not White_Space, and U+200F is not in that set, so both arrive as typed.
 it('passes player names to the import untouched by the request text cleaner', function (string $text) {
     $seen = null;
     $this->mock(ImportGameIdentities::class)->shouldReceive('preview')->once()

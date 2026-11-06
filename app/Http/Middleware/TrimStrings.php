@@ -23,11 +23,12 @@ class TrimStrings extends BaseTrimStrings
         'rollcall/*/unmatched/*',
     ];
 
+    /** Whether this request is on one of those paths: they keep Laravel's trim, as they always had, but skip the clean. */
+    private bool $raw = false;
+
     public function handle($request, Closure $next)
     {
-        if ($request instanceof Request && $request->is(...self::RAW_PATHS)) {
-            return $next($request);
-        }
+        $this->raw = $request instanceof Request && $request->is(...self::RAW_PATHS);
 
         return parent::handle($request, $next);
     }
@@ -40,6 +41,8 @@ class TrimStrings extends BaseTrimStrings
             return $value;
         }
 
-        return FreeText::clean(parent::transform($key, $value));
+        $trimmed = parent::transform($key, $value);
+
+        return $this->raw ? $trimmed : FreeText::clean($trimmed);
     }
 }
