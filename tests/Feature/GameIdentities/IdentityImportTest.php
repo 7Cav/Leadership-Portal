@@ -218,3 +218,20 @@ describe('Steam', function () {
         $mock->assertSentCount(ImportGameIdentities::STEAM_LOOKUPS);
     });
 });
+
+it('passes player names to the import untouched by the request text cleaner', function (string $text) {
+    $seen = null;
+    $this->mock(ImportGameIdentities::class)->shouldReceive('preview')->once()
+        ->andReturnUsing(function ($actor, string $received) use (&$seen) {
+            $seen = $received;
+
+            return [];
+        });
+
+    previewImport($this, $text)->assertOk();
+
+    expect($seen)->toBe($text);
+})->with([
+    'only a Hangul filler' => ["Novak.E, HLL, \u{3164}"],
+    'a right-to-left mark' => ["Novak.E, HLL, Name\u{200F}x"],
+]);
