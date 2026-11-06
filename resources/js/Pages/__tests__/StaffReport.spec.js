@@ -16,7 +16,15 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => {
         Head: { template: '<head></head>' },
         Link: { props: ['href'], template: '<a :href="href"><slot /></a>' },
         useForm: (data) => {
-            const form = reactive({ ...data, errors: {}, processing: false });
+            const initial = JSON.stringify(data);
+            const form = reactive({
+                ...data,
+                errors: {},
+                processing: false,
+                get isDirty() {
+                    return JSON.stringify(Object.fromEntries(Object.keys(data).map((key) => [key, this[key]]))) !== initial;
+                },
+            });
             let transform = (value) => value;
             form.transform = (fn) => {
                 transform = fn;
@@ -217,6 +225,31 @@ describe('StaffReport page', () => {
         expect(posted).toHaveBeenCalledTimes(1);
         wrapper.unmount();
         document.body.innerHTML = '';
+    });
+
+    it('asks before leaving with picks not sent, but not on Send', async () => {
+        const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+        const leave = (method) => {
+            const event = new CustomEvent('inertia:before', { cancelable: true, detail: { visit: { method, url: new URL('http://localhost/') } } });
+            document.dispatchEvent(event);
+
+            return event.defaultPrevented;
+        };
+        const wrapper = page();
+        expect(leave('get')).toBe(false);
+        expect(confirm).not.toHaveBeenCalled();
+
+        await wrapper.find('[data-testid="attended-yes"]').trigger('click');
+        expect(leave('post')).toBe(false);
+        expect(confirm).not.toHaveBeenCalled();
+        expect(leave('get')).toBe(true);
+        expect(confirm).toHaveBeenCalledWith('Leave this page? Your changes are not saved.');
+
+        wrapper.unmount();
+        confirm.mockClear();
+        expect(leave('get')).toBe(false);
+        expect(confirm).not.toHaveBeenCalled();
+        confirm.mockRestore();
     });
 
     it('sends anyway from the question', async () => {
