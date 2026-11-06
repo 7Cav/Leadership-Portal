@@ -222,6 +222,24 @@ it('requires a reason to send, changing nothing without one', function () {
         ->and(AuditLogEntry::query()->exists())->toBeFalse();
 });
 
+it('refuses a send reason of only invisible characters', function () {
+    $this->actingAs($this->leader)->post(reportUrl($this->section, $this->week, '/send'), ['reason' => "\u{2800}\u{200B}"])
+        ->assertSessionHasErrors('reason');
+
+    expect(WeeklyReport::query()->exists())->toBeFalse();
+});
+
+it('saves draft notes of only a Braille blank as no notes, and drops bidi controls', function () {
+    $this->actingAs($this->leader)->put(reportUrl($this->section, $this->week), [
+        'notes' => "\u{2800}",
+        'training_subject' => "Room\u{202E} clearing",
+    ])->assertSessionHasNoErrors();
+
+    $report = WeeklyReport::query()->sole();
+    expect($report->notes)->toBeNull()
+        ->and($report->training_subject)->toBe('Room clearing');
+});
+
 it('records the send with its reason in the audit log', function () {
     $this->actingAs($this->leader)->post(reportUrl($this->section, $this->week, '/send'), [
         'reason' => 'Weekly report (sent with open items: Training subject filled)',
