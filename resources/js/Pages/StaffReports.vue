@@ -13,6 +13,7 @@ import { Card } from '@/components/ui/card';
 import { weekLabel, weekPhrase } from '@/lib/forumDate';
 import WeekHeading from '@/components/week/WeekHeading.vue';
 import { stamp } from '@/lib/report';
+import { useDueCountdown } from '@/composables/useDueCountdown';
 import { attendedText, sheetText } from '@/lib/staffReport';
 
 // The staff reports overview: every platoon, company and battalion HQ staff member whose staff report the viewer reads, for one
@@ -31,6 +32,9 @@ const props = defineProps({
     // One listed HQ's unit health for the week ({@see StaffHqHealth.vue}), with `hqs` to switch between them, or null.
     health: { type: Object, default: null },
 });
+
+// Counts down only for the viewer's own unsent report.
+const dueNote = useDueCountdown(() => props.week.due, { sent: () => props.own?.status !== 'notSent' });
 
 const STATUS = {
     sent: { label: 'Sent', variant: 'success' },
@@ -83,7 +87,7 @@ function openRow(event, row) {
                 <Button v-else variant="ghost" size="icon-sm" disabled aria-label="Next week, not open yet"><PhCaretRight /></Button>
             </nav>
             <p class="w-full text-xs text-muted-foreground sm:ml-auto sm:w-auto sm:text-right" data-testid="due-line">
-                <template v-if="week.ended">Due {{ stamp(week.due) }}</template>
+                <template v-if="week.ended">Due {{ stamp(week.due) }}<template v-if="dueNote"> ({{ dueNote }})</template></template>
                 <template v-else>Sent once the week ends</template>
             </p>
         </section>

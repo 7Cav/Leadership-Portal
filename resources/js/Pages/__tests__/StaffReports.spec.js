@@ -184,4 +184,19 @@ describe('StaffReports', () => {
         expect(flags[0].attributes('height')).toBe('12');
         expect(decodeURIComponent(flags[0].attributes('src'))).not.toContain('data-text');
     });
+
+    it('counts down to the due time while the viewer has not sent theirs', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-10-10T17:59:00Z'));
+        const own = row({ status: 'notSent', attended: null, practices: [], metRule: null });
+
+        const unsent = mount(StaffReports, { props: { week: WEEK, own, groups: [] } });
+        const sent = mount(StaffReports, { props: { week: WEEK, own: row(), groups: [] } });
+
+        expect(unsent.find('[data-testid="due-line"]').text()).toMatch(/\(in 6h\)$/);
+        expect(sent.find('[data-testid="due-line"]').text()).not.toContain('(in');
+        unsent.unmount();
+        sent.unmount();
+        vi.useRealTimers();
+    });
 });

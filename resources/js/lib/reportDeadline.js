@@ -27,3 +27,21 @@ export function reportDeadline(due, now, sent = false, overdueUntil = null) {
 
     return left > 0 ? { overdue: false, text: `Report due in ${spanLabel(left)}` } : { overdue: true, text: `Report overdue by ${spanLabel(-left)}` };
 }
+
+export const COUNTDOWN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+// The short note after a "Due <stamp>" line: `in 2d` from 48 hours out, `in 6h` from an hour, else
+// `in 40m`; `overdue` once it has passed. Null a week or more out, or with no due time.
+export function dueCountdown(due, now) {
+    if (!due) return null;
+
+    const left = new Date(due).getTime() - now;
+    if (left <= 0) return 'overdue';
+    if (left >= COUNTDOWN_WINDOW_MS) return null;
+
+    const minutes = Math.floor(left / 60_000);
+    if (minutes >= 48 * 60) return `in ${Math.floor(minutes / (24 * 60))}d`;
+    if (minutes >= 60) return `in ${Math.floor(minutes / 60)}h`;
+
+    return `in ${Math.max(1, minutes)}m`;
+}
