@@ -270,3 +270,5 @@ deptrac:
       # The shell's scope label leaves out the empty line units the unit switcher hides, by the one "has troopers"
       # definition (Headcount, #442).
       - Kpi
+      # The shell's report due banner opens on the Saturday a Cav week ends and closes at its deadline (WeekOf).
+      - Support\Time
