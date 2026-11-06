@@ -212,11 +212,10 @@ it('refuses a trooper who files no staff report: a section trooper, a staff depa
     }],
 ]);
 
-it('refuses a week before the floor, a future week and the running week', function (string $week, string $reason) {
+it('refuses a week before the floor and a future week', function (string $week, string $reason) {
     expect(staffReportRefusal(fn () => sendStaffReport($this->tree['users']['psg'], $this->psg, false, [], CarbonImmutable::parse($week, 'UTC'))))->toBe($reason);
 })->with([
     'before the floor' => ['2026-05-02', 'before_floor'],
-    'the running week' => ['2026-10-10', 'not_ended'],
     'next week' => ['2026-10-17', 'future'],
 ]);
 

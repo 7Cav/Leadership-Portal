@@ -172,7 +172,10 @@ it('lets the staff member send the running week before it ends', function () {
         ->has('sections'));
 
     sendOwnStaffReport($this->tree['users']['psg'], $this->psg, false, [], '2026-10-10');
-    expect(StaffReport::query()->where('trooper_id', $this->psg->id)->where('week_start', '2026-10-10')->exists())->toBeTrue();
+
+    // Sent mid-week, it can still be edited until its deadline.
+    $this->actingAs($this->tree['users']['psg'])->get(route('staff-report.show', ['trooper' => $this->psg->id, 'week' => '2026-10-10']))
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('canSend', false)->where('canEdit', true)->whereNot('report', null));
 
     // Still the ended week from the sidebar after its deadline: it is the one owed.
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-11 09:00:00', 'UTC'));
