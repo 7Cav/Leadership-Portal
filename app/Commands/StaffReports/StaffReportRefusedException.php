@@ -64,11 +64,6 @@ class StaffReportRefusedException extends RuntimeException
         return new self('A future week cannot be reported yet.', 'future', 'report');
     }
 
-    public static function weekNotEnded(CarbonInterface $weekStart): self
-    {
-        return new self('The '.WeekLabel::phrase($weekStart).' has not ended yet. You can send its staff report from '.WeekLabel::date($weekStart->addWeek()).'.', 'not_ended', 'report');
-    }
-
     public static function alreadySent(CarbonInterface $weekStart): self
     {
         return new self('The staff report for the '.WeekLabel::phrase($weekStart).' was already sent, so it can no longer change.', 'already_sent', 'report');

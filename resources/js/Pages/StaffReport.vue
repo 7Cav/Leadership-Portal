@@ -49,7 +49,7 @@ const props = defineProps({
     self: { type: Boolean, default: false },
     // The platoon, company or battalion HQ they were on when the week ended, `{ id, label, type }`, or null: no report that week.
     hq: { type: Object, default: null },
-    // `{ date, start, due, overdueUntil, previous, next, beforeFloor, ended, opensAt }`.
+    // `{ date, start, due, overdueUntil, previous, next, beforeFloor }`.
     week: { type: Object, required: true },
     // The report as sent, `{ sentAt, attended, practiceType, ftx: { name, date }, officeHour: { date, note }, otherEvents,
     // notes, sheetPushedAt, practices: [{ sectionId, section, own }], revisions }`, or null. `revisions` are the versions an
@@ -679,7 +679,6 @@ function entryNote(id) {
         <Card v-else class="py-10" data-testid="staff-report-unsent">
             <EmptyState :icon="PhUserCheck" title="Not sent yet">
                 <template v-if="week.beforeFloor">This week is too far back to send.</template>
-                <template v-else-if="self && week.ended === false">You can send it from {{ stamp(week.opensAt) }}, once the week ends.</template>
                 <template v-else-if="self">You can no longer send this staff report.</template>
                 <template v-else>Only {{ trooper.displayName }} can send their staff report.</template>
             </EmptyState>

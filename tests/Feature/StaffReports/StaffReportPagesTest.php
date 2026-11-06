@@ -29,9 +29,9 @@ beforeEach(function () {
     $this->url = route('staff-report.show', ['trooper' => $this->psg->id, 'week' => '2026-10-03']);
 });
 
-function sendOwnStaffReport(User $user, Trooper $trooper, bool $attended, array $sectionIds): StaffReport
+function sendOwnStaffReport(User $user, Trooper $trooper, bool $attended, array $sectionIds, string $week = '2026-10-03'): StaffReport
 {
-    return app(SendStaffReportHandler::class)->handle($user, new SendStaffReport($trooper->id, CarbonImmutable::parse('2026-10-03', 'UTC'), $attended, $sectionIds));
+    return app(SendStaffReportHandler::class)->handle($user, new SendStaffReport($trooper->id, CarbonImmutable::parse($week, 'UTC'), $attended, $sectionIds));
 }
 
 function pageTrooperOf(User $user): Trooper
@@ -165,13 +165,17 @@ it('answers 404 for a week that is not a Cav week or has not started', function 
     $this->actingAs($this->tree['users']['psg'])->get(route('staff-report.show', ['trooper' => $this->psg->id, 'week' => $week]))->assertNotFound();
 })->with(['a Monday' => ['2026-10-05'], 'next week' => ['2026-10-17']]);
 
-it('opens the running week read-only, saying from when it can be sent', function () {
+it('lets the staff member send the running week before it ends', function () {
     $this->actingAs($this->tree['users']['psg'])->get(route('staff-report.show', ['trooper' => $this->psg->id, 'week' => '2026-10-10']))
         ->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
-        ->where('canSend', false)
-        ->where('week.ended', false)
-        ->where('week.opensAt', '2026-10-17T00:00:00+00:00')
-        ->where('sections', []));
+        ->where('canSend', true)
+        ->has('sections'));
+
+    sendOwnStaffReport($this->tree['users']['psg'], $this->psg, false, [], '2026-10-10');
+
+    // Sent mid-week, it can still be edited until its deadline.
+    $this->actingAs($this->tree['users']['psg'])->get(route('staff-report.show', ['trooper' => $this->psg->id, 'week' => '2026-10-10']))
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('canSend', false)->where('canEdit', true)->whereNot('report', null));
 
     // Still the ended week from the sidebar after its deadline: it is the one owed.
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-11 09:00:00', 'UTC'));
@@ -218,11 +222,11 @@ it('puts the unsent report on Home until it is sent', function () {
 });
 
 it('puts nothing on Home for the running week, before or after the deadline of the week that ended', function () {
-    // Mid-week: the week has not ended, so there is nothing to send yet.
+    // Mid-week: the running week can be sent, but Home only reminds once it is due.
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-08 20:00:00', 'UTC'));
     $this->actingAs($this->tree['users']['psg'])->get('/home')->assertInertia(fn (AssertableInertia $page) => $page->where('staffReport', null));
 
-    // After the deadline the reminder goes; the running week is sent once it ends.
+    // After the deadline the reminder goes.
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-11 00:30:00', 'UTC'));
     $this->actingAs($this->tree['users']['psg'])->get('/home')->assertInertia(fn (AssertableInertia $page) => $page->where('staffReport', null));
 });

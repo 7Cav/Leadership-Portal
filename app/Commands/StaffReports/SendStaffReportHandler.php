@@ -103,11 +103,7 @@ class SendStaffReportHandler
             throw StaffReportRefusedException::future();
         }
 
-        // A week is reported once it is over, so the HQ it goes to is the one they ended it on.
-        if (! WeekOf::hasEnded($weekStart, CarbonImmutable::now())) {
-            throw StaffReportRefusedException::weekNotEnded($weekStart);
-        }
-
+        // A running week may be sent before it ends, and edited until its deadline; it goes to the HQ they are on now.
         $hq = $this->access->owes($trooper, $weekStart) ?? throw StaffReportRefusedException::notOwed($trooper->display_name, $weekStart);
         $fields = $this->fields($command, $weekStart, $hq);
         $sections = $this->pickedSections($command, $fields['practice_type']);
