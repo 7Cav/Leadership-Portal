@@ -34,5 +34,7 @@ final readonly class CountingMark
         public ?int $sectionId = null,
         /** The mark as recorded, whether or not it counts yet; null while unmarked. */
         public ?AttendanceStatus $recorded = null,
+        /** When the practice ends, while `recorded` waits for it to count (#634); null otherwise. */
+        public ?CarbonImmutable $pendingUntil = null,
     ) {}
 }

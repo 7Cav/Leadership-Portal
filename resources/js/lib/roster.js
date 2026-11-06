@@ -3,7 +3,7 @@
 // computed by the shared KPI service (AD-21). What lives here is presentation: how a week's raw
 // marks render as a cell, how rows sort, and how a search matches.
 
-import { forumDate } from './forumDate';
+import { forumDate, zuluTime } from './forumDate';
 
 // Junior to senior; anything unknown sorts below the known ranks.
 export const RANK_ORDER = [
@@ -141,9 +141,15 @@ export function weekCell(mark, weekStart, { current = false, joined = null, excu
     const rc = RC_BY_SIGNATURE[mark.rollcall] ?? (auto ? 'ex' : current ? 'open' : 'bad');
     const autoPractice = auto && (!mark.status || (mark.source === 'auto' && mark.status !== 'present' && mark.status !== 'makeup'));
     let sp = autoPractice ? 'ex' : SP_BY_STATUS[mark.status];
+    if (!sp && SP_BY_STATUS[mark.pending]) return { rc, sp: SP_BY_STATUS[mark.pending], pending: pendingTitle(mark.pendingUntil) };
     if (!sp) sp = mark.held ? 'open' : current ? 'pending' : 'nil';
 
     return { rc, sp };
+}
+
+/** Why a recorded SP mark shows dimmed (#634): it counts only once its practice is over. */
+export function pendingTitle(until) {
+    return until ? `Counts once the practice ends at ${zuluTime(until)}` : 'Counts once the practice ends';
 }
 
 function hasLeft(mark, weekStart, { current, departedAt, departed }) {
