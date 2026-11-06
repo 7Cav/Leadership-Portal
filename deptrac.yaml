@@ -293,3 +293,5 @@ deptrac:
       - Kpi
       # Runs a request in the hands-on tutorial, and shares its steps with the shell.
       - Tutorial
+      # The shell's report due banner opens on the Saturday a Cav week ends and closes at its deadline (WeekOf).
+      - Support\Time

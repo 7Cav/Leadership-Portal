@@ -8,10 +8,14 @@ use App\Authorization\ScopeResolver;
 use App\Authorization\StaffReportAccess;
 use App\Kpi\Headcount;
 use App\Repositories\AdminBilletRepository;
+use App\Repositories\StaffReportRepository;
 use App\Repositories\UnitGuidonRepository;
+use App\Repositories\WeeklyReportRepository;
+use App\Support\Time\WeekOf;
 use App\Tutorial\TutorialSandbox;
 use App\Tutorial\TutorialSession;
 use App\Tutorial\TutorialSteps;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -37,6 +41,8 @@ class HandleInertiaRequests extends Middleware
         private readonly TutorialSandbox $sandbox,
         private readonly TutorialSession $tutorial,
         private readonly TutorialSteps $steps,
+        private readonly WeeklyReportRepository $weeklyReports,
+        private readonly StaffReportRepository $sentStaffReports,
     ) {}
 
     /**
@@ -149,6 +155,10 @@ class HandleInertiaRequests extends Middleware
             // A one-line outcome a write flashed for the next render (`notice`), which the shell shows as a toast: what
             // happened to a request whose result is not on the page yet, like a leave sync queued behind a running one.
             'flash' => fn () => ['notice' => $request->hasSession() ? $request->session()->get('notice') : null],
+            // The reports this user still owes for the week that just ended, for the shell's due banner: from the Saturday
+            // the week ends until its 2359Z deadline, only while unsent. Null outside that window, and while viewing as or
+            // acting as someone, so the banner is only ever about the signed-in user's own reports.
+            'reportsDue' => fn () => $this->reportsDue($request),
             // Optional tools the shell's navigation shows only when switched on (#115: Settings →
             // Demo data, DEMO_TOOLS=true; #409: the docs, DOCS_ENABLED=true). Navigation only — each
             // screen enforces its own gate.
@@ -161,6 +171,49 @@ class HandleInertiaRequests extends Middleware
                 'staffReports' => $request->user() === null ? null : $this->staffReports->navFor($request->user()),
             ],
         ];
+    }
+
+    /**
+     * The weekly report of each line unit the user commands (billet or acting lead, the units whose report they send)
+     * and their own staff report (the rule Home's reminder uses), unsent for the week that just ended. Null when none.
+     *
+     * @return array{due: string, reports: list<array{kind: string, label: ?string, href: string}>}|null
+     */
+    private function reportsDue(Request $request): ?array
+    {
+        $user = $request->user();
+        $now = CarbonImmutable::now();
+        $weekStart = WeekOf::lastEnded($now);
+        $due = WeekOf::reportDue($weekStart);
+
+        if ($user === null || $now->greaterThan($due) || $this->acting($request) || $this->scope->activeViewAs($user) !== null) {
+            return null;
+        }
+
+        $week = $weekStart->toDateString();
+        $units = $this->scope->commandedBy($user)->filter(fn ($unit) => $unit->isLine())->values();
+        // One query for the week's reports; a reopened report is a draft again, so it is owed.
+        $sent = $units->isEmpty() ? collect() : $this->weeklyReports->forUnits($units->pluck('id')->all(), $weekStart)
+            ->filter(fn ($report) => $report->status->value === 'sent');
+        $reports = $units
+            ->reject(fn ($unit) => $sent->has($unit->id))
+            ->map(fn ($unit) => [
+                'kind' => 'unit',
+                'label' => $unit->callsign ?? $unit->name,
+                'href' => route('reports.show', ['unit' => $unit->id, 'week' => $week]),
+            ])
+            ->values();
+
+        $trooper = $this->staffReports->ownTrooper($user);
+        if ($trooper !== null && $this->staffReports->owes($trooper, $weekStart) !== null && $this->sentStaffReports->find($trooper->id, $weekStart) === null) {
+            $reports->push([
+                'kind' => 'staff',
+                'label' => null,
+                'href' => route('staff-report.show', ['trooper' => $trooper->id, 'week' => $week]),
+            ]);
+        }
+
+        return $reports->isEmpty() ? null : ['due' => $due->toIso8601String(), 'reports' => $reports->all()];
     }
 
     private function acting(Request $request): bool
