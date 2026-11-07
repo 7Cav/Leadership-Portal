@@ -33,7 +33,7 @@ afterEach(fn () => CarbonImmutable::setTestNow());
 function editStaff(User $actor, Trooper $trooper, bool $attended, array $sectionIds, ?string $reason = null, ?string $notes = null): StaffReport
 {
     return app(SendStaffReportHandler::class)->handle($actor, new SendStaffReport(
-        $trooper->id, staffPracticeWeek(), $attended, $sectionIds, notes: $notes, reason: $reason,
+        $trooper->id, staffPracticeWeek(), $attended, $sectionIds, notes: $notes, reason: $reason, presenceType: 'none',
     ));
 }
 
@@ -96,8 +96,8 @@ it('offers Edit report on the staff member\'s own page only until the deadline',
     $url = "/staff-report/{$this->psg->id}/2026-10-03";
 
     $this->actingAs($this->user)->get($url)->assertInertia(fn (AssertableInertia $p) => $p->where('canEdit', true)->where('canSend', false));
-    $this->actingAs($this->user)->post($url, ['attended' => false, 'section_ids' => []])->assertSessionHasErrors('reason');
-    $this->actingAs($this->user)->post($url, ['attended' => false, 'section_ids' => [], 'reason' => 'Wrong answer'])->assertRedirect($url);
+    $this->actingAs($this->user)->post($url, ['presence_type' => 'none', 'attended' => false, 'section_ids' => []])->assertSessionHasErrors('reason');
+    $this->actingAs($this->user)->post($url, ['presence_type' => 'none', 'attended' => false, 'section_ids' => [], 'reason' => 'Wrong answer'])->assertRedirect($url);
     expect(StaffReport::query()->sole()->attended)->toBeFalse();
 
     CarbonImmutable::setTestNow($this->due->addMinute());

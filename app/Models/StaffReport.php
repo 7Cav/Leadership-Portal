@@ -13,13 +13,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * only on reports sent before presence was its own question), which sections (`practices`, `[{section_id, section}]`),
  * their presence (`presence_type`: a public server hour, an office hour with `office_hour_date` and `office_hour_note`,
  * or none), the other events they attended and their notes, and what the game servers said at send (`presence_check`,
- * `presence_source` for the section practice, `public_server_check` for a public server hour), all frozen as sent. UNIQUE on `(trooper_id, week_start)`. A row exists only once the report is sent. The staff member
+ * `presence_source` for the section practice, `public_server_check` and `public_server_minutes` for a public server hour), all frozen as sent. UNIQUE on `(trooper_id, week_start)`. A row exists only once the report is sent. The staff member
  * may send it again, with a reason, until it locks at its deadline (`WeekOf::reportDue()`): the row is rewritten and
  * the version it replaces is appended to `revisions`. Otherwise only `sheet_pushed_at` and `sheet_range`, the Google Sheet
  * push's own bookkeeping, change. Written only by
  * `StaffReportRepository`, from the audited `SendStaffReport` Command and the queued sheet push.
  */
-#[Fillable(['trooper_id', 'unit_id', 'week_start', 'attended', 'practice_type', 'ftx_name', 'ftx_date', 'office_hour_date', 'office_hour_note', 'presence_type', 'practices', 'other_events', 'notes', 'presence_check', 'presence_source', 'public_server_check', 'sent_at', 'sent_by'])]
+#[Fillable(['trooper_id', 'unit_id', 'week_start', 'attended', 'practice_type', 'ftx_name', 'ftx_date', 'office_hour_date', 'office_hour_note', 'presence_type', 'practices', 'other_events', 'notes', 'presence_check', 'presence_source', 'public_server_check', 'public_server_minutes', 'sent_at', 'sent_by'])]
 class StaffReport extends Model
 {
     protected function casts(): array
@@ -33,6 +33,7 @@ class StaffReport extends Model
             'practices' => 'array',
             'sheet_pushed_at' => 'immutable_datetime',
             'revisions' => 'array',
+            'public_server_minutes' => 'integer',
         ];
     }
 

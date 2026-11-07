@@ -21,7 +21,7 @@ use RuntimeException;
  * - `practice_type`: a practice type the HQ does not report (SP or FTX on a platoon or company HQ; SP, operation,
  *   class or event on a battalion HQ), a named type or its fields with "No", or sections with an operation, class or event;
  * - `ftx`: a named type (FTX, operation, class, event) without a name or with a date outside the week, or its fields on an SP;
- * - `presence`: a presence answer other than public server, office hour or none;
+ * - `presence`: no presence answer, or one other than public server, office hour or none;
  * - `office_hour`: an office hour without its date in the week or its note, or its fields on another answer;
  * - `too_long`: free text over its limit.
  */
@@ -123,6 +123,11 @@ class StaffReportRefusedException extends RuntimeException
     public static function sectionsWithEvent(): self
     {
         return new self('An operation, a class or an event takes no section. Clear the sections, or pick Section practice (SP).', 'practice_type', 'section_ids');
+    }
+
+    public static function presenceMissing(): self
+    {
+        return new self('Answer the presence question.', 'presence', 'presence_type');
     }
 
     public static function unknownPresence(): self

@@ -17,9 +17,10 @@ use Carbon\CarbonImmutable;
  * whole Cav week (up to now, while it runs) on every selected public server of the game in effect for their HQ
  * ({@see UnitGame}), read through each server's sources in order ({@see CaptureSources::publicFor()}) and summed.
  *
- * `confirmed` at {@see MINUTES} or more. `conflict` under it, when every public server answered with minutes.
- * `no_data` when there is nothing to compare: no game, no linked game identity for it, no public server set up, a
- * server that could not be read or that only knows who was seen. Never blocks the send.
+ * `confirmed` at {@see MINUTES} or more, `conflict` under it, also when some server could not be read: the minutes
+ * found are kept with it, so a reader sees how much the servers did show. `no_data`, with no minutes, only when there
+ * is nothing to compare at all: no game, no linked game identity for it, no public server set up, or none readable.
+ * A server that only knows who was seen (no minutes) counts as not readable. Never blocks the send.
  */
 class PublicServerHour
 {
@@ -32,22 +33,26 @@ class PublicServerHour
         private readonly UnitRepository $units,
     ) {}
 
-    public function check(int $trooperId, Unit $hq, CarbonImmutable $weekStart): string
+    /**
+     * @return array{check: string, minutes: ?int}
+     */
+    public function check(int $trooperId, Unit $hq, CarbonImmutable $weekStart): array
     {
+        $noData = ['check' => StaffReport::PRESENCE_NO_DATA, 'minutes' => null];
         $gameId = (UnitGame::resolve($this->units->tree())[$hq->id] ?? null)?->gameId;
         $game = $gameId === null ? null : $this->games->find($gameId);
         $identity = $game === null ? null : $this->identities->forTrooper($trooperId)->firstWhere('game_id', $game->id);
         $servers = $game === null ? [] : $this->sources->publicFor($game);
 
         if ($identity === null || $servers === []) {
-            return StaffReport::PRESENCE_NO_DATA;
+            return $noData;
         }
 
         $platformId = mb_strtolower((string) $identity->platform_id);
         $start = $weekStart->utc()->toDateTimeImmutable();
         $end = min($weekStart->utc()->addWeek()->subSecond(), CarbonImmutable::now('UTC'))->toDateTimeImmutable();
         $minutes = 0;
-        $complete = true;
+        $read = 0;
 
         foreach ($servers as $server) {
             $presence = null;
@@ -61,27 +66,32 @@ class PublicServerHour
             }
 
             if ($presence === null) {
-                $complete = false;
-
                 continue;
             }
 
+            $here = 0;
+            $timed = true;
             foreach ($presence->players as $player) {
                 if (mb_strtolower($player->platformId) !== $platformId) {
                     continue;
                 }
                 if ($player->minutes === null) {
-                    $complete = false;
+                    $timed = false;
                 } else {
-                    $minutes += $player->minutes;
+                    $here += $player->minutes;
                 }
+            }
+
+            if ($timed) {
+                $read++;
+                $minutes += $here;
             }
         }
 
-        return match (true) {
-            $minutes >= self::MINUTES => StaffReport::PRESENCE_CONFIRMED,
-            $complete => StaffReport::PRESENCE_CONFLICT,
-            default => StaffReport::PRESENCE_NO_DATA,
-        };
+        if ($read === 0) {
+            return $noData;
+        }
+
+        return ['check' => $minutes >= self::MINUTES ? StaffReport::PRESENCE_CONFIRMED : StaffReport::PRESENCE_CONFLICT, 'minutes' => $minutes];
     }
 }

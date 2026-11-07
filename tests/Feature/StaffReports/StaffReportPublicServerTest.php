@@ -23,7 +23,8 @@ require_once __DIR__.'/../StaffPractices/fixture.php';
 
 // A public server hour on the staff report is checked against the game servers marked public, for the game the HQ
 // plays: the trooper's minutes over the whole Cav week, summed across those servers, frozen on the report at send.
-// 60 or more is confirmed, under is a conflict, nothing to read is no data. The report is sent either way, and an
+// 60 or more is confirmed, under is a conflict (also when a server could not be read), with the minutes found kept;
+// no data only when there is nothing to read at all. The report is sent either way, and an
 // office hour or "No" is never checked. CRCON is never called: the servers are fakes.
 
 beforeEach(function () {
@@ -83,6 +84,7 @@ it('sums the minutes across the public servers over the whole Cav week, and conf
 
     expect($report->refresh()->presence_type)->toBe('public_server')
         ->and($report->public_server_check)->toBe(StaffReport::PRESENCE_CONFIRMED)
+        ->and($report->public_server_minutes)->toBe(60)
         ->and($this->reads)->toBe([
             ['one', '2026-10-03 00:00:00', '2026-10-09 23:59:59'],
             ['two', '2026-10-03 00:00:00', '2026-10-09 23:59:59'],
@@ -95,13 +97,25 @@ it('flags under an hour as a conflict, and still sends the report', function () 
 
     $report = sendPublicServerReport($this->tree['users']['psg'], $this->psg, 'public_server');
 
-    expect($report->exists)->toBeTrue()->and($report->public_server_check)->toBe(StaffReport::PRESENCE_CONFLICT);
+    expect($report->exists)->toBeTrue()
+        ->and($report->public_server_check)->toBe(StaffReport::PRESENCE_CONFLICT)
+        ->and($report->refresh()->public_server_minutes)->toBe(59);
 });
 
 it('flags a trooper the public servers never saw as a conflict', function () {
     publicServers($this, [publicServer($this, 'one', [onServer('76561190000000099', 120)])]);
 
-    expect(sendPublicServerReport($this->tree['users']['psg'], $this->psg, 'public_server')->public_server_check)->toBe(StaffReport::PRESENCE_CONFLICT);
+    $report = sendPublicServerReport($this->tree['users']['psg'], $this->psg, 'public_server');
+
+    expect($report->public_server_check)->toBe(StaffReport::PRESENCE_CONFLICT)->and($report->public_server_minutes)->toBe(0);
+});
+
+it('flags under an hour as a conflict when a server could not be read, keeping the minutes the others showed', function () {
+    publicServers($this, [publicServer($this, 'one', null), publicServer($this, 'two', [onServer('76561190000000020', 43)])]);
+
+    $report = sendPublicServerReport($this->tree['users']['psg'], $this->psg, 'public_server');
+
+    expect($report->public_server_check)->toBe(StaffReport::PRESENCE_CONFLICT)->and($report->public_server_minutes)->toBe(43);
 });
 
 it('reads only up to now while the week still runs', function () {
@@ -115,11 +129,12 @@ it('reads only up to now while the week still runs', function () {
 it('says no data when there is nothing to compare', function (Closure $setup) {
     $setup($this);
 
-    expect(sendPublicServerReport($this->tree['users']['psg'], $this->psg, 'public_server')->public_server_check)->toBe(StaffReport::PRESENCE_NO_DATA);
+    $report = sendPublicServerReport($this->tree['users']['psg'], $this->psg, 'public_server');
+
+    expect($report->public_server_check)->toBe(StaffReport::PRESENCE_NO_DATA)->and($report->public_server_minutes)->toBeNull();
 })->with([
     'no public server set up' => [fn ($t) => publicServers($t, [])],
     'no server could be read' => [fn ($t) => publicServers($t, [publicServer($t, 'one', null)])],
-    'one could not be read, under an hour on the other' => [fn ($t) => publicServers($t, [publicServer($t, 'one', null), publicServer($t, 'two', [onServer('76561190000000020', 30)])])],
     'no credentials set' => [fn ($t) => publicServers($t, [publicServer($t, 'one', [onServer('76561190000000020', 90)], configured: false)])],
     'the source knows only who was seen' => [fn ($t) => publicServers($t, [publicServer($t, 'one', [onServer('76561190000000020', null)])])],
     'no linked game identity' => [function ($t) {
@@ -162,13 +177,15 @@ it('recomputes the check on an edit', function () {
     ));
 
     expect($edited->public_server_check)->toBe(StaffReport::PRESENCE_CONFIRMED)
-        ->and($edited->revisions[0]['public_server_check'])->toBe(StaffReport::PRESENCE_CONFLICT);
+        ->and($edited->public_server_minutes)->toBe(80)
+        ->and($edited->revisions[0]['public_server_check'])->toBe(StaffReport::PRESENCE_CONFLICT)
+        ->and($edited->revisions[0]['public_server_minutes'])->toBe(20);
 });
 
 it('shows the frozen check to readers on the page, the overview and the unit report', function () {
     publicServers($this, [publicServer($this, 'one', [onServer('76561190000000020', 10)])]);
     sendPublicServerReport($this->tree['users']['psg'], $this->psg, 'public_server');
-    $conflict = ['check' => 'conflict', 'source' => 'public server'];
+    $conflict = ['check' => 'conflict', 'source' => 'public server', 'minutes' => 10];
 
     $this->actingAs($this->tree['users']['co'])->get(route('staff-report.show', ['trooper' => $this->psg->id, 'week' => '2026-10-03']))
         ->assertInertia(fn (AssertableInertia $page) => $page->where('report.presenceType', 'public_server')->where('report.publicServer', $conflict));

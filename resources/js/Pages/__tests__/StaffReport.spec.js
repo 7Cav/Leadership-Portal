@@ -511,13 +511,13 @@ describe('StaffReport page', () => {
         const wrapper = page({
             self: false,
             canSend: false,
-            report: { sentAt: '2026-10-08T20:00:00+00:00', attended: false, practices: [], presenceType: 'public_server', publicServer: { check: 'conflict', source: 'public server' } },
+            report: { sentAt: '2026-10-08T20:00:00+00:00', attended: false, practices: [], presenceType: 'public_server', publicServer: { check: 'conflict', source: 'public server', minutes: 43 } },
         });
 
         expect(wrapper.find('[data-testid="staff-report-presence-answer"]').text()).toContain('Presence: Public server hour');
-        expect(wrapper.find('[data-testid="staff-report-public-server"]').text()).toBe('Self-report conflicts with public server data');
+        expect(wrapper.find('[data-testid="staff-report-public-server"]').text()).toBe('43 minutes of server data');
 
-        const confirmed = page({ canSend: false, report: { sentAt: '2026-10-08T20:00:00+00:00', attended: false, practices: [], presenceType: 'public_server', publicServer: { check: 'confirmed', source: 'public server' } } });
+        const confirmed = page({ canSend: false, report: { sentAt: '2026-10-08T20:00:00+00:00', attended: false, practices: [], presenceType: 'public_server', publicServer: { check: 'confirmed', source: 'public server', minutes: 75 } } });
         expect(confirmed.find('[data-testid="staff-report-public-server"]').exists()).toBe(false);
 
         const before = page({ canSend: false, report: { sentAt: '2026-10-08T20:00:00+00:00', attended: false, practices: [] } });

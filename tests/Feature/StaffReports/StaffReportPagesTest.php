@@ -31,7 +31,7 @@ beforeEach(function () {
 
 function sendOwnStaffReport(User $user, Trooper $trooper, bool $attended, array $sectionIds, string $week = '2026-10-03'): StaffReport
 {
-    return app(SendStaffReportHandler::class)->handle($user, new SendStaffReport($trooper->id, CarbonImmutable::parse($week, 'UTC'), $attended, $sectionIds));
+    return app(SendStaffReportHandler::class)->handle($user, new SendStaffReport($trooper->id, CarbonImmutable::parse($week, 'UTC'), $attended, $sectionIds, presenceType: 'none'));
 }
 
 function pageTrooperOf(User $user): Trooper
@@ -116,7 +116,7 @@ it('lists a battalion HQ\'s platoons by company letter and platoon, and none out
 
 it('sends from the page and reads back as sent, editable until its deadline', function () {
     $this->actingAs($this->tree['users']['psg'])
-        ->post($this->url, ['attended' => true, 'section_ids' => [$this->host->id]])
+        ->post($this->url, ['presence_type' => 'none', 'attended' => true, 'section_ids' => [$this->host->id]])
         ->assertRedirect($this->url);
 
     $this->actingAs($this->tree['users']['psg'])->get($this->url)->assertInertia(fn (AssertableInertia $page) => $page
@@ -130,7 +130,7 @@ it('sends from the page and reads back as sent, editable until its deadline', fu
 
 it('turns a refusal into a message on its field', function () {
     $this->actingAs($this->tree['users']['psg'])
-        ->post($this->url, ['attended' => true, 'section_ids' => []])
+        ->post($this->url, ['presence_type' => 'none', 'attended' => true, 'section_ids' => []])
         ->assertSessionHasErrors(['section_ids' => 'Pick at least one section practice you attended, or answer No.']);
 
     $this->actingAs($this->tree['users']['psg'])
@@ -255,7 +255,7 @@ it('shows on a platoon\'s report whether its HQ staff sent theirs, to those who 
 
     $this->actingAs($this->tree['users']['co'])->get($url)->assertInertia(fn (AssertableInertia $page) => $page
         ->where('staffReports', [
-            ['trooperId' => $this->psg->id, 'name' => $this->psg->display_name, 'sent' => true, 'attended' => true, 'practices' => 1, 'practiceType' => 'sp', 'ftx' => null, 'officeHour' => null, 'presenceType' => null, 'otherEvents' => null, 'notes' => null, 'sheetPushedAt' => null, 'presence' => ['check' => 'no_data', 'source' => 'game server'], 'publicServer' => null, 'discrepancy' => null, 'href' => $this->url],
+            ['trooperId' => $this->psg->id, 'name' => $this->psg->display_name, 'sent' => true, 'attended' => true, 'practices' => 1, 'practiceType' => 'sp', 'ftx' => null, 'officeHour' => null, 'presenceType' => 'none', 'otherEvents' => null, 'notes' => null, 'sheetPushedAt' => null, 'presence' => ['check' => 'no_data', 'source' => 'game server'], 'publicServer' => null, 'discrepancy' => null, 'href' => $this->url],
             ['trooperId' => $pl->id, 'name' => $pl->display_name, 'sent' => false, 'attended' => null, 'practices' => 0, 'practiceType' => null, 'ftx' => null, 'officeHour' => null, 'presenceType' => null, 'otherEvents' => null, 'notes' => null, 'sheetPushedAt' => null, 'presence' => null, 'publicServer' => null, 'discrepancy' => null, 'href' => route('staff-report.show', ['trooper' => $pl->id, 'week' => '2026-10-03'])],
         ]));
 

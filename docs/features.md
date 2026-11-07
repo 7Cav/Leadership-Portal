@@ -634,7 +634,7 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
   HQ sees HLL sections. A section, or an HQ, with no game on its chain is never left out for it. An SP needs one or
   more sections. An FTX, an operation, a class or an event needs its name (up to 120 characters) and its date, a day
   in that Cav week; an FTX's sections are optional, the others take none. Then the presence question, for every level:
-  "Public server hour", "Office hour" or "No". An office hour needs its date, a day in that Cav week, and a short note
+  "Public server hour", "Office hour" or "No", required on every send and edit. An office hour needs its date, a day in that Cav week, and a short note
   (up to 200 characters), and is never checked. No to accountability goes straight to presence. The last step is "Notes": free-text notes (up to 1000 characters) and other
   events attended (up to 500), optional for everyone. A summary card beside the steps (under them on a phone) reads the
   answer back as it will be sent, shows each picked section as a chip that removes it, says what is still missing, and
@@ -667,9 +667,10 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
   report, on the staff reports overview row and on the unit report's staff panel, and later captures do not change it.
 - Public server check: a public server hour is compared with the game servers an Admin selected and marked public for
   the HQ's game, reading the staff member's linked game identity over the whole Cav week (so far, while it runs) and
-  summing the minutes across those servers. 60 or more is confirmed; under it reads "Self-report conflicts with public
-  server data"; with no public server, no linked identity, or a server that could not be read (or only knows who was
-  seen) it reads "No public server data". It is frozen at send, never blocks it, and shows where the game server check does.
+  summing the minutes across those servers. 60 or more is confirmed; under it is a conflict, also when one of the
+  servers could not be read, and reads the minutes found ("43 minutes of server data"), which are frozen with it.
+  With no public server, no linked identity, or no server readable (a server that only knows who was seen counts as
+  unreadable) it reads "No public server data". It is frozen at send, never blocks it, and shows where the game server check does.
 - The HQ's own weekly report does not lock it: a PSG still sends theirs after their platoon's report went. Once sent,
   that week's staff practice entries are locked.
 - Past weeks: a week that has ended goes by who was on the HQ when it ended, from the placement history. A staff member

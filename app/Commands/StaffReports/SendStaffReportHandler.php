@@ -45,7 +45,7 @@ use Carbon\CarbonImmutable;
  * in the future or still running (a week is sent once it has ended), a trooper not on a platoon, company or battalion HQ when the week ended (by the placement history, so a past week
  * goes by who was on the HQ then) or no longer serving, "Yes" to an SP with nothing picked or "No" with picks or an FTX,
  * a practice type their HQ does not report (SP or FTX on a platoon or company HQ; SP, operation, class or event on a
- * battalion HQ), a presence other than public server, office hour or none, a named type without a name or with a date
+ * battalion HQ), no presence answer or one other than public server, office hour or none, a named type without a name or with a date
  * outside the week, an office hour without a note or with a date outside the week, text over its limit, a
  * pick that is not a section or not under their HQ, a report already sent and past its deadline, and an edit with no reason. Then one audited transaction (`staff_report.sent`, AD-16, target the report,
  * digest over it and the week's entries): the report row is inserted under its UNIQUE key, so two sends at once land on
@@ -122,11 +122,13 @@ class SendStaffReportHandler
             throw StaffReportRefusedException::reasonRequired();
         }
 
+        $public = $fields['presence_type'] === StaffReport::PRESENCE_PUBLIC_SERVER
+            ? $this->publicServer->check($trooper->id, $hq, $weekStart) : ['check' => null, 'minutes' => null];
         $fields = [
             ...$fields,
             ...$this->presenceCheck($trooper->id, $weekStart, $fields['practice_type'], $sections),
-            'public_server_check' => $fields['presence_type'] === StaffReport::PRESENCE_PUBLIC_SERVER
-                ? $this->publicServer->check($trooper->id, $hq, $weekStart) : null,
+            'public_server_check' => $public['check'],
+            'public_server_minutes' => $public['minutes'],
         ];
 
         $report = null;
@@ -252,7 +254,7 @@ class SendStaffReportHandler
     /**
      * The rest of what was sent, checked and trimmed: the practice type (SP unless another is picked, null with "No"),
      * checked against the HQ ({@see typesFor()}); a named type's name and date (`ftx_name` and `ftx_date`, both
-     * required, the date inside the Cav week); the presence answer (null when not given), with an office hour's date
+     * required, the date inside the Cav week); the presence answer (required), with an office hour's date
      * and note (only for an office hour, both required); other events and notes (empty text is null).
      *
      * @return array{practice_type: ?string, ftx_name: ?string, ftx_date: ?string, presence_type: ?string, office_hour_date: ?string, office_hour_note: ?string, other_events: ?string, notes: ?string}
@@ -314,6 +316,11 @@ class SendStaffReportHandler
             }
         } elseif ($officeDate !== null || $officeNote !== null) {
             throw StaffReportRefusedException::officeHourFieldsElsewhere();
+        }
+
+        // Every send and edit answers presence; only reports stored before the question was asked hold null.
+        if ($presence === null) {
+            throw StaffReportRefusedException::presenceMissing();
         }
 
         $otherEvents = self::text($command->otherEvents);

@@ -59,7 +59,7 @@ beforeEach(function () {
 
 function sendStaffReport(User $actor, Trooper $trooper, bool $attended, array $sectionIds, ?CarbonImmutable $week = null): StaffReport
 {
-    return app(SendStaffReportHandler::class)->handle($actor, new SendStaffReport($trooper->id, $week ?? staffPracticeWeek(), $attended, $sectionIds));
+    return app(SendStaffReportHandler::class)->handle($actor, new SendStaffReport($trooper->id, $week ?? staffPracticeWeek(), $attended, $sectionIds, presenceType: 'none'));
 }
 
 function staffReportRefusal(Closure $write): string
@@ -197,7 +197,7 @@ it('refuses an Admin acting as the staff member: acting as them, it is not their
     $this->actingAs($this->tree['users']['admin'])->post('/act-as', ['kind' => 'user', 'id' => $this->tree['users']['psg']->id])->assertRedirect('/home');
 
     $this->actingAs($this->tree['users']['admin'])
-        ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), ['attended' => true, 'section_ids' => [$this->host->id]])
+        ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), ['presence_type' => 'none', 'attended' => true, 'section_ids' => [$this->host->id]])
         ->assertNotFound();
 
     expect(StaffReport::query()->count())->toBe(0);
@@ -208,7 +208,7 @@ it('refuses a send during view as, before it reaches the Command', function () {
     app(ViewAs::class)->enter($pl, new ViewAsTarget(ViewAsKind::Unit, $this->tree['units']['platoon']->id));
 
     $this->actingAs($pl)
-        ->post(route('staff-report.send', ['trooper' => trooperOf($pl)->id, 'week' => '2026-10-03']), ['attended' => false, 'section_ids' => []])
+        ->post(route('staff-report.send', ['trooper' => trooperOf($pl)->id, 'week' => '2026-10-03']), ['presence_type' => 'none', 'attended' => false, 'section_ids' => []])
         ->assertForbidden();
 
     expect(StaffReport::query()->count())->toBe(0);
