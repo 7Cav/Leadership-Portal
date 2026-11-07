@@ -277,8 +277,8 @@ class ReportController extends Controller
                 'attended' => $row['report']?->attended,
                 'practices' => count($row['report']?->practices ?? []),
                 // What else was sent, as on the staff report page.
-                ...($row['report'] === null ? ['practiceType' => null, 'ftx' => null, 'officeHour' => null, 'otherEvents' => null, 'notes' => null, 'sheetPushedAt' => null, 'presence' => null]
-                    : array_intersect_key(StaffReportWeek::reportProps($row['report']), array_flip(['practiceType', 'ftx', 'officeHour', 'otherEvents', 'notes', 'sheetPushedAt', 'presence']))),
+                ...($row['report'] === null ? ['practiceType' => null, 'ftx' => null, 'officeHour' => null, 'presenceType' => null, 'otherEvents' => null, 'notes' => null, 'sheetPushedAt' => null, 'presence' => null, 'publicServer' => null]
+                    : array_intersect_key(StaffReportWeek::reportProps($row['report']), array_flip(['practiceType', 'ftx', 'officeHour', 'presenceType', 'otherEvents', 'notes', 'sheetPushedAt', 'presence', 'publicServer']))),
                 'discrepancy' => $discrepancies[$row['trooper']->id] ?? null,
                 'href' => route('staff-report.show', ['trooper' => $row['trooper']->id, 'week' => $weekStart->toDateString()]),
             ])

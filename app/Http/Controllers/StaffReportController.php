@@ -146,7 +146,8 @@ class StaffReportController extends Controller
             'section_ids' => ['present', 'array', 'max:'.SendStaffReportHandler::MAX_PRACTICES],
             'section_ids.*' => ['integer'],
             // The rules on what goes with what (an FTX's name and date, the week) are the handler's; these bound the request.
-            'practice_type' => ['nullable', 'string', 'in:sp,ftx,office_hour'],
+            'practice_type' => ['nullable', 'string', 'in:sp,ftx,operation,class,event'],
+            'presence_type' => ['nullable', 'string', 'in:public_server,office_hour,none'],
             'ftx_name' => ['nullable', 'string', 'max:'.SendStaffReportHandler::MAX_FTX_NAME],
             'ftx_date' => ['nullable', 'string', 'max:10'],
             'other_events' => ['nullable', 'string', 'max:'.SendStaffReportHandler::MAX_OTHER_EVENTS],
@@ -156,9 +157,10 @@ class StaffReportController extends Controller
             // Required by the handler when this edits a report already sent.
             'reason' => ['nullable', 'string', 'max:1000'],
         ], [
-            'attended.required' => 'Answer whether you attended a section practice this week.',
+            'attended.required' => 'Answer Yes or No.',
             'section_ids.max' => 'Pick at most :max practices.',
-            'practice_type.in' => 'Pick Section practice (SP), FTX or, on a battalion HQ, Office hour.',
+            'practice_type.in' => 'Pick what it was.',
+            'presence_type.in' => 'Pick Public server hour, Office hour or No.',
             'office_hour_note.max' => 'Keep the office hour note to :max characters.',
             'ftx_name.max' => 'Keep the FTX name to :max characters.',
             'other_events.max' => 'Keep the other events to :max characters.',
@@ -180,6 +182,7 @@ class StaffReportController extends Controller
                 $data['office_hour_date'] ?? null,
                 $data['office_hour_note'] ?? null,
                 $data['reason'] ?? null,
+                presenceType: $data['presence_type'] ?? null,
             ));
         } catch (StaffReportForbiddenException $e) {
             abort(403, $e->getMessage());
@@ -197,11 +200,10 @@ class StaffReportController extends Controller
     }
 
     /**
-     * Every section with troopers in it (#442), the staff member's own unit's first: the ones under their HQ are the
-     * preferred practices, and the host's rollcall lists them there as a staff guest. `group` names the closest unit
-     * above the HQ (the HQ itself, its company, its battalion) that holds the section, null for any other section, so
-     * the picker groups them nearest first, then in order of battle (battalion, company letter, platoon, section; {@see battleKey()}). `platoon`
-     * names the section's parent unit, which the picker uses as a small heading.
+     * Every section with troopers in it (#442) under the staff member's HQ: their own platoon or company, or for
+     * battalion HQ staff the battalion. The send refuses any other. The host's rollcall lists them there as a staff
+     * guest. `group` names the HQ, so the picker groups them, then in order of battle (company letter, platoon,
+     * section; {@see battleKey()}). `platoon` names the section's parent unit, which the picker uses as a small heading.
      *
      * Only sections that play the HQ's game are offered ({@see UnitGame}, inherited down the tree): an HLL HQ sees HLL
      * sections. When the HQ or a section has no game on its chain, that section is kept, since nothing says it plays
@@ -221,7 +223,12 @@ class StaffReportController extends Controller
             $node = $node->parent_id === null ? null : $byId->get($node->parent_id);
         }
 
+        if ($hq === null) {
+            return [];
+        }
+
         return $this->headcount->withoutEmptyLineUnits($tree->filter(fn (Unit $unit) => $unit->type === UnitType::Section
+            && str_starts_with((string) $unit->path, (string) $hq->path)
             && ($hqGame === null || ! isset($games[$unit->id]) || $games[$unit->id]->gameId === $hqGame)))
             ->map(function (Unit $unit, int $order) use ($hq, $ancestors, $byId) {
                 $rank = count($ancestors);

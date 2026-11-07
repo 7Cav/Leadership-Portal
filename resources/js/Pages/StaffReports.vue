@@ -13,7 +13,7 @@ import { Card } from '@/components/ui/card';
 import { weekLabel, weekPhrase } from '@/lib/forumDate';
 import WeekHeading from '@/components/week/WeekHeading.vue';
 import { stamp } from '@/lib/report';
-import { attendedText, sheetText } from '@/lib/staffReport';
+import { attendedText, presenceAnswer, sheetText } from '@/lib/staffReport';
 
 // The staff reports overview: every platoon, company and battalion HQ staff member whose staff report the viewer reads, for one
 // Cav week, grouped by HQ down the tree. The server says who is listed, each one's status and where the game server
@@ -23,7 +23,7 @@ const props = defineProps({
     week: { type: Object, required: true },
     // The viewer's own line when they file a report that week, else null. Same shape as a row, without `discrepancy`.
     own: { type: Object, default: null },
-    // `[{ id, label, rows: [{ trooperId, name, billet, hq, status, attended, practiceType, ftx, officeHour, practices,
+    // `[{ id, label, rows: [{ trooperId, name, billet, hq, status, attended, practiceType, ftx, officeHour, presenceType, publicServer, practices,
     // otherEvents, notes, sheetPushedAt, metRule, discrepancy, href }] }]`.
     groups: { type: Array, default: () => [] },
     // Whether the reports Google Sheet is set up: only then is a sent report not yet copied there called out.
@@ -165,7 +165,9 @@ function openRow(event, row) {
                                 <span data-testid="row-attended">{{ attendedText(row) }}</span>
                                 <StaffReportDiscrepancy :discrepancy="row.discrepancy" />
                                 <StaffReportPresence :presence="row.presence" />
+                                <StaffReportPresence :presence="row.publicServer" testid="row-public-server" />
                             </span>
+                            <p v-if="row.presenceType" class="text-xs text-muted-foreground" data-testid="row-presence">Presence: {{ presenceAnswer(row) }}</p>
                             <p v-if="row.officeHour?.note" class="text-xs text-muted-foreground" data-testid="row-office-hour">Office hour: {{ row.officeHour.note }}</p>
                             <p v-if="row.otherEvents" class="text-xs text-muted-foreground" data-testid="row-other-events">Other events: {{ row.otherEvents }}</p>
                             <p v-if="row.notes" class="text-xs text-muted-foreground" data-testid="row-notes">Notes: {{ row.notes }}</p>

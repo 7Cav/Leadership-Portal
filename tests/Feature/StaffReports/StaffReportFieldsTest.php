@@ -9,6 +9,7 @@ use App\Commands\StaffReports\StaffReportSheetRow;
 use App\Integration\GoogleSheets\GoogleSheetsUnavailable;
 use App\Integration\GoogleSheets\SheetsClient;
 use App\Jobs\PushStaffReportToSheetJob;
+use App\Milpac\StaffReportWeek;
 use App\Models\AuditLogEntry;
 use App\Models\StaffReport;
 use App\Models\Trooper;
@@ -107,6 +108,8 @@ function sendFields(User $actor, Trooper $trooper, bool $attended, array $sectio
         $fields['office_hour_date'] ?? null,
         $fields['office_hour_note'] ?? null,
         $fields['reason'] ?? null,
+        // Presence is required: every send answers it, "No" unless the test says otherwise.
+        presenceType: array_key_exists('presence_type', $fields) ? $fields['presence_type'] : 'none',
     ));
 }
 
@@ -168,7 +171,7 @@ it('lists the battalion HQ on the overview for regiment command and Admins only'
         ->and($labels($this->battalionCo))->not->toContain('1-7');
 });
 
-it('calls a practice in their battalion a staff guest, and one outside it a guest', function () {
+it('offers only the sections in their battalion, each a staff guest', function () {
     $units = app(UnitRepository::class);
     $battalion2 = $units->create(UnitType::Battalion, '2nd Battalion', '2-7', $this->tree['units']['regiment']->id);
     $company2 = $units->create(UnitType::Company, 'Alpha Company', 'A/2-7', $battalion2->id);
@@ -180,7 +183,7 @@ it('calls a practice in their battalion a staff guest, and one outside it a gues
     $this->actingAs($this->bnStaffUser)->get(route('staff-report.show', ['trooper' => $this->bnStaff->id, 'week' => '2026-10-03']))
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->where('sections', fn ($sections) => collect($sections)->firstWhere('id', $this->host->id)['own'] === true
-                && collect($sections)->firstWhere('id', $far->id)['own'] === false));
+                && collect($sections)->firstWhere('id', $far->id) === null));
 });
 
 // The new fields.
@@ -236,7 +239,7 @@ it('takes the limits exactly, and empty text as nothing', function () {
 it('bounds the request itself too, before the handler', function () {
     $this->actingAs($this->tree['users']['psg'])
         ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), [
-            'attended' => true, 'section_ids' => [$this->host->id], 'notes' => str_repeat('a', 1001),
+            'presence_type' => 'none', 'attended' => true, 'section_ids' => [$this->host->id], 'notes' => str_repeat('a', 1001),
         ])
         ->assertSessionHasErrors(['notes' => 'Keep the notes to 1000 characters.']);
 
@@ -246,7 +249,7 @@ it('bounds the request itself too, before the handler', function () {
 it('freezes the new fields with the report and reads them back on the page, the overview and the HQ panel', function () {
     $this->actingAs($this->tree['users']['psg'])
         ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), [
-            'attended' => true, 'section_ids' => [], 'practice_type' => 'ftx', 'ftx_name' => 'Operation Anvil', 'ftx_date' => '2026-10-06',
+            'presence_type' => 'none', 'attended' => true, 'section_ids' => [], 'practice_type' => 'ftx', 'ftx_name' => 'Operation Anvil', 'ftx_date' => '2026-10-06',
             'other_events' => 'Range day', 'notes' => 'Ran the OPFOR.',
         ])
         ->assertRedirect();
@@ -282,7 +285,7 @@ it('maps a platoon HQ report to the staff tab, column by column', function () {
     expect(pushToSheet($report))->toBeTrue()
         ->and(StaffReportSheetRow::STAFF_PRACTICE_COLUMNS)->toBe(5)
         ->and($fake->rows)->toBe([['tab' => 'Weekly Staff Report 2O26', 'row' => [
-            '10/10/2026 12:00:00', 'Brandt.L', '1-7', 'Alpha', '', '09OCT26', 'Yes', 'Section Practice (SP)',
+            '10/10/2026 12:00:00', 'Brandt.L', '1-7', 'Alpha', '', '09OCT26', 'No', 'Section Practice (SP)',
             '1/1/A/1-7, 2/1/A/1-7', '', '', '', '', '', '', 'Platoon', 'Platoon Sergeant', '1st Platoon', 'All good.', '', '', 'Range day',
         ]]]);
 });
@@ -296,7 +299,7 @@ it('maps a company HQ FTX report to the staff tab, with the company billet and n
     pushToSheet($report);
 
     expect($fake->rows)->toBe([['tab' => 'Weekly Staff Report 2O26', 'row' => [
-        '10/10/2026 12:00:00', 'Kerr.D', '1-7', 'Alpha', '', '09OCT26', 'Yes', 'FTX',
+        '10/10/2026 12:00:00', 'Kerr.D', '1-7', 'Alpha', '', '09OCT26', 'No', 'FTX',
         '', '', '', '', '', 'Operation Anvil', '10/5/2026', 'Company', '', '', '', 'Company Commander', 'Led it.', '',
     ]]]);
 });
@@ -308,7 +311,7 @@ it('maps a battalion HQ report to the battalion tab, with the battalion billet',
     pushToSheet($report);
 
     expect($fake->rows)->toBe([['tab' => 'Weekly Battalion Report 2O26', 'row' => [
-        '10/10/2026 12:00:00', 'Stone.A', '1st Battalion', '09OCT26', 'Battalion XO', 'Yes', '1/1/A/1-7', 'Range day', 'Visited 1/A.',
+        '10/10/2026 12:00:00', 'Stone.A', '1st Battalion', '09OCT26', 'Battalion XO', 'No', '1/1/A/1-7', 'Range day', 'Visited 1/A.',
         '', '', '', '', '', '', '',
     ]]]);
 });
@@ -345,7 +348,7 @@ it('queues the push on send, and marks the report sent to the sheet', function (
     $fake = fakeSheet();
 
     $this->actingAs($this->tree['users']['psg'])
-        ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), ['attended' => true, 'section_ids' => [$this->host->id]])
+        ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), ['presence_type' => 'none', 'attended' => true, 'section_ids' => [$this->host->id]])
         ->assertRedirect();
 
     $report = StaffReport::query()->sole();
@@ -363,7 +366,7 @@ it('keeps the send when the push fails, leaves the report not sent to the sheet,
     fakeSheet(fails: true);
 
     $this->actingAs($this->tree['users']['psg'])
-        ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), ['attended' => true, 'section_ids' => [$this->host->id]])
+        ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), ['presence_type' => 'none', 'attended' => true, 'section_ids' => [$this->host->id]])
         ->assertRedirect(route('staff-report.show', ['trooper' => $this->psg->id, 'week' => '2026-10-03']))
         ->assertSessionHasNoErrors();
 
@@ -391,87 +394,188 @@ it('keeps the row builder to a battalion for ACD only by its designation', funct
     expect(StaffReportSheetRow::isAcd($acd))->toBeTrue()->and(StaffReportSheetRow::isAcd($bn))->toBeFalse();
 });
 
-// Office hours, battalion HQ only.
+// Accountability by HQ level: battalion HQ staff report an operation, a class or another official event.
 
-it('takes an office hour from battalion HQ staff, with its date in the week and a note, and no section', function () {
-    $report = sendFields($this->bnStaffUser, $this->bnStaff, true, [], ['practice_type' => 'office_hour', 'office_hour_date' => '2026-10-06', 'office_hour_note' => ' Questions from new NCOs ']);
+it('takes an operation, a class or an event from battalion HQ staff, each with its name and a date in the week', function (string $type) {
+    $report = sendFields($this->bnStaffUser, $this->bnStaff, true, [], ['practice_type' => $type, 'ftx_name' => ' Anvil ', 'ftx_date' => '2026-10-06']);
 
-    expect($report->refresh()->practice_type)->toBe('office_hour')
-        ->and($report->office_hour_date->toDateString())->toBe('2026-10-06')
-        ->and($report->office_hour_note)->toBe('Questions from new NCOs')
+    expect($report->refresh()->practice_type)->toBe($type)
+        ->and($report->ftx_name)->toBe('Anvil')
+        ->and($report->ftx_date->toDateString())->toBe('2026-10-06')
         ->and($report->practices)->toBe([])
-        ->and($report->ftx_name)->toBeNull();
-});
+        ->and(StaffReportWeek::metRule(StaffReportWeek::reportProps($report)))->toBeTrue();
+})->with(['operation', 'class', 'event']);
 
-it('refuses an office hour from platoon and company HQ staff, writing nothing', function (string $who) {
-    $user = $this->tree['users'][$who];
-    $trooper = Trooper::query()->where('cav_id', $user->cav_id)->sole();
+it('refuses a battalion HQ an FTX and platoon and company HQs an operation, class or event, writing nothing', function (string $who, string $type) {
+    [$user, $trooper] = $who === 'bn'
+        ? [$this->bnStaffUser, $this->bnStaff]
+        : [$this->tree['users'][$who], Trooper::query()->where('cav_id', $this->tree['users'][$who]->cav_id)->sole()];
 
-    expect(fieldsRefusal(fn () => sendFields($user, $trooper, true, [], ['practice_type' => 'office_hour', 'office_hour_date' => '2026-10-06', 'office_hour_note' => 'Office hour'])))
-        ->toBe(['office_hour', 'practice_type'])
-        ->and(StaffReport::query()->count())->toBe(0);
-})->with(['platoon HQ' => 'psg', 'company HQ' => 'co']);
-
-it('refuses an office hour without a note, with a date outside the week, over 200 characters, with sections, or its fields elsewhere', function (bool $attended, array $sections, array $fields, array $refusal) {
-    $sectionIds = $sections === [] ? [] : [$this->host->id];
-
-    expect(fieldsRefusal(fn () => sendFields($this->bnStaffUser, $this->bnStaff, $attended, $sectionIds, $fields)))->toBe($refusal)
+    expect(fieldsRefusal(fn () => sendFields($user, $trooper, true, [], ['practice_type' => $type, 'ftx_name' => 'Anvil', 'ftx_date' => '2026-10-06'])))
+        ->toBe(['practice_type', 'practice_type'])
         ->and(StaffReport::query()->count())->toBe(0);
 })->with([
-    'no note' => [true, [], ['practice_type' => 'office_hour', 'office_hour_date' => '2026-10-06'], ['office_hour', 'office_hour_note']],
-    'no date' => [true, [], ['practice_type' => 'office_hour', 'office_hour_note' => 'Q and A'], ['office_hour', 'office_hour_date']],
-    'the Saturday after' => [true, [], ['practice_type' => 'office_hour', 'office_hour_date' => '2026-10-10', 'office_hour_note' => 'Q and A'], ['office_hour', 'office_hour_date']],
-    'note too long' => [true, [], ['practice_type' => 'office_hour', 'office_hour_date' => '2026-10-06', 'office_hour_note' => str_repeat('a', 201)], ['too_long', 'office_hour_note']],
-    'with a section' => [true, ['host'], ['practice_type' => 'office_hour', 'office_hour_date' => '2026-10-06', 'office_hour_note' => 'Q and A'], ['office_hour', 'section_ids']],
-    'note on an SP' => [true, ['host'], ['office_hour_note' => 'Q and A'], ['office_hour', 'office_hour_note']],
-    'with No' => [false, [], ['practice_type' => 'office_hour'], ['office_hour', 'office_hour_note']],
+    'FTX on a battalion HQ' => ['bn', 'ftx'],
+    'operation on a platoon HQ' => ['psg', 'operation'],
+    'class on a company HQ' => ['co', 'class'],
+    'event on a platoon HQ' => ['psg', 'event'],
 ]);
 
-it('takes an office hour note of exactly 200 characters, and bounds the request at the controller', function () {
-    expect(mb_strlen(sendFields($this->bnStaffUser, $this->bnStaff, true, [], ['practice_type' => 'office_hour', 'office_hour_date' => '2026-10-09', 'office_hour_note' => str_repeat('a', 200)])->office_hour_note))->toBe(200);
+it('refuses an office hour as accountability at every level, and through the page', function (string $who) {
+    [$user, $trooper] = $who === 'bn'
+        ? [$this->bnStaffUser, $this->bnStaff]
+        : [$this->tree['users'][$who], Trooper::query()->where('cav_id', $this->tree['users'][$who]->cav_id)->sole()];
 
-    $this->actingAs($this->tree['users']['psg'])
-        ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), [
-            'attended' => true, 'section_ids' => [], 'practice_type' => 'office_hour', 'office_hour_date' => '2026-10-06', 'office_hour_note' => str_repeat('a', 201),
-        ])
-        ->assertSessionHasErrors(['office_hour_note' => 'Keep the office hour note to 200 characters.']);
-});
+    expect(fieldsRefusal(fn () => sendFields($user, $trooper, true, [], ['practice_type' => 'office_hour'])))->toBe(['practice_type', 'practice_type']);
 
-it('refuses an office hour from a platoon HQ through the page, on the practice type', function () {
-    $this->actingAs($this->tree['users']['psg'])
-        ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), [
-            'attended' => true, 'section_ids' => [], 'practice_type' => 'office_hour', 'office_hour_date' => '2026-10-06', 'office_hour_note' => 'Q and A',
-        ])
-        ->assertSessionHasErrors(['practice_type' => 'An office hour counts for battalion HQ staff only. Pick Section practice (SP) or FTX.']);
+    $this->actingAs($user)
+        ->post(route('staff-report.send', ['trooper' => $trooper->id, 'week' => '2026-10-03']), ['attended' => true, 'section_ids' => [], 'practice_type' => 'office_hour'])
+        ->assertSessionHasErrors(['practice_type' => 'Pick what it was.']);
 
     expect(StaffReport::query()->count())->toBe(0);
+})->with(['bn', 'psg', 'co']);
+
+it('refuses an operation, class or event with a section, and its name and date with No', function () {
+    expect(fieldsRefusal(fn () => sendFields($this->bnStaffUser, $this->bnStaff, true, [$this->host->id], ['practice_type' => 'class', 'ftx_name' => 'NCO class', 'ftx_date' => '2026-10-06'])))
+        ->toBe(['practice_type', 'section_ids'])
+        ->and(fieldsRefusal(fn () => sendFields($this->bnStaffUser, $this->bnStaff, false, [], ['practice_type' => 'operation', 'ftx_name' => 'Anvil'])))->toBe(['practice_type', 'practice_type'])
+        ->and(fieldsRefusal(fn () => sendFields($this->bnStaffUser, $this->bnStaff, true, [], ['practice_type' => 'event'])))->toBe(['ftx', 'ftx_name']);
 });
 
-it('counts an office hour as meeting the one-a-week rule, and reads it back on the page and the overview', function () {
-    sendFields($this->bnStaffUser, $this->bnStaff, true, [], ['practice_type' => 'office_hour', 'office_hour_date' => '2026-10-06', 'office_hour_note' => 'Q and A']);
+it('offers battalion HQ staff sections in their battalion only, and refuses one outside it', function () {
+    $units = app(UnitRepository::class);
+    $battalion2 = $units->create(UnitType::Battalion, '2nd Battalion', '2-7', $this->tree['units']['regiment']->id);
+    $platoon2 = $units->create(UnitType::Platoon, '1st Platoon', '1/A/2-7', $units->create(UnitType::Company, 'Alpha Company', 'A/2-7', $battalion2->id)->id);
+    $far = $units->create(UnitType::Section, '1st Section', '1/1/A/2-7', $platoon2->id);
+    Trooper::factory()->create(['primary_section_id' => $far->id]);
+
+    expect(fieldsRefusal(fn () => sendFields($this->bnStaffUser, $this->bnStaff, true, [$far->id])))->toBe(['not_in_unit', 'section_ids'])
+        ->and(sendFields($this->bnStaffUser, $this->bnStaff, true, [$this->host->id])->practices)->toEqual([['section_id' => $this->host->id, 'section' => '1/1/A/1-7']]);
+});
+
+it('reads back an office hour or FTX sent as accountability before, as sent', function () {
+    $report = StaffReport::query()->create([
+        'trooper_id' => $this->bnStaff->id, 'unit_id' => $this->tree['units']['battalion']->id, 'week_start' => staffPracticeWeek(), 'attended' => true,
+        'practice_type' => 'office_hour', 'office_hour_date' => '2026-10-06', 'office_hour_note' => 'Q and A', 'practices' => [],
+        'sent_at' => CarbonImmutable::now('UTC'), 'sent_by' => $this->bnStaffUser->id,
+    ]);
 
     $this->actingAs($this->regimentCo)->get(route('staff-report.show', ['trooper' => $this->bnStaff->id, 'week' => '2026-10-03']))
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->where('report.practiceType', 'office_hour')
             ->where('report.officeHour', ['date' => '2026-10-06', 'note' => 'Q and A'])
-            ->where('report.ftx', null)
-            ->where('limits.officeHourNote', 200));
+            ->where('report.presenceType', null)
+            ->where('report.publicServer', null));
 
-    $this->actingAs($this->regimentCo)->get('/staff-reports')->assertInertia(fn (AssertableInertia $page) => $page
-        ->where('groups', fn ($groups) => ($row = collect(collect($groups)->firstWhere('label', '1-7')['rows'])->firstWhere('trooperId', $this->bnStaff->id)) !== null
-            && $row['metRule'] === true && $row['officeHour'] === ['date' => '2026-10-06', 'note' => 'Q and A'] && $row['discrepancy'] === null));
+    expect(StaffReportWeek::metRule(StaffReportWeek::reportProps($report)))->toBeTrue();
+
+    $fake = fakeSheet();
+    pushToSheet($report);
+    // As it showed before: the accountability Yes under "Did you spend one hour", the office hour in the other events.
+    expect($fake->rows[0]['row'][5])->toBe('Yes')
+        ->and($fake->rows[0]['row'][7])->toBe('Office hour (10/6/2026): Q and A');
 });
 
-it('puts the office hour at the front of the other events cell on the battalion tab', function () {
+it('puts an operation at the front of the other events cell on the battalion tab, and the office hour under "Did you spend one hour"', function () {
     $fake = fakeSheet();
-    $report = sendFields($this->bnStaffUser, $this->bnStaff, true, [], ['practice_type' => 'office_hour', 'office_hour_date' => '2026-10-06', 'office_hour_note' => 'Q and A', 'other_events' => 'Range day']);
+    $report = sendFields($this->bnStaffUser, $this->bnStaff, true, [], [
+        'practice_type' => 'operation', 'ftx_name' => 'Anvil', 'ftx_date' => '2026-10-06', 'other_events' => 'Range day',
+        'presence_type' => 'office_hour', 'office_hour_date' => '2026-10-07', 'office_hour_note' => 'Q and A',
+    ]);
 
     pushToSheet($report);
 
     expect($fake->rows)->toBe([['tab' => 'Weekly Battalion Report 2O26', 'row' => [
-        '10/10/2026 12:00:00', 'Stone.A', '1st Battalion', '09OCT26', 'Battalion XO', 'Yes', '', 'Office hour (10/6/2026): Q and A; Range day', '',
+        '10/10/2026 12:00:00', 'Stone.A', '1st Battalion', '09OCT26', 'Battalion XO', 'Yes, office hour (10/7/2026): Q and A', '', 'Operation: Anvil (10/6/2026); Range day', '',
         '', '', '', '', '', '', '',
     ]]]);
+});
+
+// Presence, all three levels: a public server hour, an office hour, or neither.
+
+it('takes each presence answer from every level, an office hour with its date and note', function (string $who) {
+    [$user, $trooper] = $who === 'bn'
+        ? [$this->bnStaffUser, $this->bnStaff]
+        : [$this->tree['users'][$who], Trooper::query()->where('cav_id', $this->tree['users'][$who]->cav_id)->sole()];
+
+    $report = sendFields($user, $trooper, true, [$this->host->id], ['presence_type' => 'office_hour', 'office_hour_date' => '2026-10-06', 'office_hour_note' => ' Questions from new NCOs ']);
+
+    expect($report->refresh()->presence_type)->toBe('office_hour')
+        ->and($report->practice_type)->toBe('sp')
+        ->and($report->office_hour_date->toDateString())->toBe('2026-10-06')
+        ->and($report->office_hour_note)->toBe('Questions from new NCOs')
+        // An office hour is not checked.
+        ->and($report->public_server_check)->toBeNull();
+})->with(['bn', 'psg', 'co']);
+
+it('takes "No" to presence, and refuses a send or an edit with no presence answer', function () {
+    expect(fieldsRefusal(fn () => sendFields($this->bnStaffUser, $this->bnStaff, false, [], ['presence_type' => null])))->toBe(['presence', 'presence_type'])
+        ->and(StaffReport::query()->count())->toBe(0);
+
+    expect(sendFields($this->tree['users']['psg'], $this->psg, false, [])->refresh()->presence_type)->toBe('none');
+    expect(fieldsRefusal(fn () => sendFields($this->tree['users']['psg'], $this->psg, true, [$this->host->id], ['presence_type' => null, 'reason' => 'Went after all'])))->toBe(['presence', 'presence_type']);
+
+    $this->actingAs($this->tree['users']['psg'])
+        ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), ['attended' => true, 'section_ids' => [$this->host->id], 'reason' => 'Went after all'])
+        ->assertSessionHasErrors(['presence_type' => 'Answer the presence question.']);
+});
+
+it('refuses an office hour without a note, with a date outside the week, over 200 characters, or its fields elsewhere, and an unknown presence', function (array $fields, array $refusal) {
+    expect(fieldsRefusal(fn () => sendFields($this->tree['users']['psg'], $this->psg, true, [$this->host->id], $fields)))->toBe($refusal)
+        ->and(StaffReport::query()->count())->toBe(0);
+})->with([
+    'no note' => [['presence_type' => 'office_hour', 'office_hour_date' => '2026-10-06'], ['office_hour', 'office_hour_note']],
+    'no date' => [['presence_type' => 'office_hour', 'office_hour_note' => 'Q and A'], ['office_hour', 'office_hour_date']],
+    'the Saturday after' => [['presence_type' => 'office_hour', 'office_hour_date' => '2026-10-10', 'office_hour_note' => 'Q and A'], ['office_hour', 'office_hour_date']],
+    'note too long' => [['presence_type' => 'office_hour', 'office_hour_date' => '2026-10-06', 'office_hour_note' => str_repeat('a', 201)], ['too_long', 'office_hour_note']],
+    'note with a public server hour' => [['presence_type' => 'public_server', 'office_hour_note' => 'Q and A'], ['office_hour', 'office_hour_note']],
+    'note with No' => [['presence_type' => 'none', 'office_hour_date' => '2026-10-06'], ['office_hour', 'office_hour_note']],
+    'unknown presence' => [['presence_type' => 'forum'], ['presence', 'presence_type']],
+]);
+
+it('takes an office hour note of exactly 200 characters, and bounds the request at the controller', function () {
+    expect(mb_strlen(sendFields($this->bnStaffUser, $this->bnStaff, true, [$this->host->id], ['presence_type' => 'office_hour', 'office_hour_date' => '2026-10-09', 'office_hour_note' => str_repeat('a', 200)])->office_hour_note))->toBe(200);
+
+    $this->actingAs($this->tree['users']['psg'])
+        ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), [
+            'attended' => true, 'section_ids' => [$this->host->id], 'presence_type' => 'office_hour', 'office_hour_date' => '2026-10-06', 'office_hour_note' => str_repeat('a', 201),
+        ])
+        ->assertSessionHasErrors(['office_hour_note' => 'Keep the office hour note to 200 characters.']);
+
+    $this->actingAs($this->tree['users']['psg'])
+        ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), [
+            'attended' => true, 'section_ids' => [$this->host->id], 'presence_type' => 'forum',
+        ])
+        ->assertSessionHasErrors(['presence_type' => 'Pick Public server hour, Office hour or No.']);
+});
+
+it('freezes the presence answer and reads it back on the page and the overview', function () {
+    $this->actingAs($this->tree['users']['psg'])
+        ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), [
+            'attended' => true, 'section_ids' => [$this->host->id], 'presence_type' => 'office_hour', 'office_hour_date' => '2026-10-06', 'office_hour_note' => 'Q and A',
+        ])
+        ->assertRedirect();
+
+    $this->actingAs($this->tree['users']['co'])->get(route('staff-report.show', ['trooper' => $this->psg->id, 'week' => '2026-10-03']))
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('report.presenceType', 'office_hour')
+            ->where('report.officeHour', ['date' => '2026-10-06', 'note' => 'Q and A'])
+            ->where('report.publicServer', null)
+            ->where('limits.officeHourNote', 200));
+
+    $this->actingAs($this->tree['users']['co'])->get('/staff-reports')->assertInertia(fn (AssertableInertia $page) => $page
+        ->where('groups.0.rows', fn ($rows) => ($row = collect($rows)->firstWhere('trooperId', $this->psg->id)) !== null
+            && $row['presenceType'] === 'office_hour' && $row['officeHour'] === ['date' => '2026-10-06', 'note' => 'Q and A'] && $row['publicServer'] === null));
+});
+
+it('fills "Did you spend one hour" with the presence answer on the staff tab, keeping other events in column V', function () {
+    $fake = fakeSheet();
+    $report = sendFields($this->tree['users']['psg'], $this->psg, true, [$this->host->id], ['presence_type' => 'public_server', 'other_events' => 'Range day']);
+
+    pushToSheet($report);
+
+    expect($fake->rows[0]['row'][6])->toBe('Yes, public server')
+        ->and($fake->rows[0]['row'][21])->toBe('Range day');
 });
 
 it('overwrites the row an edited report went to, instead of adding a second one', function () {
@@ -515,9 +619,9 @@ it('queues the push again when the report is edited', function () {
     $fake = fakeSheet();
     $url = route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']);
 
-    $this->actingAs($this->tree['users']['psg'])->post($url, ['attended' => true, 'section_ids' => [$this->host->id]])->assertRedirect();
+    $this->actingAs($this->tree['users']['psg'])->post($url, ['presence_type' => 'none', 'attended' => true, 'section_ids' => [$this->host->id]])->assertRedirect();
     $this->actingAs($this->tree['users']['psg'])
-        ->post($url, ['attended' => false, 'section_ids' => [], 'reason' => 'Missed it after all.'])
+        ->post($url, ['presence_type' => 'none', 'attended' => false, 'section_ids' => [], 'reason' => 'Missed it after all.'])
         ->assertSessionHasNoErrors();
 
     expect($fake->rows)->toHaveCount(1)

@@ -47,11 +47,14 @@ class StaffReportWeek
     }
 
     /**
-     * The report as sent. `practiceType` is `sp`, `ftx` or `office_hour` (a report sent before the type was asked reads as an SP when
-     * they attended); `ftx` holds the FTX's name and date, `officeHour` the office hour's date and note; `sheetPushedAt` is when the row went to the reports sheet; `presence` is the game server check frozen at send
+     * The report as sent. `practiceType` is `sp`, `ftx`, `operation`, `class`, `event` or, on a report sent before
+     * presence was its own question, `office_hour` (a report sent before the type was asked reads as an SP when they
+     * attended); `ftx` holds the name and date of any named type (FTX, operation, class, event), `officeHour` the
+     * office hour's date and note; `presenceType` is `public_server`, `office_hour`, `none` or null when not asked;
+     * `publicServer` is the public server check frozen at send (`{check, source, minutes}`, as `presence` with the minutes found), null when none was made; `sheetPushedAt` is when the row went to the reports sheet; `presence` is the game server check frozen at send
      * (`check` `conflict`, `confirmed` or `no_data`, `source` the system's name, "CRCON" for HLL), null when none was made.
      *
-     * @return array{sentAt: string, attended: bool, practiceType: ?string, ftx: ?array{name: ?string, date: ?string}, officeHour: ?array{date: ?string, note: ?string}, otherEvents: ?string, notes: ?string, sheetPushedAt: ?string, presence: ?array{check: string, source: string}, practices: list<array{sectionId: int, section: ?string}>}
+     * @return array{sentAt: string, attended: bool, practiceType: ?string, ftx: ?array{name: ?string, date: ?string}, officeHour: ?array{date: ?string, note: ?string}, presenceType: ?string, otherEvents: ?string, notes: ?string, sheetPushedAt: ?string, presence: ?array{check: string, source: string}, publicServer: ?array{check: string, source: string, minutes: ?int}, practices: list<array{sectionId: int, section: ?string}>}
      */
     public static function reportProps(StaffReport $report): array
     {
@@ -61,12 +64,15 @@ class StaffReportWeek
             'sentAt' => $report->sent_at->toIso8601String(),
             'attended' => $report->attended,
             'practiceType' => $type,
-            'ftx' => $type === StaffReport::FTX ? ['name' => $report->ftx_name, 'date' => $report->ftx_date?->toDateString()] : null,
-            'officeHour' => $type === StaffReport::OFFICE_HOUR ? ['date' => $report->office_hour_date?->toDateString(), 'note' => $report->office_hour_note] : null,
+            'ftx' => in_array($type, StaffReport::NAMED_TYPES, true) ? ['name' => $report->ftx_name, 'date' => $report->ftx_date?->toDateString()] : null,
+            'officeHour' => $type === StaffReport::OFFICE_HOUR || $report->presence_type === StaffReport::PRESENCE_OFFICE_HOUR
+                ? ['date' => $report->office_hour_date?->toDateString(), 'note' => $report->office_hour_note] : null,
+            'presenceType' => $report->presence_type,
             'otherEvents' => $report->other_events,
             'notes' => $report->notes,
             'sheetPushedAt' => $report->sheet_pushed_at?->toIso8601String(),
             'presence' => $report->presence_check === null ? null : ['check' => $report->presence_check, 'source' => $report->presence_source ?? 'game server'],
+            'publicServer' => $report->public_server_check === null ? null : ['check' => $report->public_server_check, 'source' => 'public server', 'minutes' => $report->public_server_minutes],
             'practices' => array_map(fn (array $row) => [
                 'sectionId' => (int) $row['section_id'],
                 'section' => $row['section'] ?? null,
@@ -81,15 +87,16 @@ class StaffReportWeek
     }
 
     /**
-     * Whether a sent report keeps to the rule of one section practice a week: "Yes" with a practice picked, "Yes"
-     * to an FTX, whose sections are optional, or a battalion HQ staff member's office hour.
+     * Whether a sent report keeps to the accountability rule of one a week: "Yes" with a practice picked, "Yes" to a
+     * named type (FTX, operation, class, event), whose sections are optional or none, or, on a report sent before
+     * presence was its own question, a battalion HQ staff member's office hour.
      *
      * @param  array{attended: bool, practiceType: ?string, practices: list<mixed>}  $props  from {@see reportProps()}
      */
     public static function metRule(array $props): bool
     {
         return $props['attended'] && ($props['practices'] !== []
-            || in_array($props['practiceType'], [StaffReport::FTX, StaffReport::OFFICE_HOUR], true));
+            || in_array($props['practiceType'], [...StaffReport::NAMED_TYPES, StaffReport::OFFICE_HOUR], true));
     }
 
     /**
@@ -98,16 +105,16 @@ class StaffReportWeek
      * two agree. `notSeen`: a section whose practice they reported attending was captured that week and the capture
      * did not see them. `seenElsewhere`: a captured practice that week saw them, through a linked game identity, at
      * a section they did not report (all of them when they answered No). A practice with no capture says nothing, and
-     * an FTX or an office hour is never compared: neither is captured. Two queries whatever the number of reports.
+     * only a section practice or "No" is compared: a named type or an office hour is not captured. Two queries whatever the number of reports.
      *
      * @param  iterable<StaffReport>  $reports  sent reports of one week
      * @return array<int, array{notSeen: list<string>, seenElsewhere: list<string>}>
      */
     public function discrepancies(iterable $reports, CarbonImmutable $weekStart): array
     {
-        $compared = collect($reports)->filter(fn (StaffReport $report) => ! in_array(
+        $compared = collect($reports)->filter(fn (StaffReport $report) => in_array(
             $report->practice_type ?? ($report->attended ? StaffReport::SP : null),
-            [StaffReport::FTX, StaffReport::OFFICE_HOUR],
+            [StaffReport::SP, null],
             true,
         ))->keyBy('trooper_id');
 

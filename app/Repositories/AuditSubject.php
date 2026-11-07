@@ -86,7 +86,7 @@ final class AuditSubject
         SectionPractice::class => ['slot_moved_to' => 'Moved to', 'slot_cancelled' => 'Cancelled', 'confirmed_at' => 'Confirmed', 'not_held' => 'Not held'],
         Attendance::class => ['status' => 'Practice', 'rollcall' => 'Roll call'],
         WeeklyReport::class => ['status' => 'Status'],
-        StaffReport::class => ['attended' => 'Attended', 'practice_type' => 'Practice type', 'ftx_date' => 'FTX date', 'office_hour_date' => 'Office hour'],
+        StaffReport::class => ['attended' => 'Attended', 'practice_type' => 'Practice type', 'ftx_date' => 'FTX date', 'presence_type' => 'Presence', 'office_hour_date' => 'Office hour', 'public_server_check' => 'Public server check', 'public_server_minutes' => 'Public server minutes'],
         BattalionSetting::class => ['presence_minimum_minutes' => 'Presence minimum'],
         CounselingRecord::class => ['type' => 'Type', 'kind' => 'For', 'counseled_on' => 'Dated'],
         ChangelogEntry::class => ['date' => 'Date', 'body' => 'Text', 'major' => 'Major', 'technical' => 'Technical'],
