@@ -52,6 +52,7 @@ function sendDiscrepancyReport(User $user, Trooper $trooper, bool $attended, arr
     app(SendStaffReportHandler::class)->handle($user, new SendStaffReport(
         $trooper->id, CarbonImmutable::parse('2026-10-03', 'UTC'), $attended, $sectionIds, $type,
         $more['ftx_name'] ?? null, $more['ftx_date'] ?? null, null, null, $more['office_hour_date'] ?? null, $more['office_hour_note'] ?? null,
+        presenceType: 'none',
     ));
 }
 

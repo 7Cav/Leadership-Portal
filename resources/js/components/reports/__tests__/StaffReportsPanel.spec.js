@@ -48,7 +48,7 @@ describe('StaffReportsPanel', () => {
                 rows: [
                     row({
                         sent: true, attended: true, practiceType: 'operation', ftx: { name: 'Anvil', date: '2026-10-06' },
-                        presenceType: 'public_server', publicServer: { check: 'conflict', source: 'public server' },
+                        presenceType: 'public_server', publicServer: { check: 'conflict', source: 'public server', minutes: 43 },
                     }),
                 ],
             },
@@ -57,7 +57,7 @@ describe('StaffReportsPanel', () => {
 
         expect(line.find('[data-testid="staff-report-state"]').text()).toBe('Yes, operation Anvil (06OCT26)');
         expect(line.find('[data-testid="staff-report-presence-answer"]').text()).toBe('Presence: Public server hour');
-        expect(line.find('[data-testid="staff-report-public-server"]').text()).toBe('Self-report conflicts with public server data');
+        expect(line.find('[data-testid="staff-report-public-server"]').text()).toBe('43 minutes of server data');
     });
 
     it('says when there is nobody to show', () => {

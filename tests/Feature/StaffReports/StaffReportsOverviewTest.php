@@ -66,7 +66,7 @@ it('answers 404 to a PL, a PSG and a section leader, who read only their own', f
 })->with(['pl', 'psg', 'sl']);
 
 it('opens on the last ended week, with sent, not sent and the 1-practice rule', function () {
-    app(SendStaffReportHandler::class)->handle($this->tree['users']['psg'], new SendStaffReport($this->psg->id, CarbonImmutable::parse('2026-10-03', 'UTC'), true, [$this->tree['units']['host']->id]));
+    app(SendStaffReportHandler::class)->handle($this->tree['users']['psg'], new SendStaffReport($this->psg->id, CarbonImmutable::parse('2026-10-03', 'UTC'), true, [$this->tree['units']['host']->id], presenceType: 'none'));
 
     $this->actingAs($this->tree['users']['co'])->get('/staff-reports')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
         ->component('StaffReports')
@@ -86,7 +86,7 @@ it('opens on the last ended week, with sent, not sent and the 1-practice rule', 
             'practiceType' => 'sp',
             'ftx' => null,
             'officeHour' => null,
-            'presenceType' => null,
+            'presenceType' => 'none',
             'otherEvents' => null,
             'notes' => null,
             'sheetPushedAt' => null,

@@ -51,10 +51,10 @@ class StaffReportWeek
      * presence was its own question, `office_hour` (a report sent before the type was asked reads as an SP when they
      * attended); `ftx` holds the name and date of any named type (FTX, operation, class, event), `officeHour` the
      * office hour's date and note; `presenceType` is `public_server`, `office_hour`, `none` or null when not asked;
-     * `publicServer` is the public server check frozen at send (`{check, source}`, as `presence`), null when none was made; `sheetPushedAt` is when the row went to the reports sheet; `presence` is the game server check frozen at send
+     * `publicServer` is the public server check frozen at send (`{check, source, minutes}`, as `presence` with the minutes found), null when none was made; `sheetPushedAt` is when the row went to the reports sheet; `presence` is the game server check frozen at send
      * (`check` `conflict`, `confirmed` or `no_data`, `source` the system's name, "CRCON" for HLL), null when none was made.
      *
-     * @return array{sentAt: string, attended: bool, practiceType: ?string, ftx: ?array{name: ?string, date: ?string}, officeHour: ?array{date: ?string, note: ?string}, presenceType: ?string, otherEvents: ?string, notes: ?string, sheetPushedAt: ?string, presence: ?array{check: string, source: string}, publicServer: ?array{check: string, source: string}, practices: list<array{sectionId: int, section: ?string}>}
+     * @return array{sentAt: string, attended: bool, practiceType: ?string, ftx: ?array{name: ?string, date: ?string}, officeHour: ?array{date: ?string, note: ?string}, presenceType: ?string, otherEvents: ?string, notes: ?string, sheetPushedAt: ?string, presence: ?array{check: string, source: string}, publicServer: ?array{check: string, source: string, minutes: ?int}, practices: list<array{sectionId: int, section: ?string}>}
      */
     public static function reportProps(StaffReport $report): array
     {
@@ -72,7 +72,7 @@ class StaffReportWeek
             'notes' => $report->notes,
             'sheetPushedAt' => $report->sheet_pushed_at?->toIso8601String(),
             'presence' => $report->presence_check === null ? null : ['check' => $report->presence_check, 'source' => $report->presence_source ?? 'game server'],
-            'publicServer' => $report->public_server_check === null ? null : ['check' => $report->public_server_check, 'source' => 'public server'],
+            'publicServer' => $report->public_server_check === null ? null : ['check' => $report->public_server_check, 'source' => 'public server', 'minutes' => $report->public_server_minutes],
             'practices' => array_map(fn (array $row) => [
                 'sectionId' => (int) $row['section_id'],
                 'section' => $row['section'] ?? null,

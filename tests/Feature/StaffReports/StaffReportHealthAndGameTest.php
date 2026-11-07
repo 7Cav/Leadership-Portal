@@ -71,7 +71,7 @@ it('filters nothing when the HQ has no game', function () {
 });
 
 it('shows a reader the HQ unit health for the week with an 8 week trend, and how many staff kept the rule', function () {
-    app(SendStaffReportHandler::class)->handle($this->tree['users']['psg'], new SendStaffReport($this->psg->id, $this->week, true, [$this->tree['units']['host']->id]));
+    app(SendStaffReportHandler::class)->handle($this->tree['users']['psg'], new SendStaffReport($this->psg->id, $this->week, true, [$this->tree['units']['host']->id], presenceType: 'none'));
 
     $this->actingAs($this->tree['users']['co'])->get($this->url)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
         ->component('StaffReport')

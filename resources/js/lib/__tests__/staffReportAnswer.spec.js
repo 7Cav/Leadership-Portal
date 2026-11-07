@@ -33,6 +33,10 @@ describe('presenceAnswer', () => {
     });
 
     it('names the public server in its check', () => {
-        expect(presenceText({ check: 'no_data', source: 'public server' })).toBe('No public server data');
+        expect(presenceText({ check: 'no_data', source: 'public server', minutes: null })).toBe('No public server data');
+        expect(presenceText({ check: 'conflict', source: 'public server', minutes: 43 })).toBe('43 minutes of server data');
+        expect(presenceText({ check: 'conflict', source: 'public server', minutes: 1 })).toBe('1 minute of server data');
+        expect(presenceText({ check: 'conflict', source: 'public server', minutes: 0 })).toBe('0 minutes of server data');
+        expect(presenceText({ check: 'confirmed', source: 'public server', minutes: 75 })).toBe('');
     });
 });

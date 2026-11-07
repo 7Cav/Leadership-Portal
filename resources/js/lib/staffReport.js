@@ -76,12 +76,16 @@ export function discrepancyLines(discrepancy) {
 }
 
 /**
- * The game server check frozen on a sent report, `{ check, source }`: "Self-report conflicts with CRCON data" for a
+ * The game server check frozen on a sent report, `{ check, source, minutes? }`: "Self-report conflicts with CRCON data" for a
  * conflict, "No CRCON data" when nothing was captured, and empty when it agreed or there was no check.
  */
 export function presenceText(presence) {
     if (!presence) return '';
     const source = presence.source || 'game server';
+    // The public server check keeps the minutes it found: a conflict says how many.
+    if (presence.check === 'conflict' && presence.minutes !== null && presence.minutes !== undefined) {
+        return `${presence.minutes} ${presence.minutes === 1 ? 'minute' : 'minutes'} of server data`;
+    }
     if (presence.check === 'conflict') return `Self-report conflicts with ${source} data`;
     if (presence.check === 'no_data') return `No ${source} data`;
 

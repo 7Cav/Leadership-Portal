@@ -108,7 +108,8 @@ function sendFields(User $actor, Trooper $trooper, bool $attended, array $sectio
         $fields['office_hour_date'] ?? null,
         $fields['office_hour_note'] ?? null,
         $fields['reason'] ?? null,
-        presenceType: $fields['presence_type'] ?? null,
+        // Presence is required: every send answers it, "No" unless the test says otherwise.
+        presenceType: array_key_exists('presence_type', $fields) ? $fields['presence_type'] : 'none',
     ));
 }
 
@@ -238,7 +239,7 @@ it('takes the limits exactly, and empty text as nothing', function () {
 it('bounds the request itself too, before the handler', function () {
     $this->actingAs($this->tree['users']['psg'])
         ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), [
-            'attended' => true, 'section_ids' => [$this->host->id], 'notes' => str_repeat('a', 1001),
+            'presence_type' => 'none', 'attended' => true, 'section_ids' => [$this->host->id], 'notes' => str_repeat('a', 1001),
         ])
         ->assertSessionHasErrors(['notes' => 'Keep the notes to 1000 characters.']);
 
@@ -248,7 +249,7 @@ it('bounds the request itself too, before the handler', function () {
 it('freezes the new fields with the report and reads them back on the page, the overview and the HQ panel', function () {
     $this->actingAs($this->tree['users']['psg'])
         ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), [
-            'attended' => true, 'section_ids' => [], 'practice_type' => 'ftx', 'ftx_name' => 'Operation Anvil', 'ftx_date' => '2026-10-06',
+            'presence_type' => 'none', 'attended' => true, 'section_ids' => [], 'practice_type' => 'ftx', 'ftx_name' => 'Operation Anvil', 'ftx_date' => '2026-10-06',
             'other_events' => 'Range day', 'notes' => 'Ran the OPFOR.',
         ])
         ->assertRedirect();
@@ -347,7 +348,7 @@ it('queues the push on send, and marks the report sent to the sheet', function (
     $fake = fakeSheet();
 
     $this->actingAs($this->tree['users']['psg'])
-        ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), ['attended' => true, 'section_ids' => [$this->host->id]])
+        ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), ['presence_type' => 'none', 'attended' => true, 'section_ids' => [$this->host->id]])
         ->assertRedirect();
 
     $report = StaffReport::query()->sole();
@@ -365,7 +366,7 @@ it('keeps the send when the push fails, leaves the report not sent to the sheet,
     fakeSheet(fails: true);
 
     $this->actingAs($this->tree['users']['psg'])
-        ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), ['attended' => true, 'section_ids' => [$this->host->id]])
+        ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), ['presence_type' => 'none', 'attended' => true, 'section_ids' => [$this->host->id]])
         ->assertRedirect(route('staff-report.show', ['trooper' => $this->psg->id, 'week' => '2026-10-03']))
         ->assertSessionHasNoErrors();
 
@@ -505,9 +506,16 @@ it('takes each presence answer from every level, an office hour with its date an
         ->and($report->public_server_check)->toBeNull();
 })->with(['bn', 'psg', 'co']);
 
-it('takes "No" to presence, and no answer as before the question was asked', function () {
-    expect(sendFields($this->tree['users']['psg'], $this->psg, false, [], ['presence_type' => 'none'])->refresh()->presence_type)->toBe('none');
-    expect(sendFields($this->bnStaffUser, $this->bnStaff, false, [])->refresh()->presence_type)->toBeNull();
+it('takes "No" to presence, and refuses a send or an edit with no presence answer', function () {
+    expect(fieldsRefusal(fn () => sendFields($this->bnStaffUser, $this->bnStaff, false, [], ['presence_type' => null])))->toBe(['presence', 'presence_type'])
+        ->and(StaffReport::query()->count())->toBe(0);
+
+    expect(sendFields($this->tree['users']['psg'], $this->psg, false, [])->refresh()->presence_type)->toBe('none');
+    expect(fieldsRefusal(fn () => sendFields($this->tree['users']['psg'], $this->psg, true, [$this->host->id], ['presence_type' => null, 'reason' => 'Went after all'])))->toBe(['presence', 'presence_type']);
+
+    $this->actingAs($this->tree['users']['psg'])
+        ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), ['attended' => true, 'section_ids' => [$this->host->id], 'reason' => 'Went after all'])
+        ->assertSessionHasErrors(['presence_type' => 'Answer the presence question.']);
 });
 
 it('refuses an office hour without a note, with a date outside the week, over 200 characters, or its fields elsewhere, and an unknown presence', function (array $fields, array $refusal) {
@@ -519,7 +527,7 @@ it('refuses an office hour without a note, with a date outside the week, over 20
     'the Saturday after' => [['presence_type' => 'office_hour', 'office_hour_date' => '2026-10-10', 'office_hour_note' => 'Q and A'], ['office_hour', 'office_hour_date']],
     'note too long' => [['presence_type' => 'office_hour', 'office_hour_date' => '2026-10-06', 'office_hour_note' => str_repeat('a', 201)], ['too_long', 'office_hour_note']],
     'note with a public server hour' => [['presence_type' => 'public_server', 'office_hour_note' => 'Q and A'], ['office_hour', 'office_hour_note']],
-    'note with no answer' => [['office_hour_date' => '2026-10-06'], ['office_hour', 'office_hour_note']],
+    'note with No' => [['presence_type' => 'none', 'office_hour_date' => '2026-10-06'], ['office_hour', 'office_hour_note']],
     'unknown presence' => [['presence_type' => 'forum'], ['presence', 'presence_type']],
 ]);
 
@@ -608,9 +616,9 @@ it('queues the push again when the report is edited', function () {
     $fake = fakeSheet();
     $url = route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']);
 
-    $this->actingAs($this->tree['users']['psg'])->post($url, ['attended' => true, 'section_ids' => [$this->host->id]])->assertRedirect();
+    $this->actingAs($this->tree['users']['psg'])->post($url, ['presence_type' => 'none', 'attended' => true, 'section_ids' => [$this->host->id]])->assertRedirect();
     $this->actingAs($this->tree['users']['psg'])
-        ->post($url, ['attended' => false, 'section_ids' => [], 'reason' => 'Missed it after all.'])
+        ->post($url, ['presence_type' => 'none', 'attended' => false, 'section_ids' => [], 'reason' => 'Missed it after all.'])
         ->assertSessionHasNoErrors();
 
     expect($fake->rows)->toHaveCount(1)
