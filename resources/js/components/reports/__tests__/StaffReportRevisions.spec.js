@@ -31,4 +31,15 @@ describe('StaffReportRevisions', () => {
         expect(body).toContain('1/1/A/1-7');
         expect(body).toContain('First.');
     });
+
+    it('reads a named type and the presence answer of an earlier version', async () => {
+        const wrapper = mount(StaffReportRevisions, {
+            props: { revisions: [{ ...revision, practiceType: 'event', ftx: { name: 'Town hall', date: '2026-10-06' }, practices: [], presenceType: 'office_hour', officeHour: { date: '2026-10-07', note: 'Q and A' } }] },
+        });
+        await wrapper.get('[data-testid="staff-report-revision"] button').trigger('click');
+
+        const body = wrapper.get('[data-testid="staff-report-revision-body"]').text();
+        expect(body).toContain('Attended an official event, Town hall on 06OCT26.');
+        expect(body).toContain('Office hour (07OCT26)');
+    });
 });

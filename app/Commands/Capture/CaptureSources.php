@@ -31,6 +31,9 @@ use DateTimeImmutable;
  *   never the server another game is played on.
  * - A game read by no interface (`none`) is not captured, whatever servers it has.
  *
+ * - A staff member's public server hour reads the game's **selected public servers** ({@see publicFor()}), the same
+ *   way, and never the training ones or the env server: it is not a practice capture.
+ *
  * Adding a source (DCS 7.11) is one more interface, one more seam call here, and one more legacy entry — the handler
  * does not change.
  */
@@ -50,11 +53,13 @@ final class CaptureSources
      * @param  array<string, list<CaptureSource>>  $byInterface  the legacy env server's sources, keyed by {@see TelemetryInterface} value
      * @param  (Closure(Game): (list<CaptureServer>|null))|null  $selected  a game's selected training servers, or null when it has no selected server
      * @param  array<string, string>|null  $legacyGames  which game reads each interface's env server (interface value => slug); null lets any game read it
+     * @param  (Closure(Game): list<CaptureServer>)|null  $public  a game's selected public servers
      */
     public function __construct(
         private readonly array $byInterface,
         private readonly ?Closure $selected = null,
         private readonly ?array $legacyGames = null,
+        private readonly ?Closure $public = null,
     ) {}
 
     /**
@@ -140,18 +145,34 @@ final class CaptureSources
         }
 
         $serverSource = fn (GameServer $server) => $source($server->interface, $server->external_id, $server->id, $credentials->areSet($server->interface));
+        $captureServer = fn (GameServer $server) => new CaptureServer(
+            $server->id,
+            $server->name,
+            [$serverSource($server), ...($server->fallback === null ? [] : [$serverSource($server->fallback)])],
+        );
 
-        return new self($byInterface, function (Game $game) use ($servers, $serverSource): ?array {
+        return new self($byInterface, function (Game $game) use ($servers, $captureServer): ?array {
             if (! $servers->hasSelectedFor($game)) {
                 return null;
             }
 
-            return $servers->trainingServersFor($game)->map(fn (GameServer $server) => new CaptureServer(
-                $server->id,
-                $server->name,
-                [$serverSource($server), ...($server->fallback === null ? [] : [$serverSource($server->fallback)])],
-            ))->values()->all();
-        }, self::LEGACY_GAMES);
+            return $servers->trainingServersFor($game)->map($captureServer)->values()->all();
+        }, self::LEGACY_GAMES, fn (Game $game): array => $servers->publicServersFor($game)->map($captureServer)->values()->all());
+    }
+
+    /**
+     * The game's selected public servers, each with its sources in order: where a staff member's public server hour
+     * is read. Empty for a game read by no interface, or with no public server selected.
+     *
+     * @return list<CaptureServer>
+     */
+    public function publicFor(Game $game): array
+    {
+        if ($game->interface === TelemetryInterface::None || $this->public === null) {
+            return [];
+        }
+
+        return ($this->public)($game);
     }
 
     /**

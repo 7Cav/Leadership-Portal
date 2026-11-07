@@ -38,6 +38,18 @@ class Eloquent implements GameServerRepository
             ->get();
     }
 
+    public function publicServersFor(Game $game): Collection
+    {
+        $public = fn ($query) => $query->where('game_id', $game->id)->where('selected', true)->where('type', GameServerType::Public);
+
+        return GameServer::query()
+            ->with('fallback')
+            ->where($public)
+            ->whereNotIn('id', GameServer::query()->where($public)->whereNotNull('fallback_server_id')->select('fallback_server_id'))
+            ->orderBy('id')
+            ->get();
+    }
+
     public function fallbackUsersOf(GameServer $server): Collection
     {
         return GameServer::query()->where('fallback_server_id', $server->id)->orderBy('id')->get();

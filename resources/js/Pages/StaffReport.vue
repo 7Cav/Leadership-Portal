@@ -4,6 +4,8 @@ import { Head, Link, useForm } from '@inertiajs/vue3';
 import { toast } from 'vue-sonner';
 import {
     PhBroadcast,
+    PhCalendarCheck,
+    PhGameController,
     PhCaretDown,
     PhCaretLeft,
     PhCaretRight,
@@ -11,6 +13,8 @@ import {
     PhCheckCircle,
     PhChalkboardTeacher,
     PhLockSimple,
+    PhMedal,
+    PhPresentationChart,
     PhMagnifyingGlass,
     PhPencilSimpleLine,
     PhTent,
@@ -35,11 +39,12 @@ import { forumDate, weekLabel, weekPhrase } from '@/lib/forumDate';
 import WeekHeading from '@/components/week/WeekHeading.vue';
 import { onHttpException } from '@/lib/httpError';
 import { stamp } from '@/lib/report';
-import { attendedText, pickerCollapses, pickerGroups, sheetText } from '@/lib/staffReport';
+import { NAMED_TYPES, attendedText, namedSentence, pickerCollapses, pickerGroups, presenceAnswer, sheetText } from '@/lib/staffReport';
 
-// A platoon, company or battalion HQ staff member's own weekly staff report: whether they attended a section
-// practice this week, an FTX or (battalion HQ staff only) an office hour, which, with the other events they attended
-// and their notes. The server says who may send it (the staff member alone, signed in as themselves), which sections
+// A platoon, company or battalion HQ staff member's own weekly staff report: their accountability (platoon and company
+// HQ staff: a section practice in their unit or an FTX; battalion HQ staff: a section practice in the battalion, an
+// operation, a class or another official event), their presence (a public server hour, an office hour, or neither),
+// the other events they attended and their notes. The server says who may send it (the staff member alone, signed in as themselves), which sections
 // the picker offers, which entries are already there and what the game server saw; this page only draws its answers
 // and posts them. Once sent it is final and reads back as sent.
 const props = defineProps({
@@ -51,8 +56,8 @@ const props = defineProps({
     hq: { type: Object, default: null },
     // `{ date, start, due, overdueUntil, previous, next, beforeFloor }`.
     week: { type: Object, required: true },
-    // The report as sent, `{ sentAt, attended, practiceType, ftx: { name, date }, officeHour: { date, note }, otherEvents,
-    // notes, sheetPushedAt, practices: [{ sectionId, section, own }], revisions }`, or null. `revisions` are the versions an
+    // The report as sent, `{ sentAt, attended, practiceType, ftx: { name, date }, officeHour: { date, note }, presenceType,
+    // otherEvents, notes, sheetPushedAt, presence, publicServer, practices: [{ sectionId, section, own }], revisions }`, or null. `revisions` are the versions an
     // edit replaced, newest first.
     report: { type: Object, default: null },
     // Whether the reports Google Sheet is set up: only then is a report not yet copied there called out.
@@ -64,7 +69,7 @@ const props = defineProps({
     entries: { type: Array, default: () => [] },
     // Section ids whose capture saw them on the game server this week: a hint, never ticked for them.
     seen: { type: Array, default: () => [] },
-    // `[{ id, label, own, group }]`, nearest first: `group` is the HQ, company or battalion holding it, or null.
+    // `[{ id, label, own, group, platoon }]`: the sections under the HQ, in order of battle.
     sections: { type: Array, default: () => [] },
     maxPractices: { type: Number, default: 20 },
     // `{ ftxName, otherEvents, notes, officeHourNote }`: the most characters each takes.
@@ -78,8 +83,8 @@ const props = defineProps({
 const entered = computed(() => new Map(props.entries.map((entry) => [entry.sectionId, entry])));
 const seenIds = computed(() => new Set(props.seen));
 const labels = computed(() => new Map([...props.sections.map((section) => [section.id, section.label]), ...props.entries.map((entry) => [entry.sectionId, entry.section])]));
-// An office hour counts in place of the hour of play for battalion HQ staff only.
-const officeHourOffered = computed(() => props.hq?.type === 'battalion');
+// Battalion HQ staff report an operation, a class or another official event; platoon and company HQ staff an FTX.
+const battalion = computed(() => props.hq?.type === 'battalion');
 
 const form = useForm({
     attended: props.entries.length ? true : null,
@@ -87,6 +92,7 @@ const form = useForm({
     practice_type: 'sp',
     ftx_name: '',
     ftx_date: '',
+    presence_type: null,
     office_hour_date: '',
     office_hour_note: '',
     other_events: '',
@@ -101,9 +107,11 @@ function startEdit() {
     form.defaults({
         attended: sent.attended,
         section_ids: sent.practices.map((practice) => practice.sectionId),
-        practice_type: sent.practiceType ?? 'sp',
+        // A type the HQ no longer reports (an office hour or FTX sent before) starts over as an SP.
+        practice_type: TYPES.value.some((option) => option.value === sent.practiceType) ? sent.practiceType : 'sp',
         ftx_name: sent.ftx?.name ?? '',
         ftx_date: sent.ftx?.date ?? '',
+        presence_type: sent.presenceType ?? null,
         office_hour_date: sent.officeHour?.date ?? '',
         office_hour_note: sent.officeHour?.note ?? '',
         other_events: sent.otherEvents ?? '',
@@ -117,17 +125,27 @@ function startEdit() {
     editingReport.value = true;
 }
 
-const ATTENDED = [
-    { value: true, label: 'Yes', hint: 'A practice, an FTX or an office hour', icon: PhCheckCircle },
+const ATTENDED = computed(() => [
+    { value: true, label: 'Yes', hint: battalion.value ? 'A section practice, an operation, a class or an event' : 'A section practice or an FTX', icon: PhCheckCircle },
     { value: false, label: 'No', hint: 'Not this week', icon: PhXCircle },
-];
+]);
 const TYPES = computed(() => [
     { value: 'sp', label: 'Section practice', hint: 'Pick the sections', icon: PhUsersThree },
-    { value: 'ftx', label: 'FTX', hint: 'Its name and date', icon: PhTent },
-    ...(officeHourOffered.value ? [{ value: 'office_hour', label: 'Office hour', hint: 'Its date and a note', icon: PhChalkboardTeacher }] : []),
+    ...(battalion.value
+        ? [
+              { value: 'operation', label: 'Operation', hint: 'Its name and date', icon: PhMedal },
+              { value: 'class', label: 'Class', hint: 'Its name and date', icon: PhPresentationChart },
+              { value: 'event', label: 'Other official event', hint: 'Its name and date', icon: PhCalendarCheck },
+          ]
+        : [{ value: 'ftx', label: 'FTX', hint: 'Its name and date', icon: PhTent }]),
 ]);
+const PRESENCE = [
+    { value: 'public_server', label: 'Public server hour', hint: 'An hour on the public server', icon: PhGameController },
+    { value: 'office_hour', label: 'Office hour', hint: 'An hour in Discord voice', icon: PhChalkboardTeacher },
+    { value: 'none', label: 'No', hint: 'Not this week', icon: PhXCircle },
+];
 
-// The days an FTX or an office hour can fall on: the Cav week, Saturday to Friday.
+// The days a named event or an office hour can fall on: the Cav week, Saturday to Friday.
 const weekEnd = computed(() => {
     const end = new Date(`${props.week.date}T00:00:00Z`);
     end.setUTCDate(end.getUTCDate() + 6);
@@ -136,6 +154,9 @@ const weekEnd = computed(() => {
 });
 const inWeek = (date) => date >= props.week.date && date <= weekEnd.value;
 const type = computed(() => (form.attended === true ? form.practice_type : null));
+// The named type picked (FTX, operation, class, event), or null.
+const named = computed(() => (type.value && NAMED_TYPES[type.value] ? NAMED_TYPES[type.value] : null));
+const namedLabel = computed(() => TYPES.value.find((option) => option.value === type.value)?.label ?? '');
 const sheetLine = computed(() => (props.report ? sheetText(props.report.sheetPushedAt, props.sheetConfigured) : null));
 
 const filter = ref('');
@@ -168,33 +189,42 @@ function toggle(id) {
     form.section_ids = picked.value.has(id) ? form.section_ids.filter((sectionId) => sectionId !== id) : [...form.section_ids, id];
 }
 
-// What still stops the send, in the order the form asks it: shown beside the Send button.
-const missing = computed(() => {
-    if (form.attended === null) return 'Answer Yes or No.';
-    if (form.attended === false) return null;
-    if (form.section_ids.length > props.maxPractices && type.value !== 'office_hour') return `Pick at most ${props.maxPractices} practices.`;
+// What still stops the accountability details, then the presence answer.
+const missingDetails = computed(() => {
+    if (form.attended !== true) return null;
+    if (form.section_ids.length > props.maxPractices && (type.value === 'sp' || type.value === 'ftx')) return `Pick at most ${props.maxPractices} practices.`;
     if (type.value === 'sp' && !form.section_ids.length) return 'Pick the section practice you attended.';
-    if (type.value === 'ftx') {
-        if (!form.ftx_name.trim()) return 'Give the name of the FTX.';
-        if (!inWeek(form.ftx_date)) return `Pick the FTX date, ${forumDate(props.week.date)} to ${forumDate(weekEnd.value)}.`;
+    if (named.value) {
+        if (!form.ftx_name.trim()) return `Give the name of ${named.value.sentence.replace(/^an? /, 'the ')}.`;
+        if (!inWeek(form.ftx_date)) return `Pick the ${named.value.short} date, ${forumDate(props.week.date)} to ${forumDate(weekEnd.value)}.`;
     }
-    if (type.value === 'office_hour') {
+
+    return null;
+});
+const missingPresence = computed(() => {
+    if (form.presence_type === null) return 'Answer the presence question.';
+    if (form.presence_type === 'office_hour') {
         if (!inWeek(form.office_hour_date)) return `Pick the office hour date, ${forumDate(props.week.date)} to ${forumDate(weekEnd.value)}.`;
         if (!form.office_hour_note.trim()) return 'Say in a few words what the office hour was.';
     }
 
     return null;
 });
+// What still stops the send, in the order the form asks it: shown beside the Send button.
+const missing = computed(() => (form.attended === null ? 'Answer Yes or No.' : (missingDetails.value ?? missingPresence.value)));
 const canSubmit = computed(() => !form.processing && missing.value === null && (!editingReport.value || !!form.reason.trim()));
 
 // One question at a time: Yes or No, then (for Yes) what it was and its details, then the optional extras. A step is
 // reachable once every step before it is answered; Send stays beside the steps the whole way.
 const steps = computed(() => [
-    { key: 'attended', label: 'Attended' },
-    ...(form.attended === false ? [] : [
-        { key: 'kind', label: 'What' },
-        { key: 'details', label: type.value === 'office_hour' ? 'Office hour' : type.value === 'ftx' ? 'FTX' : 'Practices' },
-    ]),
+    { key: 'attended', label: 'Accountability' },
+    ...(form.attended === false
+        ? []
+        : [
+              { key: 'kind', label: 'What' },
+              { key: 'details', label: named.value ? namedLabel.value : 'Practices' },
+          ]),
+    { key: 'presence', label: 'Presence' },
     { key: 'extras', label: 'Notes' },
 ]);
 const step = ref(props.entries.length ? 'details' : 'attended');
@@ -209,7 +239,8 @@ const stepIndex = computed(() => Math.max(0, steps.value.findIndex((item) => ite
 // What still stops a step, in the words of `missing`.
 function missingAt(key) {
     if (key === 'attended') return form.attended === null ? 'Answer Yes or No.' : null;
-    if (key === 'details') return missing.value;
+    if (key === 'details') return missingDetails.value;
+    if (key === 'presence') return missingPresence.value;
 
     return null;
 }
@@ -229,11 +260,14 @@ function back() {
 }
 function answer(value) {
     form.attended = value;
-    step.value = value ? 'kind' : 'extras';
+    step.value = value ? 'kind' : 'presence';
 }
 function pickType(value) {
     form.practice_type = value;
     step.value = 'details';
+}
+function pickPresence(value) {
+    form.presence_type = value;
 }
 
 const tile = 'flex min-h-24 flex-col items-start gap-1 rounded-xl border p-4 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring';
@@ -249,9 +283,11 @@ const summary = computed(() => {
         practiceType: type.value,
         practices: form.section_ids.map((id) => labels.value.get(id)).filter(Boolean),
         ftx: { name: form.ftx_name.trim(), date: inWeek(form.ftx_date) ? form.ftx_date : null },
-        officeHour: { date: inWeek(form.office_hour_date) ? form.office_hour_date : null },
     });
 });
+const presenceSummary = computed(
+    () => presenceAnswer({ presenceType: form.presence_type, officeHour: { date: inWeek(form.office_hour_date) ? form.office_hour_date : null } }) || 'Not answered yet',
+);
 
 function send() {
     if (!canSubmit.value) return;
@@ -278,13 +314,14 @@ function submit() {
 
         return {
             attended: data.attended,
-            // An office hour takes no section practice.
+            // An operation, a class or an event takes no section practice.
             section_ids: kind === 'sp' || kind === 'ftx' ? data.section_ids : [],
             practice_type: kind,
-            ftx_name: kind === 'ftx' ? data.ftx_name : null,
-            ftx_date: kind === 'ftx' ? data.ftx_date : null,
-            office_hour_date: kind === 'office_hour' ? data.office_hour_date : null,
-            office_hour_note: kind === 'office_hour' ? data.office_hour_note : null,
+            ftx_name: NAMED_TYPES[kind] ? data.ftx_name : null,
+            ftx_date: NAMED_TYPES[kind] ? data.ftx_date : null,
+            presence_type: data.presence_type,
+            office_hour_date: data.presence_type === 'office_hour' ? data.office_hour_date : null,
+            office_hour_note: data.presence_type === 'office_hour' ? data.office_hour_note : null,
             other_events: data.other_events,
             notes: data.notes,
             // Only an edit carries a reason: a first send posts the fields it always did.
@@ -360,9 +397,7 @@ function entryNote(id) {
                 <div class="min-w-0 flex-1">
                     <h2 class="flex items-center gap-2 text-sm font-semibold">
                         <span data-testid="staff-report-answer">
-                            <template v-if="report.attended && report.practiceType === 'ftx'">
-                                Attended an FTX, {{ report.ftx?.name }}<template v-if="report.ftx?.date"> on {{ forumDate(report.ftx.date) }}</template>.
-                            </template>
+                            <template v-if="namedSentence(report)">{{ namedSentence(report) }}</template>
                             <template v-else-if="report.attended && report.practiceType === 'office_hour'">
                                 Held an office hour<template v-if="report.officeHour?.date"> on {{ forumDate(report.officeHour.date) }}</template>.
                             </template>
@@ -374,6 +409,10 @@ function entryNote(id) {
                         <StaffReportDiscrepancy :discrepancy="discrepancy" />
                         <StaffReportPresence :presence="report.presence" />
                     </h2>
+                    <p v-if="report.presenceType" class="mt-0.5 flex flex-wrap items-center gap-2" data-testid="staff-report-presence-answer">
+                        Presence: {{ presenceAnswer(report) }}
+                        <StaffReportPresence :presence="report.publicServer" testid="staff-report-public-server" />
+                    </p>
                     <p class="mt-0.5 text-xs text-muted-foreground">
                         Sent {{ stamp(report.sentAt) }}.<template v-if="!canEdit"> A sent staff report is final.</template>
                         <span v-if="sheetLine" data-testid="staff-report-sheet">{{ sheetLine }}.</span>
@@ -449,9 +488,10 @@ function entryNote(id) {
                 <div class="min-h-[18rem] px-4 py-4">
                     <!-- 1. Yes or No. -->
                     <fieldset v-if="step === 'attended'" data-testid="step-panel-attended">
-                        <legend class="text-base font-semibold">Did you attend a section practice this week?</legend>
-                        <p class="mt-0.5 text-xs text-muted-foreground">HQ staff attend at least one a week, preferably in their own unit.</p>
-                        <div class="mt-4 grid grid-cols-2 gap-3" role="radiogroup" aria-label="Attended a section practice">
+                        <legend class="text-base font-semibold">
+                            {{ battalion ? 'Did you attend a section practice, an operation, a class or another official event this week?' : 'Did you attend a section practice or an FTX this week?' }}
+                        </legend>
+                        <div class="mt-4 grid grid-cols-2 gap-3" role="radiogroup" aria-label="Accountability">
                             <button
                                 v-for="choice in ATTENDED"
                                 :key="String(choice.value)"
@@ -473,7 +513,7 @@ function entryNote(id) {
                     <!-- 2. What it was. -->
                     <fieldset v-else-if="step === 'kind'" data-testid="practice-type">
                         <legend class="text-base font-semibold">What was it?</legend>
-                        <div class="mt-4 grid gap-3" :class="TYPES.length === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'" role="radiogroup" aria-label="What was it">
+                        <div class="mt-4 grid gap-3" :class="TYPES.length === 4 ? 'sm:grid-cols-4' : 'sm:grid-cols-2'" role="radiogroup" aria-label="What was it">
                             <button
                                 v-for="option in TYPES"
                                 :key="option.value"
@@ -494,9 +534,9 @@ function entryNote(id) {
 
                     <!-- 3. The details of that kind. -->
                     <div v-else-if="step === 'details'" class="flex flex-col gap-4" data-testid="step-panel-details">
-                        <div v-if="type === 'ftx'" class="grid gap-3 sm:grid-cols-[1fr_auto]" data-testid="ftx-fields">
+                        <div v-if="named" class="grid gap-3 sm:grid-cols-[1fr_auto]" data-testid="ftx-fields">
                             <label class="flex flex-col gap-1">
-                                <span class="text-xs font-medium">Name of the FTX</span>
+                                <span class="text-xs font-medium">{{ type === 'ftx' ? 'Name of the FTX' : 'Name' }}</span>
                                 <Input v-model="form.ftx_name" :maxlength="limits.ftxName" autocomplete="off" data-testid="ftx-name" />
                                 <span v-if="form.errors.ftx_name" class="text-xs text-destructive" data-testid="error-ftx-name">{{ form.errors.ftx_name }}</span>
                             </label>
@@ -507,27 +547,10 @@ function entryNote(id) {
                             </label>
                         </div>
 
-                        <div v-if="type === 'office_hour'" class="grid gap-3" data-testid="office-hour-fields">
-                            <p class="text-xs text-muted-foreground">An hour of office hours counts in place of the hour at a section practice. It is not checked against the game server.</p>
-                            <label class="flex flex-col gap-1 sm:max-w-48">
-                                <span class="text-xs font-medium">Date</span>
-                                <Input v-model="form.office_hour_date" type="date" :min="week.date" :max="weekEnd" data-testid="office-hour-date" />
-                                <span v-if="form.errors.office_hour_date" class="text-xs text-destructive" data-testid="error-office-hour-date">{{ form.errors.office_hour_date }}</span>
-                            </label>
-                            <label class="flex flex-col gap-1">
-                                <span class="flex items-baseline text-xs font-medium">
-                                    What was it?
-                                    <span class="ml-auto font-normal text-muted-foreground tabular-nums">{{ form.office_hour_note.length }}/{{ limits.officeHourNote }}</span>
-                                </span>
-                                <Input v-model="form.office_hour_note" :maxlength="limits.officeHourNote" autocomplete="off" data-testid="office-hour-note" />
-                                <span v-if="form.errors.office_hour_note" class="text-xs text-destructive" data-testid="error-office-hour-note">{{ form.errors.office_hour_note }}</span>
-                            </label>
-                        </div>
-
                         <div v-if="type === 'sp' || type === 'ftx'" data-testid="practice-picker">
                             <p class="text-base font-semibold">{{ type === 'ftx' ? 'Sections that took part (optional)' : 'Which practices did you attend?' }}</p>
                             <p class="mt-0.5 text-xs text-muted-foreground">
-                                Sections that play your HQ's game. In your own unit you are on the roll call as a staff guest, anywhere else as a guest.
+                                Sections in your {{ battalion ? 'battalion' : hq?.type === 'company' ? 'company' : 'platoon' }} that play its game. You are on their roll call as a staff guest.
                             </p>
 
                             <div class="relative mt-3">
@@ -593,7 +616,44 @@ function entryNote(id) {
                         </div>
                     </div>
 
-                    <!-- 4. Notes and other events, optional. -->
+                    <!-- 4. Presence: a public server hour, an office hour, or neither. -->
+                    <fieldset v-else-if="step === 'presence'" data-testid="step-panel-presence">
+                        <legend class="text-base font-semibold">Did you spend an hour on the public server or hold an office hour this week?</legend>
+                        <div class="mt-4 grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Presence">
+                            <button
+                                v-for="option in PRESENCE"
+                                :key="option.value"
+                                type="button"
+                                role="radio"
+                                :aria-checked="form.presence_type === option.value"
+                                :class="[tile, form.presence_type === option.value ? tileOn : tileOff]"
+                                :data-testid="`presence-${option.value}`"
+                                @click="pickPresence(option.value)"
+                            >
+                                <component :is="option.icon" class="size-6" :class="form.presence_type === option.value ? 'text-primary' : ''" aria-hidden="true" />
+                                <span class="text-sm font-semibold">{{ option.label }}</span>
+                                <span class="text-xs font-normal text-muted-foreground">{{ option.hint }}</span>
+                            </button>
+                        </div>
+                        <div v-if="form.presence_type === 'office_hour'" class="mt-4 grid gap-3" data-testid="office-hour-fields">
+                            <label class="flex flex-col gap-1 sm:max-w-48">
+                                <span class="text-xs font-medium">Date</span>
+                                <Input v-model="form.office_hour_date" type="date" :min="week.date" :max="weekEnd" data-testid="office-hour-date" />
+                                <span v-if="form.errors.office_hour_date" class="text-xs text-destructive" data-testid="error-office-hour-date">{{ form.errors.office_hour_date }}</span>
+                            </label>
+                            <label class="flex flex-col gap-1">
+                                <span class="flex items-baseline text-xs font-medium">
+                                    What was it?
+                                    <span class="ml-auto font-normal text-muted-foreground tabular-nums">{{ form.office_hour_note.length }}/{{ limits.officeHourNote }}</span>
+                                </span>
+                                <Input v-model="form.office_hour_note" :maxlength="limits.officeHourNote" autocomplete="off" data-testid="office-hour-note" />
+                                <span v-if="form.errors.office_hour_note" class="text-xs text-destructive" data-testid="error-office-hour-note">{{ form.errors.office_hour_note }}</span>
+                            </label>
+                        </div>
+                        <p v-if="form.errors.presence_type" class="mt-1.5 text-xs text-destructive" data-testid="error-presence-type">{{ form.errors.presence_type }}</p>
+                    </fieldset>
+
+                    <!-- 5. Notes and other events, optional. -->
                     <div v-else class="flex flex-col gap-4" data-testid="step-panel-extras">
                         <p class="text-base font-semibold">Notes <span class="text-sm font-normal text-muted-foreground">(optional)</span></p>
                         <p class="-mt-3 text-xs text-muted-foreground">Anything command should know about your week, and any other events you attended.</p>
@@ -626,8 +686,12 @@ function entryNote(id) {
                 <h2 class="border-b px-4 py-2.5 text-sm font-semibold">Your report</h2>
                 <dl class="grid gap-2.5 px-4 py-3">
                     <div>
-                        <dt class="text-xs text-muted-foreground">Attended</dt>
+                        <dt class="text-xs text-muted-foreground">Accountability</dt>
                         <dd class="font-medium" data-testid="send-summary">{{ summary }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs text-muted-foreground">Presence</dt>
+                        <dd class="font-medium" data-testid="send-presence">{{ presenceSummary }}</dd>
                     </div>
                     <div v-if="form.attended === true && (type === 'sp' || type === 'ftx') && form.section_ids.length">
                         <dt class="text-xs text-muted-foreground">{{ type === 'ftx' ? 'Sections' : 'Practices' }}</dt>

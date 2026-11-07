@@ -32,6 +32,7 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => {
                         practice_type: form.practice_type,
                         ftx_name: form.ftx_name,
                         ftx_date: form.ftx_date,
+                        presence_type: form.presence_type,
                         office_hour_date: form.office_hour_date,
                         office_hour_note: form.office_hour_note,
                         other_events: form.other_events,
@@ -56,11 +57,11 @@ const WEEK = {
 };
 const HQ = { id: 3, label: '1/A/1-7', type: 'platoon' };
 const SECTIONS = [
-    { id: 4, label: '1/1/A/1-7', own: true, group: '1/A/1-7' },
-    { id: 5, label: '2/1/A/1-7', own: true, group: '1/A/1-7' },
-    { id: 9, label: '1/2/A/1-7', own: false, group: 'A/1-7' },
-    { id: 11, label: '1/1/B/1-7', own: false, group: null },
+    { id: 4, label: '1/1/A/1-7', own: true, group: '1/A/1-7', platoon: '1/A/1-7' },
+    { id: 5, label: '2/1/A/1-7', own: true, group: '1/A/1-7', platoon: '1/A/1-7' },
+    { id: 9, label: '3/1/A/1-7', own: true, group: '1/A/1-7', platoon: '1/A/1-7' },
 ];
+const BATTALION = { id: 2, label: '1-7', type: 'battalion' };
 
 const HEALTH = {
     unit: { id: 3, label: '1/A/1-7' },
@@ -79,8 +80,13 @@ const page = (props = {}) =>
         props: { trooper: { id: 7, displayName: 'PVT Brandt.L' }, self: true, hq: HQ, week: WEEK, canSend: true, sections: SECTIONS, ...props },
     });
 
-const NONE = { ftx_name: null, ftx_date: null, office_hour_date: null, office_hour_note: null, other_events: '', notes: '' };
+const NONE = { ftx_name: null, ftx_date: null, presence_type: 'none', office_hour_date: null, office_hour_note: null, other_events: '', notes: '' };
 const sendButton = (wrapper) => wrapper.find('[data-testid="staff-report-send"]');
+// Answers the presence question, without opening the Notes step.
+async function answerPresence(wrapper, value = 'none') {
+    await wrapper.find('[data-testid="step-presence"]').trigger('click');
+    await wrapper.find(`[data-testid="presence-${value}"]`).trigger('click');
+}
 async function toPicker(props = {}) {
     const wrapper = page(props);
     await wrapper.find('[data-testid="attended-yes"]').trigger('click');
@@ -130,11 +136,18 @@ describe('StaffReport page', () => {
         expect(wrapper.find('[data-testid="attended-yes"]').attributes('aria-checked')).toBe('true');
     });
 
-    it('goes from No straight to the optional extras', async () => {
+    it('goes from No straight to the presence question, then the optional extras', async () => {
         const wrapper = page();
         await wrapper.find('[data-testid="attended-no"]').trigger('click');
 
         expect(wrapper.find('[data-testid="step-kind"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="step-panel-presence"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="step-missing"]').text()).toBe('Answer the presence question.');
+        expect(sendButton(wrapper).attributes('disabled')).toBeDefined();
+
+        await wrapper.find('[data-testid="presence-none"]').trigger('click');
+        expect(wrapper.find('[data-testid="send-presence"]').text()).toBe('No public server hour or office hour');
+        await wrapper.find('[data-testid="step-next"]').trigger('click');
         expect(wrapper.find('[data-testid="step-panel-extras"]').exists()).toBe(true);
         // The last step is the free-text notes, named as such in the stepper and on the panel.
         expect(wrapper.find('[data-testid="step-extras"]').text()).toContain('Notes');
@@ -144,12 +157,13 @@ describe('StaffReport page', () => {
         expect(sendButton(wrapper).attributes('disabled')).toBeUndefined();
     });
 
-    it('groups the sections nearest first: the HQ, then the company, then the rest', async () => {
+    it('lists the sections of the HQ\'s own unit, and says they are staff guests there', async () => {
         const wrapper = await toPicker();
 
         const groups = wrapper.findAll('[data-testid="practice-picker"] [data-testid^="sections-"]');
-        expect(groups.map((group) => group.find('p').text())).toEqual(['In 1/A/1-7', 'In A/1-7', 'Other sections']);
-        expect(groups[0].findAll('li').map((li) => li.text())).toEqual(['1/1/A/1-7', '2/1/A/1-7']);
+        expect(groups.map((group) => group.find('p').text())).toEqual(['In 1/A/1-7']);
+        expect(groups[0].findAll('li').map((li) => li.text())).toEqual(['1/1/A/1-7', '2/1/A/1-7', '3/1/A/1-7']);
+        expect(wrapper.find('[data-testid="practice-picker"]').text()).toContain('Sections in your platoon that play its game. You are on their roll call as a staff guest.');
     });
 
     it('collapses every platoon but the HQ\'s own when the list spans a battalion, with a disclosure button', async () => {
@@ -178,16 +192,19 @@ describe('StaffReport page', () => {
         const wrapper = await toPicker();
         await wrapper.find('[data-testid="section-4"]').trigger('change');
         await wrapper.find('[data-testid="section-9"]').trigger('change');
-        await wrapper.find('[data-testid="section-11"]').trigger('change');
+        await wrapper.find('[data-testid="section-5"]').trigger('change');
 
-        expect(wrapper.find('[data-testid="send-bar"] [data-testid="picked-chips"]').text()).toContain('1/2/A/1-7');
-        expect(wrapper.find('[data-testid="send-summary"]').text()).toBe('Yes: 1/1/A/1-7, 1/2/A/1-7, 1/1/B/1-7');
+        expect(wrapper.find('[data-testid="send-bar"] [data-testid="picked-chips"]').text()).toContain('3/1/A/1-7');
+        expect(wrapper.find('[data-testid="send-summary"]').text()).toBe('Yes: 1/1/A/1-7, 3/1/A/1-7, 2/1/A/1-7');
 
-        await wrapper.find('[data-testid="chip-remove-11"]').trigger('click');
-        expect(wrapper.find('[data-testid="section-11"]').element.checked).toBe(false);
-        expect(sendButton(wrapper).attributes('disabled')).toBeUndefined();
+        await wrapper.find('[data-testid="chip-remove-5"]').trigger('click');
+        expect(wrapper.find('[data-testid="section-5"]').element.checked).toBe(false);
+        // Presence still to answer.
+        expect(sendButton(wrapper).attributes('disabled')).toBeDefined();
         expect(wrapper.find('[data-testid="step-next"]').attributes('disabled')).toBeUndefined();
 
+        await answerPresence(wrapper);
+        expect(sendButton(wrapper).attributes('disabled')).toBeUndefined();
         await wrapper.find('[data-testid="step-extras"]').trigger('click');
         await wrapper.find('form').trigger('submit');
         expect(posted).toHaveBeenCalledWith('/staff-report/7/2026-10-03', { attended: true, section_ids: [4, 9], practice_type: 'sp', ...NONE }, expect.any(Object));
@@ -201,6 +218,7 @@ describe('StaffReport page', () => {
         await wrapper.find('[data-testid="attended-yes"]').trigger('click');
         await wrapper.find('[data-testid="type-sp"]').trigger('click');
         await wrapper.find('[data-testid="section-4"]').trigger('change');
+        await answerPresence(wrapper);
 
         await wrapper.find('form').trigger('submit');
         await flushPromises();
@@ -227,6 +245,7 @@ describe('StaffReport page', () => {
         await wrapper.find('[data-testid="attended-yes"]').trigger('click');
         await wrapper.find('[data-testid="type-sp"]').trigger('click');
         await wrapper.find('[data-testid="section-4"]').trigger('change');
+        await answerPresence(wrapper);
         await wrapper.find('form').trigger('submit');
         await flushPromises();
 
@@ -242,6 +261,8 @@ describe('StaffReport page', () => {
         await wrapper.find('[data-testid="attended-no"]').trigger('click');
 
         expect(wrapper.find('[data-testid="send-summary"]').text()).toBe('No');
+        await wrapper.find('[data-testid="presence-none"]').trigger('click');
+        await wrapper.find('[data-testid="step-next"]').trigger('click');
         await wrapper.find('form').trigger('submit');
 
         expect(posted).toHaveBeenCalledWith('/staff-report/7/2026-10-03', { attended: false, section_ids: [], practice_type: null, ...NONE }, expect.any(Object));
@@ -269,7 +290,7 @@ describe('StaffReport page', () => {
 
     it('narrows the sections by name, and says when none match or none play the game', async () => {
         const wrapper = await toPicker();
-        await wrapper.find('[data-testid="section-filter"]').setValue('2/A');
+        await wrapper.find('[data-testid="section-filter"]').setValue('3/1');
 
         expect(wrapper.find('[data-testid="section-4"]').exists()).toBe(false);
         expect(wrapper.find('[data-testid="section-9"]').exists()).toBe(true);
@@ -310,6 +331,9 @@ describe('StaffReport page', () => {
 
         await wrapper.find('[data-testid="ftx-date"]').setValue('2026-10-05');
         await wrapper.find('[data-testid="step-next"]').trigger('click');
+        await wrapper.find('[data-testid="presence-public_server"]').trigger('click');
+        expect(wrapper.find('[data-testid="send-presence"]').text()).toBe('Public server hour');
+        await wrapper.find('[data-testid="step-next"]').trigger('click');
         await wrapper.find('[data-testid="other-events"]').setValue('Range day');
         await wrapper.find('[data-testid="notes"]').setValue('Ran OPFOR.');
         expect(wrapper.find('[data-testid="send-extras"]').text()).toBe('Other events, Notes');
@@ -318,41 +342,70 @@ describe('StaffReport page', () => {
 
         expect(posted).toHaveBeenCalledWith(
             '/staff-report/7/2026-10-03',
-            { attended: true, section_ids: [], practice_type: 'ftx', ...NONE, ftx_name: 'Operation Anvil', ftx_date: '2026-10-05', other_events: 'Range day', notes: 'Ran OPFOR.' },
+            {
+                attended: true, section_ids: [], practice_type: 'ftx', ...NONE, ftx_name: 'Operation Anvil', ftx_date: '2026-10-05', presence_type: 'public_server',
+                other_events: 'Range day', notes: 'Ran OPFOR.',
+            },
             expect.any(Object),
         );
     });
 
-    it('offers Office hour on a battalion HQ only', async () => {
+    it('offers platoon and company HQs SP or FTX, and a battalion HQ SP, Operation, Class or Other official event', async () => {
         const platoon = page();
         await platoon.find('[data-testid="attended-yes"]').trigger('click');
-        expect(platoon.find('[data-testid="type-office_hour"]').exists()).toBe(false);
+        expect(platoon.findAll('[data-testid^="type-"]').map((tile) => tile.attributes('data-testid'))).toEqual(['type-sp', 'type-ftx']);
 
-        const battalion = page({ hq: { id: 2, label: '1-7', type: 'battalion' } });
+        const battalion = page({ hq: BATTALION });
+        expect(battalion.find('[data-testid="step-panel-attended"] legend').text()).toBe('Did you attend a section practice, an operation, a class or another official event this week?');
         await battalion.find('[data-testid="attended-yes"]').trigger('click');
-        expect(battalion.find('[data-testid="type-office_hour"]').exists()).toBe(true);
+        expect(battalion.findAll('[data-testid^="type-"]').map((tile) => tile.attributes('data-testid'))).toEqual(['type-sp', 'type-operation', 'type-class', 'type-event']);
     });
 
-    it('sends an office hour with its date and note, without sections', async () => {
-        const wrapper = page({ hq: { id: 2, label: '1-7', type: 'battalion' }, entries: [{ sectionId: 4, section: '1/1/A/1-7', enteredBy: 'Stone.A', selfReported: true }] });
+    it('sends an operation with its name and date, without sections', async () => {
+        const wrapper = page({ hq: BATTALION, entries: [{ sectionId: 4, section: '1/1/A/1-7', enteredBy: 'Stone.A', selfReported: true }] });
         await wrapper.find('[data-testid="step-kind"]').trigger('click');
-        await wrapper.find('[data-testid="type-office_hour"]').trigger('click');
+        await wrapper.find('[data-testid="type-operation"]').trigger('click');
 
         expect(wrapper.find('[data-testid="practice-picker"]').exists()).toBe(false);
-        expect(wrapper.find('[data-testid="office-hour-fields"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="ftx-fields"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="step-details"]').text()).toContain('Operation');
         expect(wrapper.find('[data-testid="dropped-note"]').text()).toContain('1/1/A/1-7');
-        expect(wrapper.find('[data-testid="send-missing"]').text()).toContain('Pick the office hour date');
+        expect(wrapper.find('[data-testid="send-missing"]').text()).toBe('Give the name of the operation.');
 
-        await wrapper.find('[data-testid="office-hour-date"]').setValue('2026-10-06');
-        expect(wrapper.find('[data-testid="send-missing"]').text()).toBe('Say in a few words what the office hour was.');
-        await wrapper.find('[data-testid="office-hour-note"]').setValue('Questions from new NCOs');
-        expect(wrapper.find('[data-testid="send-summary"]').text()).toBe('Yes, office hour (06OCT26)');
+        await wrapper.find('[data-testid="ftx-name"]').setValue('Anvil');
+        expect(wrapper.find('[data-testid="send-missing"]').text()).toContain('Pick the operation date');
+        await wrapper.find('[data-testid="ftx-date"]').setValue('2026-10-06');
+        expect(wrapper.find('[data-testid="send-summary"]').text()).toBe('Yes, operation Anvil (06OCT26)');
+        await answerPresence(wrapper);
         await wrapper.find('[data-testid="step-extras"]').trigger('click');
         await wrapper.find('form').trigger('submit');
 
         expect(posted).toHaveBeenCalledWith(
             '/staff-report/7/2026-10-03',
-            { attended: true, section_ids: [], practice_type: 'office_hour', ...NONE, office_hour_date: '2026-10-06', office_hour_note: 'Questions from new NCOs' },
+            { attended: true, section_ids: [], practice_type: 'operation', ...NONE, ftx_name: 'Anvil', ftx_date: '2026-10-06' },
+            expect.any(Object),
+        );
+    });
+
+    it('asks for an office hour\'s date and note under presence, at every level', async () => {
+        const wrapper = page();
+        await wrapper.find('[data-testid="attended-no"]').trigger('click');
+        await wrapper.find('[data-testid="presence-office_hour"]').trigger('click');
+
+        expect(wrapper.find('[data-testid="office-hour-fields"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="office-hour-fields"]').text()).not.toContain('in place of');
+        expect(wrapper.find('[data-testid="send-missing"]').text()).toContain('Pick the office hour date');
+
+        await wrapper.find('[data-testid="office-hour-date"]').setValue('2026-10-06');
+        expect(wrapper.find('[data-testid="send-missing"]').text()).toBe('Say in a few words what the office hour was.');
+        await wrapper.find('[data-testid="office-hour-note"]').setValue('Questions from new NCOs');
+        expect(wrapper.find('[data-testid="send-presence"]').text()).toBe('Office hour (06OCT26)');
+        await wrapper.find('[data-testid="step-extras"]').trigger('click');
+        await wrapper.find('form').trigger('submit');
+
+        expect(posted).toHaveBeenCalledWith(
+            '/staff-report/7/2026-10-03',
+            { attended: false, section_ids: [], practice_type: null, ...NONE, presence_type: 'office_hour', office_hour_date: '2026-10-06', office_hour_note: 'Questions from new NCOs' },
             expect.any(Object),
         );
     });
@@ -373,7 +426,7 @@ describe('StaffReport page', () => {
         expect(wrapper.find('[data-testid="health-sp"]').text()).toContain('75%');
     });
 
-    it('reads a sent report back as sent and final, staff guest in their own unit and guest elsewhere, with no form', () => {
+    it('reads a sent report back as sent and final, staff guest in their own unit and guest elsewhere (sent before), with no form', () => {
         const wrapper = page({
             canSend: false,
             report: {
@@ -415,6 +468,29 @@ describe('StaffReport page', () => {
         expect(wrapper.find('[data-testid="staff-report-edit"]').exists()).toBe(true);
         expect(wrapper.find('[data-testid="staff-report-sent"]').text()).not.toContain('A sent staff report is final.');
         expect(wrapper.findAll('[data-testid="staff-report-revision"]')).toHaveLength(1);
+    });
+
+    it('reads the presence answer back, with the public server check for a reader', () => {
+        const wrapper = page({
+            self: false,
+            canSend: false,
+            report: { sentAt: '2026-10-08T20:00:00+00:00', attended: false, practices: [], presenceType: 'public_server', publicServer: { check: 'conflict', source: 'public server' } },
+        });
+
+        expect(wrapper.find('[data-testid="staff-report-presence-answer"]').text()).toContain('Presence: Public server hour');
+        expect(wrapper.find('[data-testid="staff-report-public-server"]').text()).toBe('Self-report conflicts with public server data');
+
+        const confirmed = page({ canSend: false, report: { sentAt: '2026-10-08T20:00:00+00:00', attended: false, practices: [], presenceType: 'public_server', publicServer: { check: 'confirmed', source: 'public server' } } });
+        expect(confirmed.find('[data-testid="staff-report-public-server"]').exists()).toBe(false);
+
+        const before = page({ canSend: false, report: { sentAt: '2026-10-08T20:00:00+00:00', attended: false, practices: [] } });
+        expect(before.find('[data-testid="staff-report-presence-answer"]').exists()).toBe(false);
+    });
+
+    it('reads a class back by its name and date', () => {
+        const wrapper = page({ hq: BATTALION, canSend: false, report: { sentAt: '2026-10-08T20:00:00+00:00', attended: true, practiceType: 'class', ftx: { name: 'NCO class', date: '2026-10-06' }, practices: [] } });
+
+        expect(wrapper.find('[data-testid="staff-report-answer"]').text()).toBe('Attended a class, NCO class on 06OCT26.');
     });
 
     it('reads "No" and an office hour back', () => {

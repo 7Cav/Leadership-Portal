@@ -18,14 +18,15 @@ use Illuminate\Support\Collection;
  * Ending (Friday), "Did you spend one hour", "What type of Section practice", the {@see STAFF_PRACTICE_COLUMNS} "What
  * Section practice did you attend" columns (all practices go comma-joined into the first), "Name of the FTX", "Select
  * the Date of the FTX", "Select Report to Complete", Platoon Billet, Platoon Assignment, the platoon's Optional notes,
- * Company Billet, the company's Optional notes. The form never asked for other events, so they go in a column after
- * those, V.
+ * Company Billet, the company's Optional notes. The form never asked for other events or presence, so they go in a
+ * column after those, V, presence first ("Public server hour", "Office hour (10/5/2026): note", "No public server
+ * hour or office hour").
  *
  * The battalion tab, A to P: Timestamp, Lastname.Firstinitial, Organization, Week Ending, then the battalion block
  * (Battalion Billet, "Did you spend one hour", "Section Practice Attended", "What other Event(s) did you attend",
  * Optional notes), then the same block for ACD (ACD Billet first), then Email Address and Score, which stay empty: the
- * portal has neither. An FTX has no column there, so it leads the other events, and so does a battalion HQ staff member's office hour
- * ("Office hour (10/5/2026): note").
+ * portal has neither. An operation, a class or an event (or an FTX sent before) has no column there, so it leads the
+ * other events ("Operation: name (10/5/2026)"), and the presence answer follows it, as on the staff tab.
  */
 final class StaffReportSheetRow
 {
@@ -70,7 +71,7 @@ final class StaffReportSheetRow
             $platoon ? (string) $report->notes : '',
             $platoon ? '' : (string) $trooper->billet,
             $platoon ? '' : (string) $report->notes,
-            (string) $report->other_events,
+            self::joined([self::presence($report), $report->other_events]),
         ];
     }
 
@@ -79,18 +80,14 @@ final class StaffReportSheetRow
      */
     public static function battalion(StaffReport $report, Trooper $trooper, Unit $hq): array
     {
-        $ftx = $report->practice_type === StaffReport::FTX
-            ? 'FTX: '.$report->ftx_name.($report->ftx_date === null ? '' : ' ('.$report->ftx_date->format('n/j/Y').')')
-            : null;
-        // An office hour has no column either: it leads the other events as an FTX does.
-        $officeHour = $report->practice_type === StaffReport::OFFICE_HOUR
-            ? 'Office hour'.($report->office_hour_date === null ? '' : ' ('.$report->office_hour_date->format('n/j/Y').')').': '.$report->office_hour_note
+        $named = in_array($report->practice_type, StaffReport::NAMED_TYPES, true)
+            ? self::practiceType($report).': '.$report->ftx_name.($report->ftx_date === null ? '' : ' ('.$report->ftx_date->format('n/j/Y').')')
             : null;
         $block = [
             (string) $trooper->billet,
             $report->attended ? 'Yes' : 'No',
             self::practices($report),
-            implode('; ', array_filter([$ftx, $officeHour, $report->other_events], fn (?string $part) => $part !== null && $part !== '')),
+            self::joined([$named, self::presence($report), $report->other_events]),
             (string) $report->notes,
         ];
         $empty = array_fill(0, 5, '');
@@ -130,9 +127,34 @@ final class StaffReportSheetRow
         return match ($report->practice_type) {
             StaffReport::FTX => 'FTX',
             StaffReport::SP => 'Section Practice (SP)',
+            StaffReport::OPERATION => 'Operation',
+            StaffReport::CLASS_TYPE => 'Class',
+            StaffReport::EVENT => 'Other official event',
             StaffReport::OFFICE_HOUR => 'Office hour',
             default => '',
         };
+    }
+
+    /**
+     * The presence answer as the sheet reads it, null when it was not asked. An office hour sent as accountability,
+     * before presence was its own question, reads the same.
+     */
+    private static function presence(StaffReport $report): ?string
+    {
+        $officeHour = fn () => 'Office hour'.($report->office_hour_date === null ? '' : ' ('.$report->office_hour_date->format('n/j/Y').')').': '.$report->office_hour_note;
+
+        return match (true) {
+            $report->presence_type === StaffReport::PRESENCE_PUBLIC_SERVER => 'Public server hour',
+            $report->presence_type === StaffReport::PRESENCE_OFFICE_HOUR, $report->practice_type === StaffReport::OFFICE_HOUR => $officeHour(),
+            $report->presence_type === StaffReport::PRESENCE_NONE => 'No public server hour or office hour',
+            default => null,
+        };
+    }
+
+    /** @param  list<?string>  $parts */
+    private static function joined(array $parts): string
+    {
+        return implode('; ', array_filter($parts, fn (?string $part) => $part !== null && $part !== ''));
     }
 
     private static function practices(StaffReport $report): string

@@ -42,6 +42,24 @@ describe('StaffReportsPanel', () => {
         expect(wrapper.find('[data-testid="staff-report-row-2"] [data-testid="staff-report-discrepancy"]').exists()).toBe(true);
     });
 
+    it('shows an operation and the presence answer, with the public server warning', () => {
+        const wrapper = mount(StaffReportsPanel, {
+            props: {
+                rows: [
+                    row({
+                        sent: true, attended: true, practiceType: 'operation', ftx: { name: 'Anvil', date: '2026-10-06' },
+                        presenceType: 'public_server', publicServer: { check: 'conflict', source: 'public server' },
+                    }),
+                ],
+            },
+        });
+        const line = wrapper.find('[data-testid="staff-report-row-1"]');
+
+        expect(line.find('[data-testid="staff-report-state"]').text()).toBe('Yes, operation Anvil (06OCT26)');
+        expect(line.find('[data-testid="staff-report-presence-answer"]').text()).toBe('Presence: Public server hour');
+        expect(line.find('[data-testid="staff-report-public-server"]').text()).toBe('Self-report conflicts with public server data');
+    });
+
     it('says when there is nobody to show', () => {
         expect(mount(StaffReportsPanel, { props: { rows: [] } }).find('[data-testid="staff-reports-empty"]').exists()).toBe(true);
     });

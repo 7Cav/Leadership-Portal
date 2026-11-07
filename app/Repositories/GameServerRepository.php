@@ -40,6 +40,14 @@ interface GameServerRepository
      */
     public function fallbackUsersOf(GameServer $server): Collection;
 
+    /**
+     * The game's selected public servers, with their fallback loaded, leaving out one that is another's fallback (as
+     * {@see trainingServersFor()} does): where a staff member's public server hour is checked. In id order.
+     *
+     * @return Collection<int, GameServer>
+     */
+    public function publicServersFor(Game $game): Collection;
+
     /** Whether any selected server is assigned to the game, of either type. With none, it reads the legacy env keys. */
     public function hasSelectedFor(Game $game): bool;
 
