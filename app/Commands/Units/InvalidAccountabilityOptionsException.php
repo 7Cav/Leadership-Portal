@@ -9,12 +9,17 @@ class InvalidAccountabilityOptionsException extends InvalidArgumentException
 {
     public static function empty(): self
     {
-        return new self('Tick at least one option, or use the inherited ones.');
+        return new self('Tick at least one option, or use the default.');
     }
 
     public static function unknown(): self
     {
         return new self('Pick from the options listed.');
+    }
+
+    public static function pending(): self
+    {
+        return new self('That option is coming later and cannot be ticked yet.');
     }
 
     public static function wider(): self

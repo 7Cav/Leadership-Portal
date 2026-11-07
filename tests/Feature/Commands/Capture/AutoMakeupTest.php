@@ -323,14 +323,13 @@ it('skips a week whose report was sent when backfilling', function () {
 });
 
 it('gives no make-up at a practice the trooper\'s section does not count, and one where it does', function () {
-    // The guest's company counts a practice elsewhere in the battalion only: the host is in their own company.
-    $company = app(UnitRepository::class)->find($this->home->parent_id)->parent_id;
-    app(UnitAccountabilitySettingRepository::class)->set($company, [AccountabilityRules::SP_BATTALION]);
+    // The guest's section counts a practice elsewhere in the battalion only: the host is in their own company.
+    app(UnitAccountabilitySettingRepository::class)->set($this->home->id, [AccountabilityRules::SP_BATTALION]);
 
     captureHost($this, [seen('76561190000000001', 50)]);
     expect(homeRow($this)?->status)->not->toBe(AttendanceStatus::Makeup);
 
     // Back to the default, it counts again.
-    app(UnitAccountabilitySettingRepository::class)->set($company, null);
+    app(UnitAccountabilitySettingRepository::class)->set($this->home->id, null);
     expect(app(AccountabilityRules::class)->makeupCounts($this->home->id, $this->host->id))->toBeTrue();
 });

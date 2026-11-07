@@ -86,6 +86,30 @@ describe('Settings/OrgStructure', () => {
         expect(wrapper.find('label[for="edit-label"]').text()).toBe('Nickname');
     });
 
+    it("shows a battalion's accountability and, read only, what the units under it use, each linked to its Admin tab", async () => {
+        const choices = [{ key: 'sp_own_unit', label: 'Section practice in own unit' }, { key: 'ftx', label: 'FTX' }];
+        const battalionAccountability = {
+            2: {
+                unitId: 2, type: 'battalion', kind: 'staff', options: ['sp_own_unit'], source: 'own', from: null, choices, canEdit: false,
+                units: [
+                    { id: 3, label: 'A/2-7', type: 'company', options: ['sp_own_unit', 'ftx'], source: 'default' },
+                    { id: 5, label: '1/1/A/2-7', type: 'section', options: ['sp_own_unit'], source: 'own' },
+                ],
+            },
+        };
+        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: false, battalionAccountability } });
+
+        await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+
+        expect(wrapper.text()).toContain('What counts for Battalion HQ accountability');
+        const company = wrapper.get('[data-testid="accountability-under-unit-3"]');
+        expect(company.text()).toContain('A/2-7 (default): Section practice in own unit, FTX');
+        expect(company.get('a').attributes('href')).toBe('/roster/3?view=admin');
+        expect(wrapper.get('[data-testid="accountability-under-section"]').text()).toContain('Section makeups (1)');
+        expect(wrapper.find('[data-testid="accountability-under-platoon"]').exists()).toBe(false);
+        expect(wrapper.get('[data-testid="accountability-under-unit-5"]').text()).toContain('(set)');
+    });
+
     it('shows the detail panel for the selected unit', async () => {
         const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: false } });
 

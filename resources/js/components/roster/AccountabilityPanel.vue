@@ -9,10 +9,11 @@ import { messageFor, unreachable } from '@/composables/useRollcallAutosave';
 import { postJson } from '@/lib/postJson';
 
 // What counts for a unit's accountability: its HQ staff report (battalion, company, platoon) or, on a section, its
-// troopers' makeups. A unit with nothing of its own follows the unit above it, else the default. Admins and Regimental
-// HQ staff change a battalion's, its battalion HQ staff the units under it (`canEdit`); everyone else reads it.
+// troopers' makeups. A unit with nothing of its own takes its echelon's default. Admins and Regimental HQ staff change a
+// battalion's on the org structure page, and they and its battalion HQ staff the units under it (`canEdit`); everyone
+// else reads it. Options with no effect on the unit yet (`pending`) show disabled as coming later.
 const props = defineProps({
-    // `{ kind, options, source, from, choices: [{ key, label }], canEdit }` from `AccountabilityRules::props()`.
+    // `{ kind, options, source, choices: [{ key, label, pending }], canEdit }` from `AccountabilityRules::props()`.
     accountability: { type: Object, required: true },
     unitId: { type: Number, required: true },
 });
@@ -30,13 +31,7 @@ watch(
 );
 
 const title = computed(() => (current.value.kind === 'makeup' ? 'What counts as a makeup' : 'What counts for staff accountability'));
-const sourceText = computed(() => {
-    if (current.value.source === 'inherited') {
-        return `Follows ${current.value.from}.`;
-    }
-
-    return current.value.source === 'default' ? 'The default.' : null;
-});
+const sourceText = computed(() => (current.value.source === 'default' ? 'The default.' : null));
 const labelOf = (key) => current.value.choices.find((choice) => choice.key === key)?.label ?? key;
 
 function toggle(key, on) {
@@ -61,7 +56,7 @@ async function send(options, success) {
 
 function save() {
     if (!picked.value.length) {
-        toast.error('Could not change what counts', { description: 'Tick at least one option, or use the inherited ones.' });
+        toast.error('Could not change what counts', { description: 'Tick at least one option, or use the default.' });
 
         return;
     }
@@ -80,11 +75,14 @@ function save() {
             <div v-for="choice in current.choices" :key="choice.key" class="flex items-center gap-2">
                 <Checkbox
                     :id="`accountability-${choice.key}`"
-                    :model-value="picked.includes(choice.key)"
+                    :model-value="!choice.pending && picked.includes(choice.key)"
+                    :disabled="choice.pending"
                     :data-testid="`accountability-${choice.key}`"
                     @update:model-value="(on) => toggle(choice.key, on === true)"
                 />
-                <Label :for="`accountability-${choice.key}`" class="font-normal">{{ choice.label }}</Label>
+                <Label :for="`accountability-${choice.key}`" class="font-normal" :class="choice.pending ? 'text-muted-foreground' : ''"
+                    >{{ choice.label }}<span v-if="choice.pending" class="ml-1.5 text-xs" data-testid="accountability-pending">Coming later</span></Label
+                >
             </div>
             <div class="mt-1 flex flex-wrap gap-2">
                 <Button type="submit" size="sm" :disabled="saving">Save</Button>
@@ -95,9 +93,9 @@ function save() {
                     variant="outline"
                     :disabled="saving"
                     data-testid="accountability-reset"
-                    @click="send(null, 'Back to the inherited options')"
+                    @click="send(null, 'Back to the default')"
                 >
-                    Use the inherited options
+                    Use the default
                 </Button>
             </div>
         </form>

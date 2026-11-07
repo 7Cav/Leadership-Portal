@@ -19,8 +19,8 @@ use Carbon\CarbonImmutable;
 require_once __DIR__.'/../StaffPractices/fixture.php';
 
 // What counts for accountability, per unit: an Admin or Regimental HQ staff set a battalion's options, its HQ staff
-// those of the units under it inside that set, a unit with none follows the unit above it, and the staff report and
-// a section's makeups read the set in effect. With nothing set, nothing changes.
+// (and they) those of each unit under it inside that set, a unit with none takes its echelon's default cut to the
+// battalion's set, and the staff report and a section's makeups read the set in effect. With nothing set, nothing changes.
 
 beforeEach(function () {
     $this->tree = staffPracticeTree();
@@ -71,15 +71,18 @@ it('lets an Admin set a battalion and its HQ staff the units under it, never wid
     expect($this->rules->effective($u['company'])['source'])->toBe('own')
         ->and(AuditLogEntry::query()->where('action', SetAccountabilityOptions::ACTION)->count())->toBe(2);
 
-    // The platoon follows the company; the operation is cut by the battalion's set.
+    // The platoon is set on its own: with nothing set it takes the platoon default, cut to the battalion's set.
     $platoon = $this->rules->effective($u['platoon']);
-    expect($platoon['source'])->toBe('inherited')->and($platoon['from']->id)->toBe($u['company']->id)
-        ->and($platoon['options'])->toBe([AccountabilityRules::SP_OWN_UNIT])
+    expect($platoon['source'])->toBe('default')
+        ->and($platoon['options'])->toBe([AccountabilityRules::SP_OWN_UNIT, AccountabilityRules::FTX])
         ->and($platoon['allowed'])->toBe([AccountabilityRules::SP_OWN_UNIT, AccountabilityRules::SP_BATTALION, AccountabilityRules::FTX]);
 
     expect(fn () => ($this->set)($this->bnStaffUser, $u['company'], [AccountabilityRules::OPERATION]))->toThrow(InvalidAccountabilityOptionsException::class)
         ->and(fn () => ($this->set)($this->bnStaffUser, $u['company'], []))->toThrow(InvalidAccountabilityOptionsException::class)
         ->and(fn () => ($this->set)($this->bnStaffUser, $u['company'], ['nope']))->toThrow(InvalidAccountabilityOptionsException::class)
+        // Coming later: never stored.
+        ->and(fn () => ($this->set)($this->admin, $u['battalion'], [AccountabilityRules::SERVER_HOUR]))->toThrow(InvalidAccountabilityOptionsException::class)
+        ->and(fn () => ($this->set)($this->bnStaffUser, $u['host'], [AccountabilityRules::FTX]))->toThrow(InvalidAccountabilityOptionsException::class)
         ->and(fn () => ($this->set)($this->bnStaffUser, $u['battalion'], [AccountabilityRules::FTX]))->toThrow(AccountabilityOptionsForbiddenException::class)
         ->and(fn () => ($this->set)($this->tree['users']['co'], $u['platoon'], [AccountabilityRules::FTX]))->toThrow(AccountabilityOptionsForbiddenException::class)
         ->and(fn () => ($this->set)($this->admin, $u['regiment'], [AccountabilityRules::FTX]))->toThrow(AccountabilityOptionsForbiddenException::class);
@@ -121,16 +124,23 @@ it('offers and accepts only what the HQ\'s options count on the staff report', f
 it('sets the options over HTTP on the roster and shows them there', function () {
     $u = $this->tree['units'];
 
+    // The battalion's set is read only on its roster; Admins and Regimental HQ staff change it on the org structure page.
+    $this->actingAs($this->admin)->get(route('settings.org-structure'))->assertOk()
+        ->assertInertia(fn ($page) => $page->where("battalionAccountability.{$u['battalion']->id}.canEdit", true));
+    $this->actingAs($this->admin)->get(route('roster.index', ['unit' => $u['battalion']->id]))->assertOk()
+        ->assertInertia(fn ($page) => $page->where('accountability.canEdit', false));
+
     $this->actingAs($this->admin)->postJson("/roster/{$u['battalion']->id}/accountability", ['options' => [AccountabilityRules::SP_OWN_UNIT, AccountabilityRules::FTX]])
         ->assertOk()
         ->assertJsonPath('accountability.source', 'own')
         ->assertJsonPath('accountability.options', [AccountabilityRules::SP_OWN_UNIT, AccountabilityRules::FTX])
-        ->assertJsonPath('accountability.canEdit', true);
+        ->assertJsonPath('accountability.canEdit', false);
 
     $this->actingAs($this->bnStaffUser)->postJson("/roster/{$u['host']->id}/accountability", ['options' => [AccountabilityRules::SP_OWN_UNIT]])
         ->assertOk()
         ->assertJsonPath('accountability.kind', 'makeup')
-        ->assertJsonPath('accountability.choices.1.key', AccountabilityRules::FTX);
+        ->assertJsonPath('accountability.choices.1.key', AccountabilityRules::FTX)
+        ->assertJsonPath('accountability.choices.1.pending', true);
 
     $this->actingAs($this->bnStaffUser)->postJson("/roster/{$u['host']->id}/accountability", ['options' => [AccountabilityRules::OPERATION]])->assertStatus(422);
     $this->actingAs($this->tree['users']['sl'])->postJson("/roster/{$u['host']->id}/accountability", ['options' => null])->assertForbidden();

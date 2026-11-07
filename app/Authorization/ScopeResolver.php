@@ -260,7 +260,8 @@ class ScopeResolver
 
             $trooper = $user->cav_id === null ? null : $troopers->get((int) $user->cav_id);
             // As readOnlyUnitsWhileServing(): while serving, their grants, the units they oversee and, for Regimental HQ
-            // staff placed on the regiment itself who still hold a Regimental HQ billet, the regiment. realScope() must
+            // staff placed on the regiment itself who still hold a Regimental HQ billet, the regiment, and for battalion HQ
+            // staff placed on a battalion itself, that battalion. realScope() must
             // add the same: change both together.
             $placed = $trooper?->primary_section_id === null ? null : $byId->get((int) $trooper->primary_section_id);
             $rhq = self::isRegimentalHqPlacement($placed) && $rhqPositions->has((int) $trooper->cav_position_id);
@@ -268,6 +269,7 @@ class ScopeResolver
                 ? $grants->get($user->id, collect())->map(fn (int $id) => $byId->get($id))
                     ->merge($overseen->get((int) $trooper->id, collect())->map(fn (Unit $unit) => $byId->get($unit->id)))
                     ->push($rhq ? $placed : null)
+                    ->push($placed?->type === UnitType::Battalion ? $placed : null)
                 : collect();
             // As commandedUnits(): a billet held on this request is the only command, else the synced billet and
             // the acting leads, none for a user with no milpac link.
@@ -440,8 +442,21 @@ class ScopeResolver
         return $this->grants->grantedUnitsFor($user)
             ->merge($this->oversights->unitsOverseenBy($user))
             ->push($this->regimentPlacing($trooper))
+            ->push($this->battalionPlacing($trooper))
             ->filter()
             ->values();
+    }
+
+    /**
+     * The battalion when the trooper is placed directly on its node (battalion HQ staff), else null. Read only, like
+     * the regiment for Regimental HQ staff: it lets them open their battalion's rosters, where they set each unit's
+     * accountability options (AccountabilityRules::mayChange()).
+     */
+    private function battalionPlacing(Trooper $trooper): ?Unit
+    {
+        $placed = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
+
+        return $placed?->type === UnitType::Battalion ? $placed : null;
     }
 
     /**

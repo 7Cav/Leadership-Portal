@@ -14,17 +14,18 @@ use Illuminate\Support\Collection;
 
 /**
  * What counts for accountability on a unit, set per unit in two tiers. An Admin or Regimental HQ staff ticks a
- * battalion's options: what counts for its battalion HQ staff report, and the most any unit under it may use. The
- * battalion's HQ staff tick each company, platoon and section under it, inside that set: on a company or platoon what
- * counts for its HQ staff report, on a section what counts as a makeup for its troopers. A unit with no options of its
- * own follows the nearest unit above it (up to, not including, its battalion) that has some, else the default for its
- * echelon ({@see defaultFor()}, today's rules), and is always cut down to its battalion's own set. With nothing set,
- * nothing changes. Read-only; the write is {@see SetAccountabilityOptions}, which asks {@see mayChange()}.
+ * battalion's options on the org structure page: what counts for its battalion HQ staff report, and the most any unit
+ * under it may use. Its HQ staff (and Admins and Regimental HQ staff) tick each company, platoon and section under it on
+ * its roster page, inside that set: on a company or platoon what counts for its HQ staff report, on a section what
+ * counts as a makeup for its troopers. Each unit is set on its own; one with nothing set takes the default for its
+ * echelon ({@see defaultFor()}, today's rules), and every unit under a battalion is cut down to the battalion's set.
+ * With nothing set, nothing changes. Read-only; the write is {@see SetAccountabilityOptions}, which asks
+ * {@see mayChange()}.
  *
  * Where each option is read: the staff report offers SP (either SP option), FTX, operation, class and event, and its
  * section picker follows the SP options and "another game". A section's makeups (another section's practice) follow
- * the SP options and "another game". The public or training server hour has no input on either yet: it is stored and
- * shown, and read by nothing.
+ * the SP options and "another game". Options with no input behind them yet ({@see pendingFor()}) are shown disabled
+ * and never stored.
  */
 class AccountabilityRules
 {
@@ -86,7 +87,7 @@ class AccountabilityRules
     }
 
     /**
-     * The options in effect on `$unit`, where they come from (`own`, `inherited` from `from`, or `default`), and the
+     * The options in effect on `$unit`, where they come from (`own` or `default`; `from` is always null), and the
      * most it may use (`allowed`: its battalion's own set, else every option; a battalion may use every option).
      * `$tree` and `$own` save the reads when the caller has them.
      *
@@ -107,22 +108,29 @@ class AccountabilityRules
                 : ['options' => self::defaultFor($unit->type), 'source' => 'default', 'from' => null, 'allowed' => $allowed];
         }
 
-        $options = null;
-        $source = 'default';
-        $from = null;
-        for ($at = $unit, $guard = 0; $at !== null && $guard < 10 && $at->type !== UnitType::Battalion; $guard++) {
-            if (isset($own[$at->id])) {
-                $options = $own[$at->id];
-                $source = $at->id === $unit->id ? 'own' : 'inherited';
-                $from = $at->id === $unit->id ? null : $at;
-                break;
-            }
-            $at = $at->parent_id === null ? null : $byId->get($at->parent_id);
-        }
+        // Each unit under a battalion is set on its own; one with nothing set takes its echelon's default. Either way it
+        // is cut to the battalion's set, and options that have no effect on it yet ({@see pendingFor()}) never count.
+        $source = isset($own[$unit->id]) ? 'own' : 'default';
+        $options = array_values(array_diff(
+            array_intersect(self::ordered($own[$unit->id] ?? self::defaultFor($unit->type)), $allowed),
+            self::pendingFor($unit->type),
+        ));
 
-        $options = array_values(array_intersect(self::ordered($options ?? self::defaultFor($unit->type)), $allowed));
+        return ['options' => $options, 'source' => $source, 'from' => null, 'allowed' => $allowed];
+    }
 
-        return ['options' => $options, 'source' => $source, 'from' => $from, 'allowed' => $allowed];
+    /**
+     * The options with no input behind them on a unit of this echelon yet: the server hour everywhere, and on a section
+     * the FTX, operation, class and event (the roll call takes only section practices as makeups). The tick list shows
+     * them disabled as coming later, and they are never stored.
+     *
+     * @return list<string>
+     */
+    public static function pendingFor(UnitType $type): array
+    {
+        return $type === UnitType::Section
+            ? [self::FTX, self::OPERATION, self::CLASS_TYPE, self::EVENT, self::SERVER_HOUR]
+            : [self::SERVER_HOUR];
     }
 
     /**
@@ -217,9 +225,9 @@ class AccountabilityRules
     }
 
     /**
-     * Whether `$user` may change `$unit`'s options: on a battalion, an Admin or Regimental HQ staff; on a company,
-     * platoon or section under a battalion, an Admin or that battalion's HQ staff (a serving trooper placed on the
-     * battalion node itself, the user's own milpac or the one they act as). A view-as preview never changes anything.
+     * Whether `$user` may change `$unit`'s options: an Admin or Regimental HQ staff on any battalion and any company,
+     * platoon or section under one; that battalion's HQ staff (a serving trooper placed on the battalion node itself,
+     * the user's own milpac or the one they act as) on the units under it. A view-as preview never changes anything.
      */
     public function mayChange(User $user, Unit $unit): bool
     {
@@ -227,42 +235,67 @@ class AccountabilityRules
             return false;
         }
 
-        if ($this->scope->isAdmin($user)) {
+        $battalion = $unit->type === UnitType::Battalion ? $unit : self::battalionOf($unit, $this->units->tree()->keyBy('id'));
+
+        if ($battalion === null) {
+            return false;
+        }
+
+        if ($this->scope->isAdmin($user) || $this->scope->isRegimentalHqStaff($user)) {
             return true;
         }
 
         if ($unit->type === UnitType::Battalion) {
-            return $this->scope->isRegimentalHqStaff($user);
+            return false;
         }
 
-        $battalion = self::battalionOf($unit, $this->units->tree()->keyBy('id'));
         $trooper = $user->cav_id === null ? null : $this->troopers->byCavId([(int) $user->cav_id])->first();
 
-        return $battalion !== null && $trooper !== null && $trooper->status->isServing() && $trooper->primary_section_id === $battalion->id;
+        return $trooper !== null && $trooper->status->isServing() && $trooper->primary_section_id === $battalion->id;
     }
 
     /**
-     * The roster's `accountability` prop: the options in effect and where they come from, the tick list (only the
-     * options the unit may use), and whether the viewer may change it. Null for a unit that has none.
+     * The `accountability` prop: the options in effect and where they come from, the tick list (the options the unit
+     * may use, those with no effect on it yet marked `pending`), and whether the viewer may change it. On the roster a
+     * battalion's set is read only: it is changed on the org structure page ({@see battalions()}). Null for a unit
+     * that has none.
      *
-     * @return array{kind: string, options: list<string>, source: string, from: ?string, choices: list<array{key: string, label: string}>, canEdit: bool}|null
+     * @return array{unitId: int, label: string, kind: string, options: list<string>, source: string, from: ?string, choices: list<array{key: string, label: string, pending: bool}>, canEdit: bool}|null
      */
-    public function props(User $user, Unit $unit): ?array
+    public function props(User $user, Unit $unit, bool $onRoster = true): ?array
     {
         if (! self::configurable($unit)) {
             return null;
         }
 
         $rules = $this->effective($unit);
+        $pending = self::pendingFor($unit->type);
 
         return [
+            'unitId' => $unit->id,
+            'label' => $unit->callsign ?? $unit->name,
             'kind' => $unit->type === UnitType::Section ? 'makeup' : 'staff',
             'options' => $rules['options'],
             'source' => $rules['source'],
-            'from' => $rules['from'] === null ? null : ($rules['from']->callsign ?? $rules['from']->name),
-            'choices' => array_map(fn (string $key) => ['key' => $key, 'label' => self::OPTIONS[$key]], $rules['allowed']),
-            'canEdit' => $this->mayChange($user, $unit),
+            'from' => null,
+            'choices' => array_map(fn (string $key) => ['key' => $key, 'label' => self::OPTIONS[$key], 'pending' => in_array($key, $pending, true)], $rules['allowed']),
+            'canEdit' => ! ($onRoster && $unit->type === UnitType::Battalion) && $this->mayChange($user, $unit),
         ];
+    }
+
+    /**
+     * Every battalion's `accountability` prop for the org structure page, where Admins and Regimental HQ staff set
+     * them, in tree order.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function battalions(User $user): array
+    {
+        return $this->units->tree()
+            ->filter(fn (Unit $unit) => $unit->type === UnitType::Battalion)
+            ->map(fn (Unit $unit) => $this->props($user, $unit, onRoster: false))
+            ->values()
+            ->all();
     }
 
     /** The battalion `$unit` sits in (itself when it is one), walking up `$byId`; null for one under none. */

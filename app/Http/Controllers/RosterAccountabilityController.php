@@ -16,7 +16,7 @@ use Throwable;
  * A unit's accountability options on its roster page: the audited {@see SetAccountabilityOptions} Command, gated by
  * {@see AccountabilityRules::mayChange()}. A view-as preview is refused before it gets here (`ReadOnlyWhileViewingAs`).
  * Answers JSON with the `accountability` prop as it now stands; 403 for anyone else (one answer whether or not the
- * unit exists), 422 for options it may not take. Null options go back to the inherited ones.
+ * unit exists), 422 for options it may not take. Null options go back to the default.
  */
 class RosterAccountabilityController extends Controller
 {

@@ -13,6 +13,7 @@ enableAutoUnmount(afterEach);
 const CHOICES = [
     { key: 'sp_own_unit', label: 'Section practice in own unit' },
     { key: 'ftx', label: 'FTX' },
+    { key: 'server_hour', label: 'Public or training server hour with a leader present', pending: true },
 ];
 const BASE = { kind: 'staff', options: ['sp_own_unit', 'ftx'], source: 'default', from: null, choices: CHOICES, canEdit: false };
 const factory = (accountability = BASE) => mount(AccountabilityPanel, { props: { accountability, unitId: 7 }, attachTo: document.body });
@@ -23,13 +24,20 @@ describe('AccountabilityPanel', () => {
         toast.error.mockReset();
     });
 
-    it('lists what counts for a reader, with where it comes from', () => {
-        const wrapper = factory({ ...BASE, source: 'inherited', from: 'A/1-7' });
+    it('lists what counts for a reader, and says when it is the default', () => {
+        const wrapper = factory();
 
         expect(wrapper.text()).toContain('What counts for staff accountability');
-        expect(wrapper.get('[data-testid="accountability-source"]').text()).toBe('Follows A/1-7.');
+        expect(wrapper.get('[data-testid="accountability-source"]').text()).toBe('The default.');
         expect(wrapper.get('[data-testid="accountability-list"]').text()).toContain('FTX');
         expect(wrapper.find('form').exists()).toBe(false);
+    });
+
+    it('shows an option with no effect yet disabled, as coming later', () => {
+        const wrapper = factory({ ...BASE, canEdit: true });
+
+        expect(wrapper.get('[data-testid="accountability-server_hour"]').attributes('disabled')).toBeDefined();
+        expect(wrapper.get('[data-testid="accountability-pending"]').text()).toBe('Coming later');
     });
 
     it('names makeups on a section', () => {

@@ -114,6 +114,11 @@ class HandleInertiaRequests extends Middleware
             'canManageTemplates' => fn () => $request->user() !== null
                 && $this->scope->activeViewAs($request->user()) === null
                 && $this->scope->managesAnyTemplates($request->user()),
+            // Whether the sidebar shows Settings > Org structure to someone who is not an Admin: Regimental HQ staff, who
+            // set each battalion's accountability options there. Navigation only: the page checks for itself.
+            'canSetBattalionAccountability' => fn () => $request->user() !== null
+                && $this->scope->activeViewAs($request->user()) === null
+                && $this->scope->isRegimentalHqStaff($request->user()),
             'adminBilletsPending' => fn () => $request->user() && $this->scope->actsAsAdmin($request->user()) ? $this->adminBillets->pendingCount() : 0,
             // `actAs`: whether the banner offers to act as the preview's target, which only a real Admin may (the
             // server checks again on the start).

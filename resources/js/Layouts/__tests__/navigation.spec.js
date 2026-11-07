@@ -93,6 +93,13 @@ describe('navigation', () => {
         expect(settings(true, {}).items.map((item) => item.label)).toContain('Org structure');
     });
 
+    it('shows Settings > Org structure to Regimental HQ staff (canSetBattalionAccountability)', () => {
+        const settings = (props) => visibleGroups(false, {}, props).find((group) => group.id === 'settings');
+
+        expect(settings({ canSetBattalionAccountability: true }).items.map((item) => item.label)).toEqual(['Org structure']);
+        expect(settings({ canSetBattalionAccountability: true, canManageTemplates: true }).items.map((item) => item.label)).toEqual(['Org structure', 'Templates']);
+    });
+
     it('shows Staff report to HQ staff who read only their own, Staff reports to readers, and keeps it active on a week', () => {
         const leadership = (features) =>
             visibleGroups(false, features)
