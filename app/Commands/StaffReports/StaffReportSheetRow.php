@@ -26,7 +26,7 @@ use Illuminate\Support\Collection;
  * (Battalion Billet, "Did you spend one hour", "Section Practice Attended", "What other Event(s) did you attend",
  * Optional notes), then the same block for ACD (ACD Billet first), then Email Address and Score, which stay empty: the
  * portal has neither. An operation, a class or an event (or an FTX sent before) has no column there, so it leads the
- * other events ("Operation: name (10/5/2026)"), and the presence answer follows it, as on the staff tab.
+ * other events ("Operation: name (10/5/2026)"). "Did you spend one hour" is the presence answer, as on the staff tab.
  */
 final class StaffReportSheetRow
 {
@@ -60,7 +60,7 @@ final class StaffReportSheetRow
             $past ? '' : $companyWord,
             $past ? (self::PAST_PHONICS[strtoupper(substr($companyWord, 0, 1))] ?? $companyWord) : '',
             self::weekEnding($report),
-            $report->attended ? 'Yes' : 'No',
+            self::hour($report),
             self::practiceType($report),
             ...$practices,
             $ftx ? (string) $report->ftx_name : '',
@@ -71,7 +71,7 @@ final class StaffReportSheetRow
             $platoon ? (string) $report->notes : '',
             $platoon ? '' : (string) $trooper->billet,
             $platoon ? '' : (string) $report->notes,
-            self::joined([self::presence($report), $report->other_events]),
+            self::joined([self::legacyOfficeHour($report), $report->other_events]),
         ];
     }
 
@@ -85,9 +85,9 @@ final class StaffReportSheetRow
             : null;
         $block = [
             (string) $trooper->billet,
-            $report->attended ? 'Yes' : 'No',
+            self::hour($report),
             self::practices($report),
-            self::joined([$named, self::presence($report), $report->other_events]),
+            self::joined([$named, self::legacyOfficeHour($report), $report->other_events]),
             (string) $report->notes,
         ];
         $empty = array_fill(0, 5, '');
@@ -136,19 +136,29 @@ final class StaffReportSheetRow
     }
 
     /**
-     * The presence answer as the sheet reads it, null when it was not asked. An office hour sent as accountability,
-     * before presence was its own question, reads the same.
+     * "Did you spend one hour", which is presence: "Yes, public server", "Yes, office hour (10/6/2026): note" or "No".
+     * A report sent before presence was asked keeps what the column showed then, the accountability Yes or No.
      */
-    private static function presence(StaffReport $report): ?string
+    private static function hour(StaffReport $report): string
     {
-        $officeHour = fn () => 'Office hour'.($report->office_hour_date === null ? '' : ' ('.$report->office_hour_date->format('n/j/Y').')').': '.$report->office_hour_note;
-
-        return match (true) {
-            $report->presence_type === StaffReport::PRESENCE_PUBLIC_SERVER => 'Public server hour',
-            $report->presence_type === StaffReport::PRESENCE_OFFICE_HOUR, $report->practice_type === StaffReport::OFFICE_HOUR => $officeHour(),
-            $report->presence_type === StaffReport::PRESENCE_NONE => 'No public server hour or office hour',
-            default => null,
+        return match ($report->presence_type) {
+            StaffReport::PRESENCE_PUBLIC_SERVER => 'Yes, public server',
+            StaffReport::PRESENCE_OFFICE_HOUR => 'Yes, office hour'.self::officeHourDetail($report),
+            StaffReport::PRESENCE_NONE => 'No',
+            default => $report->attended ? 'Yes' : 'No',
         };
+    }
+
+    /** An office hour sent as accountability, before presence was its own question: it still leads the other events. */
+    private static function legacyOfficeHour(StaffReport $report): ?string
+    {
+        return $report->practice_type === StaffReport::OFFICE_HOUR ? 'Office hour'.self::officeHourDetail($report) : null;
+    }
+
+    /** " (10/6/2026): note", the office hour's date and note as the sheet writes them. */
+    private static function officeHourDetail(StaffReport $report): string
+    {
+        return ($report->office_hour_date === null ? '' : ' ('.$report->office_hour_date->format('n/j/Y').')').': '.$report->office_hour_note;
     }
 
     /** @param  list<?string>  $parts */

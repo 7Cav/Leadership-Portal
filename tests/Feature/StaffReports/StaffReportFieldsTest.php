@@ -285,7 +285,7 @@ it('maps a platoon HQ report to the staff tab, column by column', function () {
     expect(pushToSheet($report))->toBeTrue()
         ->and(StaffReportSheetRow::STAFF_PRACTICE_COLUMNS)->toBe(5)
         ->and($fake->rows)->toBe([['tab' => 'Weekly Staff Report 2O26', 'row' => [
-            '10/10/2026 12:00:00', 'Brandt.L', '1-7', 'Alpha', '', '09OCT26', 'Yes', 'Section Practice (SP)',
+            '10/10/2026 12:00:00', 'Brandt.L', '1-7', 'Alpha', '', '09OCT26', 'No', 'Section Practice (SP)',
             '1/1/A/1-7, 2/1/A/1-7', '', '', '', '', '', '', 'Platoon', 'Platoon Sergeant', '1st Platoon', 'All good.', '', '', 'Range day',
         ]]]);
 });
@@ -299,7 +299,7 @@ it('maps a company HQ FTX report to the staff tab, with the company billet and n
     pushToSheet($report);
 
     expect($fake->rows)->toBe([['tab' => 'Weekly Staff Report 2O26', 'row' => [
-        '10/10/2026 12:00:00', 'Kerr.D', '1-7', 'Alpha', '', '09OCT26', 'Yes', 'FTX',
+        '10/10/2026 12:00:00', 'Kerr.D', '1-7', 'Alpha', '', '09OCT26', 'No', 'FTX',
         '', '', '', '', '', 'Operation Anvil', '10/5/2026', 'Company', '', '', '', 'Company Commander', 'Led it.', '',
     ]]]);
 });
@@ -311,7 +311,7 @@ it('maps a battalion HQ report to the battalion tab, with the battalion billet',
     pushToSheet($report);
 
     expect($fake->rows)->toBe([['tab' => 'Weekly Battalion Report 2O26', 'row' => [
-        '10/10/2026 12:00:00', 'Stone.A', '1st Battalion', '09OCT26', 'Battalion XO', 'Yes', '1/1/A/1-7', 'Range day', 'Visited 1/A.',
+        '10/10/2026 12:00:00', 'Stone.A', '1st Battalion', '09OCT26', 'Battalion XO', 'No', '1/1/A/1-7', 'Range day', 'Visited 1/A.',
         '', '', '', '', '', '', '',
     ]]]);
 });
@@ -471,10 +471,12 @@ it('reads back an office hour or FTX sent as accountability before, as sent', fu
 
     $fake = fakeSheet();
     pushToSheet($report);
-    expect($fake->rows[0]['row'][7])->toBe('Office hour (10/6/2026): Q and A');
+    // As it showed before: the accountability Yes under "Did you spend one hour", the office hour in the other events.
+    expect($fake->rows[0]['row'][5])->toBe('Yes')
+        ->and($fake->rows[0]['row'][7])->toBe('Office hour (10/6/2026): Q and A');
 });
 
-it('puts an operation at the front of the other events cell on the battalion tab, then the presence answer', function () {
+it('puts an operation at the front of the other events cell on the battalion tab, and the office hour under "Did you spend one hour"', function () {
     $fake = fakeSheet();
     $report = sendFields($this->bnStaffUser, $this->bnStaff, true, [], [
         'practice_type' => 'operation', 'ftx_name' => 'Anvil', 'ftx_date' => '2026-10-06', 'other_events' => 'Range day',
@@ -484,7 +486,7 @@ it('puts an operation at the front of the other events cell on the battalion tab
     pushToSheet($report);
 
     expect($fake->rows)->toBe([['tab' => 'Weekly Battalion Report 2O26', 'row' => [
-        '10/10/2026 12:00:00', 'Stone.A', '1st Battalion', '09OCT26', 'Battalion XO', 'Yes', '', 'Operation: Anvil (10/6/2026); Office hour (10/7/2026): Q and A; Range day', '',
+        '10/10/2026 12:00:00', 'Stone.A', '1st Battalion', '09OCT26', 'Battalion XO', 'Yes, office hour (10/7/2026): Q and A', '', 'Operation: Anvil (10/6/2026); Range day', '',
         '', '', '', '', '', '', '',
     ]]]);
 });
@@ -566,13 +568,14 @@ it('freezes the presence answer and reads it back on the page and the overview',
             && $row['presenceType'] === 'office_hour' && $row['officeHour'] === ['date' => '2026-10-06', 'note' => 'Q and A'] && $row['publicServer'] === null));
 });
 
-it('puts the presence answer at the front of column V on the staff tab', function () {
+it('fills "Did you spend one hour" with the presence answer on the staff tab, keeping other events in column V', function () {
     $fake = fakeSheet();
     $report = sendFields($this->tree['users']['psg'], $this->psg, true, [$this->host->id], ['presence_type' => 'public_server', 'other_events' => 'Range day']);
 
     pushToSheet($report);
 
-    expect($fake->rows[0]['row'][21])->toBe('Public server hour; Range day');
+    expect($fake->rows[0]['row'][6])->toBe('Yes, public server')
+        ->and($fake->rows[0]['row'][21])->toBe('Range day');
 });
 
 it('overwrites the row an edited report went to, instead of adding a second one', function () {
