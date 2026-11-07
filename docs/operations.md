@@ -144,8 +144,8 @@ counseling Drive copy.
 Platoon and company reports go to the staff tab, battalion reports (ACD included) to the battalion tab, each in that
 tab's column order (`app/Commands/StaffReports/StaffReportSheetRow.php` lists it). Email Address and Score stay empty.
 If a tab gets a column added or moved, update `StaffReportSheetRow` first, or later rows shift. The battalion tab has
-no column for an FTX or an office hour, so either leads the other events cell: "FTX: name (date)" or "Office hour
-(date): note".
+no column for an FTX, an operation, a class, an event or the presence answer, so they lead the other events cell: "Operation: name (date)", then the presence ("Public server hour" or "Office hour
+(date): note"). The staff tab puts the presence at the front of the other events column, V.
 or fails the send. With no spreadsheet id nothing is pushed and nothing errors. A report that still shows "Not sent to
 the sheet yet" after the last try is named in the queue worker's log with why, never the key. The portal only appends
 rows: it cannot read, change or delete anything in the sheet.

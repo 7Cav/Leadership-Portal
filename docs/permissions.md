@@ -402,8 +402,9 @@ and the Regimental HQ read count.
 
 (11) Everyone reads their own. A peer on the same HQ (a PL and their PSG, a CO and their XO) does not read the other's:
 reading starts at the unit above the HQ, so a Platoon Leader reads no other staff report.
-Only battalion HQ staff (ACD included) may report an office hour in place of a section practice; a platoon or company HQ
-staff member's office hour is refused. The game server warning on a sent report is shown to its readers only, never
+A platoon or company HQ staff member reports a section practice in their own platoon or company, or an FTX; battalion HQ
+staff (ACD included) a section practice in the battalion, an operation, a class or another official event. A section
+outside the HQ is refused. Presence (a public server hour or an office hour) is the same at every level. The game server warning on a sent report is shown to its readers only, never
 to the staff member about their own.
 
 (12) Only the staff member, signed in as themselves: never someone acting as them (an Admin included), and never in a

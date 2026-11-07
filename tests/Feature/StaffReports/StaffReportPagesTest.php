@@ -43,7 +43,7 @@ it('opens the viewer\'s own report for the week whose report is due', function (
     $this->actingAs($this->tree['users']['psg'])->get('/staff-report')->assertRedirect($this->url);
 });
 
-it('offers the staff member the picker, their own platoon\'s sections first, with the week\'s entries ticked and the game server\'s hint', function () {
+it('offers the staff member the picker, their own platoon\'s sections only, with the week\'s entries ticked and the game server\'s hint', function () {
     app(RecordStaffPracticeHandler::class)->handle($this->tree['users']['pl'], new RecordStaffPractice($this->psg->id, $this->host->id, CarbonImmutable::parse('2026-10-03', 'UTC')));
     $practice = app(SectionPracticeRepository::class)->findOrCreate($this->tree['units']['other']->id, CarbonImmutable::parse('2026-10-03', 'UTC'));
     PracticeCapturePlayer::query()->create(['section_practice_id' => $practice->id, 'game_id' => game('hll')->id, 'player_name' => 'Brandt', 'platform_id' => '76561190000000020', 'trooper_id' => $this->psg->id]);
@@ -67,23 +67,23 @@ it('offers the staff member the picker, their own platoon\'s sections first, wit
         ->where('sections', [
             ['id' => $this->host->id, 'label' => '1/1/A/1-7', 'own' => true, 'group' => '1/A/1-7', 'platoon' => '1/A/1-7'],
             ['id' => $this->tree['units']['other']->id, 'label' => '2/1/A/1-7', 'own' => true, 'group' => '1/A/1-7', 'platoon' => '1/A/1-7'],
-            ['id' => $far->id, 'label' => '1/2/A/1-7', 'own' => false, 'group' => 'A/1-7', 'platoon' => '2/A/1-7'],
         ]));
 });
 
-it('lists the sections beyond the HQ in order of battle, not by name', function () {
+it('lists a company HQ\'s sections in order of battle, not by name', function () {
     $platoon2 = app(UnitRepository::class)->create(UnitType::Platoon, '2nd Platoon', '2/A/1-7', $this->tree['units']['company']->id);
     // Created in the order of battle; by name "10/2/A/1-7" would sort before "9/2/A/1-7".
     $ninth = app(UnitRepository::class)->create(UnitType::Section, '9th Section', '9/2/A/1-7', $platoon2->id);
     $tenth = app(UnitRepository::class)->create(UnitType::Section, '10th Section', '10/2/A/1-7', $platoon2->id);
     Trooper::factory()->create(['primary_section_id' => $ninth->id]);
     Trooper::factory()->create(['primary_section_id' => $tenth->id]);
+    $co = pageTrooperOf($this->tree['users']['co']);
 
-    $this->actingAs($this->tree['users']['psg'])->get($this->url)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+    $this->actingAs($this->tree['users']['co'])->get(route('staff-report.show', ['trooper' => $co->id, 'week' => '2026-10-03']))->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
         ->where('sections', fn ($sections) => collect($sections)->where('platoon', '2/A/1-7')->pluck('label')->values()->all() === ['9/2/A/1-7', '10/2/A/1-7']));
 });
 
-it('lists the other platoons by battalion, company letter and platoon, other units last, whatever order they were created in', function () {
+it('lists a battalion HQ\'s platoons by company letter and platoon, and none outside the battalion, whatever order they were created in', function () {
     $units = app(UnitRepository::class);
     $battalion = $this->tree['units']['battalion'];
     $regiment = $this->tree['units']['regiment'];
@@ -105,9 +105,12 @@ it('lists the other platoons by battalion, company letter and platoon, other uni
         Trooper::factory()->create(['primary_section_id' => $units->create(UnitType::Section, 'Section', "1/{$callsign}", $platoon->id)->id]);
     }
 
-    $this->actingAs($this->tree['users']['psg'])->get($this->url)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+    $bnStaff = Trooper::factory()->create(['primary_section_id' => $battalion->id]);
+    $bnUser = User::factory()->create(['cav_id' => $bnStaff->cav_id]);
+
+    $this->actingAs($bnUser)->get(route('staff-report.show', ['trooper' => $bnStaff->id, 'week' => '2026-10-03']))->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
         ->where('sections', fn ($sections) => collect($sections)->pluck('platoon')->unique()->values()->all() === [
-            '1/A/1-7', '2/A/1-7', '1/B/1-7', '2/C/1-7', '1/D/1-7', '2/D/1-7', '1/E/1-7', '1/F/1-7', '1/A/2-7', '9/D/DEVCOM',
+            '1/A/1-7', '2/A/1-7', '1/B/1-7', '2/C/1-7', '1/D/1-7', '2/D/1-7', '1/E/1-7', '1/F/1-7',
         ]));
 });
 
@@ -252,14 +255,14 @@ it('shows on a platoon\'s report whether its HQ staff sent theirs, to those who 
 
     $this->actingAs($this->tree['users']['co'])->get($url)->assertInertia(fn (AssertableInertia $page) => $page
         ->where('staffReports', [
-            ['trooperId' => $this->psg->id, 'name' => $this->psg->display_name, 'sent' => true, 'attended' => true, 'practices' => 1, 'practiceType' => 'sp', 'ftx' => null, 'officeHour' => null, 'otherEvents' => null, 'notes' => null, 'sheetPushedAt' => null, 'presence' => ['check' => 'no_data', 'source' => 'game server'], 'discrepancy' => null, 'href' => $this->url],
-            ['trooperId' => $pl->id, 'name' => $pl->display_name, 'sent' => false, 'attended' => null, 'practices' => 0, 'practiceType' => null, 'ftx' => null, 'officeHour' => null, 'otherEvents' => null, 'notes' => null, 'sheetPushedAt' => null, 'presence' => null, 'discrepancy' => null, 'href' => route('staff-report.show', ['trooper' => $pl->id, 'week' => '2026-10-03'])],
+            ['trooperId' => $this->psg->id, 'name' => $this->psg->display_name, 'sent' => true, 'attended' => true, 'practices' => 1, 'practiceType' => 'sp', 'ftx' => null, 'officeHour' => null, 'presenceType' => null, 'otherEvents' => null, 'notes' => null, 'sheetPushedAt' => null, 'presence' => ['check' => 'no_data', 'source' => 'game server'], 'publicServer' => null, 'discrepancy' => null, 'href' => $this->url],
+            ['trooperId' => $pl->id, 'name' => $pl->display_name, 'sent' => false, 'attended' => null, 'practices' => 0, 'practiceType' => null, 'ftx' => null, 'officeHour' => null, 'presenceType' => null, 'otherEvents' => null, 'notes' => null, 'sheetPushedAt' => null, 'presence' => null, 'publicServer' => null, 'discrepancy' => null, 'href' => route('staff-report.show', ['trooper' => $pl->id, 'week' => '2026-10-03'])],
         ]));
 
     // The PL reads their own row only, not their PSG's.
     $this->actingAs($this->tree['users']['pl'])->get($url)->assertInertia(fn (AssertableInertia $page) => $page
         ->where('staffReports', [
-            ['trooperId' => $pl->id, 'name' => $pl->display_name, 'sent' => false, 'attended' => null, 'practices' => 0, 'practiceType' => null, 'ftx' => null, 'officeHour' => null, 'otherEvents' => null, 'notes' => null, 'sheetPushedAt' => null, 'presence' => null, 'discrepancy' => null, 'href' => route('staff-report.show', ['trooper' => $pl->id, 'week' => '2026-10-03'])],
+            ['trooperId' => $pl->id, 'name' => $pl->display_name, 'sent' => false, 'attended' => null, 'practices' => 0, 'practiceType' => null, 'ftx' => null, 'officeHour' => null, 'presenceType' => null, 'otherEvents' => null, 'notes' => null, 'sheetPushedAt' => null, 'presence' => null, 'publicServer' => null, 'discrepancy' => null, 'href' => route('staff-report.show', ['trooper' => $pl->id, 'week' => '2026-10-03'])],
         ]));
 
     // A section's report has none.

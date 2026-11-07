@@ -17,10 +17,12 @@ use RuntimeException;
  * - `already_sent`: the report for the week was sent, and a sent report is final;
  * - `no_practice`: "Yes" with no practice picked, or "No" with practices picked;
  * - `not_a_section`: a pick that is not a section;
- * - `practice_type`: a practice type other than SP or FTX, or an FTX or its fields with "No";
- * - `ftx`: an FTX without a name or with a date outside the week, or FTX fields on an SP;
- * - `office_hour`: an office hour from anyone but battalion HQ staff, without its date in the week or its note, with
- *   sections picked, or its fields on another type;
+ * - `not_in_unit`: a section outside the staff member's own platoon, company or battalion;
+ * - `practice_type`: a practice type the HQ does not report (SP or FTX on a platoon or company HQ; SP, operation,
+ *   class or event on a battalion HQ), a named type or its fields with "No", or sections with an operation, class or event;
+ * - `ftx`: a named type (FTX, operation, class, event) without a name or with a date outside the week, or its fields on an SP;
+ * - `presence`: a presence answer other than public server, office hour or none;
+ * - `office_hour`: an office hour without its date in the week or its note, or its fields on another answer;
  * - `too_long`: free text over its limit.
  */
 class StaffReportRefusedException extends RuntimeException
@@ -84,39 +86,53 @@ class StaffReportRefusedException extends RuntimeException
         return new self('Pick only sections whose practice you attended.', 'not_a_section', 'section_ids');
     }
 
-    public static function unknownPracticeType(): self
+    public static function unknownPracticeType(bool $battalion = false): self
     {
-        return new self('Pick Section practice (SP), FTX or, on a battalion HQ, Office hour.', 'practice_type', 'practice_type');
+        return new self($battalion
+            ? 'Pick Section practice (SP), Operation, Class or Other official event.'
+            : 'Pick Section practice (SP) or FTX.', 'practice_type', 'practice_type');
     }
 
     public static function ftxWithNo(): self
     {
-        return new self('You answered No, so there is no FTX to name. Clear it, or answer Yes.', 'practice_type', 'practice_type');
+        return new self('You answered No, so there is nothing to name. Clear it, or answer Yes.', 'practice_type', 'practice_type');
     }
 
-    public static function ftxNameMissing(): self
+    public static function ftxNameMissing(string $what = 'the FTX'): self
     {
-        return new self('Give the name of the FTX.', 'ftx', 'ftx_name');
+        return new self("Give the name of {$what}.", 'ftx', 'ftx_name');
     }
 
-    public static function ftxDateOutsideWeek(CarbonInterface $weekStart): self
+    public static function ftxDateOutsideWeek(CarbonInterface $weekStart, string $what = 'the FTX'): self
     {
-        return new self('Pick the date of the FTX, from '.WeekLabel::date($weekStart).' to '.WeekLabel::date($weekStart->addDays(6)).'.', 'ftx', 'ftx_date');
+        return new self("Pick the date of {$what}, from ".WeekLabel::date($weekStart).' to '.WeekLabel::date($weekStart->addDays(6)).'.', 'ftx', 'ftx_date');
     }
 
     public static function ftxFieldsWithSp(): self
     {
-        return new self('An FTX name and date go with an FTX only. Clear them, or pick FTX.', 'ftx', 'ftx_name');
+        return new self('A section practice takes no name or date. Clear them.', 'ftx', 'ftx_name');
+    }
+
+    public static function notInUnit(bool $battalion = false): self
+    {
+        return new self($battalion
+            ? 'Pick only sections in your battalion.'
+            : 'Pick only sections in your own platoon or company.', 'not_in_unit', 'section_ids');
+    }
+
+    public static function sectionsWithEvent(): self
+    {
+        return new self('An operation, a class or an event takes no section. Clear the sections, or pick Section practice (SP).', 'practice_type', 'section_ids');
+    }
+
+    public static function unknownPresence(): self
+    {
+        return new self('Pick Public server hour, Office hour or No.', 'presence', 'presence_type');
     }
 
     public static function tooLong(string $field, string $what, int $max): self
     {
         return new self('Keep '.$what." to {$max} characters.", 'too_long', $field);
-    }
-
-    public static function officeHourNotBattalion(): self
-    {
-        return new self('An office hour counts for battalion HQ staff only. Pick Section practice (SP) or FTX.', 'office_hour', 'practice_type');
     }
 
     public static function officeHourDateOutsideWeek(CarbonInterface $weekStart): self
@@ -127,11 +143,6 @@ class StaffReportRefusedException extends RuntimeException
     public static function officeHourNoteMissing(): self
     {
         return new self('Say in a few words what the office hour was.', 'office_hour', 'office_hour_note');
-    }
-
-    public static function officeHourWithSections(): self
-    {
-        return new self('An office hour takes no section practice. Clear the sections, or pick Section practice (SP).', 'office_hour', 'section_ids');
     }
 
     public static function officeHourFieldsElsewhere(): self

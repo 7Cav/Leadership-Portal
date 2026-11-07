@@ -1,19 +1,28 @@
 import { forumDate } from '@/lib/forumDate';
 
 // How a sent staff report's answer reads, shared by the report page, the overview and the HQ staff panel. `report`
-// carries `{ attended, practiceType, ftx: { name, date } | null, officeHour: { date, note } | null, practices }`, where
-// `practices` is a list of labels.
+// carries `{ attended, practiceType, ftx: { name, date } | null, officeHour: { date, note } | null, presenceType,
+// practices }`, where `practices` is a list of labels. `ftx` holds the name and date of any named type.
 
-/** `Yes: 1/1/A/1-7, 2/1/A/1-7` for an SP, `Yes, FTX Operation Anvil (09JAN26)`, `Yes, office hour (09JAN26)`, or `No`. Empty while not sent. */
+// The accountability types sent with a name and a date: a short label, and how each reads in a sentence.
+export const NAMED_TYPES = {
+    ftx: { short: 'FTX', sentence: 'an FTX' },
+    operation: { short: 'operation', sentence: 'an operation' },
+    class: { short: 'class', sentence: 'a class' },
+    event: { short: 'official event', sentence: 'an official event' },
+};
+
+/** `Yes: 1/1/A/1-7, 2/1/A/1-7` for an SP, `Yes, FTX Anvil (09JAN26)`, `Yes, operation Anvil (09JAN26)`, `Yes, office hour (09JAN26)`, or `No`. Empty while not sent. */
 export function attendedText(report) {
     if (report.attended === null || report.attended === undefined) return '';
     if (!report.attended) return 'No';
 
     const practices = report.practices?.length ? `: ${report.practices.join(', ')}` : '';
-    if (report.practiceType === 'ftx') {
+    const named = NAMED_TYPES[report.practiceType];
+    if (named) {
         const date = report.ftx?.date ? ` (${forumDate(report.ftx.date)})` : '';
 
-        return `Yes, FTX ${report.ftx?.name ?? ''}${date}${practices}`;
+        return `Yes, ${named.short} ${report.ftx?.name ?? ''}${date}${practices}`;
     }
     if (report.practiceType === 'office_hour') {
         const date = report.officeHour?.date ? ` (${forumDate(report.officeHour.date)})` : '';
@@ -22,6 +31,23 @@ export function attendedText(report) {
     }
 
     return `Yes${practices}`;
+}
+
+/** "Attended an operation, Anvil on 09JAN26." for a named type, or null for anything else. */
+export function namedSentence(report) {
+    const named = NAMED_TYPES[report.practiceType];
+    if (!report.attended || !named) return null;
+
+    return `Attended ${named.sentence}, ${report.ftx?.name ?? ''}${report.ftx?.date ? ` on ${forumDate(report.ftx.date)}` : ''}.`;
+}
+
+/** `Public server hour`, `Office hour (06OCT26)`, `No public server hour or office hour`, or empty when not asked. */
+export function presenceAnswer(report) {
+    if (report.presenceType === 'public_server') return 'Public server hour';
+    if (report.presenceType === 'office_hour') return `Office hour${report.officeHour?.date ? ` (${forumDate(report.officeHour.date)})` : ''}`;
+    if (report.presenceType === 'none') return 'No public server hour or office hour';
+
+    return '';
 }
 
 /** "Sent to the sheet", "Not sent to the sheet yet" while configured and pending, or null when there is no sheet. */

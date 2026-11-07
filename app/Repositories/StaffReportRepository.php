@@ -36,7 +36,7 @@ interface StaffReportRepository
      * Write the sent report. Insert-or-find under the UNIQUE key: returns the new row, or null when one was already
      * sent for the trooper and week, which is left as it is.
      *
-     * `$fields` holds the rest of what was sent: `practice_type`, `ftx_name`, `ftx_date`, `other_events`, `notes`.
+     * `$fields` holds the rest of what was sent: `practice_type`, `ftx_name`, `ftx_date`, `presence_type`, the office hour, `other_events`, `notes` and the frozen checks.
      *
      * @param  list<array{section_id: int, section: ?string}>  $practices
      * @param  array<string, mixed>  $fields

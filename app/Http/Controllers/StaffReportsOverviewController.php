@@ -148,7 +148,7 @@ class StaffReportsOverviewController extends Controller
     /**
      * One staff member's line: `status` is `sent`, `notSent` or `notDue` (the running week, sent once it ends).
      * `metRule` says whether they kept to at least one section practice (or an FTX) that week, null while not sent.
-     * `practiceType`, `ftx`, `officeHour`, `otherEvents`, `notes` and `sheetPushedAt` are as sent ({@see StaffReportWeek::reportProps()}).
+     * `practiceType`, `ftx`, `officeHour`, `presenceType`, `publicServer`, `otherEvents`, `notes` and `sheetPushedAt` are as sent ({@see StaffReportWeek::reportProps()}).
      *
      * @return array<string, mixed>
      */
@@ -175,10 +175,12 @@ class StaffReportsOverviewController extends Controller
             'practiceType' => $props['practiceType'] ?? null,
             'ftx' => $props['ftx'] ?? null,
             'officeHour' => $props['officeHour'] ?? null,
+            'presenceType' => $props['presenceType'] ?? null,
             'otherEvents' => $props['otherEvents'] ?? null,
             'notes' => $props['notes'] ?? null,
             'sheetPushedAt' => $props['sheetPushedAt'] ?? null,
             'presence' => $props['presence'] ?? null,
+            'publicServer' => $props['publicServer'] ?? null,
             'metRule' => $props === null ? null : StaffReportWeek::metRule($props),
             'href' => route('staff-report.show', ['trooper' => $trooper->id, 'week' => $weekStart->toDateString()]),
         ];

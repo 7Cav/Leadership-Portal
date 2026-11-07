@@ -26,17 +26,19 @@ beforeEach(function () {
     Trooper::factory()->create(['primary_section_id' => $this->tree['units']['other']->id]);
 });
 
+/** The sections the company HQ's CO is offered: those under their company. */
 function sectionIdsOffered($test): array
 {
     $ids = [];
-    $test->actingAs($test->tree['users']['psg'])->get($test->url)->assertOk()->assertInertia(function (AssertableInertia $page) use (&$ids) {
+    $co = Trooper::query()->where('cav_id', $test->tree['users']['co']->cav_id)->sole();
+    $test->actingAs($test->tree['users']['co'])->get(route('staff-report.show', ['trooper' => $co->id, 'week' => '2026-10-03']))->assertOk()->assertInertia(function (AssertableInertia $page) use (&$ids) {
         $ids = array_column($page->toArray()['props']['sections'], 'id');
     });
 
     return $ids;
 }
 
-it('offers an HLL HQ only HLL sections, and keeps a section with no game', function () {
+it('offers an HLL HQ only HLL sections, and none outside its unit', function () {
     $units = app(UnitRepository::class);
     $this->tree['units']['company']->forceFill(['game_id' => game('hll')->id])->save();
     // A platoon under the same company that plays another game: its section is left out.
@@ -44,7 +46,7 @@ it('offers an HLL HQ only HLL sections, and keeps a section with no game', funct
     $armaPlatoon->forceFill(['game_id' => game('arma')->id])->save();
     $arma = $units->create(UnitType::Section, '1st Section', '1/2/A/1-7', $armaPlatoon->id);
     Trooper::factory()->create(['primary_section_id' => $arma->id]);
-    // A section in another battalion with no game on its chain: kept.
+    // A section in another battalion with no game on its chain: outside the company, so not offered.
     $battalion2 = $units->create(UnitType::Battalion, '2nd Battalion', '2-7', $this->tree['units']['regiment']->id);
     $company2 = $units->create(UnitType::Company, 'Bravo Company', 'B/2-7', $battalion2->id);
     $platoon2 = $units->create(UnitType::Platoon, '1st Platoon', '1/B/2-7', $company2->id);
@@ -53,8 +55,9 @@ it('offers an HLL HQ only HLL sections, and keeps a section with no game', funct
 
     $offered = sectionIdsOffered($this);
 
-    expect($offered)->toContain($this->tree['units']['host']->id, $this->tree['units']['other']->id, $loose->id)
-        ->and($offered)->not->toContain($arma->id);
+    expect($offered)->toContain($this->tree['units']['host']->id, $this->tree['units']['other']->id)
+        ->and($offered)->not->toContain($arma->id)
+        ->and($offered)->not->toContain($loose->id);
 });
 
 it('filters nothing when the HQ has no game', function () {
