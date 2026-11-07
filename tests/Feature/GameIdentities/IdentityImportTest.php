@@ -218,3 +218,22 @@ describe('Steam', function () {
         $mock->assertSentCount(ImportGameIdentities::STEAM_LOOKUPS);
     });
 });
+
+// Laravel's trim still runs here; it strips only \s (Unicode White_Space under /u), U+FEFF, U+200B and U+200E at the
+// edges. U+3164 is a letter, not White_Space, and U+200F is not in that set, so both arrive as typed.
+it('passes player names to the import untouched by the request text cleaner', function (string $text) {
+    $seen = null;
+    $this->mock(ImportGameIdentities::class)->shouldReceive('preview')->once()
+        ->andReturnUsing(function ($actor, string $received) use (&$seen) {
+            $seen = $received;
+
+            return [];
+        });
+
+    previewImport($this, $text)->assertOk();
+
+    expect($seen)->toBe($text);
+})->with([
+    'only a Hangul filler' => ["Novak.E, HLL, \u{3164}"],
+    'a right-to-left mark' => ["Novak.E, HLL, Name\u{200F}x"],
+]);
