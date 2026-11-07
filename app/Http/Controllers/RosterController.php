@@ -469,6 +469,8 @@ class RosterController extends Controller
                     'held' => $mark->held,
                     // The section whose practice this was: after a transfer, an earlier week is their old section's.
                     'sectionId' => $mark->sectionId,
+                    // A mark recorded before the practice ends counts only then (#634): the cell shows it dimmed.
+                    ...($mark->pendingUntil === null ? [] : ['pending' => $mark->recorded?->value, 'pendingUntil' => $mark->pendingUntil->utc()->toIso8601ZuluString()]),
                 ];
             }, $this->weeks($week)),
             // The history weeks excused automatically (2026-10-30), `Y-m-d` => `recruit` or `transfer`: the cell shows
