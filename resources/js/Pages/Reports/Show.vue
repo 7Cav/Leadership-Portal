@@ -37,6 +37,7 @@ import TimeAgo from '@/components/TimeAgo.vue';
 import Guidon from '@/components/Guidon.vue';
 import { weekLabel, weekPhrase } from '@/lib/forumDate';
 import WeekHeading from '@/components/week/WeekHeading.vue';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import {
     defaultSendReason,
     frozenHighlights,
@@ -249,30 +250,8 @@ watch(
 // Unsaved edits are never dropped silently: leaving the page (another week, another screen, or
 // closing the tab) while a save is pending or failed asks first.
 const unsaved = () => !readOnly.value && ['pending', 'saving', 'error'].includes(save.state);
-const LEAVE = 'Your latest changes to this report are not saved yet. Leave anyway?';
-
-function onBeforeUnload(event) {
-    if (!unsaved()) return;
-    event.preventDefault();
-    event.returnValue = '';
-}
-
-let stopGuard = null;
-onMounted(() => {
-    window.addEventListener('beforeunload', onBeforeUnload);
-    stopGuard = router.on?.('before', (event) => {
-        const visit = event.detail.visit;
-        // Our own autosave and send are writes to this report; only leaving is guarded.
-        if (visit.method !== 'get' || !unsaved()) return;
-
-        return window.confirm(LEAVE);
-    });
-});
-onBeforeUnmount(() => {
-    clearTimeout(timer);
-    window.removeEventListener('beforeunload', onBeforeUnload);
-    stopGuard?.();
-});
+useUnsavedChanges(unsaved, { message: 'Your latest changes to this report are not saved yet. Leave anyway?' });
+onBeforeUnmount(() => clearTimeout(timer));
 
 // ---- Readiness and highlights ----
 const checks = computed(() =>
