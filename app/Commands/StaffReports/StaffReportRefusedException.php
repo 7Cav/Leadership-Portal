@@ -86,11 +86,25 @@ class StaffReportRefusedException extends RuntimeException
         return new self('Pick only sections whose practice you attended.', 'not_a_section', 'section_ids');
     }
 
-    public static function unknownPracticeType(bool $battalion = false): self
+    /**
+     * A type the HQ does not report. `$types` are the ones it does ({@see \App\Commands\Units\AccountabilityRules::staff()}).
+     *
+     * @param  list<string>  $types
+     */
+    public static function unknownPracticeType(array $types): self
     {
-        return new self($battalion
-            ? 'Pick Section practice (SP), Operation, Class or Other official event.'
-            : 'Pick Section practice (SP) or FTX.', 'practice_type', 'practice_type');
+        $labels = array_map(fn (string $type) => match ($type) {
+            'sp' => 'Section practice (SP)',
+            'ftx' => 'FTX',
+            'operation' => 'Operation',
+            'class' => 'Class',
+            'event' => 'Other official event',
+            default => $type,
+        }, $types);
+        $last = array_pop($labels);
+        $list = $labels === [] ? (string) $last : implode(', ', $labels).' or '.$last;
+
+        return new self($types === [] ? 'Nothing counts for accountability on your HQ. Ask your battalion HQ staff.' : "Pick {$list}.", 'practice_type', 'practice_type');
     }
 
     public static function ftxWithNo(): self

@@ -30,6 +30,7 @@ use App\Models\TrooperCourse;
 use App\Models\TrooperGameIdentity;
 use App\Models\TrooperPlacement;
 use App\Models\Unit;
+use App\Models\UnitAccountabilitySetting;
 use App\Models\UnitActingLead;
 use App\Models\UnitGuidon;
 use App\Models\UnitOversight;
@@ -62,6 +63,7 @@ final class AuditSubject
         StaffReport::class => ['trooper'],
         SectionPracticeSlot::class => ['section'],
         BattalionSetting::class => ['unit'],
+        UnitAccountabilitySetting::class => ['unit'],
         CounselingRecord::class => ['trooper'],
         UnitGuidon::class => ['unit'],
         Template::class => ['company', 'section'],
@@ -181,6 +183,7 @@ final class AuditSubject
             $target instanceof StaffReport => 'Staff report of '.$trooper($rel($target, 'trooper')).$week($target->week_start),
             $target instanceof SectionPracticeSlot => 'Practice slot '.$unit($rel($target, 'section')),
             $target instanceof BattalionSetting => 'Presence minimum '.$unit($rel($target, 'unit')),
+            $target instanceof UnitAccountabilitySetting => 'Accountability options '.$unit($rel($target, 'unit')),
             $target instanceof CounselingRecord => ($target->type?->short() ?? 'Counseling record').' for '.$trooper($rel($target, 'trooper'))
                 .($target->counseled_on !== null ? ' dated '.WeekLabel::date($target->counseled_on) : ''),
             $target instanceof ChangelogEntry => 'Changelog entry '.($target->date !== null ? WeekLabel::date($target->date).' ' : '')

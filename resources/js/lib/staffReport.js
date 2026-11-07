@@ -138,3 +138,36 @@ export function pickerGroups(sections) {
 export function pickerCollapses(groups) {
     return groups.reduce((sum, group) => sum + group.platoons.length, 0) > PICKER_COLLAPSE_OVER;
 }
+
+// The accountability types an HQ reports by default, as `AccountabilityRules::defaultFor()` has them: a battalion HQ a
+// section practice, an operation, a class or an event; a platoon or company HQ a section practice or an FTX.
+export function defaultTypes(hqType) {
+    return hqType === 'battalion' ? ['sp', 'operation', 'class', 'event'] : ['sp', 'ftx'];
+}
+
+// "a section practice, an operation, a class or another official event": the types an HQ reports, for the question
+// (`long`) or the Yes tile's hint.
+export function typesPhrase(types, long = false) {
+    const words = { sp: 'a section practice', ftx: 'an FTX', operation: 'an operation', class: 'a class', event: long ? 'another official event' : 'an event' };
+    const parts = types.map((type) => words[type]).filter(Boolean);
+    if (parts.length <= 1) {
+        return parts[0] ?? '';
+    }
+
+    return `${parts.slice(0, -1).join(', ')} or ${parts[parts.length - 1]}`;
+}
+
+// What the section picker offers, from the staff report's `accountability` prop: "Sections in your company that play
+// its game", widened to the battalion or to other games when the HQ's options say so.
+export function pickerScopeText(hqType, scope) {
+    const unit = hqType === 'battalion' ? 'battalion' : hqType === 'company' ? 'company' : 'platoon';
+    const where = !scope
+        ? `in your ${unit}`
+        : scope.battalion && !scope.own
+          ? 'elsewhere in your battalion'
+          : scope.battalion
+            ? 'in your battalion'
+            : `in your ${unit}`;
+
+    return `Sections ${where}${scope?.otherGames ? '' : ' that play its game'}.`;
+}

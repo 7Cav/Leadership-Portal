@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffReportAccess;
 use App\Commands\StaffReports\PushStaffReportToSheet;
+use App\Commands\Units\AccountabilityRules;
 use App\Commands\StaffReports\PushStaffReportToSheetHandler;
 use App\Commands\StaffReports\SendStaffReport;
 use App\Commands\StaffReports\SendStaffReportHandler;
@@ -57,6 +58,7 @@ class StaffReportController extends Controller
         private readonly Headcount $headcount,
         private readonly PushStaffReportToSheetHandler $sheet,
         private readonly StaffHqHealth $health,
+        private readonly AccountabilityRules $accountability,
     ) {}
 
     /** The viewer's own staff report: the week that ended while it is owed, else the running week. */
@@ -125,6 +127,8 @@ class StaffReportController extends Controller
             'entries' => $report === null ? $this->week->entries($trooper, $weekStart) : [],
             'seen' => $canSend || $canEdit ? $this->week->seenSectionIds($trooper, $weekStart) : [],
             'sections' => $canSend || $canEdit ? $this->sections($hq) : [],
+            // What the HQ reports under its accountability options, and how far the picker reaches.
+            'accountability' => ($canSend || $canEdit) && $hq !== null ? array_diff_key($this->accountability->staff($hq), ['counts' => true]) : null,
             'maxPractices' => SendStaffReportHandler::MAX_PRACTICES,
             'limits' => [
                 'ftxName' => SendStaffReportHandler::MAX_FTX_NAME,
@@ -206,13 +210,13 @@ class StaffReportController extends Controller
     }
 
     /**
-     * Every section with troopers in it (#442) under the staff member's HQ: their own platoon or company, or for
-     * battalion HQ staff the battalion. The send refuses any other. The host's rollcall lists them there as a staff
-     * guest. `group` names the HQ, so the picker groups them, then in order of battle (company letter, platoon,
+     * Every section with troopers in it (#442) that the HQ's accountability options count ({@see AccountabilityRules::staff()};
+     * by default their own platoon or company, or for battalion HQ staff the battalion). The send refuses any other.
+     * The host's rollcall lists them there as a staff guest. `group` names the HQ, so the picker groups them, then in order of battle (company letter, platoon,
      * section; {@see battleKey()}). `platoon` names the section's parent unit, which the picker uses as a small heading.
      *
-     * Only sections that play the HQ's game are offered ({@see UnitGame}, inherited down the tree): an HLL HQ sees HLL
-     * sections. When the HQ or a section has no game on its chain, that section is kept, since nothing says it plays
+     * Unless "another game" is ticked, only sections that play the HQ's game are offered ({@see UnitGame}, inherited
+     * down the tree): an HLL HQ sees HLL sections. When the HQ or a section has no game on its chain, that section is kept, since nothing says it plays
      * another game.
      *
      * @return list<array{id: int, label: string, own: bool, group: ?string, platoon: ?string}>
@@ -221,8 +225,6 @@ class StaffReportController extends Controller
     {
         $tree = $this->units->tree();
         $byId = $tree->keyBy('id');
-        $games = UnitGame::resolve($tree);
-        $hqGame = $hq === null ? null : ($games[$hq->id] ?? null)?->gameId;
         $ancestors = [];
         for ($node = $hq, $guard = 0; $node !== null && $guard < 8 && $node->type !== UnitType::Regiment; $guard++) {
             $ancestors[] = $node;
@@ -233,9 +235,9 @@ class StaffReportController extends Controller
             return [];
         }
 
-        return $this->headcount->withoutEmptyLineUnits($tree->filter(fn (Unit $unit) => $unit->type === UnitType::Section
-            && str_starts_with((string) $unit->path, (string) $hq->path)
-            && ($hqGame === null || ! isset($games[$unit->id]) || $games[$unit->id]->gameId === $hqGame)))
+        $counts = $this->accountability->staff($hq)['counts'];
+
+        return $this->headcount->withoutEmptyLineUnits($tree->filter(fn (Unit $unit) => $unit->type === UnitType::Section && $counts($unit)))
             ->map(function (Unit $unit, int $order) use ($hq, $ancestors, $byId) {
                 $rank = count($ancestors);
                 $group = null;

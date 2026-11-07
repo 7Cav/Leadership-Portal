@@ -47,6 +47,7 @@ import OrbatView from "@/components/roster/OrbatView.vue";
 import StrengthView from "@/components/roster/StrengthView.vue";
 import GuidonGenerator from "@/components/roster/GuidonGenerator.vue";
 import PracticeGuestsPanel from "@/components/roster/PracticeGuestsPanel.vue";
+import AccountabilityPanel from "@/components/roster/AccountabilityPanel.vue";
 import PresenceMinimumPanel from "@/components/roster/PresenceMinimumPanel.vue";
 import TrooperSheet from "@/components/roster/TrooperSheet.vue";
 import { useNow } from "@/composables/useNow";
@@ -84,6 +85,8 @@ const props = defineProps({
     guests: { type: Object, default: null },
     // A battalion's practice presence minimum (#558): `{ minutes, isDefault, default, canEdit }`, null for other units.
     presenceMinimum: { type: Object, default: null },
+    // What counts for the unit's HQ staff report or a section's makeups (`AccountabilityRules::props()`), null above a battalion.
+    accountability: { type: Object, default: null },
     // The Strength tab (`StrengthTrends`): `{ range, weeks, change, children }`, sent only while that tab is open.
     strengthTrends: { type: Object, default: null },
 });
@@ -660,6 +663,12 @@ function syncNow() {
             <PresenceMinimumPanel
                 v-if="presenceMinimum"
                 :minimum="presenceMinimum"
+                :unit-id="unit.id"
+            />
+
+            <AccountabilityPanel
+                v-if="accountability"
+                :accountability="accountability"
                 :unit-id="unit.id"
             />
 

@@ -41,7 +41,7 @@ import WeekHeading from '@/components/week/WeekHeading.vue';
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import { onHttpException } from '@/lib/httpError';
 import { stamp } from '@/lib/report';
-import { NAMED_TYPES, attendedText, namedSentence, pickerCollapses, pickerGroups, presenceAnswer, sheetText } from '@/lib/staffReport';
+import { NAMED_TYPES, attendedText, defaultTypes, namedSentence, pickerCollapses, pickerGroups, pickerScopeText, presenceAnswer, sheetText, typesPhrase } from '@/lib/staffReport';
 import { Checkbox } from '@/components/ui/checkbox';
 
 // A platoon, company or battalion HQ staff member's own weekly staff report: their accountability (platoon and company
@@ -74,6 +74,8 @@ const props = defineProps({
     seen: { type: Array, default: () => [] },
     // `[{ id, label, own, group, platoon }]`: the sections under the HQ, in order of battle.
     sections: { type: Array, default: () => [] },
+    // What the HQ reports under its accountability options, `{ types, own, battalion, otherGames }`; null reads as the default.
+    accountability: { type: Object, default: null },
     maxPractices: { type: Number, default: 20 },
     // `{ ftxName, otherEvents, notes, officeHourNote }`: the most characters each takes.
     limits: { type: Object, default: () => ({ ftxName: 120, otherEvents: 500, notes: 1000, officeHourNote: 200 }) },
@@ -86,13 +88,14 @@ const props = defineProps({
 const entered = computed(() => new Map(props.entries.map((entry) => [entry.sectionId, entry])));
 const seenIds = computed(() => new Set(props.seen));
 const labels = computed(() => new Map([...props.sections.map((section) => [section.id, section.label]), ...props.entries.map((entry) => [entry.sectionId, entry.section])]));
-// Battalion HQ staff report an operation, a class or another official event; platoon and company HQ staff an FTX.
-const battalion = computed(() => props.hq?.type === 'battalion');
+// By default battalion HQ staff report an operation, a class or another official event, platoon and company HQ staff an
+// FTX; the HQ's accountability options may say otherwise.
+const offered = computed(() => props.accountability?.types ?? defaultTypes(props.hq?.type));
 
 const form = useForm({
     attended: props.entries.length ? true : null,
     section_ids: props.entries.map((entry) => entry.sectionId),
-    practice_type: 'sp',
+    practice_type: offered.value.includes('sp') ? 'sp' : (offered.value[0] ?? 'sp'),
     ftx_name: '',
     ftx_date: '',
     presence_type: null,
@@ -114,7 +117,7 @@ function startEdit() {
         attended: sent.attended,
         section_ids: sent.practices.map((practice) => practice.sectionId),
         // A type the HQ no longer reports (an office hour or FTX sent before) starts over as an SP.
-        practice_type: TYPES.value.some((option) => option.value === sent.practiceType) ? sent.practiceType : 'sp',
+        practice_type: TYPES.value.some((option) => option.value === sent.practiceType) ? sent.practiceType : (TYPES.value[0]?.value ?? 'sp'),
         ftx_name: sent.ftx?.name ?? '',
         ftx_date: sent.ftx?.date ?? '',
         presence_type: sent.presenceType ?? null,
@@ -132,19 +135,19 @@ function startEdit() {
 }
 
 const ATTENDED = computed(() => [
-    { value: true, label: 'Yes', hint: battalion.value ? 'A section practice, an operation, a class or an event' : 'A section practice or an FTX', icon: PhCheckCircle },
+    { value: true, label: 'Yes', hint: capitalized(typesPhrase(offered.value)), icon: PhCheckCircle },
     { value: false, label: 'No', hint: 'Not this week', icon: PhXCircle },
 ]);
-const TYPES = computed(() => [
-    { value: 'sp', label: 'Section practice', hint: 'Pick the sections', icon: PhUsersThree },
-    ...(battalion.value
-        ? [
-              { value: 'operation', label: 'Operation', hint: 'Its name and date', icon: PhMedal },
-              { value: 'class', label: 'Class', hint: 'Its name and date', icon: PhPresentationChart },
-              { value: 'event', label: 'Other official event', hint: 'Its name and date', icon: PhCalendarCheck },
-          ]
-        : [{ value: 'ftx', label: 'FTX', hint: 'Its name and date', icon: PhTent }]),
-]);
+const TYPES = computed(() =>
+    [
+        { value: 'sp', label: 'Section practice', hint: 'Pick the sections', icon: PhUsersThree },
+        { value: 'ftx', label: 'FTX', hint: 'Its name and date', icon: PhTent },
+        { value: 'operation', label: 'Operation', hint: 'Its name and date', icon: PhMedal },
+        { value: 'class', label: 'Class', hint: 'Its name and date', icon: PhPresentationChart },
+        { value: 'event', label: 'Other official event', hint: 'Its name and date', icon: PhCalendarCheck },
+    ].filter((option) => offered.value.includes(option.value)),
+);
+const capitalized = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 const PRESENCE = [
     { value: 'public_server', label: 'Public server hour', hint: 'An hour on the public server', icon: PhGameController },
     { value: 'office_hour', label: 'Office hour', hint: 'An hour in Discord voice', icon: PhChalkboardTeacher },
@@ -500,7 +503,7 @@ function entryNote(id) {
                     <!-- 1. Yes or No. -->
                     <fieldset v-if="step === 'attended'" data-testid="step-panel-attended">
                         <legend class="text-base font-semibold">
-                            {{ battalion ? 'Did you attend a section practice, an operation, a class or another official event this week?' : 'Did you attend a section practice or an FTX this week?' }}
+                            Did you attend {{ typesPhrase(offered, true) }} this week?
                         </legend>
                         <div class="mt-4 grid grid-cols-2 gap-3" role="radiogroup" aria-label="Accountability">
                             <button
@@ -524,7 +527,7 @@ function entryNote(id) {
                     <!-- 2. What it was. -->
                     <fieldset v-else-if="step === 'kind'" data-testid="practice-type">
                         <legend class="text-base font-semibold">What was it?</legend>
-                        <div class="mt-4 grid gap-3" :class="TYPES.length === 4 ? 'sm:grid-cols-4' : 'sm:grid-cols-2'" role="radiogroup" aria-label="What was it">
+                        <div class="mt-4 grid gap-3" :class="TYPES.length >= 4 ? 'sm:grid-cols-4' : TYPES.length === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'" role="radiogroup" aria-label="What was it">
                             <button
                                 v-for="option in TYPES"
                                 :key="option.value"
@@ -561,7 +564,7 @@ function entryNote(id) {
                         <div v-if="type === 'sp' || type === 'ftx'" data-testid="practice-picker">
                             <p class="text-base font-semibold">{{ type === 'ftx' ? 'Sections that took part (optional)' : 'Which practices did you attend?' }}</p>
                             <p class="mt-0.5 text-xs text-muted-foreground">
-                                Sections in your {{ battalion ? 'battalion' : hq?.type === 'company' ? 'company' : 'platoon' }} that play its game. You are on their roll call as a staff guest.
+                                {{ pickerScopeText(hq?.type, accountability) }} You are on their roll call as a staff guest.
                             </p>
 
                             <div class="relative mt-3">

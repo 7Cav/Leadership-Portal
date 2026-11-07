@@ -3,6 +3,7 @@
 namespace App\Commands\StaffReports;
 
 use App\Authorization\StaffReportAccess;
+use App\Commands\Units\AccountabilityRules;
 use App\Models\CrossSectionSighting;
 use App\Models\StaffReport;
 use App\Models\TelemetryInterface;
@@ -81,6 +82,7 @@ class SendStaffReportHandler
         private readonly PracticeCapturePlayerRepository $captures,
         private readonly GameRepository $games,
         private readonly PublicServerHour $publicServer,
+        private readonly AccountabilityRules $rules,
     ) {}
 
     /**
@@ -108,8 +110,10 @@ class SendStaffReportHandler
 
         // A running week may be sent before it ends, and edited until its deadline; it goes to the HQ they are on now.
         $hq = $this->access->owes($trooper, $weekStart) ?? throw StaffReportRefusedException::notOwed($trooper->display_name, $weekStart);
-        $fields = $this->fields($command, $weekStart, $hq);
-        $sections = $this->pickedSections($command, $fields['practice_type'], $hq);
+        // What counts for this HQ: its accountability options ({@see AccountabilityRules}), today's rules by default.
+        $staff = $this->rules->staff($hq);
+        $fields = $this->fields($command, $weekStart, $hq, $staff['types']);
+        $sections = $this->pickedSections($command, $fields['practice_type'], $hq, $staff);
 
         // Sent already: an edit until the deadline, with a reason; after it, locked.
         $editing = $this->reports->find($trooper->id, $weekStart) !== null;
@@ -254,7 +258,7 @@ class SendStaffReportHandler
 
     /**
      * The rest of what was sent, checked and trimmed: the practice type (SP unless another is picked, null with "No"),
-     * checked against the HQ ({@see typesFor()}); a named type's name and date (`ftx_name` and `ftx_date`, both
+     * checked against what the HQ reports ({@see AccountabilityRules::staff()}); a named type's name and date (`ftx_name` and `ftx_date`, both
      * required, the date inside the Cav week); the presence answer (required), with an office hour's date
      * and note (only for an office hour, both required); other events and notes (empty text is null).
      *
@@ -262,7 +266,7 @@ class SendStaffReportHandler
      *
      * @throws StaffReportRefusedException
      */
-    private function fields(SendStaffReport $command, CarbonImmutable $weekStart, Unit $hq): array
+    private function fields(SendStaffReport $command, CarbonImmutable $weekStart, Unit $hq, array $types): array
     {
         $type = $command->practiceType === null || $command->practiceType === '' ? null : $command->practiceType;
         $ftxName = self::text($command->ftxName);
@@ -271,8 +275,9 @@ class SendStaffReportHandler
         $officeDate = self::text($command->officeHourDate);
         $officeNote = self::text($command->officeHourNote);
 
-        if ($type !== null && ! in_array($type, self::typesFor($hq), true)) {
-            throw StaffReportRefusedException::unknownPracticeType($hq->type === UnitType::Battalion);
+        // "No" may come with the form's resting `sp`; anything else is checked against what the HQ reports.
+        if ($type !== null && ($command->attended || $type !== StaffReport::SP) && ! in_array($type, $types, true)) {
+            throw StaffReportRefusedException::unknownPracticeType($types);
         }
 
         if (! $command->attended) {
@@ -282,6 +287,10 @@ class SendStaffReportHandler
             $type = null;
         } else {
             $type ??= StaffReport::SP;
+
+            if (! in_array($type, $types, true)) {
+                throw StaffReportRefusedException::unknownPracticeType($types);
+            }
         }
 
         $what = self::named($type);
@@ -346,19 +355,6 @@ class SendStaffReportHandler
         ];
     }
 
-    /**
-     * The accountability types an HQ reports: a section practice or an FTX on a platoon or company HQ; a section
-     * practice, an operation, a class or another official event on a battalion HQ.
-     *
-     * @return list<string>
-     */
-    public static function typesFor(Unit $hq): array
-    {
-        return $hq->type === UnitType::Battalion
-            ? [StaffReport::SP, StaffReport::OPERATION, StaffReport::CLASS_TYPE, StaffReport::EVENT]
-            : [StaffReport::SP, StaffReport::FTX];
-    }
-
     /** How a named type reads in a message ("the FTX"), or null for an SP or no type. */
     private static function named(?string $type): ?string
     {
@@ -394,7 +390,7 @@ class SendStaffReportHandler
      *
      * @throws StaffReportRefusedException
      */
-    private function pickedSections(SendStaffReport $command, ?string $type, Unit $hq): array
+    private function pickedSections(SendStaffReport $command, ?string $type, Unit $hq, array $staff): array
     {
         $ids = array_values(array_unique(array_map('intval', $command->sectionIds)));
 
@@ -412,14 +408,17 @@ class SendStaffReportHandler
             throw StaffReportRefusedException::practicesWithNo();
         }
 
-        return array_map(function (int $id) use ($hq) {
+        return array_map(function (int $id) use ($hq, $type, $staff) {
             $unit = $this->units->find($id);
 
             if ($unit === null || $unit->type !== UnitType::Section) {
                 throw StaffReportRefusedException::notASection();
             }
 
-            return str_starts_with((string) $unit->path, (string) $hq->path) ? $unit : throw StaffReportRefusedException::notInUnit($hq->type === UnitType::Battalion);
+            // A section the HQ's options count, or for an FTX any section under the HQ (it names who took part).
+            $counts = ($staff['counts'])($unit) || ($type === StaffReport::FTX && str_starts_with((string) $unit->path, (string) $hq->path));
+
+            return $counts ? $unit : throw StaffReportRefusedException::notInUnit($hq->type === UnitType::Battalion || $staff['battalion']);
         }, $ids);
     }
 }
