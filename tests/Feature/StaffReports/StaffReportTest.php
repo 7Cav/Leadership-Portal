@@ -39,8 +39,8 @@ use Illuminate\Support\Facades\DB;
 require_once __DIR__.'/../StaffPractices/fixture.php';
 
 // Each platoon or company HQ staff member files their own weekly staff report, saying whether they
-// attended a section practice that week and which. Each practice picked lists them on the host's rollcall, as a staff
-// guest in their own platoon or company and as a guest elsewhere, shown only.
+// attended a section practice that week and which. Only sections in their own platoon or company can be picked, and
+// each lists them on the host's rollcall as a staff guest, shown only.
 
 beforeEach(function () {
     $this->tree = staffPracticeTree();
@@ -59,7 +59,7 @@ beforeEach(function () {
 
 function sendStaffReport(User $actor, Trooper $trooper, bool $attended, array $sectionIds, ?CarbonImmutable $week = null): StaffReport
 {
-    return app(SendStaffReportHandler::class)->handle($actor, new SendStaffReport($trooper->id, $week ?? staffPracticeWeek(), $attended, $sectionIds));
+    return app(SendStaffReportHandler::class)->handle($actor, new SendStaffReport($trooper->id, $week ?? staffPracticeWeek(), $attended, $sectionIds, presenceType: 'none'));
 }
 
 function staffReportRefusal(Closure $write): string
@@ -80,7 +80,7 @@ function trooperOf(User $user): Trooper
 }
 
 it('lets a platoon HQ staff member send their own report, keeping each practice as their staff entry, audited', function () {
-    $report = sendStaffReport($this->tree['users']['psg'], $this->psg, true, [$this->host->id, $this->far->id]);
+    $report = sendStaffReport($this->tree['users']['psg'], $this->psg, true, [$this->host->id, $this->tree['units']['other']->id]);
 
     expect($report->attended)->toBeTrue()
         ->and($report->unit_id)->toBe($this->tree['units']['platoon']->id)
@@ -89,7 +89,7 @@ it('lets a platoon HQ staff member send their own report, keeping each practice 
         // MySQL keeps JSON object keys in its own order, so the keys are compared without their order.
         ->and($report->practices)->toEqual([
             ['section_id' => $this->host->id, 'section' => '1/1/A/1-7'],
-            ['section_id' => $this->far->id, 'section' => '1/2/A/1-7'],
+            ['section_id' => $this->tree['units']['other']->id, 'section' => '2/1/A/1-7'],
         ]);
 
     $rows = CrossSectionSighting::query()->orderBy('id')->get();
@@ -125,7 +125,7 @@ it('records "No" as a sent report with no practice, and takes off the week\'s en
 it('audits each entry the send takes off, naming the entry and who had entered it', function () {
     $entry = app(RecordStaffPracticeHandler::class)->handle($this->tree['users']['pl'], new RecordStaffPractice($this->psg->id, $this->host->id, $this->week));
 
-    sendStaffReport($this->tree['users']['psg'], $this->psg, true, [$this->far->id]);
+    sendStaffReport($this->tree['users']['psg'], $this->psg, true, [$this->tree['units']['other']->id]);
 
     $removed = AuditLogEntry::query()->where('action', 'staff_practice.removed')->sole();
     expect($removed->actor_id)->toBe($this->tree['users']['psg']->id)
@@ -155,7 +155,28 @@ it('refuses "Yes" with nothing picked, "No" with picks, and a pick that is not a
     'no, with a pick' => [false, fn ($t) => [$t->host->id], 'no_practice'],
     'a platoon picked' => [true, fn ($t) => [$t->tree['units']['platoon']->id], 'not_a_section'],
     'a section that does not exist' => [true, fn () => [999999], 'not_a_section'],
+    'a section outside their platoon' => [true, fn ($t) => [$t->far->id], 'not_in_unit'],
 ]);
+
+it('refuses a company HQ staff member a section outside their company, on the sections field', function () {
+    $co = trooperOf($this->tree['users']['co']);
+    $units = app(UnitRepository::class);
+    $bravo = $units->create(UnitType::Company, 'Bravo Company', 'B/1-7', $this->tree['units']['battalion']->id);
+    $bravoPlatoon = $units->create(UnitType::Platoon, '1st Platoon', '1/B/1-7', $bravo->id);
+    $bravoSection = $units->create(UnitType::Section, '1st Section', '1/1/B/1-7', $bravoPlatoon->id);
+
+    try {
+        sendStaffReport($this->tree['users']['co'], $co, true, [$this->far->id, $bravoSection->id]);
+        $this->fail('Expected the staff report to be refused.');
+    } catch (StaffReportRefusedException $e) {
+        expect($e->reason)->toBe('not_in_unit')
+            ->and($e->field)->toBe('section_ids')
+            ->and($e->getMessage())->toBe('Pick only sections in your own platoon or company.');
+    }
+
+    expect(StaffReport::query()->count())->toBe(0)
+        ->and(CrossSectionSighting::query()->count())->toBe(0);
+});
 
 it('refuses anyone but the staff member themselves, writing nothing', function (string $actor) {
     expect(fn () => sendStaffReport($this->tree['users'][$actor], $this->psg, true, [$this->host->id]))
@@ -176,7 +197,7 @@ it('refuses an Admin acting as the staff member: acting as them, it is not their
     $this->actingAs($this->tree['users']['admin'])->post('/act-as', ['kind' => 'user', 'id' => $this->tree['users']['psg']->id])->assertRedirect('/home');
 
     $this->actingAs($this->tree['users']['admin'])
-        ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), ['attended' => true, 'section_ids' => [$this->host->id]])
+        ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), ['presence_type' => 'none', 'attended' => true, 'section_ids' => [$this->host->id]])
         ->assertNotFound();
 
     expect(StaffReport::query()->count())->toBe(0);
@@ -187,7 +208,7 @@ it('refuses a send during view as, before it reaches the Command', function () {
     app(ViewAs::class)->enter($pl, new ViewAsTarget(ViewAsKind::Unit, $this->tree['units']['platoon']->id));
 
     $this->actingAs($pl)
-        ->post(route('staff-report.send', ['trooper' => trooperOf($pl)->id, 'week' => '2026-10-03']), ['attended' => false, 'section_ids' => []])
+        ->post(route('staff-report.send', ['trooper' => trooperOf($pl)->id, 'week' => '2026-10-03']), ['presence_type' => 'none', 'attended' => false, 'section_ids' => []])
         ->assertForbidden();
 
     expect(StaffReport::query()->count())->toBe(0);
@@ -332,8 +353,8 @@ it('reads the staff guests\' HQs in the same number of queries for one staff gue
         ->and($count())->toBe($one);
 });
 
-it('lists each pick on the host rollcall: a staff guest in their own unit, a guest elsewhere', function () {
-    sendStaffReport($this->tree['users']['psg'], $this->psg, true, [$this->host->id, $this->far->id]);
+it('lists each pick on the host rollcall as a staff guest', function () {
+    sendStaffReport($this->tree['users']['psg'], $this->psg, true, [$this->host->id]);
     $co = trooperOf($this->tree['users']['co']);
     sendStaffReport($this->tree['users']['co'], $co, true, [$this->far->id]);
 
@@ -341,9 +362,9 @@ it('lists each pick on the host rollcall: a staff guest in their own unit, a gue
         ->mapWithKeys(fn (array $row) => [$row['trooperId'] => [$row['source'], $row['staffGuest']]])
         ->all();
 
-    // The PSG's platoon holds the host: staff guest. 1/2/A/1-7 is outside their platoon: guest. It is inside the CO's company.
+    // The PSG's platoon holds the host, the CO's company holds 1/2/A/1-7: staff guests both.
     expect($guests($this->host))->toBe([$this->psg->id => ['staff', true]])
-        ->and($guests($this->far))->toEqual([$this->psg->id => ['staff', false], $co->id => ['staff', true]]);
+        ->and($guests($this->far))->toEqual([$co->id => ['staff', true]]);
 
     // The rollcall page names it, and the week is named, since a bare URL on a Saturday opens the week still due.
     $page = $this->actingAs($this->tree['users']['sl'])->get(route('rollcall.show', ['unit' => $this->host->id, 'week' => '2026-10-03']))->assertOk()->viewData('page')['props'];
@@ -357,7 +378,7 @@ it('never changes the host\'s numbers, KPIs, strength, JSAM counts or makeups, n
     $before = [$kpis->forUnit($this->host, $this->week), $kpis->forUnit($platoon, $this->week), $kpis->forUnit($this->far, $this->week)];
     $rosterBefore = $this->actingAs($this->tree['users']['admin'])->get(route('rollcall.show', ['unit' => $this->host->id, 'week' => '2026-10-03']))->viewData('page')['props']['troopers'];
 
-    sendStaffReport($this->tree['users']['psg'], $this->psg, true, [$this->host->id, $this->far->id]);
+    sendStaffReport($this->tree['users']['psg'], $this->psg, true, [$this->host->id, $this->tree['units']['other']->id]);
 
     $sightings = app(CrossSectionSightingRepository::class);
     expect($kpis->forUnit($this->host, $this->week))->toEqual($before[0])

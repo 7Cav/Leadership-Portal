@@ -6,11 +6,11 @@ use Carbon\CarbonImmutable;
 
 /**
  * A platoon, company or battalion HQ staff member sends their own weekly staff report for the Cav week holding `$week`:
- * whether they attended a section practice (`$attended`) and, if so, what kind (`$practiceType`, `sp` when not given)
- * and the sections whose practice they attended (`$sectionIds`: one or more for an SP, optional for an FTX, which
- * names itself with `$ftxName` and `$ftxDate`). `$otherEvents` and `$notes` are optional free text.
- * A battalion HQ staff member may report an office hour instead (`$practiceType` `office_hour`), with its
- * `$officeHourDate` and `$officeHourNote`. `$reason` is required when the report was sent already and this edits it
+ * whether they met their accountability (`$attended`) and, if so, what kind (`$practiceType`, `sp` when not given) and
+ * the sections whose practice they attended (`$sectionIds`: one or more for an SP, optional for an FTX, none for an
+ * operation, a class or an event; each of those names itself with `$ftxName` and `$ftxDate`). `$presenceType` is the
+ * presence answer, `public_server`, `office_hour` (with its `$officeHourDate` and `$officeHourNote`) or `none`.
+ * `$otherEvents` and `$notes` are optional free text. `$reason` is required when the report was sent already and this edits it
  * before its deadline, and ignored on a first send.
  */
 final readonly class SendStaffReport
@@ -31,5 +31,6 @@ final readonly class SendStaffReport
         public ?string $officeHourDate = null,
         public ?string $officeHourNote = null,
         public ?string $reason = null,
+        public ?string $presenceType = null,
     ) {}
 }

@@ -19,7 +19,7 @@ require_once __DIR__.'/../StaffPractices/fixture.php';
 
 // The warning a reader sees when the game server's practice capture disagrees with a staff report: a captured practice
 // they reported did not see them, or a captured practice they did not report did. Never for a practice with no
-// capture, an FTX or an office hour, and never to the staff member about their own report.
+// capture, an FTX or a battalion's operation, class or event, and never to the staff member about their own report.
 
 beforeEach(function () {
     $this->tree = staffPracticeTree();
@@ -52,6 +52,7 @@ function sendDiscrepancyReport(User $user, Trooper $trooper, bool $attended, arr
     app(SendStaffReportHandler::class)->handle($user, new SendStaffReport(
         $trooper->id, CarbonImmutable::parse('2026-10-03', 'UTC'), $attended, $sectionIds, $type,
         $more['ftx_name'] ?? null, $more['ftx_date'] ?? null, null, null, $more['office_hour_date'] ?? null, $more['office_hour_note'] ?? null,
+        presenceType: 'none',
     ));
 }
 
@@ -107,17 +108,17 @@ it('stays neutral when the reported practice has no capture', function () {
     expect(psgOverviewRow($this->co, $this->psg->id)['discrepancy'])->toBeNull();
 });
 
-it('never compares an FTX or an office hour, though a capture saw them elsewhere', function () {
+it('never compares an FTX or an operation, though a capture saw them elsewhere', function () {
     capturedSaw(capturedPractice($this->other->id), $this->psg->id);
     sendDiscrepancyReport($this->tree['users']['psg'], $this->psg, true, [], 'ftx', ['ftx_name' => 'Operation Anvil', 'ftx_date' => '2026-10-05']);
 
     expect(psgOverviewRow($this->co, $this->psg->id)['discrepancy'])->toBeNull();
 
-    // A battalion HQ staff member's office hour.
+    // A battalion HQ staff member's operation.
     $bnStaff = Trooper::factory()->create(['primary_section_id' => $this->tree['units']['battalion']->id, 'username' => 'Stone.A']);
     $bnUser = User::factory()->create(['cav_id' => $bnStaff->cav_id, 'username' => 'Stone.A']);
     capturedSaw(capturedPractice($this->host->id), $bnStaff->id, '76561190000000099');
-    sendDiscrepancyReport($bnUser, $bnStaff, true, [], 'office_hour', ['office_hour_date' => '2026-10-06', 'office_hour_note' => 'Q and A']);
+    sendDiscrepancyReport($bnUser, $bnStaff, true, [], 'operation', ['ftx_name' => 'Anvil', 'ftx_date' => '2026-10-06']);
 
     expect(psgOverviewRow($this->tree['users']['admin'], $bnStaff->id)['discrepancy'])->toBeNull();
 });

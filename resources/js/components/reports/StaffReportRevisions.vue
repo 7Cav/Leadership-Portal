@@ -2,9 +2,10 @@
 import { ref } from 'vue';
 import { PhCaretRight } from '@phosphor-icons/vue';
 import { forumDate, zuluTime } from '@/lib/forumDate';
+import { namedSentence, presenceAnswer } from '@/lib/staffReport';
 
 // The versions an edit replaced on a sent staff report, newest first: each opens to what it said, and when and why it
-// was sent again. `revisions` are `[{ sentAt, sentBy, attended, practiceType, ftx, officeHour, practices, otherEvents,
+// was sent again. `revisions` are `[{ sentAt, sentBy, attended, practiceType, ftx, officeHour, presenceType, practices, otherEvents,
 // notes, replaced: { at, by, reason } | null }]`.
 defineProps({
     revisions: { type: Array, required: true },
@@ -19,7 +20,8 @@ function at(value) {
 
 function answer(revision) {
     if (!revision.attended) return 'Did not attend a section practice.';
-    if (revision.practiceType === 'ftx') return `Attended an FTX, ${revision.ftx?.name ?? ''}${revision.ftx?.date ? ` on ${forumDate(revision.ftx.date)}` : ''}.`;
+    const named = namedSentence(revision);
+    if (named) return named;
     if (revision.practiceType === 'office_hour') return `Held an office hour${revision.officeHour?.date ? ` on ${forumDate(revision.officeHour.date)}` : ''}.`;
     const count = revision.practices.length;
 
@@ -51,6 +53,10 @@ function answer(revision) {
                     </template>
                     <dt class="text-muted-foreground">Answer</dt>
                     <dd>{{ answer(revision) }}</dd>
+                    <template v-if="presenceAnswer(revision)">
+                        <dt class="text-muted-foreground">Presence</dt>
+                        <dd>{{ presenceAnswer(revision) }}</dd>
+                    </template>
                     <template v-if="revision.officeHour?.note">
                         <dt class="text-muted-foreground">Office hour</dt>
                         <dd class="whitespace-pre-line">{{ revision.officeHour.note }}</dd>

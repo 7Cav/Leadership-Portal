@@ -25,13 +25,13 @@ minutes: 2
 
 ## Read the list
 
-1. Staff are grouped by their HQ, from the top of the tree down. Each line shows the name, billet, status, what they attended (an SP and its sections, an FTX with its name and date, or an office hour), their other events and notes, and **1 SP met** or **Missed**.
+1. Staff are grouped by their HQ, from the top of the tree down. Each line shows the name, billet, status, what they attended (an SP and its sections, or an FTX, operation, class or event with its name and date), their presence answer, their other events and notes, and **1 SP met** or **Missed**.
 2. Choose **Not sent** or **Missed** above the list to see only those staff. **All** shows everyone again.
 3. A sent report says **Sent to the sheet** once it is copied to the regiment's reports sheet, or **Not sent to the sheet yet** while that is still to happen.
 4. **Sent** means they sent it, **Not sent** means the week has ended and it is still missing, and **Not due yet** means the week is still running.
 5. Choose anywhere on a line to open their full staff report. With the keyboard, Tab to the name and press Enter.
 
-> [!good-to-know] A warning icon beside an answer means the game server's practice capture disagrees with it: a practice they reported was captured and did not see them, or a captured practice they did not report saw them. Point at the icon to read which. A practice with no capture never shows one, nor does an FTX or an office hour, which the game server does not capture. Staff never see it on their own report.
+> [!good-to-know] A warning icon beside an answer means the game server's practice capture disagrees with it: a practice they reported was captured and did not see them, or a captured practice they did not report saw them. Point at the icon to read which. A practice with no capture never shows one, nor does an FTX, an operation, a class or an event, which the game server does not capture. A public server hour that the public servers do not back up shows its own warning. Staff never see it on their own report.
 
 > [!good-to-know] A red **Self-report conflicts with CRCON data** badge (the capture system of that game) was set when the report was sent: a practice they picked was captured and none of the picked captures saw them. It never changes afterwards. **No CRCON data** means nothing they picked was captured, so there was nothing to compare.
 

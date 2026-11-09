@@ -1,6 +1,6 @@
 ---
 title: Send your staff report
-summary: Platoon, company and battalion HQ staff say each week whether they attended a section practice, an FTX or an office hour, and which.
+summary: Platoon, company and battalion HQ staff report their accountability and presence each week.
 section: weekly-report
 order: 4
 audience: everyone
@@ -9,7 +9,10 @@ weekly: true
 minutes: 2
 ---
 
-> [!why] HQ staff attend at least one section practice a week, preferably in their own unit. Your staff report is how your chain of command knows you did.
+> [!why] Each Cav week HQ staff owe one accountability and one presence. Your staff report is how your chain of command knows you did.
+>
+> - Accountability: platoon and company HQ staff attend a section practice in their own platoon or company, or an FTX. Battalion HQ staff attend a section practice in the battalion, an operation, a class or another official event.
+> - Presence: an hour on the public server, or a one-hour office hour in Discord voice.
 
 ## Who sends one
 
@@ -26,11 +29,11 @@ minutes: 2
 
 The form asks one question at a time. The numbered steps at the top show where you are; **Back** and **Next** move between them, and you can go back to any step you have answered.
 
-1. Answer **Did you attend a section practice this week?** with **Yes** or **No**. No skips straight to the last step.
-2. For Yes, pick what it was: **Section practice**, **FTX** or, on a battalion HQ, **Office hour**.
-3. For a section practice, pick each one you attended. Only sections that play your HQ's game are listed, plus any section with no game set. They are grouped nearest first: your own HQ, its company, its battalion, then the rest, in order of battle under a heading for each platoon. When the list spans many platoons, only your own platoon starts open; click a platoon's heading to open it. **Find a section** narrows the list and opens every platoon.
-4. For an FTX, give its name and its date, a day in that Cav week. Picking the sections that took part is optional.
-5. For an office hour, give its date, a day in that Cav week, and a short note of what it was, up to 200 characters. It counts in place of the hour at a section practice. Only battalion HQ staff can report one.
+1. Answer the accountability question with **Yes** or **No**. No skips to the presence question.
+2. For Yes, pick what it was: **Section practice** or **FTX** on a platoon or company HQ; **Section practice**, **Operation**, **Class** or **Other official event** on a battalion HQ.
+3. For a section practice, pick each one you attended. Only sections in your own platoon or company (for battalion HQ staff, the battalion) that play its game are listed, in order of battle under a heading for each platoon. When the list spans many platoons, only your own starts open; click a platoon's heading to open it. **Find a section** narrows the list and opens every platoon.
+4. For an FTX, an operation, a class or an event, give its name and its date, a day in that Cav week. An FTX may also list the sections that took part.
+5. Answer the presence question: **Public server hour**, **Office hour** or **I did not**. Every report needs an answer. For an office hour, give its date, a day in that Cav week, and a short note of what it was, up to 200 characters.
 6. Practices already entered for you this week are picked, with who entered them, and the form opens on them. Take off one you did not attend: sending takes it off.
 7. The last step is **Notes**: write anything command should know about your week, and add **Other events attended** if you like. Both are optional.
 
@@ -39,10 +42,11 @@ The form asks one question at a time. The numbered steps at the top show where y
 ## Send it
 
 1. The **Your report** card beside the steps (under them on a phone) reads your answer back, shows each picked section as a chip whose x takes it off, and says what is still missing. Choose **Send staff report** there. If you never opened **Notes**, it first asks whether you have nothing to add: choose **Send anyway** or **Go to Notes**. Until it is due you can choose **Edit report**, change it, give a reason and choose **Send again**. After that it cannot be changed.
-2. Each practice you picked lists you on that section's roll call: as a **Staff guest** in your own platoon, company or battalion, and as a **Guest** anywhere else. You never count in that section's numbers.
+2. Each practice you picked lists you on that section's roll call as a **Staff guest**. You never count in that section's numbers.
 3. The portal compares the practices you picked with the game server's capture for that week (CRCON for Hell Let Loose). If a picked practice was captured and none of them saw you, your report is still sent but shows **Self-report conflicts with CRCON data** to you and to your chain of command. With no capture it shows a red **No CRCON data** alert, since your report could not be checked. Link your game identity so the capture can find you.
-4. Your report is also copied to the regiment's reports sheet. Your report page says **Sent to the sheet** once it is there. When you send it again, its row on the sheet is replaced with the new version.
-5. A report sent again lists the versions it replaced under **Earlier versions**. Open one to see what it said, and when and why it was sent again. Whoever reads your report sees them too.
+4. A public server hour is checked against the game servers marked public for your HQ's game: your time over the whole Cav week is added up. Under an hour shows the minutes the servers found, for example **43 minutes of server data**, even when one of them could not be read. With nothing to compare it says why, for example **No game server data: no public server is set up**. The other reasons say that no game account is linked for you, or that the public servers could not be read that week. Your report is sent either way. An office hour is not checked.
+5. Your report is also copied to the regiment's reports sheet. Your report page says **Sent to the sheet** once it is there. When you send it again, its row on the sheet is replaced with the new version.
+6. A report sent again lists the versions it replaced under **Earlier versions**. Open one to see what it said, and when and why it was sent again. Whoever reads your report sees them too.
 
 > [!good-to-know] Your unit's report shows whether its HQ staff sent theirs, for the leaders above it. Sending your HQ's own report does not stop you sending yours. For a week that has ended, the portal goes by the HQ you were on when it ended, so you still send it after a move.
 

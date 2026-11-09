@@ -45,6 +45,7 @@ function sendPresenceReport(User $user, Trooper $trooper, bool $attended, array 
     return app(SendStaffReportHandler::class)->handle($user, new SendStaffReport(
         $trooper->id, CarbonImmutable::parse('2026-10-03', 'UTC'), $attended, $sectionIds, $type,
         $more['ftx_name'] ?? null, $more['ftx_date'] ?? null,
+        presenceType: 'none',
     ));
 }
 
