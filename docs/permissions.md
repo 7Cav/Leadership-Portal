@@ -74,9 +74,11 @@ Notes:
 - Oversight is portal-owned: Cav's roster does not carry it. One overseer per unit, a battalion (1-7, 2-7, 3-7, ACD,
   DEVCOM) or the Reservists, and nothing else for now. It is kept by trooper, so it holds from the overseer's first
   sign-in. It counts only while the overseer serves; cleared, or the overseer off every roster, it is gone on the next
-  request. In the matrix below an overseer reads like the Grant column, over the unit they oversee. Setting, changing
+  request. Only a trooper on the active duty roster can be set. The roster sync removes an overseer no longer on it
+  (ELOA, the Reservists, discharged or retired), each as a System entry in the audit log (`unit.oversight_cleared`, no
+  actor) with the reason "No longer found on active duty roster (ELOA, discharge, etc.)". In the matrix below an overseer reads like the Grant column, over the unit they oversee. Setting, changing
   and clearing it are Admin only, with a reason, in the audit log (`unit.oversight_set`, `unit.oversight_cleared`).
-  None is set by the portal itself: an Admin enters each one.
+  None is set by the portal itself: an Admin enters each one, and the sync only removes.
 
 ### Admin by billet
 

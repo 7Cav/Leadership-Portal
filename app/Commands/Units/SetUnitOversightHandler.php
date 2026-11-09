@@ -4,6 +4,7 @@ namespace App\Commands\Units;
 
 use App\Authorization\RealActor;
 use App\Authorization\ScopeResolver;
+use App\Models\TrooperStatus;
 use App\Models\UnitOversight;
 use App\Models\User;
 use App\Repositories\AuditedBatch;
@@ -87,7 +88,7 @@ class SetUnitOversightHandler
 
         $trooper = $this->troopers->find($command->trooperId) ?? throw InvalidUnitOversightException::noSuchTrooper();
 
-        if (! $trooper->status->isServing()) {
+        if ($trooper->status !== TrooperStatus::Combat) {
             throw InvalidUnitOversightException::notServing($trooper->display_name);
         }
 

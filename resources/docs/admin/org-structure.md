@@ -65,6 +65,8 @@ Admins and Regimental HQ staff can change any unit's game. An overseer can chang
 ## Set who oversees a battalion
 
 1. Select a battalion or the Reservists. Under **Oversight**, search for the trooper.
-2. Pick them, give a reason, and choose **Set overseer**. They can then see that unit and everything under it, read only, while they serve.
+2. Pick them, give a reason, and choose **Set overseer**. Only a trooper on the active duty roster can be picked. They can then see that unit and everything under it, read only, while they serve.
 
-> [!good-to-know] What this changes, and how to undo it: to change the overseer, pick someone else and choose **Set overseer** again. To remove them, choose **Clear overseer** with a reason. Their access ends on their next page load, or when they leave every Cav roster. Every change is in the audit log. The portal sets none of these itself; an Admin enters each one.
+> [!good-to-know] What this changes, and how to undo it: to change the overseer, pick someone else and choose **Set overseer** again. To remove them, choose **Clear overseer** with a reason. Their access ends on their next page load. Every change is in the audit log. The portal sets none of these itself; an Admin enters each one.
+
+> [!good-to-know] When the roster sync no longer finds an overseer on the active duty roster (they went ELOA, to the Reservists or were discharged), it removes them as overseer. The audit log shows it with **System** as the user and the reason "No longer found on active duty roster (ELOA, discharge, etc.)". Set a new overseer as usual.

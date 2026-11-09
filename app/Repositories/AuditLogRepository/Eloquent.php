@@ -111,7 +111,7 @@ class Eloquent implements AuditLogRepository
         });
     }
 
-    public function recordBatchWithMutation(int $actorId, string $action, ?string $reason, Closure $mutation, ?int $onBehalfOf = null, ?int $onBehalfOfUnit = null): AuditedBatch
+    public function recordBatchWithMutation(?int $actorId, string $action, ?string $reason, Closure $mutation, ?int $onBehalfOf = null, ?int $onBehalfOfUnit = null): AuditedBatch
     {
         return DB::transaction(function () use ($actorId, $action, $reason, $mutation, $onBehalfOf, $onBehalfOfUnit) {
             $batch = $mutation();
@@ -184,7 +184,7 @@ class Eloquent implements AuditLogRepository
      * @param  array<mixed>  $digested  the content `content_digest` hashes
      * @param  array<string, mixed>|null  $details  the subject and changes ({@see AuditSubject::details()}); not digested
      */
-    private function append(int $actorId, string $action, ?string $reason, Model $target, array $digested, ?int $onBehalfOf, ?int $onBehalfOfUnit, ?array $details): void
+    private function append(?int $actorId, string $action, ?string $reason, Model $target, array $digested, ?int $onBehalfOf, ?int $onBehalfOfUnit, ?array $details): void
     {
         AuditLogEntry::query()->forceCreate([
             'actor_id' => $actorId,
