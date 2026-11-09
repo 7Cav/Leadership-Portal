@@ -17,11 +17,6 @@ class InvalidAccountabilityOptionsException extends InvalidArgumentException
         return new self('Pick from the options listed.');
     }
 
-    public static function pending(): self
-    {
-        return new self('That option is coming later and cannot be ticked yet.');
-    }
-
     public static function wider(): self
     {
         return new self('Tick only options the battalion allows.');

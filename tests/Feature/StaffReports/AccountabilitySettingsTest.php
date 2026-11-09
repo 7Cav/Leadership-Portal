@@ -83,12 +83,15 @@ it('lets an Admin set a battalion and its HQ staff the units under it, never wid
     expect(fn () => ($this->set)($this->bnStaffUser, $u['company'], [AccountabilityRules::OPERATION]))->toThrow(InvalidAccountabilityOptionsException::class)
         ->and(fn () => ($this->set)($this->bnStaffUser, $u['company'], []))->toThrow(InvalidAccountabilityOptionsException::class)
         ->and(fn () => ($this->set)($this->bnStaffUser, $u['company'], ['nope']))->toThrow(InvalidAccountabilityOptionsException::class)
-        // Coming later: never stored.
-        ->and(fn () => ($this->set)($this->admin, $u['battalion'], [AccountabilityRules::SERVER_HOUR]))->toThrow(InvalidAccountabilityOptionsException::class)
-        ->and(fn () => ($this->set)($this->bnStaffUser, $u['host'], [AccountabilityRules::FTX]))->toThrow(InvalidAccountabilityOptionsException::class)
+        // The battalion's set still caps every option, those with no automatic effect included.
+        ->and(fn () => ($this->set)($this->bnStaffUser, $u['host'], [AccountabilityRules::SERVER_HOUR]))->toThrow(InvalidAccountabilityOptionsException::class)
         ->and(fn () => ($this->set)($this->bnStaffUser, $u['battalion'], [AccountabilityRules::FTX]))->toThrow(AccountabilityOptionsForbiddenException::class)
         ->and(fn () => ($this->set)($this->tree['users']['co'], $u['platoon'], [AccountabilityRules::FTX]))->toThrow(AccountabilityOptionsForbiddenException::class)
         ->and(fn () => ($this->set)($this->admin, $u['regiment'], [AccountabilityRules::FTX]))->toThrow(AccountabilityOptionsForbiddenException::class);
+
+    // An option with no automatic makeup behind it is stored like the others: the leader marks such a makeup by hand.
+    ($this->set)($this->bnStaffUser, $u['host'], [AccountabilityRules::FTX]);
+    expect($this->rules->effective($u['host']))->toMatchArray(['source' => 'own', 'options' => [AccountabilityRules::FTX]]);
 
     // Null clears the company's own: back to the default, cut to the battalion's set.
     ($this->set)($this->bnStaffUser, $u['company'], null);
@@ -143,12 +146,16 @@ it('sets the options over HTTP on the roster and shows them there', function () 
         ->assertOk()
         ->assertJsonPath('accountability.kind', 'makeup')
         ->assertJsonPath('accountability.choices.1.key', AccountabilityRules::FTX)
-        ->assertJsonPath('accountability.choices.1.pending', true);
+        ->assertJsonMissingPath('accountability.choices.1.pending');
+
+    $this->actingAs($this->bnStaffUser)->postJson("/roster/{$u['host']->id}/accountability", ['options' => [AccountabilityRules::SP_OWN_UNIT, AccountabilityRules::FTX]])
+        ->assertOk()
+        ->assertJsonPath('accountability.options', [AccountabilityRules::SP_OWN_UNIT, AccountabilityRules::FTX]);
 
     $this->actingAs($this->bnStaffUser)->postJson("/roster/{$u['host']->id}/accountability", ['options' => [AccountabilityRules::OPERATION]])->assertStatus(422);
     $this->actingAs($this->tree['users']['sl'])->postJson("/roster/{$u['host']->id}/accountability", ['options' => null])->assertForbidden();
 
-    // Only the section's own company counts now: a practice in Bravo Company gives no makeup.
+    // Only the section's own company counts now: a practice in Bravo Company gives no makeup (the FTX adds no automatic one).
     expect($this->rules->makeupCounts($u['host']->id, $u['other']->id))->toBeTrue()
         ->and($this->rules->makeupCounts($u['host']->id, $this->elsewhere->id))->toBeFalse();
 });

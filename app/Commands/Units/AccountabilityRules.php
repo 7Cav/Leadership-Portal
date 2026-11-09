@@ -24,8 +24,9 @@ use Illuminate\Support\Collection;
  *
  * Where each option is read: the staff report offers SP (either SP option), FTX, operation, class and event, and its
  * section picker follows the SP options and "another game". A section's makeups (another section's practice) follow
- * the SP options and "another game". Options with no input behind them yet ({@see pendingFor()}) are shown disabled
- * and never stored.
+ * the SP options and "another game". Every option may be ticked: one with no automatic effect (the server hour on the
+ * staff report; the FTX, operation, class, event and server hour on a section) is stored and shown like the others, and
+ * the staff member or leader records it by hand (a makeup marked by hand on the roll call).
  */
 class AccountabilityRules
 {
@@ -109,28 +110,11 @@ class AccountabilityRules
         }
 
         // Each unit under a battalion is set on its own; one with nothing set takes its echelon's default. Either way it
-        // is cut to the battalion's set, and options that have no effect on it yet ({@see pendingFor()}) never count.
+        // is cut to the battalion's set.
         $source = isset($own[$unit->id]) ? 'own' : 'default';
-        $options = array_values(array_diff(
-            array_intersect(self::ordered($own[$unit->id] ?? self::defaultFor($unit->type)), $allowed),
-            self::pendingFor($unit->type),
-        ));
+        $options = array_values(array_intersect(self::ordered($own[$unit->id] ?? self::defaultFor($unit->type)), $allowed));
 
         return ['options' => $options, 'source' => $source, 'from' => null, 'allowed' => $allowed];
-    }
-
-    /**
-     * The options with no input behind them on a unit of this echelon yet: the server hour everywhere, and on a section
-     * the FTX, operation, class and event (the roll call takes only section practices as makeups). The tick list shows
-     * them disabled as coming later, and they are never stored.
-     *
-     * @return list<string>
-     */
-    public static function pendingFor(UnitType $type): array
-    {
-        return $type === UnitType::Section
-            ? [self::FTX, self::OPERATION, self::CLASS_TYPE, self::EVENT, self::SERVER_HOUR]
-            : [self::SERVER_HOUR];
     }
 
     /**
@@ -256,11 +240,11 @@ class AccountabilityRules
 
     /**
      * The `accountability` prop: the options in effect and where they come from, the tick list (the options the unit
-     * may use, those with no effect on it yet marked `pending`), and whether the viewer may change it. On the roster a
+     * may use), and whether the viewer may change it. On the roster a
      * battalion's set is read only: it is changed on the org structure page ({@see battalions()}). Null for a unit
      * that has none.
      *
-     * @return array{unitId: int, label: string, kind: string, options: list<string>, source: string, from: ?string, choices: list<array{key: string, label: string, pending: bool}>, canEdit: bool}|null
+     * @return array{unitId: int, label: string, kind: string, options: list<string>, source: string, from: ?string, choices: list<array{key: string, label: string}>, canEdit: bool}|null
      */
     public function props(User $user, Unit $unit, bool $onRoster = true, ?Collection $tree = null, ?array $own = null, ?bool $mayChange = null): ?array
     {
@@ -269,7 +253,6 @@ class AccountabilityRules
         }
 
         $rules = $this->effective($unit, $tree, $own);
-        $pending = self::pendingFor($unit->type);
 
         return [
             'unitId' => $unit->id,
@@ -279,7 +262,7 @@ class AccountabilityRules
             'options' => $rules['options'],
             'source' => $rules['source'],
             'from' => null,
-            'choices' => array_map(fn (string $key) => ['key' => $key, 'label' => self::OPTIONS[$key], 'pending' => in_array($key, $pending, true)], $rules['allowed']),
+            'choices' => array_map(fn (string $key) => ['key' => $key, 'label' => self::OPTIONS[$key]], $rules['allowed']),
             'canEdit' => ! ($onRoster && $unit->type === UnitType::Battalion) && ($mayChange ?? $this->mayChange($user, $unit, $tree)),
         ];
     }

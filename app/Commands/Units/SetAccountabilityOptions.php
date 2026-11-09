@@ -10,8 +10,7 @@ use App\Support\Audit\AuditEnvelope;
 /**
  * Set a unit's own accountability options ({@see AccountabilityRules}). Who may is {@see AccountabilityRules::mayChange()}:
  * an Admin or Regimental HQ staff on a battalion and the units under it, the battalion's HQ staff on the units under
- * it. Under a battalion only options its set allows may be ticked: a unit narrows, never widens. An option with no
- * effect on the unit yet ({@see AccountabilityRules::pendingFor()}) is refused. Audited as `accountability.set` (AD-16);
+ * it. Under a battalion only options its set allows may be ticked: a unit narrows, never widens. Audited as `accountability.set` (AD-16);
  * a change that changes nothing is not logged. Null clears the unit's own options, so it takes its echelon's default
  * again. A battalion narrowed later leaves the units under it as stored; they are cut down to its set when read.
  */
@@ -46,10 +45,6 @@ class SetAccountabilityOptions
             }
 
             $options = AccountabilityRules::ordered($options);
-
-            if (array_intersect($options, AccountabilityRules::pendingFor($unit->type)) !== []) {
-                throw InvalidAccountabilityOptionsException::pending();
-            }
 
             if ($options === []) {
                 throw InvalidAccountabilityOptionsException::empty();

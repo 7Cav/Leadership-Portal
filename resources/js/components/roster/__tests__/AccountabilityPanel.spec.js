@@ -13,7 +13,7 @@ enableAutoUnmount(afterEach);
 const CHOICES = [
     { key: 'sp_own_unit', label: 'Section practice in own unit' },
     { key: 'ftx', label: 'FTX' },
-    { key: 'server_hour', label: 'Public or training server hour with a leader present', pending: true },
+    { key: 'server_hour', label: 'Public or training server hour with a leader present' },
 ];
 const BASE = { kind: 'staff', options: ['sp_own_unit', 'ftx'], source: 'default', from: null, choices: CHOICES, canEdit: false };
 const factory = (accountability = BASE) => mount(AccountabilityPanel, { props: { accountability, unitId: 7 }, attachTo: document.body });
@@ -34,11 +34,11 @@ describe('AccountabilityPanel', () => {
         expect(wrapper.find('form').exists()).toBe(false);
     });
 
-    it('shows an option with no effect yet disabled, as coming later', () => {
+    it('lets every option be ticked, the server hour included', () => {
         const wrapper = factory({ ...BASE, canEdit: true });
 
-        expect(wrapper.get('[data-testid="accountability-server_hour"]').attributes('disabled')).toBeDefined();
-        expect(wrapper.get('[data-testid="accountability-pending"]').text()).toBe('Coming later');
+        expect(wrapper.get('[data-testid="accountability-server_hour"]').attributes('disabled')).toBeUndefined();
+        expect(wrapper.text()).not.toContain('Coming later');
     });
 
     it('names makeups on a section, and the HQ on a battalion, company or platoon', () => {

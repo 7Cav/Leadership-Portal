@@ -11,9 +11,9 @@ import { postJson } from '@/lib/postJson';
 // What counts for a unit's accountability: its HQ staff report (battalion, company, platoon) or, on a section, its
 // troopers' makeups. A unit with nothing of its own takes its echelon's default. Admins and Regimental HQ staff change a
 // battalion's on the org structure page, and they and its battalion HQ staff the units under it (`canEdit`); everyone
-// else reads it. Options with no effect on the unit yet (`pending`) show disabled as coming later.
+// else reads it.
 const props = defineProps({
-    // `{ kind, options, source, choices: [{ key, label, pending }], canEdit }` from `AccountabilityRules::props()`.
+    // `{ kind, options, source, choices: [{ key, label }], canEdit }` from `AccountabilityRules::props()`.
     accountability: { type: Object, required: true },
     unitId: { type: Number, required: true },
     // Inside a unit's group on its parent's Admin tab: no frame of its own.
@@ -81,14 +81,11 @@ function save() {
             <div v-for="choice in current.choices" :key="choice.key" class="flex items-center gap-2">
                 <Checkbox
                     :id="`accountability-${unitId}-${choice.key}`"
-                    :model-value="!choice.pending && picked.includes(choice.key)"
-                    :disabled="choice.pending"
+                    :model-value="picked.includes(choice.key)"
                     :data-testid="`accountability-${choice.key}`"
                     @update:model-value="(on) => toggle(choice.key, on === true)"
                 />
-                <Label :for="`accountability-${unitId}-${choice.key}`" class="font-normal" :class="choice.pending ? 'text-muted-foreground' : ''"
-                    >{{ choice.label }}<span v-if="choice.pending" class="ml-1.5 text-xs" data-testid="accountability-pending">Coming later</span></Label
-                >
+                <Label :for="`accountability-${unitId}-${choice.key}`" class="font-normal">{{ choice.label }}</Label>
             </div>
             <div class="mt-1 flex flex-wrap gap-2">
                 <Button type="submit" size="sm" :disabled="saving">Save</Button>
