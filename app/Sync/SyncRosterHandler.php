@@ -77,6 +77,7 @@ class SyncRosterHandler
         private readonly UnitRepository $units,
         private readonly AdminBilletRepository $adminBillets,
         private readonly KeptGameIdentityRepository $keptIdentities,
+        private readonly ?EndDepartedOversight $departedOversight = null,
     ) {}
 
     /**
@@ -150,6 +151,9 @@ class SyncRosterHandler
             // one is here (whatever their status), in its own transaction like the mapping above: a crash between the
             // two leaves it kept, and the next sync moves it. Covered by this run's `sync_runs` row (AD-16) and logged.
             $this->keptIdentities->attachRejoined();
+
+            // An overseer who has left active duty stops overseeing, each removal a System entry in the audit log.
+            ($this->departedOversight ?? app(EndDepartedOversight::class))->handle();
 
             // Only billets that already have a row: the import creates them, as it is what sees the group.
             $this->adminBillets->observe($this->titlesByPosition($scope->filterEntries($result->troopers)), createMissing: false);

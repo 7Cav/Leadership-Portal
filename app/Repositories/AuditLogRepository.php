@@ -48,7 +48,7 @@ interface AuditLogRepository
      *
      * @throws RuntimeException when `$mutation` doesn't return an {@see AuditedBatch}.
      */
-    public function recordBatchWithMutation(int $actorId, string $action, ?string $reason, Closure $mutation, ?int $onBehalfOf = null, ?int $onBehalfOfUnit = null): AuditedBatch;
+    public function recordBatchWithMutation(?int $actorId, string $action, ?string $reason, Closure $mutation, ?int $onBehalfOf = null, ?int $onBehalfOfUnit = null): AuditedBatch;
 
     /**
      * The 1.14 review screen's filtered, most-recent-first, paginated read. Every filter is

@@ -28,7 +28,7 @@ class InvalidUnitOversightException extends DomainException
 
     public static function notServing(string $trooper): self
     {
-        return new self("{$trooper} is no longer on a Cav roster, so they cannot oversee a unit.");
+        return new self("{$trooper} is not on the active duty roster, so they cannot oversee a unit.");
     }
 
     public static function self(): self
