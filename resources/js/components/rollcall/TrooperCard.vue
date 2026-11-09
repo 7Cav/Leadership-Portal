@@ -42,6 +42,8 @@ const props = defineProps({
     loaSync: { type: Object, default: null },
     // The trooper a milpac link jumped to (`?focus=`): outlined so the leader sees whose card they landed on.
     spotlight: { type: Boolean, default: false },
+    // Its place in the wave that runs over the practice list when everyone not on LOA is marked Attended, or null.
+    wave: { type: Number, default: null },
 });
 
 const emit = defineEmits(['set']);
@@ -53,6 +55,18 @@ const cover = computed(() => (props.trooper.loa && !props.trooper.loa.fromSave ?
 // A leave starting next Cav week (`leaveFrom`, `Y-m-d`), so the leader planning the next practice sees it coming.
 const leaveFrom = computed(() => (props.trooper.leaveFrom ? forumDate(`${props.trooper.leaveFrom}T00:00:00Z`) : null));
 const options = computed(() => optionsFor(props.kind));
+
+// Attended on a practice gets a short pop on the whole button (`.mark-pop`, app.css), restarted on every press.
+function choose(value, event) {
+    if (props.kind === 'practice' && value === 'present') {
+        const button = event.currentTarget;
+        button.classList.remove('mark-pop');
+        void button.offsetWidth;
+        button.classList.add('mark-pop');
+        button.addEventListener('animationend', () => button.classList.remove('mark-pop'), { once: true });
+    }
+    emit('set', value);
+}
 // The value as it counts: an automatic Excused shows pressed until a leader picks something else.
 const value = computed(() => (props.kind === 'signature' ? signatureOf(props.trooper) : practiceOf(props.trooper)));
 // The first week after joining or a transfer, excused automatically on this half (2026-10-30), with why.
@@ -128,6 +142,8 @@ const TONE = {
     <div
         :class="cn('relative overflow-hidden rounded-lg border border-border bg-card', locked && 'bg-muted/55', spotlight && 'border-primary ring-2 ring-primary/40')"
         :data-trooper="trooper.id"
+        :data-wave="wave === null ? undefined : wave"
+        :style="wave === null ? undefined : { '--wave-delay': `${Math.min(wave, 20) * 45}ms` }"
         :data-spotlight="spotlight || undefined"
     >
         <div
@@ -234,7 +250,7 @@ const TONE = {
                                 TONE[option.tone],
                             )
                         "
-                        @click="emit('set', option.value)"
+                        @click="(event) => choose(option.value, event)"
                     >
                         <component :is="option.icon" class="hidden size-4 sm:block" aria-hidden="true" />
                         {{ option.label }}<span class="sr-only">, key {{ index + 1 }}</span>

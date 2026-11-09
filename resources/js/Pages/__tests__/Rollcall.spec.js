@@ -203,6 +203,25 @@ describe('Rollcall page', () => {
 
             expect(heading(wrapper)).toBe('Section practice');
         });
+
+        it('pops the Attended button when pressed', async () => {
+            const wrapper = factory({ troopers: [trooper(1, 'will_attend', 'present'), trooper(2, 'will_attend', null)] });
+            const button = wrapper.find('[data-trooper="2"] button[data-value="present"]');
+
+            await button.trigger('click');
+
+            expect(button.classes()).toContain('mark-pop');
+        });
+
+        it('sends a wave down the list once everyone is Attended, and not before', async () => {
+            const wrapper = factory({ troopers: [trooper(1, 'will_attend', 'present'), trooper(2, 'will_attend', null), trooper(3, 'will_attend', null)] });
+
+            await wrapper.find('[data-trooper="2"] button[data-value="present"]').trigger('click');
+            expect(wrapper.find('[data-wave]').exists()).toBe(false);
+
+            await wrapper.find('[data-trooper="3"] button[data-value="present"]').trigger('click');
+            expect(wrapper.findAll('[data-wave]').length).toBe(3);
+        });
     });
 
     it('lists "said they will not attend" first on the practice step, and shows last week\'s mark as the pre-fill', () => {

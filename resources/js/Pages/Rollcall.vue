@@ -877,6 +877,27 @@ const practiceFilter = ref('all');
 
 const signatureView = computed(() => signatureGroups(orderedRows.value));
 const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFilter.value === 'open'));
+
+// When the last trooper not on LOA is marked Attended, a wave runs down the practice list (`.attended-wave`, app.css):
+// each card's place in it, by the order shown, for a moment. Only on the change to all attended, never on load.
+const waving = ref(false);
+const allAttended = computed(() => {
+    const open = rows.value.filter((t) => !isLocked(t));
+    return open.length > 0 && open.every((t) => practiceOf(t) === 'present');
+});
+let waveTimer = null;
+watch(allAttended, (now, before) => {
+    if (!now || before !== false) return;
+    window.clearTimeout(waveTimer);
+    waving.value = true;
+    waveTimer = window.setTimeout(() => (waving.value = false), 1600);
+});
+onBeforeUnmount(() => window.clearTimeout(waveTimer));
+const waveOrder = computed(() => {
+    if (!waving.value) return new Map();
+    const shown = practiceView.value.flatMap((group) => group.troopers).filter((t) => !isLocked(t));
+    return new Map(shown.map((t, i) => [t.id, i]));
+});
 // What "Needs a look" lists: not marked, not attended, or still owing a make-up.
 const openCount = computed(() => practiceGroups(rows.value, true).reduce((sum, group) => sum + group.troopers.length, 0));
 // Who owes a make-up (2026-10-30): earlier weeks from the server, this week read live from the cards.
@@ -1315,6 +1336,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                                     :editable="editable"
                                     :disabled-reason="readOnlyReason"
                                     :spotlight="spotlight === trooper.id"
+                                    :wave="waveOrder.get(trooper.id) ?? null"
                                     @set="(value) => set(trooper, 'practice', value)"
                                 />
                             </div>
