@@ -132,8 +132,8 @@ final class PracticeWorld
         // This week's practice hour: earlier today if the week allows, so it has already happened.
         $start = $now->subHours(3)->startOfHour();
         $start = $start->lessThan($week) ? $week : $start;
-        $this->practice->slot($section, (int) $start->dayOfWeek, $start->hour * 60, $since);
-        $this->practice->slot($other, (int) $start->dayOfWeek, $start->hour * 60, $since);
+        $this->practice->slot($section, (int) $start->format('w'), $start->hour * 60, $since);
+        $this->practice->slot($other, (int) $start->format('w'), $start->hour * 60, $since);
 
         $sectionMembers = array_values(array_filter($troopers, fn (Trooper $t) => (int) $t->primary_section_id === $section->id));
         $otherMembers = array_values(array_filter($troopers, fn (Trooper $t) => (int) $t->primary_section_id === $other->id));
@@ -160,6 +160,8 @@ final class PracticeWorld
             }
         }
         $this->practice->capturePlayer($practice, $game, 'Unknown.Visitor', 'practice-visitor', null);
+        // No identity warnings in the tutorial: no step teaches linking, so every practice trooper is linked.
+        $this->practice->linkEveryone($game);
 
         // A leader above the sections sees one section already in for the week.
         if ($persona->leads !== null && $persona->leads !== UnitType::Section) {

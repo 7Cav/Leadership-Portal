@@ -100,7 +100,7 @@ describe('Docs home role paths', () => {
     });
 
     it('offers the tutorial, and continues from the first step not done', () => {
-        expect(home().get('[data-testid="docs-tutorial-start"]').text()).toBe('Start the tutorial');
+        expect(home().get('[data-testid="docs-tutorial-start"]').text()).toBe('Read step 1');
 
         localStorage.setItem('docs-tutorial:7', JSON.stringify(['first']));
         resetTutorialProgress();

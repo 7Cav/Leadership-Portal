@@ -41,6 +41,9 @@ interface TutorialPracticeRepository
 
     public function captured(SectionPractice $practice, CarbonInterface $at, CarbonInterface $windowStart, CarbonInterface $windowEnd): SectionPractice;
 
+    /** Links every trooper in the practice copy to `$game`, so no tutorial page warns about a missing identity. */
+    public function linkEveryone(Game $game): void;
+
     public function capturePlayer(SectionPractice $practice, Game $game, string $playerName, string $platformId, ?Trooper $trooper): void;
 
     /** The practice unit by its callsign. */

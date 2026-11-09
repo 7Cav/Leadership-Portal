@@ -16,6 +16,7 @@ use App\Models\SectionPracticeSlot;
 use App\Models\StaffReport;
 use App\Models\TelemetryInterface;
 use App\Models\Trooper;
+use App\Models\TrooperGameIdentity;
 use App\Models\TrooperPlacement;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
@@ -83,6 +84,14 @@ class Eloquent implements TutorialPracticeRepository
             'id_kinds' => ['Player ID'],
             'interface' => TelemetryInterface::None,
         ]);
+    }
+
+    public function linkEveryone(Game $game): void
+    {
+        Trooper::query()->pluck('cav_id', 'id')->each(fn ($cavId, $id) => TrooperGameIdentity::query()->firstOrCreate(
+            ['trooper_id' => $id, 'game_id' => $game->id],
+            ['platform_id' => 'practice-'.$cavId, 'id_kind' => 'Player ID'],
+        ));
     }
 
     public function setUnitGame(Unit $unit, Game $game): void

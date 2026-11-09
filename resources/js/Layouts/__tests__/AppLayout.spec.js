@@ -8,7 +8,7 @@ import { useTrooperSearch } from '@/composables/useTrooperSearch';
 // The shell reads everything from the shared Inertia page (url + auth). A reactive stand-in lets
 // a test move the URL the way an Inertia visit would.
 const mockPage = reactive({ url: '/home', props: { auth: { user: null, profile: null }, viewAs: null } });
-const mockRouter = vi.hoisted(() => ({ post: vi.fn(), delete: vi.fn() }));
+const mockRouter = vi.hoisted(() => ({ post: vi.fn(), delete: vi.fn(), reload: vi.fn(), visit: vi.fn() }));
 const mockToast = vi.hoisted(() => vi.fn());
 
 vi.mock('vue-sonner', async (importOriginal) => ({

@@ -240,7 +240,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // starting over build a fresh copy, so they share the audited-writes limit. These three run outside the sandbox.
     Route::post('/tutorial', [TutorialController::class, 'store'])->middleware('throttle:audited-writes')->name('tutorial.store');
     Route::post('/tutorial/restart', [TutorialController::class, 'restart'])->middleware('throttle:audited-writes')->name('tutorial.restart');
-    Route::delete('/tutorial', [TutorialController::class, 'destroy'])->name('tutorial.destroy');
+    Route::delete('/tutorial', [TutorialController::class, 'destroy'])->middleware('throttle:audited-writes')->name('tutorial.destroy');
 
     // View-as switcher (Story 1.13, AD-9). The picker reads its options as JSON; entering and
     // leaving are POST/DELETE so they carry CSRF protection. Every target is checked against real

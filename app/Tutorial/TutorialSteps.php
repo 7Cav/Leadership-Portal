@@ -61,10 +61,17 @@ final class TutorialSteps
         $steps = [
             'rollcall' => [
                 'title' => 'Run roll call',
-                'body' => 'The practice server already marked who played. SPC Demo.K has not signed and was not seen. Set their signature and their mark, then confirm the practice and mark the roll call posted.',
+                'body' => 'The practice game server already marked who played. SPC Demo.K has not signed and was not seen. Set their signature and their mark, then confirm the practice and mark the roll call posted.',
                 'href' => $rollcall,
                 'note' => 'In your real section, a mark you set by hand always wins over the game server.',
                 'guide' => 'run-roll-call',
+                // The next thing to do is shown in the tutorial blue: Demo.K's card, then Confirm practice took place, then Mark posted.
+                'highlight' => match (true) {
+                    $demo !== null && ! ($facts['demoSigned'] && $facts['demoMarked']) => '[data-trooper="'.$demo->id.'"]',
+                    ! $facts['confirmed'] => '[data-testid="confirm-practice"]',
+                    ! $facts['posted'] => '[data-testid="mark-posted"]',
+                    default => null,
+                },
                 'checklist' => [
                     ['label' => 'Open the roll call of 1st Section', 'done' => $opened($rollcall)],
                     ['label' => 'Set the signature of SPC Demo.K', 'done' => $facts['demoSigned']],
@@ -124,7 +131,7 @@ final class TutorialSteps
         return array_map(function (string $id) use ($steps) {
             $step = $steps[$id];
 
-            return ['id' => $id, ...$step, 'done' => collect($step['checklist'])->every(fn (array $item) => $item['done'])];
+            return ['id' => $id, 'highlight' => null, ...$step, 'done' => collect($step['checklist'])->every(fn (array $item) => $item['done'])];
         }, self::idsFor($persona));
     }
 }

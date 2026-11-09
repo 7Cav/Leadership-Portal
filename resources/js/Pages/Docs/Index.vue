@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { Head, Link, usePage } from '@inertiajs/vue3';
-import { PhArrowRight, PhBookOpenText, PhCheckCircle, PhClipboardText, PhFileText, PhFlagPennant, PhLifebuoy, PhUsersThree } from '@phosphor-icons/vue';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { PhArrowRight, PhBookOpenText, PhCheckCircle, PhClipboardText, PhFileText, PhFlagPennant, PhGraduationCap, PhLifebuoy, PhUsersThree } from '@phosphor-icons/vue';
 import { Button } from '@/components/ui/button';
 import DocsLayout from '@/components/docs/DocsLayout.vue';
 import DocsSearchBox from '@/components/docs/DocsSearchBox.vue';
@@ -58,7 +58,7 @@ const progress = useTutorialProgress(
     () => props.tutorial?.steps ?? [],
     () => ({ userId: page.props.auth?.user?.id ?? null, previewing: page.props.viewAs != null, portal: page.props.portalDone ?? [] }),
 );
-// Where "Start the tutorial" goes: the first step not done yet, or the first step once all are done.
+// Where the reading link goes: the first step not done yet, or the first step once all are done.
 const resume = computed(() => {
     const steps = props.tutorial?.steps ?? [];
 
@@ -67,8 +67,17 @@ const resume = computed(() => {
 const tutorialAction = computed(() => {
     if (progress.finished.value) return 'Go through it again';
 
-    return progress.count.value ? `Continue with step ${props.tutorial.steps.indexOf(resume.value) + 1}` : 'Start the tutorial';
+    return progress.count.value ? `Continue with step ${props.tutorial.steps.indexOf(resume.value) + 1}` : 'Read step 1';
 });
+
+// The hands-on tutorial (App\Tutorial): the same steps on a private practice copy of the portal. Not offered while the
+// reader is already in it.
+const inTutorial = computed(() => page.props.tutorialMode != null);
+const starting = ref(false);
+function startTutorial() {
+    starting.value = true;
+    router.post('/tutorial', {}, { onFinish: () => (starting.value = false) });
+}
 
 // Arrow keys move between the role buttons, as in any tab list.
 function moveRole(event, index) {
@@ -108,7 +117,7 @@ function moveRole(event, index) {
                         <p class="mb-1 text-xs font-semibold text-gold-ink">New here?</p>
                         <h2 id="docs-tutorial-title" class="mb-1 text-lg font-semibold tracking-tight">Getting started tutorial</h2>
                         <p class="text-sm text-muted-foreground">
-                            {{ tutorial.steps.length }} short steps, from signing in to sending your weekly report. Each one has a page to try it on.
+                            {{ tutorial.steps.length }} short steps, from signing in to sending your weekly report. Each one has a page to try it on, or try them all in the tutorial, on practice data.
                         </p>
                         <div class="mt-3 flex items-center gap-2.5" data-testid="docs-tutorial-progress">
                             <div
@@ -124,11 +133,16 @@ function moveRole(event, index) {
                             <span class="text-xs text-muted-foreground tabular-nums">{{ progress.count.value }} of {{ progress.total.value }} done</span>
                         </div>
                     </div>
-                    <Button as-child size="lg" class="self-start sm:self-center">
-                        <Link :href="resume.url" data-testid="docs-tutorial-start">
-                            <component :is="progress.finished.value ? PhCheckCircle : PhFlagPennant" weight="bold" />{{ tutorialAction }}
-                        </Link>
-                    </Button>
+                    <div class="flex flex-col gap-2 self-start sm:self-center">
+                        <Button v-if="!inTutorial" size="lg" :disabled="starting" data-testid="docs-tutorial-practice" @click="startTutorial">
+                            <PhGraduationCap weight="bold" />Start the tutorial
+                        </Button>
+                        <Button as-child size="lg" :variant="inTutorial ? 'default' : 'outline'">
+                            <Link :href="resume.url" data-testid="docs-tutorial-start">
+                                <component :is="progress.finished.value ? PhCheckCircle : PhFlagPennant" weight="bold" />{{ tutorialAction }}
+                            </Link>
+                        </Button>
+                    </div>
                 </div>
             </section>
 

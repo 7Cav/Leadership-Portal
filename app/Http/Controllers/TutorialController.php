@@ -62,12 +62,13 @@ class TutorialController extends Controller
 
     public function destroy(Request $request): RedirectResponse
     {
-        $return = $this->tutorial->stop() ?? '/home';
+        $this->tutorial->stop();
         // Leaves no practice data behind: the next start makes a fresh copy.
         $this->sandbox->discard($request->user()->id);
         Inertia::clearHistory();
 
-        return redirect($return);
+        // Always the guides home, where the tutorial is started: the page it started from may be a practice page.
+        return redirect('/docs');
     }
 
     private function fresh(int $userId, TutorialPersona $persona): void

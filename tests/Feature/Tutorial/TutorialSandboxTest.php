@@ -4,6 +4,7 @@ use App\Commands\StaffReports\PushStaffReportToSheet;
 use App\Jobs\PushStaffReportToSheetJob;
 use App\Models\AuditLogEntry;
 use App\Models\Trooper;
+use App\Models\TrooperGameIdentity;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
@@ -66,7 +67,7 @@ it('runs every tutorial write on the practice copy and leaves the real tables an
     $section = practiceSectionId($leader->id);
     $week = WeekOf::start(CarbonImmutable::now())->toDateString();
 
-    $this->get("/rollcall/{$section}")->assertOk()->assertInertia(fn ($page) => $page->where('tutorial.steps.0.id', 'rollcall'));
+    $this->get("/rollcall/{$section}")->assertOk()->assertInertia(fn ($page) => $page->where('tutorialMode.steps.0.id', 'rollcall'));
     markDemo($this, $leader->id, $section, $week);
     $this->postJson("/rollcall/{$section}/confirm", ['week' => $week])->assertOk();
     $this->postJson("/rollcall/{$section}/posted", ['week' => $week])->assertOk();
@@ -88,20 +89,33 @@ it('ticks the coach card from what was done in the practice copy', function () {
     $section = practiceSectionId($leader->id);
     $week = WeekOf::start(CarbonImmutable::now())->toDateString();
 
-    $this->get("/rollcall/{$section}")->assertOk();
+    $this->get("/rollcall/{$section}")->assertInertia(fn ($page) => $page->where('tutorialMode.steps.0.highlight', fn ($selector) => str_starts_with((string) $selector, '[data-trooper="')));
     markDemo($this, $leader->id, $section, $week);
     $this->postJson("/rollcall/{$section}/confirm", ['week' => $week])->assertOk();
     $this->get("/rollcall/{$section}")->assertInertia(fn ($page) => $page
-        ->where('tutorial.steps.0.checklist.0.done', true)
-        ->where('tutorial.steps.0.checklist.3.done', true)
-        ->where('tutorial.steps.0.checklist.4.done', false));
+        ->where('tutorialMode.steps.0.checklist.0.done', true)
+        ->where('tutorialMode.steps.0.checklist.3.done', true)
+        ->where('tutorialMode.steps.0.checklist.4.done', false)
+        // Confirmed but not posted: Mark posted is the next thing to do, unless Demo.K still needs a signature.
+        ->where('tutorialMode.steps.0.highlight', fn ($selector) => in_array($selector, ['[data-testid="mark-posted"]'], true) || str_starts_with((string) $selector, '[data-trooper="')));
+});
+
+it('links every practice trooper to the practice game, so no identity warning shows', function () {
+    $leader = User::factory()->commanding($this->section)->create();
+    $this->actingAs($leader)->post('/tutorial');
+
+    $unlinked = inTutorial($leader->id, fn () => Trooper::query()->whereNotIn('id', TrooperGameIdentity::query()->select('trooper_id'))->count());
+
+    expect($unlinked)->toBe(0);
 });
 
 it('fails loudly when a tutorial request reaches the real database', function () {
     $leader = User::factory()->commanding($this->section)->create();
     $this->actingAs($leader)->post('/tutorial');
 
-    expect(fn () => inTutorial($leader->id, fn () => DB::connection('sqlite')->table('users')->count()))
+    // The real connection by name, whichever database the suite runs on (SQLite locally, MySQL in CI).
+    $real = config('database.default');
+    expect(fn () => inTutorial($leader->id, fn () => DB::connection($real)->table('users')->count()))
         ->toThrow(RealDatabaseTouched::class);
     // Out of the tutorial again, the real connection works as before.
     expect(DB::table('users')->count())->toBeGreaterThan(0);
@@ -182,7 +196,7 @@ it('starts over from fresh practice data', function () {
     expect(inTutorial($leader->id, fn () => AuditLogEntry::query()->where('action', 'practice.confirmed')->count()))->toBe(0);
 });
 
-it('returns to the page it started from and to the real portal on exit', function () {
+it('returns to the guides home and the real portal on exit', function () {
     $leader = User::factory()->commanding($this->section)->create();
     $this->actingAs($leader)->from('/docs')->post('/tutorial');
 
@@ -190,7 +204,7 @@ it('returns to the page it started from and to the real portal on exit', functio
 
     expect(app(TutorialSandbox::class)->exists($leader->id))->toBeFalse()
         ->and(DB::getDefaultConnection())->toBe('sqlite');
-    $this->get('/home')->assertOk()->assertInertia(fn ($page) => $page->where('tutorial', null)->where('scopeTop.0.id', $this->section->id));
+    $this->get('/home')->assertOk()->assertInertia(fn ($page) => $page->where('tutorialMode', null)->where('scopeTop.0.id', $this->section->id));
 });
 
 it('cannot be combined with view as', function () {
@@ -227,7 +241,7 @@ it('opens every step page of a platoon leader and an Admin in the tutorial', fun
     }
 
     $this->actingAs($leader)->post('/tutorial')->assertRedirect();
-    $steps = $this->get('/home')->assertOk()->viewData('page')['props']['tutorial']['steps'];
+    $steps = $this->get('/home')->assertOk()->viewData('page')['props']['tutorialMode']['steps'];
 
     expect(array_column($steps, 'id'))->toBe($admin
         ? ['rollcall', 'weekly-report', 'staff-report', 'roster', 'admin']
@@ -239,3 +253,14 @@ it('opens every step page of a platoon leader and an Admin in the tutorial', fun
         } expect($r->status())->toBe(200, $step['href']);
     }
 })->with(['platoon leader' => false, 'Admin' => true]);
+
+it('serves the blue tutorial icons in the tutorial and the usual ones outside it', function () {
+    $leader = User::factory()->commanding($this->section)->create();
+
+    $this->actingAs($leader)->get('/home')->assertSee('href="/favicon-32x32.png?v=', false);
+    $this->post('/tutorial');
+    $this->get('/home')->assertSee('href="/tutorial-icons/favicon-32x32.png?v=', false);
+    expect(file_exists(public_path('tutorial-icons/favicon.ico')))->toBeTrue();
+    // A public/tutorial folder would shadow the POST /tutorial route on the web server.
+    expect(is_dir(public_path('tutorial')))->toBeFalse();
+});
