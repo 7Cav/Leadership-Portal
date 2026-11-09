@@ -18,7 +18,7 @@
   regiment and their billet is still in that group. No Admin has to give it.
   Once an Admin approves their billet, they are Admins, for as long as they hold it. The S6 1IC and S6 2IC become Admins the same
   way.
-- A regimental staff officer an Admin names as a unit's overseer (on the Org structure page: an Adjutant General over a
+- An officer an Admin names as a unit's overseer (on the Org structure page: an Adjutant General over a
   battalion, the RDC Commander over ACD, DEVCOM and the Reservists) reads that unit and everything under it, as a staff
   grant on it would. It never lets them change anything there.
 - Every trooper may open their own milpac page, read only, with their own DCSs and LORs, whatever their billet. It opens

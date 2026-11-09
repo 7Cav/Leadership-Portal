@@ -1037,7 +1037,7 @@ function confirmDelete() {
                         <ul class="mt-1.5 max-h-60 space-y-1 overflow-y-auto text-[13px]">
                             <li v-for="member in selectedMembers" :key="member.id" data-testid="group-member" class="flex flex-wrap items-baseline gap-x-2">
                                 <span class="font-medium">{{ member.displayName }}</span>
-                                <span v-if="member.billet" class="text-xs text-muted-foreground">{{ member.billet }}</span>
+                                <span v-if="member.billet" class="text-xs text-muted-foreground">{{ member.billet }}<template v-if="member.was">,</template></span>
                                 <span v-if="member.was" data-testid="member-was" class="font-mono text-[11px] text-muted-foreground">was: {{ member.was }}</span>
                             </li>
                         </ul>
@@ -1100,7 +1100,7 @@ function confirmDelete() {
                     <section v-if="isAdmin && selectedUnit.overseeable" data-testid="oversight" aria-label="Oversight" class="mb-4 rounded-lg border border-dashed border-border p-3">
                         <h3 class="text-[13px] font-semibold">Oversight</h3>
                         <p class="mt-0.5 text-xs text-muted-foreground">
-                            The regimental staff officer who oversees this unit. They can see everything in it while they serve, and change nothing.
+                            The officer who oversees this unit.
                         </p>
                         <p v-if="selectedUnit.oversight" data-testid="oversight-current" class="mt-2 text-[13px]">
                             {{ selectedUnit.oversight.displayName }}<template v-if="!selectedUnit.oversight.serving"> (not serving)</template>
