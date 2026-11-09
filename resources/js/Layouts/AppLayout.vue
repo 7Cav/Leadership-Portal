@@ -28,6 +28,7 @@ import ActAsPicker from './partials/ActAsPicker.vue';
 import ActingAsBanner from './partials/ActingAsBanner.vue';
 import ViewAsBanner from './partials/ViewAsBanner.vue';
 import ChangelogOutdatedBanner from './partials/ChangelogOutdatedBanner.vue';
+import ReportDueBanner from './partials/ReportDueBanner.vue';
 import ViewAsPicker from './partials/ViewAsPicker.vue';
 import TutorialBanner from './partials/TutorialBanner.vue';
 import TutorialCoach from './partials/TutorialCoach.vue';
@@ -181,6 +182,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
                     </div>
                 </header>
             </div>
+
+            <ReportDueBanner />
 
             <!-- The docs sit against the sidebar rather than centred: their own contents column is a second sidebar,
                  and centring the page left a wide gap between the two on large screens. -->
