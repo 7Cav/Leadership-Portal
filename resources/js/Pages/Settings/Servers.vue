@@ -11,6 +11,7 @@ import EmptyState from '@/components/EmptyState.vue';
 import { toast } from 'vue-sonner';
 import { onHttpException } from '@/lib/httpError';
 import { forumDateTime } from '@/lib/forumDate';
+import { Checkbox } from '@/components/ui/checkbox';
 
 // The game servers the telemetry APIs list (#389). An Admin fetches them, then selects each one the portal should
 // know about, assigns it a game and marks it training or public; only selected training servers are read for
@@ -286,10 +287,8 @@ function outcomeLine(outcome) {
                     <template v-for="server in servers" :key="server.id">
                         <TableRow :data-testid="`server-row-${server.id}`">
                             <TableCell class="px-4">
-                                <input
+                                <Checkbox
                                     v-model="drafts[server.id].selected"
-                                    type="checkbox"
-                                    class="size-4 accent-primary"
                                     :aria-label="`Select ${server.name}`"
                                     :data-testid="`selected-${server.id}`"
                                 />

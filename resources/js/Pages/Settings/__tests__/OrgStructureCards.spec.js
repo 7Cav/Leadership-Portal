@@ -96,7 +96,7 @@ describe('Settings/OrgStructure cards', () => {
 
         expect(wrapper.find('[data-testid="unit-row-4"]').exists()).toBe(false);
 
-        await wrapper.find('[data-testid="show-empty"]').setValue(true);
+        await wrapper.find('[data-testid="show-empty"]').trigger('click');
         const row = wrapper.find('[data-testid="unit-row-4"]');
         expect(row.exists()).toBe(true);
         expect(row.classes()).toContain('text-muted-foreground');
@@ -114,7 +114,7 @@ describe('Settings/OrgStructure cards', () => {
         const staff = wrapper.find('[data-testid="staff-card"]');
 
         expect(staff.find('[data-testid="unit-row-14"]').exists()).toBe(false);
-        await staff.find('[data-testid="show-recruits"]').setValue(true);
+        await staff.find('[data-testid="show-recruits"]').trigger('click');
         expect(wrapper.find('[data-testid="staff-card"] [data-testid="unit-row-14"]').exists()).toBe(true);
     });
 

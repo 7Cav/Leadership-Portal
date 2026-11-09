@@ -34,6 +34,7 @@ import {
 } from '@/lib/counseling';
 import { postJson } from '@/lib/postJson';
 import { toast } from 'vue-sonner';
+import { Checkbox } from '@/components/ui/checkbox';
 
 // The trooper's Developmental Counseling Statements and Letters of Reprimand (#381). The server sends only the records
 // this viewer may see, where they stand under the regulations (each record's flags, the no favorable action banner, and
@@ -445,13 +446,13 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
                     <template v-if="isLor">
                         <fieldset class="grid gap-1.5" data-testid="counseling-form-consequences">
                             <legend class="mb-1.5 text-sm font-medium">Recommended consequence</legend>
-                            <label v-for="(consequence, value) in LOR_CONSEQUENCES" :key="value" class="inline-flex items-start gap-1.5 text-[13px]">
-                                <input
-                                    type="checkbox"
+                            <label v-for="(consequence, value) in LOR_CONSEQUENCES" :key="value" :for="`counseling-consequence-${value}`" class="inline-flex items-start gap-1.5 text-[13px]">
+                                <Checkbox
+                                    :id="`counseling-consequence-${value}`"
                                     class="mt-0.5"
-                                    :checked="fileForm.form.consequences.includes(value)"
+                                    :model-value="fileForm.form.consequences.includes(value)"
                                     :data-testid="`counseling-consequence-${value}`"
-                                    @change="toggleConsequence(value, $event.target.checked)"
+                                    @update:model-value="(checked) => toggleConsequence(value, checked === true)"
                                 />
                                 {{ consequence.label }}
                             </label>

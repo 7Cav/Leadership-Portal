@@ -14,6 +14,7 @@ import KeptIdentitiesList from '@/components/KeptIdentitiesList.vue';
 import { onHttpException } from '@/lib/httpError';
 import { postJson } from '@/lib/postJson';
 import { cn } from '@/lib/utils';
+import { Checkbox } from '@/components/ui/checkbox';
 
 // The link-identity screen (Story 7.2), binding design mockups/v2/link-identity.html variant C
 // "Needs-a-link queue": a coverage summary, a queue of the troopers still missing a game, and a
@@ -665,8 +666,8 @@ function removeAccount(value) {
                                 <p class="text-xs text-muted-foreground">Shown beside the ID only. It can change, so the ID is what attendance is matched on.</p>
                                 <p v-if="form.errors.gamertag" class="text-xs text-destructive" data-testid="error-gamertag">{{ form.errors.gamertag }}</p>
                             </div>
-                            <label v-if="account && otherCovered.length" class="flex items-start gap-2 text-[13px]" data-testid="every-game">
-                                <input v-model="everyGame" type="checkbox" class="mt-0.5 size-4 accent-primary" data-testid="every-game-input" />
+                            <label v-if="account && otherCovered.length" for="every-game-input" class="flex items-start gap-2 text-[13px]" data-testid="every-game">
+                                <Checkbox id="every-game-input" v-model="everyGame" class="mt-0.5" data-testid="every-game-input" />
                                 <span>
                                     Link to every game
                                     <span class="block text-xs text-muted-foreground" data-testid="every-game-hint">

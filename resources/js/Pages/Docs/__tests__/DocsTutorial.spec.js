@@ -152,9 +152,9 @@ describe('Tutorial step', () => {
         const wrapper = step(1);
         const box = wrapper.get('[data-testid="tutorial-done"]');
 
-        await box.setValue(true);
+        await box.trigger('click');
         expect(JSON.parse(localStorage.getItem('docs-tutorial:7'))).toEqual(['second']);
-        await box.setValue(false);
+        await box.trigger('click');
         expect(JSON.parse(localStorage.getItem('docs-tutorial:7'))).toEqual([]);
     });
 
@@ -228,13 +228,13 @@ describe('steps the portal knows are done', () => {
         const wrapper = step(1);
 
         const box = wrapper.get('[data-testid="tutorial-done"]');
-        expect(box.element.checked).toBe(true);
+        expect(box.attributes('data-state')).toBe('checked');
         expect(box.attributes('disabled')).toBeDefined();
         expect(wrapper.get('[data-testid="tutorial-done-hint"]').text()).toBe('Done in the portal');
         expect(wrapper.get('[data-testid="tutorial-position"]').text()).toContain('1 done');
 
-        await box.trigger('change');
-        expect(box.element.checked).toBe(true);
+        await box.trigger('click');
+        expect(box.attributes('data-state')).toBe('checked');
         expect(JSON.parse(localStorage.getItem('docs-tutorial:7') ?? '[]')).toEqual([]);
     });
 
@@ -247,7 +247,7 @@ describe('steps the portal knows are done', () => {
         expect(wrapper.get('[data-testid="tutorial-position"]').text()).toContain('2 done');
         expect(wrapper.find('[data-testid="tutorial-done-hint"]').exists()).toBe(false);
 
-        await wrapper.get('[data-testid="tutorial-done"]').trigger('change');
+        await wrapper.get('[data-testid="tutorial-done"]').trigger('click');
         expect(JSON.parse(localStorage.getItem('docs-tutorial:7'))).toEqual(['third', 'second']);
         expect(wrapper.get('[data-testid="tutorial-position"]').text()).toContain('3 done');
     });

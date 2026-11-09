@@ -176,15 +176,15 @@ describe('StaffReport page', () => {
 
     it('shows each pick as a chip in the summary card that removes it, and posts the picks', async () => {
         const wrapper = await toPicker();
-        await wrapper.find('[data-testid="section-4"]').trigger('change');
-        await wrapper.find('[data-testid="section-9"]').trigger('change');
-        await wrapper.find('[data-testid="section-11"]').trigger('change');
+        await wrapper.find('[data-testid="section-4"]').trigger('click');
+        await wrapper.find('[data-testid="section-9"]').trigger('click');
+        await wrapper.find('[data-testid="section-11"]').trigger('click');
 
         expect(wrapper.find('[data-testid="send-bar"] [data-testid="picked-chips"]').text()).toContain('1/2/A/1-7');
         expect(wrapper.find('[data-testid="send-summary"]').text()).toBe('Yes: 1/1/A/1-7, 1/2/A/1-7, 1/1/B/1-7');
 
         await wrapper.find('[data-testid="chip-remove-11"]').trigger('click');
-        expect(wrapper.find('[data-testid="section-11"]').element.checked).toBe(false);
+        expect(wrapper.find('[data-testid="section-11"]').attributes('data-state')).toBe('unchecked');
         expect(sendButton(wrapper).attributes('disabled')).toBeUndefined();
         expect(wrapper.find('[data-testid="step-next"]').attributes('disabled')).toBeUndefined();
 
@@ -200,7 +200,7 @@ describe('StaffReport page', () => {
         });
         await wrapper.find('[data-testid="attended-yes"]').trigger('click');
         await wrapper.find('[data-testid="type-sp"]').trigger('click');
-        await wrapper.find('[data-testid="section-4"]').trigger('change');
+        await wrapper.find('[data-testid="section-4"]').trigger('click');
 
         await wrapper.find('form').trigger('submit');
         await flushPromises();
@@ -226,7 +226,7 @@ describe('StaffReport page', () => {
         });
         await wrapper.find('[data-testid="attended-yes"]').trigger('click');
         await wrapper.find('[data-testid="type-sp"]').trigger('click');
-        await wrapper.find('[data-testid="section-4"]').trigger('change');
+        await wrapper.find('[data-testid="section-4"]').trigger('click');
         await wrapper.find('form').trigger('submit');
         await flushPromises();
 
@@ -251,7 +251,7 @@ describe('StaffReport page', () => {
         const wrapper = page({ entries: [{ sectionId: 5, section: '2/1/A/1-7', enteredBy: 'Mercer.J', selfReported: false }] });
 
         expect(wrapper.find('[data-testid="step-details"]').attributes('aria-current')).toBe('step');
-        expect(wrapper.find('[data-testid="section-5"]').element.checked).toBe(true);
+        expect(wrapper.find('[data-testid="section-5"]').attributes('data-state')).toBe('checked');
         expect(wrapper.find('[data-testid="entered-5"]').text()).toBe('Entered by Mercer.J');
         expect(wrapper.find('[data-testid="dropped-note"]').exists()).toBe(false);
 
@@ -264,7 +264,7 @@ describe('StaffReport page', () => {
         const wrapper = await toPicker({ seen: [9] });
 
         expect(wrapper.find('[data-testid="seen-9"]').text()).toBe('Seen on the game server');
-        expect(wrapper.find('[data-testid="section-9"]').element.checked).toBe(false);
+        expect(wrapper.find('[data-testid="section-9"]').attributes('data-state')).toBe('unchecked');
     });
 
     it('narrows the sections by name, and says when none match or none play the game', async () => {

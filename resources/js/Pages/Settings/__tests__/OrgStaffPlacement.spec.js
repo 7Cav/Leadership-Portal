@@ -49,7 +49,7 @@ describe('Settings/OrgStructure placement', () => {
         expect(wrapper.find('[data-testid="unit-row-5"]').exists()).toBe(false);
         expect(wrapper.find('[data-testid="unit-row-4"]').exists()).toBe(true);
 
-        await wrapper.find('[data-testid="show-recruits"]').setValue(true);
+        await wrapper.find('[data-testid="show-recruits"]').trigger('click');
         expect(wrapper.find('[data-testid="unit-row-5"]').text()).toContain('Headcount 1');
     });
 
@@ -72,7 +72,7 @@ describe('Settings/OrgStructure placement', () => {
     it('shows no "was" for a trooper with none', async () => {
         const wrapper = mountPage();
 
-        await wrapper.find('[data-testid="show-recruits"]').setValue(true);
+        await wrapper.find('[data-testid="show-recruits"]').trigger('click');
         await wrapper.find('[data-testid="unit-row-5"]').trigger('click');
 
         expect(wrapper.find('[data-testid="group-member"]').text()).toContain('RCT Quill.R');

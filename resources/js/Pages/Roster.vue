@@ -54,6 +54,7 @@ import { useViewAs } from "@/composables/useViewAs";
 import { forumDate, zuluTime } from "@/lib/forumDate";
 import { percentLabel } from "@/lib/roster";
 import { localTime, timeAgo } from "@/lib/timeAgo";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // The roster (Stories 2.8, 4.6, 4.7, 4.9). One page, three views of the same subtree, toggled and
 // kept in the URL (`?view=`): the order of battle (binding mockup roster-s2.html), the
@@ -399,14 +400,10 @@ function syncNow() {
             <div class="flex flex-wrap items-center gap-2 sm:ml-auto">
                 <label
                     v-if="recruitIds.size"
+                    for="roster-show-recruits"
                     class="flex items-center gap-1.5 text-xs text-muted-foreground"
                 >
-                    <input
-                        v-model="showRecruits"
-                        type="checkbox"
-                        data-testid="show-recruits"
-                        class="size-3.5 accent-primary"
-                    />
+                    <Checkbox id="roster-show-recruits" v-model="showRecruits" data-testid="show-recruits" />
                     Show New Recruits
                 </label>
                 <DropdownMenu v-if="scopeOptions.length" v-model:open="scopeMenuOpen">
