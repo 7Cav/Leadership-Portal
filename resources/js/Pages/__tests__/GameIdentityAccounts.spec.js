@@ -86,7 +86,7 @@ describe('GameIdentities page, shared accounts', () => {
         await wrapper.get('[data-testid="identity-form"]').trigger('submit');
         expect(put).toHaveBeenCalledWith('/game-identities/2/hll', expect.any(Object));
 
-        await wrapper.get('[data-testid="every-game-input"]').setValue(true);
+        await wrapper.get('[data-testid="every-game-input"]').trigger('click');
         await wrapper.get('[data-testid="identity-form"]').trigger('submit');
         expect(post).toHaveBeenCalledWith('/game-identities/2/hll/account', expect.any(Object));
     });

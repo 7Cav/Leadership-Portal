@@ -181,7 +181,7 @@ describe('Settings/Servers', () => {
 
         expect(save.attributes('disabled')).toBeDefined();
 
-        await wrapper.get('[data-testid="selected-3"]').setValue(true);
+        await wrapper.get('[data-testid="selected-3"]').trigger('click');
         await wrapper.get('[data-testid="game-3-select"]').setValue('2');
         await wrapper.get('[data-testid="type-3"]').setValue('training');
         await save.trigger('click');
@@ -193,7 +193,7 @@ describe('Settings/Servers', () => {
         routerPatch.mockImplementation((url, data, options) => options.onError({ server: 'Choose the game this server is for before selecting it.' }));
         const wrapper = factory();
 
-        await wrapper.get('[data-testid="selected-3"]').setValue(true);
+        await wrapper.get('[data-testid="selected-3"]').trigger('click');
         await wrapper.get('[data-testid="save-3"]').trigger('click');
         await nextTick();
 

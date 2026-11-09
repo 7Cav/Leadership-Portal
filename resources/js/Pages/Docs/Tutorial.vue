@@ -7,6 +7,7 @@ import DocsLayout from '@/components/docs/DocsLayout.vue';
 import GuideFeedback from '@/components/docs/GuideFeedback.vue';
 import { useTutorialProgress } from '@/composables/useTutorialProgress';
 import { openablePage } from '@/lib/docs';
+import { Checkbox } from '@/components/ui/checkbox';
 
 // One step of the getting started tutorial: "Step 3 of 8" with a bar of every step, the step's text (the same
 // renderer as a guide), "Try it" into the real portal page, and Back and Next. Moving on with Next marks the step
@@ -107,15 +108,14 @@ function advance() {
                 </Button>
             </section>
 
-            <label class="mt-6 flex w-fit items-center gap-2 text-sm" :class="portalDone ? '' : 'cursor-pointer'">
-                <input
-                    type="checkbox"
-                    class="size-4 accent-[var(--primary)]"
-                    :checked="step ? progress.isDone(step.id) : false"
+            <label for="tutorial-done" class="mt-6 flex w-fit items-center gap-2 text-sm" :class="portalDone ? '' : 'cursor-pointer'">
+                <Checkbox
+                    id="tutorial-done"
+                    :model-value="step ? progress.isDone(step.id) : false"
                     :disabled="portalDone"
                     :aria-describedby="portalDone ? 'tutorial-done-hint' : undefined"
                     data-testid="tutorial-done"
-                    @change="toggleDone"
+                    @update:model-value="toggleDone"
                 />
                 I have done this step
             </label>

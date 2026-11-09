@@ -36,6 +36,7 @@ import WeekHeading from '@/components/week/WeekHeading.vue';
 import { onHttpException } from '@/lib/httpError';
 import { stamp } from '@/lib/report';
 import { attendedText, pickerCollapses, pickerGroups, sheetText } from '@/lib/staffReport';
+import { Checkbox } from '@/components/ui/checkbox';
 
 // A platoon, company or battalion HQ staff member's own weekly staff report: whether they attended a section
 // practice this week, an FTX or (battalion HQ staff only) an office hour, which, with the other events they attended
@@ -559,15 +560,16 @@ function entryNote(id) {
                                         >
                                             <li v-for="section in platoon.rows" :key="section.id">
                                                 <label
-                                                    class="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 transition-colors has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring has-[input:focus-visible]:ring-inset"
+                                                    :for="`staff-section-${section.id}`"
+                                                    class="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 transition-colors has-[button:focus-visible]:ring-2 has-[button:focus-visible]:ring-ring has-[button:focus-visible]:ring-inset"
                                                     :class="picked.has(section.id) ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent/70'"
                                                 >
-                                                    <input
-                                                        type="checkbox"
-                                                        class="size-3.5 shrink-0 accent-primary focus-visible:outline-none"
-                                                        :checked="picked.has(section.id)"
+                                                    <Checkbox
+                                                        :id="`staff-section-${section.id}`"
+                                                        class="shrink-0 focus-visible:ring-0"
+                                                        :model-value="picked.has(section.id)"
                                                         :data-testid="`section-${section.id}`"
-                                                        @change="toggle(section.id)"
+                                                        @update:model-value="toggle(section.id)"
                                                     />
                                                     <span class="min-w-0 flex-1">
                                                         <span class="block font-mono">{{ section.label }}</span>

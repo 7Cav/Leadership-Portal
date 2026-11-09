@@ -29,6 +29,7 @@ import { ancestorIds, searchUnits } from '@/lib/orgSearch';
 import { moveOutcome, movePreview, ordinalOptions, ordinalWord } from '@/lib/unitDesignation';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import OrgTreeNode from './OrgTreeNode.vue';
+import { Checkbox } from '@/components/ui/checkbox';
 
 // Flat units array with `path` (AD-18) — nested here for rendering; the server keeps the
 // authoritative shape flat so subtree scoping elsewhere never depends on this tree walk.
@@ -891,8 +892,8 @@ function confirmDelete() {
                     <div class="flex items-center gap-2 px-4 pt-3.5 pb-2">
                         <h2 class="text-[15px] font-semibold">Chain of command</h2>
                         <span class="truncate text-xs text-muted-foreground">{{ lineCount }} {{ lineCount === 1 ? 'unit' : 'units' }}</span>
-                        <label v-if="hasEmpty" class="ml-auto flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-                            <input v-model="showEmpty" type="checkbox" data-testid="show-empty" class="size-3.5 accent-primary" />
+                        <label v-if="hasEmpty" for="org-show-empty" class="ml-auto flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                            <Checkbox id="org-show-empty" v-model="showEmpty" data-testid="show-empty" />
                             Show empty units
                         </label>
                     </div>
@@ -978,8 +979,8 @@ function confirmDelete() {
                     <div class="flex items-center gap-2 px-4 pt-3.5 pb-2">
                         <h2 class="text-[15px] font-semibold">Regimental staff</h2>
                         <span class="truncate text-xs text-muted-foreground">{{ staffCount }} {{ staffCount === 1 ? 'group' : 'groups' }}</span>
-                        <label v-if="hasRecruits" class="ml-auto flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-                            <input v-model="showRecruits" type="checkbox" data-testid="show-recruits" class="size-3.5 accent-primary" />
+                        <label v-if="hasRecruits" for="org-show-recruits" class="ml-auto flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                            <Checkbox id="org-show-recruits" v-model="showRecruits" data-testid="show-recruits" />
                             Show New Recruits
                         </label>
                     </div>

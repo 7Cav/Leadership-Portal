@@ -182,7 +182,7 @@ describe('Settings/OrgStructure', () => {
         await flushPromises();
 
         expect(toastSuccess).toHaveBeenCalledWith('Added 3rd Battalion (3-7). Empty units are now shown.');
-        expect(wrapper.find('[data-testid="show-empty"]').element.checked).toBe(true);
+        expect(wrapper.find('[data-testid="show-empty"]').attributes('data-state')).toBe('checked');
         expect(wrapper.find('[data-testid="unit-row-3"]').exists()).toBe(true);
         expect(wrapper.find('[data-testid="detail-panel"]').text()).toContain('3rd Battalion');
         wrapper.unmount();
@@ -193,9 +193,9 @@ describe('Settings/OrgStructure', () => {
         const wrapper = mount(OrgStructure, { props: { units, isAdmin: true } });
         expect(wrapper.find('[data-testid="unit-row-3"]').exists()).toBe(false);
 
-        await wrapper.find('[data-testid="show-empty"]').setValue(true);
+        await wrapper.find('[data-testid="show-empty"]').trigger('click');
         await wrapper.find('[data-testid="unit-row-3"]').trigger('click');
-        await wrapper.find('[data-testid="show-empty"]').setValue(false);
+        await wrapper.find('[data-testid="show-empty"]').trigger('click');
 
         expect(wrapper.find('[data-testid="unit-row-3"]').exists()).toBe(true);
     });
@@ -960,7 +960,7 @@ describe('Settings/OrgStructure', () => {
             vi.useFakeTimers();
             vi.setSystemTime(new Date('2026-11-01T12:00:00Z'));
             const wrapper = mount(OrgStructure, { props: { units: [...UNITS, fresh(42)], isAdmin: false } });
-            await wrapper.find('[data-testid="show-empty"]').setValue(true);
+            await wrapper.find('[data-testid="show-empty"]').trigger('click');
             await wrapper.find('[data-testid="unit-row-3"]').trigger('click');
 
             expect(wrapper.find('[data-testid="undo-add"]').text()).toBe('Undo add, 42 min left');
@@ -986,7 +986,7 @@ describe('Settings/OrgStructure', () => {
             deleteSpy = vi.fn();
             toastSuccess.mockReset();
             const wrapper = mount(OrgStructure, { props: { units: [...UNITS, fresh(30)], isAdmin: false } });
-            await wrapper.find('[data-testid="show-empty"]').setValue(true);
+            await wrapper.find('[data-testid="show-empty"]').trigger('click');
             await wrapper.find('[data-testid="unit-row-3"]').trigger('click');
             await wrapper.find('[data-testid="undo-add"]').trigger('click');
 
@@ -999,7 +999,7 @@ describe('Settings/OrgStructure', () => {
             deleteSpy = vi.fn();
             toastError.mockReset();
             const wrapper = mount(OrgStructure, { props: { units: [...UNITS, fresh(30)], isAdmin: false } });
-            await wrapper.find('[data-testid="show-empty"]').setValue(true);
+            await wrapper.find('[data-testid="show-empty"]').trigger('click');
             await wrapper.find('[data-testid="unit-row-3"]').trigger('click');
             await wrapper.find('[data-testid="undo-add"]').trigger('click');
             deleteSpy.mock.lastCall[1].onError({ delete: 'You can undo this for 60 minutes after adding it, while it is still empty.' });

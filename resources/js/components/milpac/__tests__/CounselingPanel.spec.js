@@ -436,7 +436,7 @@ describe('CounselingPanel', () => {
             expect(wrapper.find('[data-testid="counseling-form-special_punishments"]').exists()).toBe(true);
             expect(wrapper.find('[data-testid="counseling-form-removal"]').exists()).toBe(false);
 
-            await wrapper.get('[data-testid="counseling-consequence-removal"]').setValue(true);
+            await wrapper.get('[data-testid="counseling-consequence-removal"]').trigger('click');
             expect(wrapper.find('[data-testid="counseling-form-removal"]').exists()).toBe(true);
             wrapper.unmount();
         });
@@ -446,8 +446,8 @@ describe('CounselingPanel', () => {
             await wrapper.get('[data-testid="counseling-source-form"]').setValue(true);
             await wrapper.get('[data-testid="counseling-type"]').setValue('lor');
             await fillSection2(wrapper);
-            await wrapper.get('[data-testid="counseling-consequence-nfa"]').setValue(true);
-            await wrapper.get('[data-testid="counseling-consequence-removal"]').setValue(true);
+            await wrapper.get('[data-testid="counseling-consequence-nfa"]').trigger('click');
+            await wrapper.get('[data-testid="counseling-consequence-removal"]').trigger('click');
             await wrapper.get('[data-testid="counseling-removal-section_leader"]').setValue(true);
             await wrapper.get('[data-testid="counseling-appeal-do_not"]').setValue(true);
             await wrapper.get('[data-testid="counseling-form"]').trigger('submit');
