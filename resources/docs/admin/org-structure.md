@@ -15,6 +15,8 @@ The page has two cards. **Chain of command** holds the regiment, its battalions 
 
 > [!good-to-know] A line unit with nobody in it or under it is hidden. Tick **Show empty units** to see it, for example to rename, move or delete it. It shows again on its own once someone is placed in it.
 
+> [!good-to-know] A unit whose lead billet is empty says so on its row: **CO vacant**, **PL vacant**, **SL vacant** or **HQ vacant**. A battalion with no overseer says **Oversight vacant**, or **Oversight & CO vacant** when its lead is empty too. Select the unit to see who stands in on its **Lead** line, such as "Lead: MAJ Dread.M (XO, acting CO)". The stand-in is the first one serving of the CO, XO and SGM on a battalion, the Commander, XO and 1SG on a company, the PL and PSG on a platoon, and the SL and ASL on a section. This is only shown: the stand-in gets no extra rights.
+
 ## Import from the Cav roster
 
 1. Open **Settings**, then **Org structure**.
