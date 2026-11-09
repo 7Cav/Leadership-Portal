@@ -1512,8 +1512,8 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-testid="capture-banner"]').text()).toContain('Marks filled from BattleMetrics, read 08OCT26 12\u200A00Z (4 h ago).');
             expect(wrapper.find('[data-testid="capture-banner"]').text()).toContain('Auto');
             expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Not confirmed');
-            expect(wrapper.find('[data-testid="confirm-practice"]').text()).toContain('Confirm held');
-            expect(wrapper.find('[data-testid="confirm-not-held"]').text()).toContain('Not held');
+            expect(wrapper.find('[data-testid="confirm-practice"]').text()).toContain('Confirm practice took place');
+            expect(wrapper.find('[data-testid="confirm-not-held"]').text()).toContain('Practice did not take place');
         });
 
         it('names the game server, not "null", when a capture has no source recorded', () => {
@@ -1544,7 +1544,7 @@ describe('Rollcall page', () => {
             await flushPromises();
 
             expect(post).toHaveBeenCalledWith('/rollcall/12/confirm', { week: '2026-10-03', confirmedAt: null, held: false });
-            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed not held');
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Practice did not take place');
             expect(toastSuccess).toHaveBeenCalledWith('Practice confirmed as not held', expect.anything());
         });
 
@@ -1574,7 +1574,7 @@ describe('Rollcall page', () => {
             await flushPromises();
 
             expect(post).toHaveBeenCalledWith('/rollcall/12/confirm', { week: '2026-10-03', confirmedAt: null, held: true });
-            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed held');
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Practice took place');
         });
 
         it('sends the confirmation it shows when confirming again, so the server can tell a racing one', async () => {
@@ -1630,11 +1630,11 @@ describe('Rollcall page', () => {
                 capture: CAPTURE,
                 practice: { lastMarkedAt: null, confirmation: { at: '2026-10-08T16:20:00+00:00', by: 'Vasquez.R' } },
             });
-            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed held');
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Practice took place');
 
             const missed = wrapper.findAll('[data-trooper="1"] button').find((b) => b.text().startsWith('Not attended'));
             await missed.trigger('click');
-            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed held');
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Practice took place');
             await vi.advanceTimersByTimeAsync(1000);
 
             expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Not confirmed');
@@ -1652,7 +1652,7 @@ describe('Rollcall page', () => {
                     confirmation: { at: '2026-10-08T16:30:00+00:00', by: 'Ortega.M' },
                 },
             });
-            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed held');
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Practice took place');
             await wrapper.find('[data-step="3"]').trigger('click');
             page.url = '/rollcall/12?step=3';
             await wrapper.vm.$nextTick();

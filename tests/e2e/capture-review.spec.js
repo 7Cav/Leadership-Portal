@@ -27,12 +27,12 @@ test('a section leader reviews a captured practice, overrides an auto mark and c
     // Confirming as held needs every trooper marked (#634): the ones the server did not see missed it.
     await page.getByTestId('mark-rest-missed').click();
     await page.getByTestId('confirm-practice').click();
-    await expect(page.getByTestId('confirm-badge')).toHaveText('Confirmed held');
+    await expect(page.getByTestId('confirm-badge')).toHaveText('Practice took place');
 
     // Both the override and the confirmation are durable.
     await page.reload();
     await page.getByRole('button', { name: /^Step 2, Section practice/ }).click();
-    await expect(page.getByTestId('confirm-badge')).toHaveText('Confirmed held');
+    await expect(page.getByTestId('confirm-badge')).toHaveText('Practice took place');
     await expect(page.locator('[data-trooper]').filter({ hasText: 'Okafor.D' }).getByRole('button', { name: /^Not attended/ })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('[data-trooper]').filter({ hasText: 'Okafor.D' }).locator('[data-provenance="manual"]')).toBeVisible();
 });

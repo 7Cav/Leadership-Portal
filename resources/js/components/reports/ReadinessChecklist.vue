@@ -106,7 +106,7 @@ const waiting = computed(() => props.children.filter((c) => c.status !== 'sent')
                             Practice marks are recorded in roll call, where the change is audited.
                         </p>
                         <p v-else-if="check.id === 'confirmed'" class="mb-2.5 text-xs text-muted-foreground">
-                            Once the practice is over, use <strong>Confirm held</strong> or <strong>Not held</strong> on the practice step.
+                            Once the practice is over, use <strong>Confirm practice took place</strong> or <strong>Practice did not take place</strong> on the practice step.
                         </p>
                         <p v-else class="mb-2.5 text-xs text-muted-foreground">
                             Signature changes after you send stay out of this report.

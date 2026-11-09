@@ -37,7 +37,7 @@ minutes: 10
 2. Choose **Freeze and send**, give a reason for the record, and confirm.
 3. If something is still open and the report must go out anyway, choose **Send anyway**. What was open is recorded with it.
 
-> [!good-to-know] The practice must be confirmed before the report can be sent, even with **Send anyway**. On the roll call, choose **Confirm held** or **Not held** once the practice is over. A section with nobody on its roll call has nothing to confirm.
+> [!good-to-know] The practice must be confirmed before the report can be sent, even with **Send anyway**. On the roll call, choose **Confirm practice took place** or **Practice did not take place** once the practice is over. A section with nobody on its roll call has nothing to confirm.
 
 > [!good-to-know] If a trooper asked for a make-up this week and none is recorded, the dialog lists them under **Make-ups still owed**. Answer **Made it up** or **Did not** for each before you send. **Made it up** marks them **Make-up complete** on the roll call; **Did not** leaves their mark as it is. Your answers are kept with the report.
 

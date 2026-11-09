@@ -966,7 +966,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                     data-testid="confirm-badge"
                 >
                     <PhCheckCircle v-if="confirmation" aria-hidden="true" />{{
-                        confirmation ? (confirmedHeld ? 'Confirmed held' : 'Confirmed not held') : 'Not confirmed'
+                        confirmation ? (confirmedHeld ? 'Practice took place' : 'Practice did not take place') : 'Not confirmed'
                     }}
                 </Badge>
                 <Button
@@ -977,7 +977,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                     data-testid="confirm-practice"
                     @click="confirmPractice(true)"
                 >
-                    <PhCheck />{{ confirmedHeld ? 'Confirm held again' : 'Confirm held' }}
+                    <PhCheck />{{ confirmedHeld ? 'Confirm again: practice took place' : 'Confirm practice took place' }}
                 </Button>
                 <Button
                     size="sm"
@@ -987,7 +987,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                     data-testid="confirm-not-held"
                     @click="confirmPractice(false)"
                 >
-                    Not held
+                    Practice did not take place
                 </Button>
             </div>
             <div :class="cn('flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground sm:w-auto', rows.length ? 'sm:ml-0' : 'sm:ml-auto')">

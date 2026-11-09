@@ -22,7 +22,7 @@ Troopers on leave are already locked under **On LOA**. You do not mark them.
 ## Mark section practice
 
 1. In step 2, **Section practice**, check the marks. With a practice slot set, the portal reads the game server by itself after practice and fills them in.
-2. Fix any mark that is wrong. Once the practice is over, choose **Confirm held**, or **Not held** if it did not take place.
+2. Fix any mark that is wrong. Once the practice is over, choose **Confirm practice took place**, or **Practice did not take place** if it did not take place.
 3. A trooper who trained at another section's practice is **Make-up complete**. With a practice slot set, the game server records that make-up for you.
 
 ## Review and post
