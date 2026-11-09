@@ -849,7 +849,8 @@ minimum as guests, with an automatic makeup (see "Makeups"). A capture over the 
 servers are shared, so being online that week does not mean being at that practice.
 
 Activity log pruning runs from the scheduler itself, not the queue: daily at 04:15 `portal:prune-page-visits` deletes
-page visits older than 30 days, in chunks.
+page visits older than 30 days, in chunks. Daily at 04:30 `portal:prune-notifications` deletes notifications read
+more than 14 days ago, in chunks; unread ones stay.
 
 The org import (Settings, Org structure, Import from Cav roster) is not scheduled; an Admin runs it. It repoints a billet mapping it wrote when Cav now lists the billet under another unit, and keeps (and counts) a mapping corrected by hand.
 

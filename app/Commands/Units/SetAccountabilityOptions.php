@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Repositories\UnitAccountabilitySettingRepository;
 use App\Repositories\UnitRepository;
 use App\Support\Audit\AuditEnvelope;
+use Throwable;
 
 /**
  * Set a unit's own accountability options ({@see AccountabilityRules}). Who may is {@see AccountabilityRules::mayChange()}:
@@ -13,6 +14,7 @@ use App\Support\Audit\AuditEnvelope;
  * it. Under a battalion only options its set allows may be ticked: a unit narrows, never widens. Audited as `accountability.set` (AD-16);
  * a change that changes nothing is not logged. Null clears the unit's own options, so it takes its echelon's default
  * again. A battalion narrowed later leaves the units under it as stored; they are cut down to its set when read.
+ * A stored change on a unit under a battalion tells its HQ staff in the bell ({@see AccountabilityChangeNotifier}).
  */
 class SetAccountabilityOptions
 {
@@ -23,6 +25,7 @@ class SetAccountabilityOptions
         private readonly UnitAccountabilitySettingRepository $settings,
         private readonly AccountabilityRules $rules,
         private readonly AuditEnvelope $audit,
+        private readonly AccountabilityChangeNotifier $notifier,
     ) {}
 
     /**
@@ -63,5 +66,12 @@ class SetAccountabilityOptions
         }
 
         $this->audit->record($actor->id, self::ACTION, null, false, fn () => $this->settings->set($unitId, $options));
+
+        // Only after the audited write went through. The change stands even if telling the battalion's HQ fails.
+        try {
+            $this->notifier->changed($actor, $unit, $options);
+        } catch (Throwable $e) {
+            report($e);
+        }
     }
 }

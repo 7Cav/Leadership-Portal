@@ -8,6 +8,7 @@ use App\Authorization\ScopeResolver;
 use App\Authorization\StaffReportAccess;
 use App\Kpi\Headcount;
 use App\Repositories\AdminBilletRepository;
+use App\Repositories\NotificationRepository;
 use App\Repositories\StaffReportRepository;
 use App\Repositories\UnitGuidonRepository;
 use App\Repositories\WeeklyReportRepository;
@@ -43,6 +44,7 @@ class HandleInertiaRequests extends Middleware
         private readonly TutorialSteps $steps,
         private readonly WeeklyReportRepository $weeklyReports,
         private readonly StaffReportRepository $sentStaffReports,
+        private readonly NotificationRepository $notifications,
     ) {}
 
     /**
@@ -157,6 +159,12 @@ class HandleInertiaRequests extends Middleware
             // "Changelog outdated" bar after a redeploy nobody has written an entry for or dismissed.
             'changelogUnseen' => fn () => $request->user() !== null && $this->changelog->hasUnseen($request->user()),
             'changelogOutdated' => fn () => $request->user() !== null && $this->changelog->showsOutdated($request->user()),
+            // The header's bell: how many of the user's own notifications are unread, or null to hide the bell during a
+            // view-as preview, while an Admin acts as someone, or in the tutorial, whose database is the practice copy
+            // (the list is read when the bell opens, `/notifications`).
+            'notificationsUnread' => fn () => $request->user() === null || $this->acting($request) || $this->sandbox->entered() || $this->scope->activeViewAs($request->user()) !== null
+                ? null
+                : $this->notifications->unreadCountFor($request->user()->id),
             // A one-line outcome a write flashed for the next render (`notice`), which the shell shows as a toast: what
             // happened to a request whose result is not on the page yet, like a leave sync queued behind a running one.
             'flash' => fn () => ['notice' => $request->hasSession() ? $request->session()->get('notice') : null],

@@ -32,6 +32,7 @@ import ReportDueBanner from './partials/ReportDueBanner.vue';
 import ViewAsPicker from './partials/ViewAsPicker.vue';
 import TutorialBanner from './partials/TutorialBanner.vue';
 import TutorialCoach from './partials/TutorialCoach.vue';
+import NotificationBell from './partials/NotificationBell.vue';
 
 // The persistent app shell (Story 1.15, binding design: mockups/v2/shell-f.html). Set as the
 // default layout for every page outside Auth/ in app.js, so it survives Inertia visits: the
@@ -169,6 +170,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
                             <span class="hidden sm:inline">View as</span>
                             <span class="sr-only sm:hidden">View as</span>
                         </Button>
+                        <NotificationBell />
                         <Button
                             variant="ghost"
                             size="icon-sm"
