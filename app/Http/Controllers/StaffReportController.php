@@ -59,14 +59,20 @@ class StaffReportController extends Controller
         private readonly StaffHqHealth $health,
     ) {}
 
-    /** The viewer's own staff report for the last week to have ended: the one due. */
+    /** The viewer's own staff report: the week that ended while it is owed, else the running week. */
     public function own(Request $request): RedirectResponse
     {
         $trooper = $this->access->ownTrooper($request->user()) ?? abort(404);
 
+        $now = CarbonImmutable::now();
+        $lastEnded = WeekOf::lastEnded($now);
+        // The week that ended while its report is owed, even past its deadline; otherwise the running week, which
+        // can be sent before it ends.
+        $owed = $this->access->owes($trooper, $lastEnded) !== null && $this->week->report($trooper, $lastEnded) === null;
+
         return redirect()->route('staff-report.show', [
             'trooper' => $trooper->id,
-            'week' => WeekOf::lastEnded(CarbonImmutable::now())->toDateString(),
+            'week' => ($owed ? $lastEnded : WeekOf::start($now))->toDateString(),
         ]);
     }
 
