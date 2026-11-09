@@ -1,7 +1,8 @@
 // The sidebar's unit switcher (#426): navigation only. It never changes scope; each page checks the unit again.
 
 const WEEK = /^\d{4}-\d{2}-\d{2}$/;
-const ROSTER_VIEWS = ['orbat', 'matrix', 'strength'];
+// 'admin' is kept too: a unit the viewer may not change opens on the order of battle instead.
+const ROSTER_VIEWS = ['orbat', 'matrix', 'strength', 'admin'];
 
 // Where choosing `unit` goes from the page at `url`: the same page for that unit when the page is about one (the
 // roster, a section's rollcall, a report or roll-up for the same week), else that unit's roster. `unit` is a row of

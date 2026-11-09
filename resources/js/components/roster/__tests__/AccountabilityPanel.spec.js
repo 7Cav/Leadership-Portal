@@ -24,11 +24,12 @@ describe('AccountabilityPanel', () => {
         toast.error.mockReset();
     });
 
-    it('lists what counts for a reader, and says when it is the default', () => {
+    it('lists what counts for a reader, with no tagline for the default', () => {
         const wrapper = factory();
 
         expect(wrapper.text()).toContain('What counts for staff accountability');
-        expect(wrapper.get('[data-testid="accountability-source"]').text()).toBe('The default.');
+        expect(wrapper.text()).not.toContain('The default.');
+        expect(wrapper.find('[data-testid="accountability-source"]').exists()).toBe(false);
         expect(wrapper.get('[data-testid="accountability-list"]').text()).toContain('FTX');
         expect(wrapper.find('form').exists()).toBe(false);
     });
@@ -40,8 +41,17 @@ describe('AccountabilityPanel', () => {
         expect(wrapper.get('[data-testid="accountability-pending"]').text()).toBe('Coming later');
     });
 
-    it('names makeups on a section', () => {
-        expect(factory({ ...BASE, kind: 'makeup' }).text()).toContain('What counts as a makeup');
+    it('names makeups on a section, and the HQ on a battalion, company or platoon', () => {
+        expect(factory({ ...BASE, kind: 'makeup', type: 'section' }).text()).toContain('What counts as a makeup');
+        expect(factory({ ...BASE, type: 'battalion' }).text()).toContain('What counts for Battalion HQ accountability');
+        expect(factory({ ...BASE, type: 'company' }).text()).toContain('What counts for Company HQ accountability');
+        expect(factory({ ...BASE, type: 'platoon' }).text()).toContain('What counts for Platoon HQ accountability');
+    });
+
+    it('gives each unit its own tick ids their own ids, so two panels on a page never share a label', () => {
+        const wrapper = factory({ ...BASE, canEdit: true });
+
+        expect(wrapper.get('[data-testid="accountability-ftx"]').attributes('id')).toBe('accountability-7-ftx');
     });
 
     it('saves the ticked options and shows the answer', async () => {
@@ -52,7 +62,6 @@ describe('AccountabilityPanel', () => {
         await flushPromises();
 
         expect(postJson).toHaveBeenCalledWith('/roster/7/accountability', { options: ['sp_own_unit', 'ftx'] });
-        expect(wrapper.find('[data-testid="accountability-source"]').exists()).toBe(false);
         expect(wrapper.find('[data-testid="accountability-reset"]').exists()).toBe(true);
     });
 

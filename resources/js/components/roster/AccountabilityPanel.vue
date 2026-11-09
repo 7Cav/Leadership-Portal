@@ -16,6 +16,8 @@ const props = defineProps({
     // `{ kind, options, source, choices: [{ key, label, pending }], canEdit }` from `AccountabilityRules::props()`.
     accountability: { type: Object, required: true },
     unitId: { type: Number, required: true },
+    // Inside a unit's group on its parent's Admin tab: no frame of its own.
+    nested: { type: Boolean, default: false },
 });
 
 const current = ref(props.accountability);
@@ -30,8 +32,13 @@ watch(
     },
 );
 
-const title = computed(() => (current.value.kind === 'makeup' ? 'What counts as a makeup' : 'What counts for staff accountability'));
-const sourceText = computed(() => (current.value.source === 'default' ? 'The default.' : null));
+const title = computed(() => {
+    if (current.value.kind === 'makeup') return 'What counts as a makeup';
+
+    const hq = { battalion: 'Battalion', company: 'Company', platoon: 'Platoon' }[current.value.type];
+
+    return hq ? `What counts for ${hq} HQ accountability` : 'What counts for staff accountability';
+});
 const labelOf = (key) => current.value.choices.find((choice) => choice.key === key)?.label ?? key;
 
 function toggle(key, on) {
@@ -65,22 +72,21 @@ function save() {
 </script>
 
 <template>
-    <section class="rounded-lg border border-border p-4" data-testid="accountability">
+    <section :class="nested ? '' : 'rounded-lg border border-border p-4'" data-testid="accountability">
         <h2 class="flex items-center gap-2 text-sm font-semibold">
             <PhListChecks class="size-4" aria-hidden="true" />{{ title }}
         </h2>
-        <p v-if="sourceText" class="mt-1 text-sm text-muted-foreground" data-testid="accountability-source">{{ sourceText }}</p>
 
         <form v-if="current.canEdit" class="mt-3 grid gap-2" @submit.prevent="save">
             <div v-for="choice in current.choices" :key="choice.key" class="flex items-center gap-2">
                 <Checkbox
-                    :id="`accountability-${choice.key}`"
+                    :id="`accountability-${unitId}-${choice.key}`"
                     :model-value="!choice.pending && picked.includes(choice.key)"
                     :disabled="choice.pending"
                     :data-testid="`accountability-${choice.key}`"
                     @update:model-value="(on) => toggle(choice.key, on === true)"
                 />
-                <Label :for="`accountability-${choice.key}`" class="font-normal" :class="choice.pending ? 'text-muted-foreground' : ''"
+                <Label :for="`accountability-${unitId}-${choice.key}`" class="font-normal" :class="choice.pending ? 'text-muted-foreground' : ''"
                     >{{ choice.label }}<span v-if="choice.pending" class="ml-1.5 text-xs" data-testid="accountability-pending">Coming later</span></Label
                 >
             </div>

@@ -127,9 +127,44 @@ describe('Roster page', () => {
         expect(factory().find('[data-testid="guidon"]').exists()).toBe(false);
     });
 
-    it('offers Edit guidon only when the server says the viewer may save it', () => {
+    it('offers Edit guidon on the Admin tab only when the server says the viewer may save it', () => {
+        mockPage.url = '/roster/1?view=admin';
         expect(factory().find('[data-testid="roster-guidon"]').exists()).toBe(false);
-        expect(factory({ can: { sync: false, editGuidon: true }, unit: { id: 1, type: 'company', name: 'Alpha Company', callsign: 'A/2-7', guidon: null } }).find('[data-testid="roster-guidon"]').text()).toBe('Edit guidon');
+        const company = { id: 1, type: 'company', name: 'Alpha Company', callsign: 'A/2-7', guidon: null };
+        const admin = factory({ can: { sync: false, editGuidon: true, admin: true }, unit: company });
+        expect(admin.get('[data-testid="roster-admin"] [data-testid="roster-guidon"]').text()).toBe('Edit guidon');
+        expect(admin.find('[data-testid="accountability"]').exists()).toBe(false);
+    });
+
+    it('shows the Admin tab only with `can.admin`, and falls back to the order of battle without it', () => {
+        mockPage.url = '/roster/1?view=admin';
+        const reader = factory();
+        expect(reader.find('[data-testid="view-admin"]').exists()).toBe(false);
+        expect(reader.find('[data-testid="roster-admin"]').exists()).toBe(false);
+
+        const accountability = { unitId: 1, type: 'platoon', kind: 'staff', options: ['ftx'], source: 'default', from: null, choices: [{ key: 'ftx', label: 'FTX' }], canEdit: true };
+        const leader = factory({ can: { sync: false, admin: true }, accountability });
+        expect(leader.find('[data-testid="view-admin"]').exists()).toBe(true);
+        expect(leader.find('[data-testid="roster-admin"] [data-testid="accountability"]').exists()).toBe(true);
+        expect(leader.find('[data-testid="accountability-sections"]').exists()).toBe(false);
+        expect(leader.find('[data-testid="roster-guidon"]').exists()).toBe(false);
+    });
+
+    it('groups the platoons and sections under the unit on its Admin tab, each folded under its callsign', () => {
+        mockPage.url = '/roster/1?view=admin';
+        const panel = (unitId, type, label) => ({ unitId, label, type, kind: type === 'section' ? 'makeup' : 'staff', options: ['sp_own_unit'], source: 'default', from: null, choices: [{ key: 'sp_own_unit', label: 'Section practice in own unit' }], canEdit: true });
+        const wrapper = factory({
+            can: { sync: false, admin: true },
+            unit: { id: 1, type: 'company', name: 'Alpha Company', callsign: 'A/1-7', guidon: null },
+            accountability: panel(1, 'company', 'A/1-7'),
+            accountabilityUnits: { platoons: [panel(2, 'platoon', '1/A/1-7')], sections: [panel(3, 'section', '1/1/A/1-7'), panel(4, 'section', '2/1/A/1-7')] },
+        });
+
+        expect(wrapper.get('[data-testid="accountability-platoons"]').text()).toContain('Platoon HQ');
+        expect(wrapper.get('[data-testid="accountability-unit-2"] summary').text()).toBe('1/A/1-7');
+        expect(wrapper.findAll('[data-testid="accountability-sections"] details')).toHaveLength(2);
+        expect(wrapper.get('[data-testid="accountability-unit-3"]').text()).toContain('What counts as a makeup');
+        expect(wrapper.findAll('[data-testid="roster-admin"] [data-testid="accountability"]')).toHaveLength(4);
     });
 
     it('titles the tab with the unit and the portal name', () => {

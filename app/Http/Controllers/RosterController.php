@@ -7,8 +7,8 @@ use App\Authorization\StaffPracticeAccess;
 use App\Commands\Capture\AutomaticAttendance;
 use App\Commands\Practices\PracticeSchedule;
 use App\Commands\Practices\PresenceMinimum;
-use App\Commands\Units\AccountabilityRules;
 use App\Commands\Practices\SectionsWithoutSlot;
+use App\Commands\Units\AccountabilityRules;
 use App\Commands\Units\SaveUnitGuidonHandler;
 use App\Kpi\AutoExcused;
 use App\Kpi\Headcount;
@@ -129,6 +129,11 @@ class RosterController extends Controller
         // The guidon generator (#446) is a write too: a company or above that the viewer commands, never in a preview.
         $editsGuidon = $syncsUnit && in_array($selected->type, SaveUnitGuidonHandler::TYPES, true);
 
+        // The Admin tab (`?view=admin`): the unit's accountability options and its guidon. Sent only to a viewer who may
+        // change one of them; everyone else gets neither the tab nor its data, whatever the URL asks for.
+        $accountability = $selected ? $this->accountability->props($user, $selected) : null;
+        $editsAccountability = $accountability !== null && $accountability['canEdit'];
+
         $roster = $selected ? $this->roster($selected, $week, $shown) : ['units' => [], 'troopers' => []];
         $missingSlots = $selected !== null && $this->scope->leads($user)
             ? $this->sectionsWithoutSlot->among(array_column($roster['units'], 'id'))
@@ -147,8 +152,10 @@ class RosterController extends Controller
             'guests' => $selected ? $this->guestProps($selected, $week, $tree) : null,
             // A battalion's practice presence minimum (#558), editable by its HQ staff and Admins.
             'presenceMinimum' => $selected ? $this->presenceMinimum->props($user, $selected) : null,
-            // What counts for the unit's HQ staff report, or for a section's makeups, and where that comes from.
-            'accountability' => $selected ? $this->accountability->props($user, $selected) : null,
+            // What counts for the unit's HQ staff report, or for a section's makeups: the Admin tab, for those who may change it.
+            'accountability' => $editsAccountability ? $accountability : null,
+            // On a company's or platoon's Admin tab, the platoons and sections under it the viewer may change, the same way.
+            'accountabilityUnits' => $editsAccountability ? $this->accountability->children($user, $selected) : ['platoons' => [], 'sections' => []],
             // The Strength tab: headcount and in roll call per Cav week. Read only when the tab is open (`?view=strength`);
             // the page asks for it with a partial reload when the tab is picked, so the other views never pay for it.
             'strengthTrends' => fn () => $this->strengthProps($request, $selected),
@@ -171,6 +178,8 @@ class RosterController extends Controller
                 'syncUnit' => $syncsUnit,
                 // Make and save this unit's guidon (#446).
                 'editGuidon' => $editsGuidon,
+                // The Admin tab: shown when the viewer may change something on it.
+                'admin' => $editsAccountability || $editsGuidon,
             ],
             'links' => [
                 'milpac' => Trooper::MILPAC_PROFILE_URL,

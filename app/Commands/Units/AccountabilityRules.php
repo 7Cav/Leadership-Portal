@@ -229,13 +229,13 @@ class AccountabilityRules
      * platoon or section under one; that battalion's HQ staff (a serving trooper placed on the battalion node itself,
      * the user's own milpac or the one they act as) on the units under it. A view-as preview never changes anything.
      */
-    public function mayChange(User $user, Unit $unit): bool
+    public function mayChange(User $user, Unit $unit, ?Collection $tree = null): bool
     {
         if (! self::configurable($unit) || $this->scope->activeViewAs($user) !== null) {
             return false;
         }
 
-        $battalion = $unit->type === UnitType::Battalion ? $unit : self::battalionOf($unit, $this->units->tree()->keyBy('id'));
+        $battalion = $unit->type === UnitType::Battalion ? $unit : self::battalionOf($unit, ($tree ?? $this->units->tree())->keyBy('id'));
 
         if ($battalion === null) {
             return false;
@@ -262,38 +262,103 @@ class AccountabilityRules
      *
      * @return array{unitId: int, label: string, kind: string, options: list<string>, source: string, from: ?string, choices: list<array{key: string, label: string, pending: bool}>, canEdit: bool}|null
      */
-    public function props(User $user, Unit $unit, bool $onRoster = true): ?array
+    public function props(User $user, Unit $unit, bool $onRoster = true, ?Collection $tree = null, ?array $own = null, ?bool $mayChange = null): ?array
     {
         if (! self::configurable($unit)) {
             return null;
         }
 
-        $rules = $this->effective($unit);
+        $rules = $this->effective($unit, $tree, $own);
         $pending = self::pendingFor($unit->type);
 
         return [
             'unitId' => $unit->id,
             'label' => $unit->callsign ?? $unit->name,
+            'type' => $unit->type->value,
             'kind' => $unit->type === UnitType::Section ? 'makeup' : 'staff',
             'options' => $rules['options'],
             'source' => $rules['source'],
             'from' => null,
             'choices' => array_map(fn (string $key) => ['key' => $key, 'label' => self::OPTIONS[$key], 'pending' => in_array($key, $pending, true)], $rules['allowed']),
-            'canEdit' => ! ($onRoster && $unit->type === UnitType::Battalion) && $this->mayChange($user, $unit),
+            'canEdit' => ! ($onRoster && $unit->type === UnitType::Battalion) && ($mayChange ?? $this->mayChange($user, $unit, $tree)),
         ];
     }
 
     /**
+     * On a company's or platoon's roster Admin tab, the platoons and sections under it that `$user` may change, each as
+     * its `accountability` prop, in tree order: `platoons` (on a company) and `sections`. Empty lists for any other
+     * unit. The tree and the stored options are read once; the right is asked once per battalion.
+     *
+     * @return array{platoons: list<array<string, mixed>>, sections: list<array<string, mixed>>}
+     */
+    public function children(User $user, Unit $unit): array
+    {
+        $out = ['platoons' => [], 'sections' => []];
+
+        if (! in_array($unit->type, [UnitType::Company, UnitType::Platoon], true)) {
+            return $out;
+        }
+
+        $tree = $this->units->tree();
+        $own = $this->settings->all();
+        $byId = $tree->keyBy('id');
+        $rights = [];
+
+        foreach ($tree as $child) {
+            if ($child->id === $unit->id || ! str_starts_with((string) $child->path, (string) $unit->path)
+                || ! in_array($child->type, [UnitType::Platoon, UnitType::Section], true)) {
+                continue;
+            }
+
+            $battalionId = self::battalionOf($child, $byId)?->id ?? 0;
+            $rights[$battalionId] ??= $this->mayChange($user, $child, $tree);
+
+            if ($rights[$battalionId]) {
+                $out[$child->type === UnitType::Platoon ? 'platoons' : 'sections'][] = $this->props($user, $child, true, $tree, $own, true);
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * Every battalion's `accountability` prop for the org structure page, where Admins and Regimental HQ staff set
-     * them, in tree order.
+     * them, in tree order. Each also carries `units`: what its companies, platoons and sections use now, read only
+     * there; they are changed on each unit's roster Admin tab.
      *
      * @return list<array<string, mixed>>
      */
     public function battalions(User $user): array
     {
-        return $this->units->tree()
+        $tree = $this->units->tree();
+        $own = $this->settings->all();
+
+        return $tree
             ->filter(fn (Unit $unit) => $unit->type === UnitType::Battalion)
-            ->map(fn (Unit $unit) => $this->props($user, $unit, onRoster: false))
+            ->map(fn (Unit $unit) => [...$this->props($user, $unit, onRoster: false), 'units' => $this->under($unit, $tree, $own)])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The companies, platoons and sections under `$battalion`, in tree order, each with the options in effect and
+     * whether they are its own or the default.
+     *
+     * @param  array<int, list<string>>  $own
+     * @return list<array{id: int, label: string, type: string, options: list<string>, source: string}>
+     */
+    private function under(Unit $battalion, Collection $tree, array $own): array
+    {
+        $types = [UnitType::Company, UnitType::Platoon, UnitType::Section];
+
+        return $tree
+            ->filter(fn (Unit $unit) => in_array($unit->type, $types, true)
+                && str_starts_with((string) $unit->path, (string) $battalion->path) && $unit->id !== $battalion->id)
+            ->map(function (Unit $unit) use ($tree, $own) {
+                $rules = $this->effective($unit, $tree, $own);
+
+                return ['id' => $unit->id, 'label' => $unit->callsign ?? $unit->name, 'type' => $unit->type->value, 'options' => $rules['options'], 'source' => $rules['source']];
+            })
             ->values()
             ->all();
     }
