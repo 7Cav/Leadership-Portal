@@ -35,7 +35,7 @@ export function useIdentity() {
     // `WO1 Hale.S · S1 Personnel NCO`, the one-line form.
     const identity = computed(() => (billet.value ? `${name.value} · ${billet.value}` : name.value));
 
-    // AD-20 rule 1 / NFR7: a synced value never renders without its source and age, so a rank the
+    // AD-20 rule 1 / NFR7, for Admins: a synced value shows its source and age, so a rank the
     // roster changed an hour ago can't read as something the portal knows for certain.
     const fetchedAt = computed(() => {
         if (!profile.value?.fetched_at) return null;
@@ -62,7 +62,8 @@ export function useIdentity() {
     // MOS shares this line: it is the same synced value from the same fetch, so one source-and-time
     // stamp covers rank, billet and MOS together.
     const provenance = computed(() => {
-        if (!profile.value?.source) return null;
+        // Where the profile came from is for Admins checking the roster link, not for everyone.
+        if (!isAdmin.value || !profile.value?.source) return null;
 
         const mos = profile.value.mos ? `MOS ${profile.value.mos}` : null;
 

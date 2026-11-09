@@ -334,8 +334,16 @@ describe('AppLayout', () => {
     });
 
     describe('identity cluster', () => {
-        it('shows rank, username and billet with their source and age (AD-20)', async () => {
+        it('shows a non-Admin their rank, username and billet without the source line', () => {
             wrapper = mountLayout({ profile: ENRICHED });
+
+            const trigger = wrapper.find('[data-testid="user-menu"]');
+            expect(trigger.text()).toContain('WO1 Hale.S');
+            expect(trigger.text()).not.toContain('Cav roster');
+        });
+
+        it('shows an Admin rank, username and billet with their source and age (AD-20)', async () => {
+            wrapper = mountLayout({ user: { id: 1, username: 'Hale.S', is_admin: true }, profile: ENRICHED });
 
             const trigger = wrapper.find('[data-testid="user-menu"]');
             expect(trigger.text()).toContain('WO1 Hale.S');
