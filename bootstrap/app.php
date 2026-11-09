@@ -8,10 +8,12 @@ use App\Http\Middleware\ReadOnlyWhileViewingAs;
 use App\Http\Middleware\RecordPageVisit;
 use App\Http\Middleware\RunInTutorial;
 use App\Http\Middleware\SetSecurityHeaders;
+use App\Http\Middleware\TrimStrings;
 use App\Http\Middleware\TrustProxies;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Foundation\Http\Middleware\TrimStrings as BaseTrimStrings;
 use Illuminate\Http\Middleware\TrustProxies as BaseTrustProxies;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
@@ -36,6 +38,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // X-Forwarded-Host stays trusted from those proxies until we know whether the production proxy sets it or
         // passes the client's value through; the trusted-hosts check below applies to it either way.
         $middleware->replace(BaseTrustProxies::class, TrustProxies::class);
+
+        // Also drops bidi controls and turns a value of only invisible characters into '', so `required` refuses it.
+        $middleware->replace(BaseTrimStrings::class, TrimStrings::class);
 
         // Playwright supplies a short-lived, localhost-only cookie before the app starts.
         // Laravel cannot decrypt that externally generated value, so leave this one cookie
