@@ -90,6 +90,13 @@ final class StrengthTrends
             $placed[$running->toDateString()] = $this->troopers->servingPlacements();
         }
 
+        // The comparison leaves out a line unit nobody counts in now (the rule {@see Headcount::withoutEmptyLineUnits()}
+        // applies to the rest of the page), read off the live roster already loaded. The unit's own totals are unchanged.
+        $live = $placed[$running->toDateString()] ?? $this->troopers->servingPlacements();
+        $hasTroopers = fn (Unit $u) => $this->members($u, $live, $byId)['all'] !== [];
+        $children = $children->filter($hasTroopers)->values();
+        $grandchildren = $grandchildren->map(fn (Collection $units) => $units->filter($hasTroopers)->values());
+
         $snapshots = [];
         foreach ($sent as $report) {
             $snapshots[$report->unit_id][$report->week_start->toDateString()] = $report->kpis;

@@ -51,7 +51,7 @@ Your scope's units and troopers, from the cached Cav roster.
 - Strength tab (`/roster/<id>?view=strength`, also from "Strength" on Home's unit rows): the unit's headcount and in
   roll call per Cav week over 12, 26, 52 weeks or all (`&range=`), the change over the range, joins and departures per
   week (from the placement history, or from a sent snapshot that carries them), each week's headcount change from the
-  week before (green up, red down, muted for none), a table of the same numbers, and the headcount of each unit under it as small multiples on one scale. For a
+  week before (green up, red down, muted for none), a table of the same numbers, and the headcount of each unit under it as small multiples on one scale (a line unit with nobody in it now is left out of these, as on the ORBAT). For a
   battalion, each company's card also lists its platoons as compact sparkline rows on one shared scale, with each
   platoon's change. A sent week reads the report's frozen snapshot; another week from 2026-10-24 on is rebuilt from the
   placement history, and the running week is the live roster (a departure this week counts under Left); a week with
