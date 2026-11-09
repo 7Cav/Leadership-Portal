@@ -142,6 +142,26 @@ it('shows the children headcounts for comparison', function () {
         ->and(collect($section['points'])->firstWhere('week', '2026-11-14')['headcount'])->toBe(3);
 });
 
+it('leaves a child unit nobody is in off the comparison, keeping the totals', function () {
+    $units = app(UnitRepository::class);
+    $units->create(UnitType::Section, '3rd Section', '3/1/A/1-7', $this->platoon->id);
+    $battalion = $units->create(UnitType::Battalion, '1st Battalion', '1-7', $this->regiment->id);
+    $company = $units->create(UnitType::Company, 'Alpha Company', 'A/1-7', $battalion->id);
+    $units->move($this->platoon, $company->id);
+    $emptyCompany = $units->create(UnitType::Company, 'Echo Company', 'E/1-7', $battalion->id);
+    $units->create(UnitType::Platoon, '1st Platoon', '1/E/1-7', $emptyCompany->id);
+    $emptyPlatoon = $units->create(UnitType::Platoon, '2nd Platoon', '2/A/1-7', $company->id);
+
+    $platoon = stProps($this, $this->platoon);
+    $bn = stProps($this, $battalion);
+
+    expect(collect($platoon['children'])->pluck('id')->all())->toBe([$this->section->id, $this->section2->id])
+        ->and(stWeek($platoon, '2026-11-21')['headcount'])->toBe(5)
+        ->and(collect($bn['children'])->pluck('id')->all())->toBe([$company->id])
+        ->and(collect($bn['children'][0]['children'])->pluck('id')->all())->toBe([$this->platoon->id])
+        ->and(stWeek($bn, '2026-11-21')['headcount'])->toBe(5);
+});
+
 it('sends the tab props only while the Strength tab is open', function () {
     $this->actingAs($this->admin);
 
