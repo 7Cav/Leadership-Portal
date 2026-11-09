@@ -198,12 +198,13 @@ it('starts over from fresh practice data', function () {
 
 it('returns to the guides home and the real portal on exit', function () {
     $leader = User::factory()->commanding($this->section)->create();
+    $real = DB::getDefaultConnection();
     $this->actingAs($leader)->from('/docs')->post('/tutorial');
 
     $this->delete('/tutorial')->assertRedirect('/docs');
 
     expect(app(TutorialSandbox::class)->exists($leader->id))->toBeFalse()
-        ->and(DB::getDefaultConnection())->toBe('sqlite');
+        ->and(DB::getDefaultConnection())->toBe($real);
     $this->get('/home')->assertOk()->assertInertia(fn ($page) => $page->where('tutorialMode', null)->where('scopeTop.0.id', $this->section->id));
 });
 
