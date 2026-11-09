@@ -37,6 +37,8 @@
         "vue-sonner": "^2.0.9"
     },
     "overrides": {
-        "shell-quote": "1.11.0"
+        "shell-quote": "1.11.0",
+        "minimatch": "11.0.1",
+        "glob": "14.0.4"
     }
 }
