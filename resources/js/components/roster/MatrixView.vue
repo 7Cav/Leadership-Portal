@@ -144,7 +144,7 @@ function aggregate(members, index) {
 function cellLabel(trooper, index) {
     const c = cell(trooper, index);
 
-    return `${weekLabel(props.weeks[index])}. Roll call: ${RC_STATES[c.rc]}. SP: ${SP_STATES[c.sp]}.`;
+    return `${weekLabel(props.weeks[index])}. Roll call: ${RC_STATES[c.rc]}. SP: ${SP_STATES[c.sp]}${c.pending ? `, ${c.pending.toLowerCase()}` : ''}.`;
 }
 
 function aggregateLabel(row, i) {
@@ -170,7 +170,7 @@ function resolveTip(key) {
             title: `${trooper.displayName}, week ${weekLabel(week)}${current ? ' (this week)' : ''}`,
             rows: [
                 ['Roll call', RC_STATES[c.rc], c.rc === 'open' ? 'Roll call still open' : null],
-                ['SP', SP_STATES[c.sp], sourceLabel(mark)],
+                ['SP', SP_STATES[c.sp], c.pending ?? sourceLabel(mark)],
             ],
         };
     }

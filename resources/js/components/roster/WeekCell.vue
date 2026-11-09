@@ -2,19 +2,21 @@
 // One Cav week as a split cell (roster-s3.html `.cc`): top half the rollcall signature, bottom
 // half the section practice. Missed and unsigned carry a slash, LOA and Excused a yellow hatch (LOA's denser, with an
 // outline), and a make-up a striped fill, so the state never rests on colour alone. Section aggregate rows pass heat levels `g1`–`g4` instead. Without `rc`
-// only the SP half renders (the rollcall card's attendance strip).
+// only the SP half renders (the rollcall card's attendance strip). `pending` is the title of an SP mark recorded before
+// its practice ends (#634): the half shows the mark dimmed and dashed, as it doesn't count yet.
 defineProps({
     rc: { type: String, default: null },
     sp: { type: String, required: true },
     size: { type: String, default: 'md' },
     auto: { type: Boolean, default: false },
+    pending: { type: String, default: null },
 });
 </script>
 
 <template>
     <span class="roster-cc" :class="[`roster-cc--${size}`, { 'roster-cc--auto': auto }]">
         <span v-if="rc" class="roster-h" :class="`roster-h--${rc}`" />
-        <span class="roster-h" :class="`roster-h--${sp}`" />
+        <span class="roster-h" :class="[`roster-h--${sp}`, { 'roster-h--waiting': pending }]" :title="pending ?? undefined" />
     </span>
 </template>
 
@@ -72,6 +74,11 @@ defineProps({
 .roster-h--open,
 .roster-h--pending {
     border: 1px dashed color-mix(in oklab, var(--muted-foreground) 75%, transparent);
+}
+.roster-h--waiting {
+    opacity: 0.45;
+    outline: 1px dashed var(--muted-foreground);
+    outline-offset: -1px;
 }
 .roster-h--loa {
     background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--warning) 70%, transparent) 0 1.5px, transparent 1.5px 4.5px);

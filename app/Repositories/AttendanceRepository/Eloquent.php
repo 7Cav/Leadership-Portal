@@ -325,6 +325,10 @@ class Eloquent implements AttendanceRepository
                     ?? $options->last();
                 $signedAt = $signed($chosen) ? $chosen : $options->first($signed);
                 $row = $chosen['row'];
+                $recorded = $row?->status === null ? null : AttendanceStatus::from($row->status);
+                // A mark held back only because the practice is still to come: the roster shows it as pending.
+                $timing = $stateOf($chosen['practice']) === PracticeTiming::PENDING && $recorded !== $statusOf($chosen) ? self::timingOf($chosen['practice']) : null;
+                $pendingUntil = $timing === null ? null : PracticeTiming::endsAt($timing[0], $timing[1]);
 
                 $marks[] = new CountingMark(
                     trooperId: (int) $trooperId,
@@ -335,7 +339,8 @@ class Eloquent implements AttendanceRepository
                     held: PracticeTiming::held($stateOf($chosen['practice']), (bool) $chosen['practice']->held),
                     source: $row?->source === null ? null : AttendanceSource::from($row->source),
                     sectionId: (int) $chosen['practice']->section_id,
-                    recorded: $row?->status === null ? null : AttendanceStatus::from($row->status),
+                    recorded: $recorded,
+                    pendingUntil: $pendingUntil,
                 );
             }
         }
@@ -522,8 +527,20 @@ class Eloquent implements AttendanceRepository
     /** The {@see PracticeTiming} state of the practice a joined row carries, or OVER for a row with no practice. */
     private static function timingState(object $row, CarbonImmutable $now): string
     {
+        $timing = self::timingOf($row);
+
+        return $timing === null ? PracticeTiming::OVER : PracticeTiming::state($timing[0], $timing[1], $now);
+    }
+
+    /**
+     * The practice and slot a joined row carries, rebuilt for {@see PracticeTiming}, or null for a row with no practice.
+     *
+     * @return array{0: SectionPractice, 1: ?SectionPracticeSlot}|null
+     */
+    private static function timingOf(object $row): ?array
+    {
         if (($row->tp_week_start ?? null) === null) {
-            return PracticeTiming::OVER;
+            return null;
         }
 
         $practice = (new SectionPractice)->setRawAttributes(array_combine(
@@ -535,7 +552,7 @@ class Eloquent implements AttendanceRepository
             array_map(fn (string $column) => $row->{"ts_{$column}"}, self::TIMING_SLOT),
         ));
 
-        return PracticeTiming::state($practice, $slot, $now);
+        return [$practice, $slot];
     }
 
     /**

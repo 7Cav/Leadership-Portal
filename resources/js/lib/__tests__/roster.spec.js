@@ -33,6 +33,12 @@ import insigniaSource from '../rankInsignia.js?raw';
 const mark = (overrides = {}) => ({ rollcall: 'will_attend', status: 'present', source: 'manual', held: true, ...overrides });
 
 describe('weekCell (4.7)', () => {
+    it('shows a mark recorded before the practice ends as pending, with when it counts (#634)', () => {
+        const cell = weekCell(mark({ status: null, held: false, pending: 'missed', pendingUntil: '2026-10-09T21:00:00Z' }), '2026-10-03', { current: true });
+
+        expect(cell).toEqual({ rc: 'ok', sp: 'bad', pending: 'Counts once the practice ends at 21 00Z' });
+        expect(weekCell(mark({ status: null, held: false }), '2026-10-03', { current: true })).toEqual({ rc: 'ok', sp: 'pending' });
+    });
     it('reads a signed, attended week', () => {
         expect(weekCell(mark(), '2026-09-26')).toEqual({ rc: 'ok', sp: 'ok' });
         expect(weekCell(mark({ rollcall: 'cannot_attend', status: 'makeup' }), '2026-09-26')).toEqual({ rc: 'cn', sp: 'mk' });

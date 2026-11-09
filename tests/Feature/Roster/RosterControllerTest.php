@@ -5,6 +5,7 @@ use App\Models\AttendanceStatus;
 use App\Models\Loa;
 use App\Models\PortalRoleGrant;
 use App\Models\RollcallSignature;
+use App\Models\SectionPracticeSlot;
 use App\Models\SyncRun;
 use App\Models\SyncRunStatus;
 use App\Models\Trooper;
@@ -532,4 +533,21 @@ describe('week cells by placement and departure (#623)', function () {
         $row = collect($this->get(route('roster.index', $this->company->id))->viewData('page')['props']['troopers'])->firstWhere('id', $staff->id);
         expect(array_unique($row['inSection']))->toBe([false]);
     });
+});
+
+it('sends a mark recorded before the practice ends as pending, and drops it once the practice is over (#634)', function () {
+    // Friday 09OCT26 2000Z, so on Thursday this week's practice is still to come.
+    SectionPracticeSlot::query()->create(['section_id' => $this->section1->id, 'weekday' => 5, 'start_minute' => 1200]);
+    $t = rosterTrooper($this->section1);
+    rosterMark($t, $this->section1, 0, AttendanceStatus::Present, RollcallSignature::WillAttend);
+
+    $week = fn () => collect($this->actingAs($this->leader)->get('/roster')->viewData('page')['props']['troopers'])->firstWhere('id', $t->id)['weeks'][19];
+
+    expect($week())->toMatchArray(['status' => null, 'pending' => 'present', 'pendingUntil' => '2026-10-09T21:00:00Z']);
+
+    $this->travelTo(CarbonImmutable::parse('2026-10-09 21:30:00', 'UTC'));
+
+    expect($week()['status'])->toBe('present')
+        ->and($week())->not->toHaveKey('pending')
+        ->and($week())->not->toHaveKey('pendingUntil');
 });
