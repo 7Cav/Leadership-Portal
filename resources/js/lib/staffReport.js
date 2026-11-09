@@ -41,11 +41,11 @@ export function namedSentence(report) {
     return `Attended ${named.sentence}, ${report.ftx?.name ?? ''}${report.ftx?.date ? ` on ${forumDate(report.ftx.date)}` : ''}.`;
 }
 
-/** `Public server hour`, `Office hour (06OCT26)`, `No public server hour or office hour`, or empty when not asked. */
+/** `Public server hour`, `Office hour (06OCT26)`, `I did not (no public server hour or office hour)`, or empty when not asked. */
 export function presenceAnswer(report) {
     if (report.presenceType === 'public_server') return 'Public server hour';
     if (report.presenceType === 'office_hour') return `Office hour${report.officeHour?.date ? ` (${forumDate(report.officeHour.date)})` : ''}`;
-    if (report.presenceType === 'none') return 'No public server hour or office hour';
+    if (report.presenceType === 'none') return 'I did not (no public server hour or office hour)';
 
     return '';
 }
@@ -77,9 +77,11 @@ export function discrepancyLines(discrepancy) {
 
 /**
  * The game server check frozen on a sent report, `{ check, source, minutes? }`: "Self-report conflicts with CRCON data" for a
- * conflict, "No CRCON data" when nothing was captured, and empty when it agreed or there was no check.
+ * conflict, "No CRCON data" when nothing was captured, and empty when it agreed or there was no check. A public server
+ * check with no data says why, from its `reason`, naming the trooper (`name`); one frozen before reasons were kept
+ * reads "No public server data".
  */
-export function presenceText(presence) {
+export function presenceText(presence, name = null) {
     if (!presence) return '';
     const source = presence.source || 'game server';
     // The public server check keeps the minutes it found: a conflict says how many.
@@ -87,7 +89,14 @@ export function presenceText(presence) {
         return `${presence.minutes} ${presence.minutes === 1 ? 'minute' : 'minutes'} of server data`;
     }
     if (presence.check === 'conflict') return `Self-report conflicts with ${source} data`;
-    if (presence.check === 'no_data') return `No ${source} data`;
+    if (presence.check === 'no_data') {
+        const who = name || 'them';
+        if (presence.reason === 'no_server') return 'No game server data: no public server is set up';
+        if (presence.reason === 'no_identity') return `No game server data: no game account linked for ${who}`;
+        if (presence.reason === 'unreadable') return 'No game server data: the public servers could not be read this week';
+
+        return `No ${source} data`;
+    }
 
     return '';
 }

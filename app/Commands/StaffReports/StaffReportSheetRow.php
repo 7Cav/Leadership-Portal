@@ -136,7 +136,7 @@ final class StaffReportSheetRow
     }
 
     /**
-     * "Did you spend one hour", which is presence: "Yes, public server", "Yes, office hour (10/6/2026): note" or "No".
+     * "Did you spend one hour", which is presence: "Yes, public server", "Yes, office hour (10/6/2026): note" or "I did not".
      * A report sent before presence was asked keeps what the column showed then, the accountability Yes or No.
      */
     private static function hour(StaffReport $report): string
@@ -144,7 +144,7 @@ final class StaffReportSheetRow
         return match ($report->presence_type) {
             StaffReport::PRESENCE_PUBLIC_SERVER => 'Yes, public server',
             StaffReport::PRESENCE_OFFICE_HOUR => 'Yes, office hour'.self::officeHourDetail($report),
-            StaffReport::PRESENCE_NONE => 'No',
+            StaffReport::PRESENCE_NONE => 'I did not',
             default => $report->attended ? 'Yes' : 'No',
         };
     }

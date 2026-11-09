@@ -169,7 +169,7 @@ function openRow(event, row) {
                                 <span data-testid="row-attended">{{ attendedText(row) }}</span>
                                 <StaffReportDiscrepancy :discrepancy="row.discrepancy" />
                                 <StaffReportPresence :presence="row.presence" />
-                                <StaffReportPresence :presence="row.publicServer" testid="row-public-server" />
+                                <StaffReportPresence :presence="row.publicServer" :name="row.name" testid="row-public-server" />
                             </span>
                             <p v-if="row.presenceType" class="text-xs text-muted-foreground" data-testid="row-presence">Presence: {{ presenceAnswer(row) }}</p>
                             <p v-if="row.officeHour?.note" class="text-xs text-muted-foreground" data-testid="row-office-hour">Office hour: {{ row.officeHour.note }}</p>

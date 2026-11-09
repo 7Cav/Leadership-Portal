@@ -28,7 +28,7 @@ defineProps({
                 <span class="ml-auto inline-flex items-center gap-1.5">
                     <StaffReportDiscrepancy :discrepancy="row.discrepancy" />
                     <StaffReportPresence :presence="row.presence" />
-                    <StaffReportPresence :presence="row.publicServer" testid="staff-report-public-server" />
+                    <StaffReportPresence :presence="row.publicServer" :name="row.name" testid="staff-report-public-server" />
                     <Badge v-if="!row.sent" variant="warning" data-testid="staff-report-state">Not sent</Badge>
                     <Badge v-else-if="row.attended && (NAMED_TYPES[row.practiceType] || row.practiceType === 'office_hour')" variant="success" data-testid="staff-report-state">
                         {{ attendedText({ attended: true, practiceType: row.practiceType, ftx: row.ftx, officeHour: row.officeHour, practices: [] }) }}

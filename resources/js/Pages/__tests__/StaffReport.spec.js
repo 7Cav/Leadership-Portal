@@ -156,8 +156,9 @@ describe('StaffReport page', () => {
         expect(wrapper.find('[data-testid="step-missing"]').text()).toBe('Answer the presence question.');
         expect(sendButton(wrapper).attributes('disabled')).toBeDefined();
 
+        expect(wrapper.find('[data-testid="presence-none"]').text()).toContain('I did not');
         await wrapper.find('[data-testid="presence-none"]').trigger('click');
-        expect(wrapper.find('[data-testid="send-presence"]').text()).toBe('No public server hour or office hour');
+        expect(wrapper.find('[data-testid="send-presence"]').text()).toBe('I did not (no public server hour or office hour)');
         await wrapper.find('[data-testid="step-next"]').trigger('click');
         expect(wrapper.find('[data-testid="step-panel-extras"]').exists()).toBe(true);
         // The last step is the free-text notes, named as such in the stepper and on the panel.
@@ -516,6 +517,12 @@ describe('StaffReport page', () => {
 
         expect(wrapper.find('[data-testid="staff-report-presence-answer"]').text()).toContain('Presence: Public server hour');
         expect(wrapper.find('[data-testid="staff-report-public-server"]').text()).toBe('43 minutes of server data');
+
+        const unlinked = page({ canSend: false, report: { sentAt: '2026-10-08T20:00:00+00:00', attended: false, practices: [], presenceType: 'public_server', publicServer: { check: 'no_data', source: 'public server', minutes: null, reason: 'no_identity' } } });
+        expect(unlinked.find('[data-testid="staff-report-public-server"]').text()).toBe('No game server data: no game account linked for PVT Brandt.L');
+
+        const none = page({ canSend: false, report: { sentAt: '2026-10-08T20:00:00+00:00', attended: false, practices: [], presenceType: 'none' } });
+        expect(none.find('[data-testid="staff-report-presence-answer"]').text()).toBe('Presence: I did not (no public server hour or office hour)');
 
         const confirmed = page({ canSend: false, report: { sentAt: '2026-10-08T20:00:00+00:00', attended: false, practices: [], presenceType: 'public_server', publicServer: { check: 'confirmed', source: 'public server', minutes: 75 } } });
         expect(confirmed.find('[data-testid="staff-report-public-server"]').exists()).toBe(false);

@@ -28,12 +28,17 @@ describe('presenceAnswer', () => {
     it('reads each presence answer, and nothing on a report sent before it was asked', () => {
         expect(presenceAnswer({ presenceType: 'public_server' })).toBe('Public server hour');
         expect(presenceAnswer({ presenceType: 'office_hour', officeHour: { date: '2026-10-07' } })).toBe('Office hour (07OCT26)');
-        expect(presenceAnswer({ presenceType: 'none' })).toBe('No public server hour or office hour');
+        expect(presenceAnswer({ presenceType: 'none' })).toBe('I did not (no public server hour or office hour)');
         expect(presenceAnswer({ presenceType: null })).toBe('');
     });
 
     it('names the public server in its check', () => {
         expect(presenceText({ check: 'no_data', source: 'public server', minutes: null })).toBe('No public server data');
+        expect(presenceText({ check: 'no_data', source: 'public server', minutes: null, reason: 'no_server' }, 'Brandt.L')).toBe('No game server data: no public server is set up');
+        expect(presenceText({ check: 'no_data', source: 'public server', minutes: null, reason: 'no_identity' }, 'Brandt.L')).toBe('No game server data: no game account linked for Brandt.L');
+        expect(presenceText({ check: 'no_data', source: 'public server', minutes: null, reason: 'unreadable' }, 'Brandt.L')).toBe(
+            'No game server data: the public servers could not be read this week',
+        );
         expect(presenceText({ check: 'conflict', source: 'public server', minutes: 43 })).toBe('43 minutes of server data');
         expect(presenceText({ check: 'conflict', source: 'public server', minutes: 1 })).toBe('1 minute of server data');
         expect(presenceText({ check: 'conflict', source: 'public server', minutes: 0 })).toBe('0 minutes of server data');

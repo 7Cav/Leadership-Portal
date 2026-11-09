@@ -1,6 +1,6 @@
 ---
 title: Send your staff report
-summary: For platoon, company and battalion HQ staff, report the section practices you attended.
+summary: For platoon, company and battalion HQ staff, report your accountability and presence for the week.
 section: tutorial
 order: 7
 audience: leader
@@ -9,13 +9,14 @@ try: Open your staff report
 minutes: 5
 ---
 
-If you are placed on a platoon, company or battalion HQ, you attend at least one section practice a week and say so in your own staff report. If you are not on one of those HQs, skip this step.
+If you are placed on a platoon, company or battalion HQ, you owe one accountability and one presence each Cav week and say so in your own staff report. If you are not on one of those HQs, skip this step.
 
 ## Answer the questions
 
 1. Choose **Staff report** in the sidebar. It opens the week that just ended.
-2. Answer **Did you attend a section practice this week?**, then pick what it was and which practices.
-3. The last step is **Notes**. It is optional.
+2. Answer the accountability question with **Yes** or **No**, then pick what it was and which practices.
+3. Answer the presence question: **Public server hour**, **Office hour** or **I did not**.
+4. The last step is **Notes**. It is optional.
 
 ## Send it
 

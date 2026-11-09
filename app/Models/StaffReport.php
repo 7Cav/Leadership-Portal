@@ -19,7 +19,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * push's own bookkeeping, change. Written only by
  * `StaffReportRepository`, from the audited `SendStaffReport` Command and the queued sheet push.
  */
-#[Fillable(['trooper_id', 'unit_id', 'week_start', 'attended', 'practice_type', 'ftx_name', 'ftx_date', 'office_hour_date', 'office_hour_note', 'presence_type', 'practices', 'other_events', 'notes', 'presence_check', 'presence_source', 'public_server_check', 'public_server_minutes', 'sent_at', 'sent_by'])]
+#[Fillable(['trooper_id', 'unit_id', 'week_start', 'attended', 'practice_type', 'ftx_name', 'ftx_date', 'office_hour_date', 'office_hour_note', 'presence_type', 'practices', 'other_events', 'notes', 'presence_check', 'presence_source', 'public_server_check', 'public_server_minutes', 'public_server_reason', 'sent_at', 'sent_by'])]
 class StaffReport extends Model
 {
     protected function casts(): array
@@ -79,6 +79,15 @@ class StaffReport extends Model
 
     /** `presence_check`: no picked practice was captured, so there is nothing to compare. */
     public const PRESENCE_NO_DATA = 'no_data';
+
+    /** `public_server_reason` with `no_data`: no public server is set up for the HQ's game (or it has no game). */
+    public const NO_DATA_NO_SERVER = 'no_server';
+
+    /** `public_server_reason` with `no_data`: the trooper has no game identity linked for the game. */
+    public const NO_DATA_NO_IDENTITY = 'no_identity';
+
+    /** `public_server_reason` with `no_data`: public servers are set up, but none could be read for minutes. */
+    public const NO_DATA_UNREADABLE = 'unreadable';
 
     public function trooper(): BelongsTo
     {

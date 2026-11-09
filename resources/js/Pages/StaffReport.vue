@@ -148,7 +148,7 @@ const TYPES = computed(() => [
 const PRESENCE = [
     { value: 'public_server', label: 'Public server hour', hint: 'An hour on the public server', icon: PhGameController },
     { value: 'office_hour', label: 'Office hour', hint: 'An hour in Discord voice', icon: PhChalkboardTeacher },
-    { value: 'none', label: 'No', hint: 'Not this week', icon: PhXCircle },
+    { value: 'none', label: 'I did not', hint: 'Not this week', icon: PhXCircle },
 ];
 
 // The days a named event or an office hour can fall on: the Cav week, Saturday to Friday.
@@ -422,7 +422,7 @@ function entryNote(id) {
                     </h2>
                     <p v-if="report.presenceType" class="mt-0.5 flex flex-wrap items-center gap-2" data-testid="staff-report-presence-answer">
                         Presence: {{ presenceAnswer(report) }}
-                        <StaffReportPresence :presence="report.publicServer" testid="staff-report-public-server" />
+                        <StaffReportPresence :presence="report.publicServer" :name="trooper.displayName" testid="staff-report-public-server" />
                     </p>
                     <p class="mt-0.5 text-xs text-muted-foreground">
                         Sent {{ stamp(report.sentAt) }}.<template v-if="!canEdit"> A sent staff report is final.</template>

@@ -7,12 +7,14 @@ import { presenceText } from '@/lib/staffReport';
 // A game server check frozen on a sent report (the section practice, or the public server hour): a red badge when it conflicts with the capture,
 // a red alert when there was no capture to compare (the claim can't be checked), nothing when it agreed.
 const props = defineProps({
-    // `{ check: 'conflict' | 'confirmed' | 'no_data', source: 'CRCON' }` or null.
+    // `{ check: 'conflict' | 'confirmed' | 'no_data', source: 'CRCON', minutes?, reason? }` or null.
     presence: { type: Object, default: null },
     testid: { type: String, default: 'staff-report-presence' },
+    // The trooper's name, for a public server check that says why there is no data.
+    name: { type: String, default: null },
 });
 
-const text = computed(() => presenceText(props.presence));
+const text = computed(() => presenceText(props.presence, props.name));
 </script>
 
 <template>

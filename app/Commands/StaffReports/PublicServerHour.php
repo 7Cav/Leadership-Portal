@@ -19,7 +19,9 @@ use Carbon\CarbonImmutable;
  *
  * `confirmed` at {@see MINUTES} or more, `conflict` under it, also when some server could not be read: the minutes
  * found are kept with it, so a reader sees how much the servers did show. `no_data`, with no minutes, only when there
- * is nothing to compare at all: no game, no linked game identity for it, no public server set up, or none readable.
+ * is nothing to compare at all, with a `reason`: `no_server` (no game, or no public server set up for it), `no_identity`
+ * (no linked game identity for the game) or `unreadable` (servers set up, none could be read). The reason is null
+ * with any other check.
  * A server that only knows who was seen (no minutes) counts as not readable. Never blocks the send.
  */
 class PublicServerHour
@@ -34,18 +36,21 @@ class PublicServerHour
     ) {}
 
     /**
-     * @return array{check: string, minutes: ?int}
+     * @return array{check: string, minutes: ?int, reason: ?string}
      */
     public function check(int $trooperId, Unit $hq, CarbonImmutable $weekStart): array
     {
-        $noData = ['check' => StaffReport::PRESENCE_NO_DATA, 'minutes' => null];
+        $noData = fn (string $reason) => ['check' => StaffReport::PRESENCE_NO_DATA, 'minutes' => null, 'reason' => $reason];
         $gameId = (UnitGame::resolve($this->units->tree())[$hq->id] ?? null)?->gameId;
         $game = $gameId === null ? null : $this->games->find($gameId);
         $identity = $game === null ? null : $this->identities->forTrooper($trooperId)->firstWhere('game_id', $game->id);
         $servers = $game === null ? [] : $this->sources->publicFor($game);
 
-        if ($identity === null || $servers === []) {
-            return $noData;
+        if ($servers === []) {
+            return $noData(StaffReport::NO_DATA_NO_SERVER);
+        }
+        if ($identity === null) {
+            return $noData(StaffReport::NO_DATA_NO_IDENTITY);
         }
 
         $platformId = mb_strtolower((string) $identity->platform_id);
@@ -89,9 +94,9 @@ class PublicServerHour
         }
 
         if ($read === 0) {
-            return $noData;
+            return $noData(StaffReport::NO_DATA_UNREADABLE);
         }
 
-        return ['check' => $minutes >= self::MINUTES ? StaffReport::PRESENCE_CONFIRMED : StaffReport::PRESENCE_CONFLICT, 'minutes' => $minutes];
+        return ['check' => $minutes >= self::MINUTES ? StaffReport::PRESENCE_CONFIRMED : StaffReport::PRESENCE_CONFLICT, 'minutes' => $minutes, 'reason' => null];
     }
 }

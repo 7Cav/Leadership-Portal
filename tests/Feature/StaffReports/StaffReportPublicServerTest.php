@@ -126,21 +126,22 @@ it('reads only up to now while the week still runs', function () {
         ->and($this->reads)->toBe([['one', '2026-10-03 00:00:00', '2026-10-07 18:30:00']]);
 });
 
-it('says no data when there is nothing to compare', function (Closure $setup) {
+it('says no data, and why, when there is nothing to compare', function (Closure $setup, string $reason) {
     $setup($this);
 
     $report = sendPublicServerReport($this->tree['users']['psg'], $this->psg, 'public_server');
 
-    expect($report->public_server_check)->toBe(StaffReport::PRESENCE_NO_DATA)->and($report->public_server_minutes)->toBeNull();
+    expect($report->public_server_check)->toBe(StaffReport::PRESENCE_NO_DATA)->and($report->public_server_minutes)->toBeNull()
+        ->and($report->refresh()->public_server_reason)->toBe($reason);
 })->with([
-    'no public server set up' => [fn ($t) => publicServers($t, [])],
-    'no server could be read' => [fn ($t) => publicServers($t, [publicServer($t, 'one', null)])],
-    'no credentials set' => [fn ($t) => publicServers($t, [publicServer($t, 'one', [onServer('76561190000000020', 90)], configured: false)])],
-    'the source knows only who was seen' => [fn ($t) => publicServers($t, [publicServer($t, 'one', [onServer('76561190000000020', null)])])],
+    'no public server set up' => [fn ($t) => publicServers($t, []), StaffReport::NO_DATA_NO_SERVER],
+    'no server could be read' => [fn ($t) => publicServers($t, [publicServer($t, 'one', null)]), StaffReport::NO_DATA_UNREADABLE],
+    'no credentials set' => [fn ($t) => publicServers($t, [publicServer($t, 'one', [onServer('76561190000000020', 90)], configured: false)]), StaffReport::NO_DATA_UNREADABLE],
+    'the source knows only who was seen' => [fn ($t) => publicServers($t, [publicServer($t, 'one', [onServer('76561190000000020', null)])]), StaffReport::NO_DATA_UNREADABLE],
     'no linked game identity' => [function ($t) {
         TrooperGameIdentity::query()->delete();
         publicServers($t, [publicServer($t, 'one', [onServer('76561190000000020', 90)])]);
-    }],
+    }, StaffReport::NO_DATA_NO_IDENTITY],
 ]);
 
 it('confirms an hour even when another public server could not be read', function () {
@@ -185,7 +186,7 @@ it('recomputes the check on an edit', function () {
 it('shows the frozen check to readers on the page, the overview and the unit report', function () {
     publicServers($this, [publicServer($this, 'one', [onServer('76561190000000020', 10)])]);
     sendPublicServerReport($this->tree['users']['psg'], $this->psg, 'public_server');
-    $conflict = ['check' => 'conflict', 'source' => 'public server', 'minutes' => 10];
+    $conflict = ['check' => 'conflict', 'source' => 'public server', 'minutes' => 10, 'reason' => null];
 
     $this->actingAs($this->tree['users']['co'])->get(route('staff-report.show', ['trooper' => $this->psg->id, 'week' => '2026-10-03']))
         ->assertInertia(fn (AssertableInertia $page) => $page->where('report.presenceType', 'public_server')->where('report.publicServer', $conflict));

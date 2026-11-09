@@ -123,12 +123,13 @@ class SendStaffReportHandler
         }
 
         $public = $fields['presence_type'] === StaffReport::PRESENCE_PUBLIC_SERVER
-            ? $this->publicServer->check($trooper->id, $hq, $weekStart) : ['check' => null, 'minutes' => null];
+            ? $this->publicServer->check($trooper->id, $hq, $weekStart) : ['check' => null, 'minutes' => null, 'reason' => null];
         $fields = [
             ...$fields,
             ...$this->presenceCheck($trooper->id, $weekStart, $fields['practice_type'], $sections),
             'public_server_check' => $public['check'],
             'public_server_minutes' => $public['minutes'],
+            'public_server_reason' => $public['reason'],
         ];
 
         $report = null;
