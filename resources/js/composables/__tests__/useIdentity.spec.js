@@ -42,8 +42,12 @@ describe('useIdentity', () => {
         expect(identityFor({ username: 'Hale.S' }, enriched(overrides)).identity.value).toBe(expected);
     });
 
+    it('leaves the source line out for anyone who is not an Admin', () => {
+        expect(identityFor({ username: 'Hale.S' }, enriched()).provenance.value).toBeNull();
+    });
+
     it('shows the MOS, source and fetch time together', () => {
-        const { provenance } = identityFor({ username: 'Hale.S' }, enriched());
+        const { provenance } = identityFor({ username: 'Hale.S', is_admin: true }, enriched());
 
         expect(provenance.value).toContain('MOS 42A');
         expect(provenance.value).toContain('Cav roster (api.7cav.us)');
@@ -62,23 +66,23 @@ describe('useIdentity', () => {
             vi.useFakeTimers({ toFake: ['Date'] });
             vi.setSystemTime(new Date(now));
 
-            expect(identityFor({ username: 'Hale.S' }, enriched()).provenance.value).toBe(`MOS 42A · ${expected}`);
+            expect(identityFor({ username: 'Hale.S', is_admin: true }, enriched()).provenance.value).toBe(`MOS 42A · ${expected}`);
         });
 
         it('puts the exact UTC time in the detail', () => {
-            expect(identityFor({ username: 'Hale.S' }, enriched()).provenanceDetail.value).toBe('Warrant Officer 1, fetched 03AUG26 09\u200A14Z');
+            expect(identityFor({ username: 'Hale.S', is_admin: true }, enriched()).provenanceDetail.value).toBe('Warrant Officer 1, fetched 03AUG26 09\u200A14Z');
         });
     });
 
     it('omits the MOS when the roster has none, keeping the source', () => {
-        const { provenance } = identityFor({ username: 'Hale.S' }, enriched({ mos: null }));
+        const { provenance } = identityFor({ username: 'Hale.S', is_admin: true }, enriched({ mos: null }));
 
         expect(provenance.value).not.toContain('MOS');
         expect(provenance.value).toContain('Cav roster (api.7cav.us)');
     });
 
     it('still attributes the source when the fetch time is unusable', () => {
-        const { provenance, provenanceDetail } = identityFor({ username: 'Hale.S' }, enriched({ fetched_at: 'not-a-date' }));
+        const { provenance, provenanceDetail } = identityFor({ username: 'Hale.S', is_admin: true }, enriched({ fetched_at: 'not-a-date' }));
 
         expect(provenance.value).toContain('Cav roster (api.7cav.us)');
         expect(provenance.value).not.toContain('NaN');
@@ -86,7 +90,7 @@ describe('useIdentity', () => {
     });
 
     it('puts the full rank title and exact time in the detail, not in place of the source', () => {
-        const { provenanceDetail } = identityFor({ username: 'Hale.S' }, enriched());
+        const { provenanceDetail } = identityFor({ username: 'Hale.S', is_admin: true }, enriched());
 
         expect(provenanceDetail.value).toContain('Warrant Officer 1');
         expect(provenanceDetail.value).toContain('fetched');
