@@ -706,6 +706,49 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
   once it is there, or "Not sent to the sheet yet" while the sheet is set up and the row is pending. Without the env
   key nothing is pushed and no marker shows. See [operations.md](operations.md#weekly-staff-reports-and-google-sheets).
 
+## Tutorial
+
+A hands-on tutorial: the portal itself, on practice data, where nothing counts. Started with **Start the tutorial** on
+the docs home (the Getting started tutorial card). It looks and works exactly like the portal (same pages, buttons,
+checks, messages, layout and theme toggle). Only the data and the consequences differ.
+
+- Look: a solid blue frame (`--changelog`) round the whole portal, a blue bar at the top ("Works like the portal, with
+  practice data. Nothing you do here counts.") with the step dots, the step, **Start over** and **Exit tutorial**, and
+  the blue Cav shield as the tab icon (`public/tutorial-icons/`, not `public/tutorial/`, which would shadow the `/tutorial` route).
+- Coach card, bottom right: the step's instruction, a checklist that ticks itself from what the person did, a note,
+  **Back** and **Next step**, which stays disabled until every checklist item is done, with **Skip** beside it until then. The card reads the steps again every 4 seconds, as roll call marks save without a page
+  visit. A finished step ticks the matching step of the Getting started guide list (`useTutorialProgress`).
+- Steps by who the person is for real, read once at the start: roll call (signature, mark, confirm, roll call posted)
+  and the weekly report for anyone who leads a unit and Admins; the staff report for platoon, company and battalion HQ
+  staff; the roster with its Strength tab and a milpac for everyone; Org structure and the Audit log for Admins.
+- Practice data: a fixed practice battalion 9-7 (Practice Regiment 9CAV, Alpha Company A/9-7, 1st Platoon 1/A/9-7, 1st
+  and 2nd Section) with made-up troopers (Practice.L, Sample.R, Demo.K, Mock.T on leave, Trial.B and others), four
+  weeks of sent reports, this week's practice already seen on a practice game server, and Demo.K unsigned and unseen.
+  Two maintainers, Laui.M and Grayson.J, serve in it as ordinary troopers in every copy (approved). No other real
+  member. The person is placed in it at their own echelon, under their own name: a Section Leader leads 1st Section,
+  a Platoon Leader 1st Platoon, HQ staff sit on that HQ, an Admin keeps Admin.
+- Private: each person has their own practice copy. **Start over** replaces it with fresh data. **Exit tutorial**
+  removes it and goes back to the guides home.
+- Not in the tutorial: View as and Act as (refused while it is on; the start is refused while either is on).
+
+### How the isolation works
+
+The tutorial does not filter real data. It swaps the database and every way out for the whole request, so a leak
+would have to get past the swap rather than slip through a missed check.
+
+| Layer | What it does |
+| --- | --- |
+| Practice copy | One SQLite file per person, `storage/app/tutorial/user-{id}.sqlite`, copied from a migrated template (`template-{hash}.sqlite`, one per set of migrations). The path comes only from the signed-in user's id. |
+| `RunInTutorial` middleware | While the session's tutorial flag is on (`TutorialSession`, bound to the user id), enters the sandbox right before route model binding (middleware priority), so every read and write of the request after that goes to the practice copy. The signed-in user is swapped for their copy in the practice database. Checks first, on real data, that the person may still be signed in. |
+| `TutorialSandbox::enter()` | Sets the default database connection to the practice copy and puts a guard on the real connection that throws `RealDatabaseTouched` on any query. Swaps the bus, queue, mail and notifications for Laravel's fakes (jobs such as the staff Sheet push and Drive upload are dropped), answers every Saloon connector (forum, Cav, CRCON, BattleMetrics, Nightwatch, Steam, Google) from a global mock with a 503, makes Laravel's HTTP client refuse stray requests, and points the cache at a fresh array store. `leave()` puts it all back when the request ends. |
+| Session and cache connection | The session and the database cache use their own connection, `portal_state`, a copy of the default one (`AppServiceProvider`), so the session can still be saved while the real default connection is guarded. Nothing else uses it. |
+| Audit log and activity log | Written by the same code as always, to the practice copy. The Admin step shows them there. The real logs get nothing. |
+| Start, Start over, Exit | `TutorialController`, outside the sandbox: reads who the person is, builds the copy (`PracticeWorld`, run inside the sandbox) and sets or clears the flag. Entering is a session flag, like view as, and is not audited. |
+
+Tests in `tests/Feature/Tutorial/TutorialSandboxTest.php` prove the real tables and audit log stay unchanged, the guard
+throws, jobs and connector calls go nowhere, one person cannot see another's copy, exit restores the real portal, and
+the step list per echelon.
+
 ## Changelog
 
 - `/changelog`, under Help in the sidebar, for everyone signed in: what changed in the portal, written by hand, never
@@ -881,4 +924,5 @@ the sum of its direct children's sent reports.
 | Staff practices | `app/Commands/StaffPractices/`, `app/Authorization/StaffPracticeAccess.php`, `app/Milpac/StaffPracticeHistory.php`, `resources/js/components/milpac/StaffPracticesPanel.vue` (stored in `cross_section_sightings` with source `staff`) |
 | Staff report | `app/Commands/StaffReports/`, `app/Authorization/StaffReportAccess.php`, `app/Milpac/StaffReportWeek.php`, `StaffReportController`, `resources/js/Pages/StaffReport.vue`, `resources/js/components/reports/StaffReportsPanel.vue` (`staff_reports`; the practices picked are `cross_section_sightings` rows with source `staff`) |
 | Counseling | `app/Commands/Counseling/`, `app/Authorization/CounselingAccess.php`, `app/Milpac/CounselingHistory.php`, `app/Milpac/CounselingStanding.php`, `app/Integration/GoogleDrive/`, `app/Jobs/UploadCounselingDocumentJob.php`, `resources/js/components/milpac/CounselingPanel.vue` |
+| Tutorial | `app/Tutorial/` (`TutorialSandbox`, `PracticeWorld`, `TutorialSteps`, `TutorialSession`, `TutorialPersonaResolver`), `app/Http/Middleware/RunInTutorial.php`, `TutorialController`, `TutorialPracticeRepository`, `resources/js/Layouts/partials/TutorialBanner.vue`, `TutorialCoach.vue`, `resources/js/composables/useTutorial.js`, `resources/js/lib/tutorial.js` |
 | Units with no troopers | `app/Kpi/Headcount.php` (`withoutEmptyLineUnits` for the roster and Home, `reportingLineUnits` for the report chain) |

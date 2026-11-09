@@ -17,6 +17,7 @@ use App\Kpi\EchelonReportKpiSource;
 use App\Kpi\ReportKpiSource;
 use App\Models\TelemetryInterface;
 use App\Repositories\GameServerRepository;
+use App\Tutorial\TutorialSandbox;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -33,6 +34,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // The hands-on tutorial's isolation layer: one per process, so the request's own middleware and the
+        // terminating callback below see the same state.
+        $this->app->singleton(TutorialSandbox::class);
+        $this->app->terminating(fn () => $this->app->make(TutorialSandbox::class)->leave());
+        $this->separateSessionAndCacheConnection();
+
         // The Forum OAuth2 seam (AD-3). Config carries the client secret from env only
         // (AD-23); binding it here keeps that read in the composition root.
         $this->app->singleton(ForumApi::class, fn () => new ForumApi(config('services.sevencav')));
@@ -231,5 +238,34 @@ class AppServiceProvider extends ServiceProvider
         }
 
         return $compiled;
+    }
+
+    /**
+     * The session and the database cache keep their own connection to the portal's database (`portal_state`), a copy of
+     * the default one. In the tutorial the default connection is the practice copy and the real one is guarded (any
+     * query on it throws), while the session must still be saved: only the session and the cache use this one. Left
+     * alone when either names a connection of its own, and for an in-memory database, which a second connection would
+     * not share.
+     */
+    private function separateSessionAndCacheConnection(): void
+    {
+        $default = (string) config('database.default');
+        $connection = config("database.connections.{$default}");
+
+        if (! is_array($connection) || ($connection['database'] ?? null) === ':memory:') {
+            return;
+        }
+
+        config(['database.connections.portal_state' => $connection]);
+
+        if (config('session.driver') === 'database' && config('session.connection') === null) {
+            config(['session.connection' => 'portal_state']);
+        }
+        if (config('cache.stores.database.connection') === null) {
+            config(['cache.stores.database.connection' => 'portal_state']);
+        }
+        if (config('cache.stores.database.lock_connection') === null) {
+            config(['cache.stores.database.lock_connection' => 'portal_state']);
+        }
     }
 }

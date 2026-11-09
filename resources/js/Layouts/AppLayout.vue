@@ -29,6 +29,8 @@ import ActingAsBanner from './partials/ActingAsBanner.vue';
 import ViewAsBanner from './partials/ViewAsBanner.vue';
 import ChangelogOutdatedBanner from './partials/ChangelogOutdatedBanner.vue';
 import ViewAsPicker from './partials/ViewAsPicker.vue';
+import TutorialBanner from './partials/TutorialBanner.vue';
+import TutorialCoach from './partials/TutorialCoach.vue';
 
 // The persistent app shell (Story 1.15, binding design: mockups/v2/shell-f.html). Set as the
 // default layout for every page outside Auth/ in app.js, so it survives Inertia visits: the
@@ -38,6 +40,8 @@ const { theme, toggleTheme, syncFromDocument } = useTheme();
 const { active: viewingAs, openPicker } = useViewAs();
 const { openSearch } = useTrooperSearch();
 const actingAs = computed(() => page.props.actingAs != null);
+// The hands-on tutorial (App\Tutorial): a blue frame round the whole portal, the blue bar and the coach card.
+const inTutorial = computed(() => page.props.tutorialMode != null);
 
 // The trail starts at the top of the viewer's scope as this request sees it (#426): 1/1/A/1-7 for a section leader,
 // 7CAV for an Admin. Then the page's own crumbs, from the nav it lives under.
@@ -90,9 +94,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
 
         <!-- `--shell-top` is the sticky bar's height (header h-12, plus the h-9 view-as banner when it
              shows). A page's own sticky parts offset from it so they stop below the bar, not under it. -->
-        <SidebarInset class="min-w-0" :style="{ '--shell-top': `${3 + (viewingAs ? 2.25 : 0) + (actingAs ? 2.25 : 0) + (page.props.changelogOutdated ? 2.25 : 0)}rem` }">
+        <SidebarInset class="min-w-0" :style="{ '--shell-top': `${3 + (viewingAs ? 2.25 : 0) + (actingAs ? 2.25 : 0) + (page.props.changelogOutdated ? 2.25 : 0) + (inTutorial ? 2.25 : 0)}rem` }">
             <!-- The banner shares the sticky bar with the header, so a view-as preview stays in sight. -->
             <div class="sticky top-0 z-30">
+                <TutorialBanner />
                 <ActingAsBanner />
                 <ViewAsBanner />
                 <ChangelogOutdatedBanner />
@@ -190,6 +195,15 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
             </main>
         </SidebarInset>
     </SidebarProvider>
+
+    <!-- The tutorial's frame: on top of everything and click-through, so the page works as it always does. -->
+    <div
+        v-if="inTutorial"
+        aria-hidden="true"
+        data-testid="tutorial-frame"
+        class="pointer-events-none fixed inset-0 z-[60] border-4 border-changelog"
+    />
+    <TutorialCoach />
 
     <ViewAsPicker />
     <ActAsPicker />

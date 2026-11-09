@@ -36,6 +36,7 @@ use App\Http\Controllers\TrainingPlanController;
 use App\Http\Controllers\TrainingReadinessMatrixController;
 use App\Http\Controllers\TrooperDetailController;
 use App\Http\Controllers\TrooperSearchController;
+use App\Http\Controllers\TutorialController;
 use App\Http\Controllers\UnitGuidonController;
 use App\Http\Controllers\UnitRosterSyncController;
 use App\Http\Controllers\ViewAsController;
@@ -234,6 +235,12 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // prefetched link or a cross-site <img>. Not throttled: it may record a view as or act as ending, but each one ends
     // the session, and signing back in is throttled per IP (AuditedWriteThrottleTest lists it as the one exception).
     Route::post('/logout', [ForumAuthController::class, 'logout'])->name('logout');
+
+    // The hands-on tutorial: a private practice copy of the portal for the signed-in person (App\Tutorial). Starting and
+    // starting over build a fresh copy, so they share the audited-writes limit. These three run outside the sandbox.
+    Route::post('/tutorial', [TutorialController::class, 'store'])->middleware('throttle:audited-writes')->name('tutorial.store');
+    Route::post('/tutorial/restart', [TutorialController::class, 'restart'])->middleware('throttle:audited-writes')->name('tutorial.restart');
+    Route::delete('/tutorial', [TutorialController::class, 'destroy'])->middleware('throttle:audited-writes')->name('tutorial.destroy');
 
     // View-as switcher (Story 1.13, AD-9). The picker reads its options as JSON; entering and
     // leaving are POST/DELETE so they carry CSRF protection. Every target is checked against real

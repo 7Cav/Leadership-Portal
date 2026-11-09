@@ -76,6 +76,8 @@ Never run a bare `db:seed` or `migrate --seed` in production; see the main READM
 | `php artisan portal:sync-loas [--full] [--now]` | Queue (or run now) the LOA sync; refuses while the forum key or sections are unset |
 | `php artisan portal:admin <username> [--revoke] [--force]` | Grant or remove the Admin flag (audited) |
 | `php artisan portal:prune-page-visits` | Delete activity log page visits older than 30 days (scheduled daily) |
+| `php artisan portal:tutorial-template` | Build the empty, migrated database every tutorial practice copy starts from. Run after a deploy with new migrations, or the first person to start the tutorial waits for it |
+| `php artisan portal:tutorial-prune [--days=2]` | Remove tutorial practice copies unused for two days (scheduled daily at 04:10). Exit already removes a copy |
 | `php artisan portal:demo-history <unit> [--weeks=N] [--purge] [--as=<admin>]` | Demo history, only with `DEMO_TOOLS=true` |
 
 ## Env keys that matter
@@ -186,6 +188,15 @@ so the maintenance page, a 413 for an upload over the size limit and CORS prefli
 - A page pre-rendered with `php artisan down --render` is served before the app starts, without these headers.
 - The `/up` health page shows unstyled: the framework's page loads its styles from a CDN, which the policy blocks. The
   status code is unchanged, so the container health check still passes. Leave the CDN out of the policy.
+
+## Tutorial practice copies
+
+The hands-on tutorial keeps one SQLite file per person in `storage/app/tutorial/` (`user-{id}.sqlite`), plus the
+migrated template they are copied from (`template-{hash}.sqlite`). The folder must be writable by the app and kept on
+the storage volume; losing it only ends open tutorials. The image needs `pdo_sqlite`, which it has. Nothing in it is
+real data. The session and the database cache use a second connection to the portal database (`portal_state`, a copy
+of the default one), so a tutorial request can save the session while its own access to the real database is
+blocked.
 
 ## Technical appendix
 

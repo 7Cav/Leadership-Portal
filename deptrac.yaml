@@ -26,6 +26,7 @@
 #   Model          → DB
 #   Integration    → External                              # sole path out — Saloon lives here (AD-3)
 #   Provider       → Controller, CommandHandler, Repository, Model, Integration, Authorization, DB, Kpi  # DI composition root
+#   Tutorial       → Repository, Model, CommandHandler, Authorization, Support\Time, DB, External  # the hands-on tutorial's sandbox: switches the database and fakes the way out
 #   Middleware     → Authorization, Support\Audit, Repository  # shares + guards the view-as preview (Story 1.13); runs a request as the person an Admin acts as (#379); logs page visits (#382)
 # Integration is reached from CommandHandler and Sync (and wired by Provider), nothing else.
 # Everything else is forbidden: Controller → Integration (external calls stay out of
@@ -101,6 +102,14 @@ deptrac:
       collectors:
         - type: directory
           value: app/Jobs/.*
+    # The hands-on tutorial (App\Tutorial): infrastructure like the Provider, not business logic. It switches the
+    # request's database connection to the person's practice copy, guards the real one, and fakes every way out of the
+    # portal (Saloon's global mock, Laravel's HTTP, bus, queue, mail and notification fakes), so it reaches DB and External
+    # on purpose. It fills the practice copy through Repositories and the report Command, like the demo seeders.
+    - name: Tutorial
+      collectors:
+        - type: directory
+          value: app/Tutorial/.*
 
     # ── Boundary layers — matched by fully-qualified class name, not by directory.
     #    They live in vendor/, so they are only ever dependency *targets*. Defining
@@ -154,6 +163,8 @@ deptrac:
       - Loa
       # The docs pages read the guides a viewer may see from the Docs layer (#409).
       - Docs
+      # Starting, restarting and leaving the hands-on tutorial.
+      - Tutorial
     CommandHandler:
       - Repository
       - Model
@@ -213,6 +224,14 @@ deptrac:
       - Integration
     # A queued job is a thin wrapper — its whole job is calling into its Sync handler
     # off the request path (AD-23). No DB/external access of its own.
+    Tutorial:
+      - Repository
+      - Model
+      - CommandHandler
+      - Authorization
+      - Support\Time
+      - DB
+      - External
     Job:
       - Sync
       # The capture run (7.5) is a Command, queued per AD-23: the job only invokes its handler.
@@ -256,6 +275,8 @@ deptrac:
       - DB
       # Binds the weekly report's ReportKpiSource seam to its echelon implementation (5.6).
       - Kpi
+      # Makes the tutorial sandbox a singleton and leaves it when the request ends.
+      - Tutorial
     # Request glue (Inertia shared props, request guards). Reads the active view-as preview
     # from the ScopeResolver (Story 1.13) to share it with every page and to refuse writes while
     # it is active (AD-9) — the scope decision itself stays in Authorization.
@@ -270,3 +291,5 @@ deptrac:
       # The shell's scope label leaves out the empty line units the unit switcher hides, by the one "has troopers"
       # definition (Headcount, #442).
       - Kpi
+      # Runs a request in the hands-on tutorial, and shares its steps with the shell.
+      - Tutorial

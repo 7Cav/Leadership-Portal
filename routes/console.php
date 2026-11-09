@@ -23,6 +23,7 @@ use App\Repositories\PageVisitRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
+use App\Tutorial\TutorialSandbox;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -326,3 +327,19 @@ Artisan::command('portal:demo-history {unit : A unit designation (A/1-7) or id}
 
     return 0;
 })->purpose('Generate (or with --purge, remove) demo attendance history for a unit\'s real troopers');
+
+// The hands-on tutorial (App\Tutorial). The template every practice copy starts from is built on the first start after a
+// deploy with new migrations, which takes a while: building it at deploy keeps that wait off the first person.
+Artisan::command('portal:tutorial-template', function (TutorialSandbox $sandbox) {
+    $this->info('Tutorial template ready: '.basename($sandbox->template()));
+
+    return 0;
+})->purpose('Build the empty, migrated database every tutorial practice copy starts from');
+
+// A practice copy is removed on Exit. One left behind when a session ran out is removed after two days unused.
+Artisan::command('portal:tutorial-prune {--days=2 : Remove copies unused for this many days}', function (TutorialSandbox $sandbox) {
+    $this->info('Removed '.$sandbox->prune(max(1, (int) $this->option('days'))).' unused tutorial practice copies.');
+
+    return 0;
+})->purpose('Remove tutorial practice copies nobody used for a while');
+Schedule::command('portal:tutorial-prune')->dailyAt('04:10');

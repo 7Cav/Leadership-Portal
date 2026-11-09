@@ -6,6 +6,7 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\PreventCachingAuthenticatedResponses;
 use App\Http\Middleware\ReadOnlyWhileViewingAs;
 use App\Http\Middleware\RecordPageVisit;
+use App\Http\Middleware\RunInTutorial;
 use App\Http\Middleware\SetSecurityHeaders;
 use App\Http\Middleware\TrustProxies;
 use Illuminate\Foundation\Application;
@@ -13,6 +14,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\TrustProxies as BaseTrustProxies;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Middleware\SubstituteBindings;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -59,6 +61,9 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->web(append: [
+            // The hands-on tutorial (App\Tutorial): runs the request on the person's own practice copy, every outbound
+            // path faked. Moved by the priority list below to run right before route model binding.
+            RunInTutorial::class,
             // Runs the request as the person an Admin is acting as (#379), before anything reads the user.
             ActAsUser::class,
             HandleInertiaRequests::class,
@@ -72,6 +77,10 @@ return Application::configure(basePath: dirname(__DIR__))
             // and reads who acted as whom from the attributes ActAsUser set.
             RecordPageVisit::class,
         ]);
+
+        // The tutorial must switch databases before route model binding reads a model, and after the session and the
+        // signed-in user are known: right before SubstituteBindings, which the priority list puts after both.
+        $middleware->prependToPriorityList(before: SubstituteBindings::class, prepend: RunInTutorial::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // A background `fetch` (the rollcall autosave, the capture retry, the trooper Sheet) asks for

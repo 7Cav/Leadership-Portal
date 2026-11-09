@@ -4,12 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title inertia>{{ config('app.name') }}</title>
-    {{-- The 7Cav crest (public/assets/cav-shield.png), cut to these sizes in orange (#F36C21). The browser-test server uses a grey set, so its tab is told apart from the live portal's. --}}
-    @php($icons = app()->environment('e2e') ? '/e2e' : '')
-    <link rel="icon" href="{{ $icons }}/favicon.ico" sizes="48x48">
-    <link rel="icon" type="image/png" sizes="32x32" href="{{ $icons }}/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="{{ $icons }}/favicon-16x16.png">
-    <link rel="apple-touch-icon" href="{{ $icons }}/apple-touch-icon.png">
+    {{-- The 7Cav crest (public/assets/cav-shield.png), cut to these sizes in orange (#F36C21). The browser-test server uses a grey set, so its tab is told apart from the live portal's, and the tutorial a blue one (#1100ff). --}}
+    @php($icons = app(\App\Tutorial\TutorialSandbox::class)->entered() ? '/tutorial-icons' : (app()->environment('e2e') ? '/e2e' : ''))
+    {{-- Browsers keep a tab icon by its address, so each link carries the file's version: a redrawn icon shows at once. --}}
+    @php($v = '?v='.substr((string) @md5_file(public_path(ltrim($icons.'/favicon-32x32.png', '/'))), 0, 8))
+    <link rel="icon" href="{{ $icons }}/favicon.ico{{ $v }}" sizes="48x48">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ $icons }}/favicon-32x32.png{{ $v }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ $icons }}/favicon-16x16.png{{ $v }}">
+    <link rel="apple-touch-icon" href="{{ $icons }}/apple-touch-icon.png{{ $v }}">
     {{--
       Apply the saved light/dark choice before first paint (Story 1.15), falling back to the OS
       setting. Must run before the stylesheet renders anything, hence inline and synchronous.

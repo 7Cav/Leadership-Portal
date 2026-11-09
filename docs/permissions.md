@@ -493,6 +493,20 @@ only sign out has none, since it ends the session and signing back in is limited
 | 5 | Manual LOA sync, fetching game servers (Admins) |
 | 3 | Unit roster sync; also a 5 minute cooldown on that unit and every unit above and below it (Admins skip the cooldown) |
 
+### Tutorial
+
+Everyone signed in may start the hands-on tutorial ([features.md](features.md#tutorial)). In it they play their own
+billet on a private practice copy: the permissions are the portal's usual ones, worked out on the practice unit, and
+nothing reaches real data.
+
+- Who they are in it is read from their real standing once, at the start: Admin, the echelon they command, the HQ they
+  sit on as staff. A Section Leader leads the practice 1st Section, a Platoon Leader 1st Platoon, a company or
+  battalion command the practice company or battalion (a regiment or portfolio command plays the battalion). An Admin
+  is an Admin in their copy.
+- Only the person themselves can open their copy: it is chosen by the signed-in user's id, never by the request.
+- View as and Act as are refused while the tutorial is on, and the tutorial cannot start while either is on.
+- Signing out, or losing the right to sign in, ends it as it ends any session.
+
 ## Technical appendix
 
 | Rule | Where in the code |
