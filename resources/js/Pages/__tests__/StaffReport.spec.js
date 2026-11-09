@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { flushPromises, mount } from '@vue/test-utils';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import StaffReport from '../StaffReport.vue';
 
 // The staff report page draws what the server sent and posts the picks; it decides nothing about
@@ -16,7 +16,15 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => {
         Head: { template: '<head></head>' },
         Link: { props: ['href'], template: '<a :href="href"><slot /></a>' },
         useForm: (data) => {
-            const form = reactive({ ...data, errors: {}, processing: false });
+            const initial = JSON.stringify(data);
+            const form = reactive({
+                ...data,
+                errors: {},
+                processing: false,
+                get isDirty() {
+                    return JSON.stringify(Object.fromEntries(Object.keys(data).map((key) => [key, this[key]]))) !== initial;
+                },
+            });
             let transform = (value) => value;
             form.transform = (fn) => {
                 transform = fn;
@@ -88,6 +96,9 @@ async function toPicker(props = {}) {
 
     return wrapper;
 }
+
+// Pages left mounted keep their leave guard on the document, so each test unmounts its pages.
+enableAutoUnmount(afterEach);
 
 describe('StaffReport page', () => {
     beforeEach(() => posted.mockReset());
@@ -217,6 +228,32 @@ describe('StaffReport page', () => {
         expect(posted).toHaveBeenCalledTimes(1);
         wrapper.unmount();
         document.body.innerHTML = '';
+    });
+
+    it('asks before leaving with picks not sent, but not on Send', async () => {
+        // happy-dom has no window.confirm, so it is set here rather than spied on.
+        const confirm = (window.confirm = vi.fn().mockReturnValue(false));
+        const leave = (method) => {
+            const event = new CustomEvent('inertia:before', { cancelable: true, detail: { visit: { method, url: new URL('http://localhost/') } } });
+            document.dispatchEvent(event);
+
+            return event.defaultPrevented;
+        };
+        const wrapper = page();
+        expect(leave('get')).toBe(false);
+        expect(confirm).not.toHaveBeenCalled();
+
+        await wrapper.find('[data-testid="attended-yes"]').trigger('click');
+        expect(leave('post')).toBe(false);
+        expect(confirm).not.toHaveBeenCalled();
+        expect(leave('get')).toBe(true);
+        expect(confirm).toHaveBeenCalledWith('Leave this page? Your changes are not saved.');
+
+        wrapper.unmount();
+        confirm.mockClear();
+        expect(leave('get')).toBe(false);
+        expect(confirm).not.toHaveBeenCalled();
+        confirm.mockRestore();
     });
 
     it('sends anyway from the question', async () => {

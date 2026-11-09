@@ -33,6 +33,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { forumDate, weekLabel, weekPhrase } from '@/lib/forumDate';
 import WeekHeading from '@/components/week/WeekHeading.vue';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import { onHttpException } from '@/lib/httpError';
 import { stamp } from '@/lib/report';
 import { attendedText, pickerCollapses, pickerGroups, sheetText } from '@/lib/staffReport';
@@ -94,6 +95,9 @@ const form = useForm({
     notes: '',
     reason: '',
 });
+
+// Picks made but not sent ask before leaving; sending is a POST, so it never asks.
+useUnsavedChanges(() => ((props.canSend && !props.report) || editingReport.value) && form.isDirty);
 
 // Edit report: the form again, filled in with what was sent. Sending it replaces the sent report.
 const editingReport = ref(false);
