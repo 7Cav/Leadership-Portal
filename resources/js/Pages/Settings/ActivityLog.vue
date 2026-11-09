@@ -89,7 +89,7 @@ function goTo(url) {
                     <TableRow class="hover:bg-transparent">
                         <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">User</TableHead>
                         <TableHead class="h-8 text-xs font-medium text-muted-foreground">Page</TableHead>
-                        <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">Time (UTC)</TableHead>
+                        <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">Time (Zulu)</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>

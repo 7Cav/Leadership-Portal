@@ -149,7 +149,7 @@ function goTo(url) {
                         <TableHead class="h-8 text-xs font-medium text-muted-foreground">Target</TableHead>
                         <TableHead class="h-8 text-xs font-medium text-muted-foreground">Reason</TableHead>
                         <TableHead class="h-8 text-xs font-medium text-muted-foreground">Digest</TableHead>
-                        <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">Time (UTC)</TableHead>
+                        <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">Time (Zulu)</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
