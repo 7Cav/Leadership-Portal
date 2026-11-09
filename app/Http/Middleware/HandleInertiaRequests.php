@@ -9,6 +9,9 @@ use App\Authorization\StaffReportAccess;
 use App\Kpi\Headcount;
 use App\Repositories\AdminBilletRepository;
 use App\Repositories\UnitGuidonRepository;
+use App\Tutorial\TutorialSandbox;
+use App\Tutorial\TutorialSession;
+use App\Tutorial\TutorialSteps;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -31,6 +34,9 @@ class HandleInertiaRequests extends Middleware
         private readonly StaffReportAccess $staffReports,
         private readonly ChangelogAccess $changelog,
         private readonly UnitGuidonRepository $guidons,
+        private readonly TutorialSandbox $sandbox,
+        private readonly TutorialSession $tutorial,
+        private readonly TutorialSteps $steps,
     ) {}
 
     /**
@@ -125,6 +131,11 @@ class HandleInertiaRequests extends Middleware
                     $this->headcount->scopeLabelTops($tops),
                 );
             },
+            // The hands-on tutorial, while this request runs in it (RunInTutorial): its steps with their checklists ticked
+            // from the person's own practice copy, for the blue bar and the coach card. Null outside the tutorial.
+            'tutorial' => fn () => $this->sandbox->entered() && ($persona = $this->tutorial->persona()) !== null ? [
+                'steps' => $this->steps->describe((int) $this->sandbox->userId(), $persona),
+            ] : null,
             // The 7cav.us forum's address, for links that open a forum page (the makeup PM opens the forum's own
             // "start conversation" form). The portal never writes to the forum; these are plain links.
             'forum' => [

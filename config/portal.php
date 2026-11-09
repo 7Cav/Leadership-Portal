@@ -31,6 +31,10 @@ return [
     |
     */
 
+    // Where the hands-on tutorial keeps each person's practice copy (one SQLite file per user) and the migrated template
+    // they are copied from (App\Tutorial\TutorialSandbox). Not an env key: it is part of the app's own storage.
+    'tutorial_path' => storage_path('app/tutorial'),
+
     'docs' => (bool) env('DOCS_ENABLED', false),
 
     // Where "Was this helpful? No" sends a reader: a forum thread or a mailto: link. Empty hides the link and the

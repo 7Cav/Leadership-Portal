@@ -4,8 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title inertia>{{ config('app.name') }}</title>
-    {{-- The 7Cav crest (public/assets/cav-shield.png), cut to these sizes in orange (#F36C21). The browser-test server uses a grey set, so its tab is told apart from the live portal's. --}}
-    @php($icons = app()->environment('e2e') ? '/e2e' : '')
+    {{-- The 7Cav crest (public/assets/cav-shield.png), cut to these sizes in orange (#F36C21). The browser-test server uses a grey set, so its tab is told apart from the live portal's, and the tutorial a blue one (#1100ff). --}}
+    @php($icons = app(\App\Tutorial\TutorialSandbox::class)->entered() ? '/tutorial' : (app()->environment('e2e') ? '/e2e' : ''))
     <link rel="icon" href="{{ $icons }}/favicon.ico" sizes="48x48">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ $icons }}/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="{{ $icons }}/favicon-16x16.png">
