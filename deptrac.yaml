@@ -22,12 +22,13 @@
 #   Authorization  → Repository, Model                     # ScopeResolver, the single scope gate (AD-8)
 #   Support\Audit  → Repository                            # audited-action envelope (AD-16)
 #   Support\Time   → (nothing)                             # WeekOf, the one week_start mapper (AD-11)
+#   Support\Text   → (nothing)                             # FreeText, the request string cleaner
 #   Repository     → Model, DB, Support\Time               # sole DB access (AD-2)
 #   Model          → DB
 #   Integration    → External                              # sole path out — Saloon lives here (AD-3)
 #   Provider       → Controller, CommandHandler, Repository, Model, Integration, Authorization, DB, Kpi  # DI composition root
 #   Tutorial       → Repository, Model, CommandHandler, Authorization, Support\Time, DB, External  # the hands-on tutorial's sandbox: switches the database and fakes the way out
-#   Middleware     → Authorization, Support\Audit, Repository  # shares + guards the view-as preview (Story 1.13); runs a request as the person an Admin acts as (#379); logs page visits (#382)
+#   Middleware     → Authorization, Support\Audit, Support\Text, Repository  # shares + guards the view-as preview (Story 1.13); runs a request as the person an Admin acts as (#379); logs page visits (#382)
 # Integration is reached from CommandHandler and Sync (and wired by Provider), nothing else.
 # Everything else is forbidden: Controller → Integration (external calls stay out of
 # controllers), Controller → DB, and any reverse edge all fail the build.
@@ -66,6 +67,10 @@ deptrac:
       collectors:
         - type: directory
           value: app/Support/Time/.*
+    - name: Support\Text
+      collectors:
+        - type: directory
+          value: app/Support/Text/.*
     - name: Authorization
       collectors:
         - type: directory
@@ -254,6 +259,7 @@ deptrac:
     # Reachable from Controller, CommandHandler, Repository, Kpi and Loa; add an edge here if another
     # layer needs to bucket a time into a week.
     Support\Time: ~
+    Support\Text: ~
     Model:
       - DB
     Integration:
@@ -285,6 +291,8 @@ deptrac:
       # Acting as someone (#379): the middleware tells the audit envelope who is really acting on this request, so
       # each entry names the Admin acting on the person's behalf (AD-16).
       - Support\Audit
+      # TrimStrings cleans every request string with FreeText.
+      - Support\Text
       # The activity log (#382): the page-visit middleware stores each visit through PageVisitRepository after the
       # response. A visit is a read, not a state change, so it has no Command and no audit entry (AD-16).
       - Repository

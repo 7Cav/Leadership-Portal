@@ -218,3 +218,22 @@ describe('Steam', function () {
         $mock->assertSentCount(ImportGameIdentities::STEAM_LOOKUPS);
     });
 });
+
+// Laravel's trim still runs here and strips invisible characters, a Hangul filler among them, at the edges, as it did
+// before; inside a name they arrive as typed, where the cleaner would otherwise remove them.
+it('passes player names to the import untouched by the request text cleaner', function (string $text) {
+    $seen = null;
+    $this->mock(ImportGameIdentities::class)->shouldReceive('preview')->once()
+        ->andReturnUsing(function ($actor, string $received) use (&$seen) {
+            $seen = $received;
+
+            return [];
+        });
+
+    previewImport($this, $text)->assertOk();
+
+    expect($seen)->toBe($text);
+})->with([
+    'a Hangul filler inside the name' => ["Novak.E, HLL, A\u{3164}B"],
+    'a right-to-left mark' => ["Novak.E, HLL, Name\u{200F}x"],
+]);
