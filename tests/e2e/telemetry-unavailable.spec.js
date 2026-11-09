@@ -36,5 +36,5 @@ test('a practice whose last capture failed shows the unavailable banner, the man
 
     await page.getByTestId('mark-rest-missed').click();
     await page.getByTestId('confirm-practice').click();
-    await expect(page.getByTestId('confirm-badge')).toHaveText('Confirmed held');
+    await expect(page.getByTestId('confirm-badge')).toHaveText('Practice took place');
 });

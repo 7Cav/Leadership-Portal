@@ -199,8 +199,8 @@ On the same page:
   roster when no listed section's game is read; the roll call for its own section).
 - Capture review: when game-server data was captured for the practice, marks it made show their source.
 - Practice confirmation: on any section with troopers on its roll call, the leader confirms the week's practice as held
-  ("Confirm held", every trooper marked; leave and an automatic Excused count as marked) or as not held ("Not held",
-  refused while a trooper is marked Attended), shown as "Confirmed held" or "Confirmed not held" ("Confirmed by ..." in
+  ("Confirm practice took place", every trooper marked; leave and an automatic Excused count as marked) or as not held ("Practice did not take place",
+  refused while a trooper is marked Attended), shown as "Practice took place" or "Practice did not take place" ("Confirmed by ..." in
   the title). Both are refused before the practice hour ends (the captured window, the week's move, or the slot); a
   section with no slot, or a cancelled week, can confirm any time in the week. Editing a mark by hand afterwards clears
   the confirmation. The capture never confirms. A practice counts as held only once its hour is over or it is
