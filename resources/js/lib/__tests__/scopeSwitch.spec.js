@@ -8,6 +8,7 @@ const staff = { id: 9, type: 'group', line: false };
 describe('unitHref', () => {
     it('opens the roster for the unit, keeping a known view', () => {
         expect(unitHref(platoon, '/roster/3?view=matrix')).toBe('/roster/4?view=matrix');
+        expect(unitHref(platoon, '/roster/3?view=strength&trooper=9')).toBe('/roster/4?view=strength');
         expect(unitHref(platoon, '/roster')).toBe('/roster/4');
         expect(unitHref(platoon, '/roster/3?view=<script>')).toBe('/roster/4');
     });

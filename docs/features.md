@@ -319,7 +319,7 @@ leaves the Cav; one who left before it began doing so has no date and is on no p
 
 - Unit switcher: the block at the top of the sidebar names the top unit of your scope (several for a staff grant over
   more than one unit, empty line units left out as in the list), and the breadcrumb starts there. Open it to list every unit in your scope as a tree, sections
-  included and empty line units left out. Choosing one opens the page you are on for that unit (its roster, a
+  included and empty line units left out. Choosing one opens the page you are on for that unit (its roster on the same view: ORBAT, matrix or strength, a
   section's roll call, or its report or roll-up for the same week), else that unit's roster. It is navigation only: it
   never changes what you can see or do.
 - View as (in the top bar): previews the portal as a unit's leader, or for an Admin as a person. Its list of units

@@ -13,7 +13,7 @@ page: /roster
 ## Open the roster
 
 1. Choose **Roster** in the sidebar.
-2. It opens on the unit you lead. To see another unit you can see, choose it in the unit picker at the top, or in the unit list at the top of the sidebar. The picker opens on the unit you are looking at, highlighted.
+2. It opens on the unit you lead. To see another unit you can see, choose it in the unit picker at the top, or in the unit list at the top of the sidebar. The picker opens on the unit you are looking at, highlighted. The new unit opens on the same tab you were on.
 3. Opening a single unit from a row (**Show 1/1/A/1-7 only**) shows that unit's roster. To go back, choose **Return to** and the unit above it (left of the filters), the unit names above the title, or your browser's back button.
 
 ## Choose a view
