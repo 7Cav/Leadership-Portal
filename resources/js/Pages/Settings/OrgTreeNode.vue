@@ -52,9 +52,13 @@ const gameChip = computed(() => {
 // Game, vacant lead and oversight: inline from `sm` up, their own line under the name on a phone.
 const hasMeta = computed(() => Boolean(gameChip.value || (props.node.lead_vacant && !props.node.empty) || oversightText.value));
 
+// Lead and oversight both vacant: the server's one combined label, said in place of the two.
+const combinedVacancy = computed(() => (props.node.lead_vacant && !props.node.empty ? (props.node.vacancy_label ?? null) : null));
+
 const oversightText = computed(() => {
+    if (combinedVacancy.value) return null;
     if (props.node.oversight) return `Oversight: ${props.node.oversight.displayName}${props.node.oversight.serving ? '' : ' (not serving)'}`;
-    return props.node.oversight_vacant ? 'Oversight: vacant' : null;
+    return props.node.oversight_vacant ? 'Oversight vacant' : null;
 });
 </script>
 
@@ -142,7 +146,7 @@ const oversightText = computed(() => {
               A billet commands this unit and nobody serving holds it. No previous holder is remembered. Not said of an
               empty unit, which is shown muted only when asked for.
             -->
-            <span v-if="node.lead_vacant && !node.empty" :data-testid="`lead-vacant-${node.id}`" class="shrink-0 text-[11px] text-warning">Lead: vacant</span>
+            <span v-if="node.lead_vacant && !node.empty" :data-testid="`lead-vacant-${node.id}`" class="shrink-0 text-[11px] text-warning">{{ combinedVacancy ?? node.lead_vacant_label ?? 'Lead: vacant' }}</span>
             <span
                 v-if="oversightText"
                 :data-testid="`oversight-${node.id}`"

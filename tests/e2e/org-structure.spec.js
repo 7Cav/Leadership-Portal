@@ -12,7 +12,7 @@ test('the org page counts HQ staff, hides New Recruits by default and shows wher
     await expect(platoon).toContainText('Headcount 2');
     // The nickname shows on the platoon's roster, not in the org tree.
     await expect(platoon).not.toContainText('WARDOGS');
-    await expect(platoon).toContainText('Lead: vacant');
+    await expect(platoon).toContainText('HQ vacant');
 
     const recruits = page.locator('[data-testid^="unit-row-"]').filter({ hasText: 'New Recruits' });
     await expect(recruits).toHaveCount(0);

@@ -1022,13 +1022,18 @@ function confirmDelete() {
                         <template v-if="selectedUnit.lead"
                             >Lead: <RankInsignia :rank="selectedUnit.lead.rank ?? null" class="mr-1" />{{ selectedUnit.lead.displayName }}<template v-if="selectedUnit.lead.source === 'acting'"> (acting)</template></template
                         >
-                        <template v-else>Lead: vacant</template>
+                        <template v-else-if="selectedUnit.lead_standin"
+                            >Lead: <RankInsignia :rank="selectedUnit.lead_standin.rank ?? null" class="mr-1" />{{ selectedUnit.lead_standin.displayName }} ({{ selectedUnit.lead_standin.billetShort }}, acting {{
+                                selectedUnit.lead_standin.actingFor
+                            }})</template
+                        >
+                        <template v-else>{{ selectedUnit.vacancy_label ?? selectedUnit.lead_vacant_label ?? 'Lead: vacant' }}</template>
                     </p>
-                    <p v-if="selectedUnit.oversight || selectedUnit.oversight_vacant" data-testid="detail-oversight" class="-mt-1.5 mb-3 text-[13px] text-muted-foreground">
+                    <p v-if="selectedUnit.oversight || (selectedUnit.oversight_vacant && (selectedUnit.lead_standin || !selectedUnit.vacancy_label))" data-testid="detail-oversight" class="-mt-1.5 mb-3 text-[13px] text-muted-foreground">
                         <template v-if="selectedUnit.oversight"
                             >Oversight: {{ selectedUnit.oversight.displayName }}<template v-if="!selectedUnit.oversight.serving"> (not serving)</template></template
                         >
-                        <template v-else>Oversight: vacant</template>
+                        <template v-else>Oversight vacant</template>
                     </p>
 
                     <!-- Who is in this group: staff department, ELOA (with where each trooper was), Reservists, New Recruits. -->

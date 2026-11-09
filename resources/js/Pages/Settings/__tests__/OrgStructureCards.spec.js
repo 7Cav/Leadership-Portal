@@ -162,10 +162,30 @@ describe('Settings/OrgStructure cards', () => {
         const wrapper = mountPage();
 
         expect(wrapper.find('[data-testid="oversight-2"]').text()).toBe('Oversight: MG Rob.Y');
-        expect(wrapper.find('[data-testid="oversight-3"]').text()).toBe('Oversight: vacant');
+        expect(wrapper.find('[data-testid="oversight-3"]').text()).toBe('Oversight vacant');
         expect(wrapper.find('[data-testid="oversight-13"]').text()).toBe('Oversight: COL Rogers.S');
-        expect(wrapper.find('[data-testid="ref-oversight-11-5"]').text()).toBe('Oversight: vacant');
+        expect(wrapper.find('[data-testid="ref-oversight-11-5"]').text()).toBe('Oversight vacant');
         expect(wrapper.find('[data-testid="oversight-10"]').exists()).toBe(false);
+    });
+
+    it('says one combined label when a battalion\'s lead and oversight are both vacant', async () => {
+        const standin = { displayName: 'MAJ Dread.M', rank: 'MAJ', billetShort: 'XO', actingFor: 'CO' };
+        const withVacancy = (label, lead_standin) => UNITS.map((unit) => (unit.id === 3 ? { ...unit, lead_vacant: true, lead_vacant_label: label, lead_standin, vacancy_label: `Oversight & ${label}` } : unit));
+        let wrapper = mountPage({ units: withVacancy('CO vacant', standin) });
+
+        expect(wrapper.find('[data-testid="lead-vacant-3"]').text()).toBe('Oversight & CO vacant');
+        expect(wrapper.find('[data-testid="oversight-3"]').exists()).toBe(false);
+
+        await wrapper.find('[data-testid="unit-row-3"]').trigger('click');
+
+        expect(wrapper.find('[data-testid="detail-lead"]').text()).toBe('Lead: MAJ Dread.M (XO, acting CO)');
+        expect(wrapper.find('[data-testid="detail-oversight"]').text()).toBe('Oversight vacant');
+
+        wrapper = mountPage({ units: withVacancy('HQ vacant', null) });
+        expect(wrapper.find('[data-testid="lead-vacant-3"]').text()).toBe('Oversight & HQ vacant');
+        await wrapper.find('[data-testid="unit-row-3"]').trigger('click');
+        expect(wrapper.find('[data-testid="detail-lead"]').text()).toBe('Oversight & HQ vacant');
+        expect(wrapper.find('[data-testid="detail-oversight"]').exists()).toBe(false);
     });
 
     it('marks an overseer who is no longer serving', () => {

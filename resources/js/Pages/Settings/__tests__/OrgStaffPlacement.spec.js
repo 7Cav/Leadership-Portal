@@ -98,6 +98,21 @@ describe('Settings/OrgStructure placement', () => {
         expect(wrapper.get('[data-testid="detail-lead"] [data-testid="rank-insignia"] img').attributes('src')).toBe('/assets/ranks/insignia/SGT.png');
     });
 
+    it('labels a vacant lead in the tree and names the stand-in only in the detail panel, or says HQ vacant', async () => {
+        const standin = { displayName: 'SSG Hollis.P', rank: 'SSG', billetShort: 'PSG', actingFor: 'PL' };
+        const withLabel = (id, label, lead_standin = null) => UNITS.map((unit) => (unit.id === id ? { ...unit, lead_vacant_label: label, lead_standin } : unit));
+        let wrapper = mountPage({ units: withLabel(2, 'PL vacant', standin) });
+
+        expect(wrapper.find('[data-testid="lead-vacant-2"]').text()).toBe('PL vacant');
+        await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+        expect(wrapper.find('[data-testid="detail-lead"]').text()).toBe('Lead: SSG Hollis.P (PSG, acting PL)');
+
+        wrapper = mountPage({ units: withLabel(2, 'HQ vacant') });
+        expect(wrapper.find('[data-testid="lead-vacant-2"]').text()).toBe('HQ vacant');
+        await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+        expect(wrapper.find('[data-testid="detail-lead"]').text()).toBe('HQ vacant');
+    });
+
     it('lets an Admin save a unit\'s label', async () => {
         const wrapper = mountPage({ isAdmin: true });
 

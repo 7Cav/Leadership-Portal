@@ -29,6 +29,7 @@ use App\Commands\Units\UnitOversightForbiddenException;
 use App\Commands\Units\UpdateUnit;
 use App\Http\Controllers\Controller;
 use App\Kpi\Headcount;
+use App\Models\CommandRole;
 use App\Models\Game;
 use App\Models\Trooper;
 use App\Models\Unit;
@@ -36,8 +37,10 @@ use App\Models\UnitKind;
 use App\Models\UnitOversight;
 use App\Models\UnitType;
 use App\Repositories\GameRepository;
+use App\Repositories\LeadStandin;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitActingLeadRepository;
+use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitGame;
 use App\Repositories\UnitGuidonRepository;
 use App\Repositories\UnitLeadRepository;
@@ -88,7 +91,7 @@ class OrgStructureController extends Controller
      * Everyone authenticated may view the tree (AC #3); only the Admin flag gates authoring
      * (checked client-side for the hidden control, and again below on write — AC #5).
      */
-    public function index(Request $request, ScopeResolver $scope, UnitGuidonRepository $guidons, Headcount $headcount, UnitOversightRepository $oversights, GameRepository $gameRepository): Response
+    public function index(Request $request, ScopeResolver $scope, UnitGuidonRepository $guidons, Headcount $headcount, UnitOversightRepository $oversights, GameRepository $gameRepository, UnitCommandMappingRepository $commands): Response
     {
         $tree = $this->units->tree();
         // The game each unit plays, its own or the nearest ancestor's, worked out once over the tree.
@@ -111,6 +114,11 @@ class OrgStructureController extends Controller
         $leadable = $this->leads->leadableUnitIds()->flip();
         $leads = $this->leads->leadsOf($tree->modelKeys());
         $acting = $this->actingLeads->leadsOf($tree->modelKeys());
+        // Who stands in for each vacant lead, display only (`LeadStandin`): the next serving holder of its command team,
+        // read for every vacant unit in one query.
+        $vacant = $tree->filter(fn (Unit $unit) => $leadable->has($unit->id) && ! $leads->has($unit->id));
+        $teams = $commands->teamsOf($vacant->modelKeys());
+        $standins = $vacant->mapWithKeys(fn (Unit $unit) => [$unit->id => LeadStandin::pick($unit->type, $teams->get($unit->id, collect()))]);
         $guidonOf = $guidons->all();
         // A line unit with nobody serving in it or under it (#442's one definition, `Headcount`). The page hides it until
         // asked, so an Admin can still reach one to rename, move or delete it.
@@ -206,21 +214,34 @@ class OrgStructureController extends Controller
                 'source' => $lead->source,
             ],
             'lead_vacant' => $leadable->has($unit->id) && ! $leads->has($unit->id),
+            // While vacant: who stands in and the label for it ("CO vacant" with a stand-in, "HQ vacant" without); null
+            // otherwise, and the label null for a group, which has no lead billet.
+            'lead_standin' => ($standin = $standins->get($unit->id)) === null ? null : [
+                'displayName' => $standin->trooper->display_name,
+                'rank' => $standin->trooper->rank_short,
+                'billetShort' => $standin->role->value,
+                // The vacant lead billet they stand in for, for "Lead: SGT Doe.J (XO, acting CO)".
+                'actingFor' => CommandRole::leadOf($unit->type)?->value,
+            ],
+            'lead_vacant_label' => ($vacantLabel = $standins->has($unit->id) ? LeadStandin::label($unit->type, $standin) : null),
             'acting_lead' => ($actor = $acting->get($unit->id)) === null ? null : ['id' => $actor->id, 'displayName' => $actor->display_name],
             // Whether an Admin may make someone this unit's acting lead now, by the Command's own rule: a line unit below
             // the regiment that no serving billet holder or portfolio officer leads.
             'acting_lead_allowed' => AssignActingLeadHandler::takesActingLead($unit) && AssignActingLeadHandler::ledByNoBillet($leads->get($unit->id)),
             'empty' => ! $withTroopers->has($unit->id),
             // Who oversees the unit: a battalion or the Reservists. A battalion with no
-            // serving overseer reads "Oversight: vacant"; an overseer who left every roster is named, marked not serving.
+            // serving overseer reads "Oversight vacant"; an overseer who left every roster is named, marked not serving.
             'overseeable' => UnitOversight::canOversee($unit),
             'oversight' => ($row = $oversightOf->get($unit->id)) === null ? null : [
                 'trooperId' => $row->trooper->id,
                 'displayName' => $row->trooper->display_name,
                 'serving' => $row->trooper->status?->isServing() ?? false,
             ],
-            'oversight_vacant' => $unit->type === UnitType::Battalion
-                && ! ($oversightOf->get($unit->id)?->trooper->status?->isServing() ?? false),
+            'oversight_vacant' => ($oversightVacant = $unit->type === UnitType::Battalion
+                && ! ($oversightOf->get($unit->id)?->trooper->status?->isServing() ?? false)),
+            // Both the lead and the oversight vacant: one label for the two, "Oversight & CO vacant" or
+            // "Oversight & HQ vacant", shown in place of the separate lead and oversight texts. Null otherwise.
+            'vacancy_label' => $oversightVacant && $vacantLabel !== null ? "Oversight & {$vacantLabel}" : null,
         ])->values();
 
         // Follows a view-as preview (Story 1.13): authoring controls hide as they would for the
