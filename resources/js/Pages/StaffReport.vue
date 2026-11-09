@@ -21,6 +21,7 @@ import {
 } from '@phosphor-icons/vue';
 import EmptyState from '@/components/EmptyState.vue';
 import ReportDeadlineBanner from '@/components/reports/ReportDeadlineBanner.vue';
+import { useDueCountdown } from '@/composables/useDueCountdown';
 import StaffHqHealth from '@/components/reports/StaffHqHealth.vue';
 import StaffReportDiscrepancy from '@/components/reports/StaffReportDiscrepancy.vue';
 import StaffReportPresence from '@/components/reports/StaffReportPresence.vue';
@@ -306,6 +307,9 @@ function submit() {
 }
 
 const weekUrl = (date) => `/staff-report/${props.trooper.id}/${date}`;
+// The deadline banner already says overdue when it shows, so the Due line only does without it.
+const dueNote = useDueCountdown(() => props.week.due, { sent: () => !!props.report, showOverdue: () => !props.canSend });
+
 const hqLabel = computed(() => (props.hq ? `${props.hq.label} HQ` : null));
 
 function entryNote(id) {
@@ -345,6 +349,7 @@ function entryNote(id) {
                 <p v-if="report" class="text-[13px] font-medium" data-testid="sent-line">Sent {{ stamp(report.sentAt) }}</p>
                 <p v-else class="text-[13px]" data-testid="due-line">
                     <span class="text-muted-foreground">Due</span> <span class="font-medium tabular-nums">{{ stamp(week.due) }}</span>
+                    <span v-if="dueNote" class="text-muted-foreground" data-testid="due-countdown"> ({{ dueNote }})</span>
                 </p>
                 <p class="text-xs text-muted-foreground">{{ forumDate(week.date) }} to {{ forumDate(weekEnd) }}</p>
             </div>
