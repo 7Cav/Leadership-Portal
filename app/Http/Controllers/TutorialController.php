@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Authorization\ActAs;
 use App\Authorization\ViewAs;
+use App\Commands\Tutorial\RecordTutorialUse;
 use App\Tutorial\PracticeWorld;
 use App\Tutorial\TutorialPersona;
 use App\Tutorial\TutorialPersonaResolver;
@@ -17,7 +18,8 @@ use Inertia\Inertia;
 /**
  * Start, start over and exit the hands-on tutorial. These run outside the sandbox (the sandbox middleware skips the
  * `tutorial.*` routes): they read the person's real standing, make or remove their practice copy, and fill it from
- * inside the sandbox. Entering is a session flag, like view as, so it is not in the audit log.
+ * inside the sandbox. Starting, starting over and leaving are noted in the real audit log against the person
+ * (RecordTutorialUse); what they do inside stays in their practice copy.
  */
 class TutorialController extends Controller
 {
@@ -26,6 +28,7 @@ class TutorialController extends Controller
         private readonly TutorialSession $tutorial,
         private readonly PracticeWorld $world,
         private readonly TutorialSteps $steps,
+        private readonly RecordTutorialUse $record,
     ) {}
 
     public function store(Request $request, TutorialPersonaResolver $personas, ActAs $actAs, ViewAs $viewAs): RedirectResponse
@@ -40,6 +43,7 @@ class TutorialController extends Controller
         $from = PreviousPage::of($request);
         $this->fresh($user->id, $persona);
         $this->tutorial->start($user->id, $persona, $from !== null && ! str_starts_with($from, '/tutorial') ? $from : '/home');
+        $this->record->handle($user, RecordTutorialUse::STARTED);
         Inertia::clearHistory();
 
         return redirect($this->firstStep($user->id, $persona));
@@ -55,6 +59,7 @@ class TutorialController extends Controller
         }
 
         $this->fresh($user->id, $persona);
+        $this->record->handle($user, RecordTutorialUse::RESTARTED);
         Inertia::clearHistory();
 
         return redirect($this->firstStep($user->id, $persona))->with('notice', 'The tutorial starts over with fresh practice data.');
@@ -65,6 +70,7 @@ class TutorialController extends Controller
         $this->tutorial->stop();
         // Leaves no practice data behind: the next start makes a fresh copy.
         $this->sandbox->discard($request->user()->id);
+        $this->record->handle($request->user(), RecordTutorialUse::EXITED);
         Inertia::clearHistory();
 
         // Always the guides home, where the tutorial is started: the page it started from may be a practice page.

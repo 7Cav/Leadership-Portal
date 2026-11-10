@@ -61,7 +61,7 @@ function practiceSectionId(int $userId): int
     return inTutorial($userId, fn () => app(TutorialPracticeRepository::class)->unitByCallsign(PracticeWorld::SECTION)->id);
 }
 
-it('runs every tutorial write on the practice copy and leaves the real tables and audit log alone', function () {
+it('runs every tutorial write on the practice copy, leaving the real audit log only the start', function () {
     $leader = User::factory()->commanding($this->section)->create();
     $before = realCounts();
 
@@ -74,8 +74,9 @@ it('runs every tutorial write on the practice copy and leaves the real tables an
     $this->postJson("/rollcall/{$section}/confirm", ['week' => $week])->assertOk();
     $this->postJson("/rollcall/{$section}/posted", ['week' => $week])->assertOk();
 
-    expect(realCounts())->toBe($before)
-        ->and(AuditLogEntry::query()->count())->toBe($before['audit_log']);
+    // The one real trace of the tutorial: the start, noted against the person.
+    expect(realCounts())->toBe([...$before, 'audit_log' => $before['audit_log'] + 1])
+        ->and(AuditLogEntry::query()->latest('id')->value('action'))->toBe('tutorial.started');
 
     $practice = inTutorial($leader->id, fn () => [
         'confirmed' => AuditLogEntry::query()->where('action', 'practice.confirmed')->count(),
@@ -302,4 +303,17 @@ it('serves the blue tutorial icons in the tutorial and the usual ones outside it
     expect(file_exists(public_path('tutorial-icons/favicon.ico')))->toBeTrue();
     // A public/tutorial folder would shadow the POST /tutorial route on the web server.
     expect(is_dir(public_path('tutorial')))->toBeFalse();
+});
+
+it('notes starting, starting over and leaving the tutorial in the real audit log, against the person', function () {
+    $leader = User::factory()->commanding($this->section)->create();
+
+    $this->actingAs($leader)->post('/tutorial');
+    $this->post('/tutorial/restart');
+    $this->delete('/tutorial');
+
+    $entries = AuditLogEntry::query()->orderBy('id')->get();
+    expect($entries->pluck('action')->all())->toBe(['tutorial.started', 'tutorial.restarted', 'tutorial.exited'])
+        ->and($entries->pluck('actor_id')->unique()->all())->toBe([$leader->id])
+        ->and($entries->pluck('target_id')->map(fn ($id) => (int) $id)->unique()->all())->toBe([$leader->id]);
 });
