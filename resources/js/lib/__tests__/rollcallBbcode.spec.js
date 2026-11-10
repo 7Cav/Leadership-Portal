@@ -77,6 +77,15 @@ describe('rollcallContext (3.11)', () => {
         expect(context).toMatchObject({ count: '6', signed: '1', attended: '2' });
     });
 
+    it("prints the live Signed RC and Attended SP image addresses the server sent, and nothing when it sent none (#641)", () => {
+        const resultImages = { rc: 'https://portal.7cav.us/rollcall-images/tok/2026-10-03/rc.png', sp: 'https://portal.7cav.us/rollcall-images/tok/2026-10-03/sp.png' };
+        const body = resolved('[IMG]{{rc_image}}[/IMG]\n[IMG]{{sp_image}}[/IMG]');
+
+        expect(rollcallPost(body, { ...input(), resultImages }).text).toBe(`[IMG]${resultImages.rc}[/IMG]\n[IMG]${resultImages.sp}[/IMG]`);
+        expect(rollcallPost(body, input()).text).toBe('[IMG][/IMG]\n[IMG][/IMG]');
+        expect(rollcallPost(resolved('{{#rc_image}}image{{/rc_image}}{{^rc_image}}none{{/rc_image}}'), input()).text).toBe('none');
+    });
+
     it('prints an automatic Excused on the halves nobody recorded, and what a leader recorded on the rest (2026-10-30)', () => {
         const rows = rollcallContext(input([
             { ...t(7, 'Ito.K', 'unsigned', null), excused: 'transfer' },

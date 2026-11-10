@@ -17,7 +17,7 @@ namespace App\Rollcall;
 final class TemplateSyntax
 {
     /** Names printable anywhere in a template. */
-    public const TOP_STRINGS = ['unit', 'unit_name', 'week', 'week_start', 'week_end', 'count', 'signed', 'attended'];
+    public const TOP_STRINGS = ['unit', 'unit_name', 'week', 'week_start', 'week_end', 'count', 'signed', 'attended', 'rc_image', 'sp_image'];
 
     /** Yes-or-no names about the whole post, usable only as sections, anywhere in a template. */
     public const TOP_FLAGS = ['fireteams_shown'];

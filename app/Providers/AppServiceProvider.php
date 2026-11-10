@@ -211,6 +211,10 @@ class AppServiceProvider extends ServiceProvider
         // Rollcall "Try again" (Story 7.9). The handler already allows one request per practice a
         // minute; this caps how many practices one leader can queue captures for, since every run
         // spends calls on an external game-server API.
+        // The roll call result images the forum embeds (#641): public, so keyed by address. The forum's image cache
+        // and each reader's browser fetch them, so the bucket is generous; every response also carries an ETag.
+        RateLimiter::for('rollcall-images', fn (Request $request) => Limit::perMinute(120)->by($request->ip()));
+
         RateLimiter::for('practice-capture', fn (Request $request) => Limit::perMinute(10)
             ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip()))
             // The screen posts in the background and reads `message`; the framework's 429 would be
