@@ -25,7 +25,9 @@ test('the main pages load with no content security policy violation', async ({ p
     await page.goto('/__e2e/login/Hale.S?to=/home');
     await expect(page.getByTestId('kpi-tiles')).toBeVisible();
 
+    // The guidon button sits on the roster's Admin tab.
     await page.goto('/roster');
+    await page.getByTestId('view-admin').click();
     await page.getByTestId('roster-guidon').click();
     const generator = page.getByTestId('guidon-generator');
     // The large preview, named for the unit; the format buttons carry small unnamed ones.

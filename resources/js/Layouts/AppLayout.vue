@@ -219,5 +219,6 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
 
     <!-- The one toast region for every page, following the theme toggle: a page calls vue-sonner's
          `toast()`, never mounts its own. -->
-    <Toaster :theme="theme" position="bottom-right" close-button />
+    <!-- In the tutorial the coach card holds the bottom corners, so messages show at the top. -->
+    <Toaster :theme="theme" :position="inTutorial ? 'top-center' : 'bottom-right'" close-button />
 </template>

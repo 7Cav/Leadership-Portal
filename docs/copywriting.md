@@ -66,13 +66,16 @@ Exclamation marks: never. There is no exception.
 - Billets: capitalise the exact roster title ("the Section Leader", "a Platoon Leader's command over this unit").
   Lowercase a role used generically ("section leaders add guests on their roll call", "the leaders who command this
   section").
-- The organisation: "7Cav" in running text ("your 7Cav milpac", "the 7Cav forum"). "7th Cavalry Regiment" only as the
-  name of the regiment unit (the top of the tree, the sidebar scope). "7th Cavalry Gaming Regiment" only in the login
-  footer. Not "7th Cavalry" alone. "Cav" stays in the fixed compounds "Cav roster" and "Cav week".
+- The organisation, named on its own, is one of: "the Cav", "the Cavalry", "the 7th Cav", "the 7th Cavalry", "7Cav",
+  "7th Cav" or "the 7th Cavalry Regiment". Never a bare "Cav" ("as the Cav writes them", not "as Cav writes them";
+  "the Cav's data", not "Cav's data"). "7Cav" is the usual one in running text ("your 7Cav milpac", "the 7Cav
+  forum"). "7th Cavalry Regiment" names the regiment unit (the top of the tree, the sidebar scope). "7th Cavalry
+  Gaming Regiment" only in the login footer. "Cav" before a noun stays in the fixed compounds "Cav roster", "Cav week" and "Cav name"
+  (a trooper's name as the Cav writes it, such as Atkins.D).
 - Section practice: lowercase in the UI ("mark who was at section practice"); "Section practice" only at the start of a
   heading, label or button. Short form SP. Not "Section Practice" mid-sentence.
-- Ranks: short ranks are always caps as Cav writes them: PVT, PFC, SPC, CPL, SGT, SSG, SFC, MSG, 1SG, SGM, CSM, WO1,
-  CW2 to CW5, 2LT, 1LT, CPT, MAJ, LTC, COL. Full rank names are title case, as Cav's data has them (`rankFull`):
+- Ranks: short ranks are always caps as the Cav writes them: PVT, PFC, SPC, CPL, SGT, SSG, SFC, MSG, 1SG, SGM, CSM, WO1,
+  CW2 to CW5, 2LT, 1LT, CPT, MAJ, LTC, COL. Full rank names are title case, as the Cav's data has them (`rankFull`):
   "Staff Sergeant", "Private First Class", "Chief Warrant Officer 2". Any fallback map follows the same case.
 
 ### Punctuation
@@ -165,7 +168,7 @@ All times in the portal are UTC. The Cav works in Zulu time.
 
 ### Units
 
-- Designations as Cav writes them: section `2/1/A/1-7` (section 2 of platoon 1), platoon `1/A/1-7`, company `A/1-7`,
+- Designations as the Cav writes them: section `2/1/A/1-7` (section 2 of platoon 1), platoon `1/A/1-7`, company `A/1-7`,
   battalion `1-7`.
 - Show a unit by its callsign, falling back to its name (`unit.callsign ?? unit.name`), as the roster and matrix do.
   In toasts, report titles and anything pasted to the forum or Discord, use the designation
@@ -354,7 +357,7 @@ says what changed for the reader: what they can now do or see, and where. Not ho
   Mark the rest missed. No bold in entries.
 - Plain everyday words. No internal terms: sync, API, endpoint, cache, scope, billet mapping, seed, CRCON (write "game
   server data"). "Audit log" is fine, Admins see it.
-- Abbreviations: only the Cav-common ones (LOA, ELOA, DCS, LOR, SL, PL, CO, XO, HQ, SP, JSAM). Spell out the rest, such
+- Abbreviations: only the ones common in the Cav (LOA, ELOA, DCS, LOR, SL, PL, CO, XO, HQ, SP, JSAM). Spell out the rest, such
   as "Regimental XO" for RXO and "first and second in charge" for 1IC and 2IC.
 - "roll call" is two words. "make-up" is hyphenated. Zulu, not UTC, for times.
 - Same punctuation rules as the rest of the portal: no em dashes, no semicolons, no contractions, no exclamation marks.
@@ -424,7 +427,7 @@ tests and comments. They include some route and key names, so read them as rough
 | needs review | A leave post the sync could not read | LOA badge | | invalid, error |
 | trooper | Any 7Cav member on the roster | Everywhere | trooper 426 / 135; member 21 (fireteam members, "Not a member?") | soldier, user (except portal accounts), member (for a trooper) |
 | user | A portal account (sign-in, staff grant holder) | Staff grants, menus | user 19 / 37 | member |
-| milpac | A trooper's Cav personnel record and page | Trooper sheet, milpac page | milpac 10 / 14, "Milpac ID" at sentence start | MILPAC, Milpac mid-sentence, profile |
+| milpac | A trooper's 7Cav personnel record and page | Trooper sheet, milpac page | milpac 10 / 14, "Milpac ID" at sentence start | MILPAC, Milpac mid-sentence, profile |
 | billet | A trooper's position on the Cav roster | Roster, Org structure | billet 37 / 16, position 1 UI | position, role, job |
 | Developmental Counseling Statement, DCS | A written counseling of a trooper, filed with its signed PDF (#381). Spell it out in labels and headings; "DCS" on badges and in counts. Plural "DCSs" | Milpac counseling panel | new | counseling form, write-up |
 | Letter of Reprimand, LOR | A written reprimand, filed with its signed PDF (#381). Spell it out in labels and headings; "LOR" on badges and in counts. Plural "LORs" | Milpac counseling panel | new | reprimand letter, write-up |
@@ -452,7 +455,7 @@ tests and comments. They include some route and key names, so read them as rough
 | fireteam, fireteam leader (FTL) | Sub-group of a section and its leader | Roll call | fireteam 56 / 26, FTL 8 | fire team |
 | callsign | A unit's short name | Org structure, roster | 53 / 17 | call sign, nickname |
 | guidon | A unit's swallowtail flag: two colors split on the diagonal, with text on each half | Roster, Org structure | | flag, banner, pennant |
-| designation | A unit's Cav code such as `2/1/A/1-7` | Toasts, reports | 28 / 9 | unit code |
+| designation | A unit's 7Cav code such as `2/1/A/1-7` | Toasts, reports | 28 / 9 | unit code |
 | sign in, sign out | Start or end a portal session | Login, user menu | sign in 7 UI; "log in" only in code | log in, log out, login (as a verb) |
 | Departed | A trooper no longer on any Cav roster | Roster, search, past roll call row badge | | discharged, removed |
 | Moved out | Row badge on a past week's roll call: the trooper was in the section when the week ended and is in another unit now | Roll call | new | transferred, left |

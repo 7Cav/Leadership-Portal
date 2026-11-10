@@ -1,42 +1,96 @@
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { PhCaretDown, PhCaretUp, PhCheckCircle, PhCircle } from '@phosphor-icons/vue';
 import { Button } from '@/components/ui/button';
 import { leaving, useTutorial } from '@/composables/useTutorial';
+import { coachSide, onStepPage, targetCss } from '@/lib/tutorial';
 
 // The coach card beside the page while the tutorial is on: the step's instruction, its checklist and Next/Back. The
-// checklist ticks itself from the person's practice copy: the shared `tutorial` prop is read again every few seconds,
-// as some actions (the roll call autosave) are not page visits.
+// checklist ticks itself from the person's practice copy: the shared `tutorialMode` prop is read again every few
+// seconds, and soon after each click, as some actions (the roll call autosave) are not page visits.
 const { active, steps, index, step, stepDone, next, skip, back } = useTutorial();
+const page = usePage();
 const open = ref(true);
+const card = ref(null);
 
 const REFRESH_MS = 4000;
-let timer = null;
+const PLACE_MS = 400;
+// After a click: once the page's own save is likely done, and once more for a slow one.
+const AFTER_CLICK_MS = [800, 2500];
+let timers = [];
+let clickTimers = [];
 
 function refresh() {
     if (!active.value || leaving.value || document.hidden) return;
     router.reload({ only: ['tutorialMode'], async: true, preserveScroll: true, preserveState: true, showProgress: false });
 }
 
-// What the step points at (`step.highlight`, a selector such as Demo.K's card) gets the tutorial blue ring. Applied
-// again after each refresh and page change, as the page may draw the element later.
-const RING = 'tutorial-target';
-function ring() {
-    document.querySelectorAll(`.${RING}`).forEach((el) => el.classList.remove(RING));
-    const selector = active.value ? step.value?.highlight : null;
-    if (selector) document.querySelectorAll(selector).forEach((el) => el.classList.add(RING));
+function onClick(event) {
+    if (!active.value || card.value?.contains(event.target)) return;
+    clickTimers.forEach((id) => window.clearTimeout(id));
+    clickTimers = AFTER_CLICK_MS.map((ms) => window.setTimeout(refresh, ms));
 }
-watch(() => [active.value, step.value?.highlight], () => nextTick(ring), { immediate: true });
+
+// What to show in the tutorial blue: on the step's page, what the step points at (`step.highlight`, such as Demo.K's
+// card); elsewhere, the sidebar link to that page (`step.nav`).
+const target = computed(() => {
+    if (!active.value || !step.value) return null;
+    if (step.value.nav && !onStepPage(page.url, step.value.href)) return step.value.nav;
+
+    return step.value.highlight ?? null;
+});
+
+let style = null;
+watch(
+    target,
+    (selector) => {
+        if (typeof document === 'undefined') return;
+        style ??= document.getElementById('tutorial-target-style') ?? Object.assign(document.createElement('style'), { id: 'tutorial-target-style' });
+        if (!style.isConnected) document.head.appendChild(style);
+        style.textContent = targetCss(selector);
+    },
+    { immediate: true },
+);
+
+// The card keeps clear of what the step points at and of an open side panel (a trooper's panel on the roster): it
+// moves to the bottom left while either is under it, and above the panel's backdrop while one is open.
+const side = ref('right');
+const overPanel = ref(false);
+const PANELS = '[data-slot="sheet-content"]';
+
+function place() {
+    if (!card.value) return;
+    const panels = [...document.querySelectorAll(PANELS)];
+    let pointed = [];
+    try {
+        pointed = target.value ? [...document.querySelectorAll(target.value)] : [];
+    } catch {
+        pointed = [];
+    }
+    const rect = card.value.getBoundingClientRect();
+    side.value = coachSide(
+        { width: rect.width, top: rect.top, bottom: rect.bottom },
+        window.innerWidth,
+        [...pointed, ...panels].map((el) => el.getBoundingClientRect()),
+    );
+    overPanel.value = panels.length > 0;
+}
+
 // Back in the real portal, a later start of the tutorial refreshes again.
 watch(active, (on) => !on && (leaving.value = false));
-const page = usePage();
-watch(() => page.url, () => nextTick(ring));
 
-onMounted(() => (timer = window.setInterval(() => (refresh(), ring()), REFRESH_MS)));
+onMounted(() => {
+    timers = [window.setInterval(refresh, REFRESH_MS), window.setInterval(place, PLACE_MS)];
+    document.addEventListener('click', onClick, true);
+    place();
+});
 onBeforeUnmount(() => {
-    window.clearInterval(timer);
-    document.querySelectorAll(`.${RING}`).forEach((el) => el.classList.remove(RING));
+    // Interval and timeout ids share one pool, so clearTimeout ends both.
+    [...timers, ...clickTimers].forEach((id) => window.clearTimeout(id));
+    document.removeEventListener('click', onClick, true);
+    style?.remove();
+    style = null;
 });
 </script>
 
@@ -45,7 +99,13 @@ onBeforeUnmount(() => {
         v-if="active && step"
         aria-labelledby="tutorial-coach-title"
         data-testid="tutorial-coach"
-        class="fixed right-4 bottom-4 z-40 w-[min(22rem,calc(100vw-2rem))] rounded-lg border-2 border-changelog bg-card text-card-foreground shadow-lg"
+        ref="card"
+        :data-side="side"
+        :class="[
+            'pointer-events-auto fixed bottom-4 w-[min(22rem,calc(100vw-2rem))] rounded-lg border-2 border-changelog bg-card text-card-foreground shadow-lg',
+            side === 'left' ? 'left-4' : 'right-4',
+            overPanel ? 'z-[60]' : 'z-40',
+        ]"
     >
         <div class="flex items-center gap-2 px-4 pt-3">
             <p class="text-xs font-semibold text-changelog dark:text-foreground">Step {{ index + 1 }} of {{ steps.length }}</p>

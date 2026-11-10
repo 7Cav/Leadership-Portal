@@ -498,7 +498,7 @@ describe('Settings/OrgStructure', () => {
             });
 
             const text = wrapper.find('[data-testid="import-result"]').text();
-            expect(text).toContain('3 mappings moved to the unit Cav now lists');
+            expect(text).toContain('3 mappings moved to the unit the Cav now lists');
             expect(text).not.toContain('existing mapping');
         });
 

@@ -14,6 +14,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable(['unit_id', 'options'])]
 class UnitAccountabilitySetting extends Model
 {
+    /** Every option key with its label, in the order the tick list shows them (`AccountabilityRules::OPTIONS`). */
+    public const OPTION_LABELS = [
+        'sp_own_unit' => 'Section practice in own unit',
+        'sp_battalion' => 'Section practice elsewhere in the battalion',
+        'ftx' => 'FTX',
+        'operation' => 'Operation',
+        'class' => 'S7 class',
+        'event' => 'Other official event',
+        'server_hour' => 'Public or training server hour with a leader present',
+        'sp_other_game' => 'Section practice in another game',
+    ];
+
     protected function casts(): array
     {
         return [

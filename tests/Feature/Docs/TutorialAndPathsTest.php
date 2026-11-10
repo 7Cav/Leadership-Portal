@@ -133,14 +133,6 @@ it('offers docs home role paths, only the reader may follow, with only the guide
         ->where('tutorial', null));
 });
 
-it('lists recently updated guides, newest first, leaving out guides with no date', function () {
-    $this->actingAs($this->leader)->get('/docs')->assertInertia(fn (Assert $page) => $page
-        ->where('recent', fn ($recent) => collect($recent)->map(fn ($g) => [$g['url'], $g['updated']])->all() === [
-            ['/docs/basics/roster', '2026-10-31'],
-            ['/docs/basics/sign-in', '2026-10-30'],
-        ]));
-});
-
 it('names a paths.yaml entry that is not a guide, and a bad updated or try, as problems', function () {
     File::put($this->docs.'/paths.yaml', "oops:\n  title: Oops\n  blurb: Broken.\n  audience: leader\n  guides: [basics/missing]\n");
     tutorialDoc($this->docs, 'basics/bad.md', "title: Bad\nsummary: Bad.\nsection: basics\norder: 3\naudience: everyone\nupdated: last week\ntry: Open it\n");

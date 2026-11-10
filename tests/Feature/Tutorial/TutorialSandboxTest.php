@@ -3,6 +3,8 @@
 use App\Commands\StaffReports\PushStaffReportToSheet;
 use App\Jobs\PushStaffReportToSheetJob;
 use App\Models\AuditLogEntry;
+use App\Models\PlatoonTrainingTopic;
+use App\Models\PracticeCapturePlayer;
 use App\Models\Trooper;
 use App\Models\TrooperGameIdentity;
 use App\Models\Unit;
@@ -59,7 +61,7 @@ function practiceSectionId(int $userId): int
     return inTutorial($userId, fn () => app(TutorialPracticeRepository::class)->unitByCallsign(PracticeWorld::SECTION)->id);
 }
 
-it('runs every tutorial write on the practice copy and leaves the real tables and audit log alone', function () {
+it('runs every tutorial write on the practice copy, leaving the real audit log only the start', function () {
     $leader = User::factory()->commanding($this->section)->create();
     $before = realCounts();
 
@@ -72,8 +74,9 @@ it('runs every tutorial write on the practice copy and leaves the real tables an
     $this->postJson("/rollcall/{$section}/confirm", ['week' => $week])->assertOk();
     $this->postJson("/rollcall/{$section}/posted", ['week' => $week])->assertOk();
 
-    expect(realCounts())->toBe($before)
-        ->and(AuditLogEntry::query()->count())->toBe($before['audit_log']);
+    // The one real trace of the tutorial: the start, noted against the person.
+    expect(realCounts())->toBe([...$before, 'audit_log' => $before['audit_log'] + 1])
+        ->and(AuditLogEntry::query()->latest('id')->value('action'))->toBe('tutorial.started');
 
     $practice = inTutorial($leader->id, fn () => [
         'confirmed' => AuditLogEntry::query()->where('action', 'practice.confirmed')->count(),
@@ -98,6 +101,42 @@ it('ticks the coach card from what was done in the practice copy', function () {
         ->where('tutorialMode.steps.0.checklist.4.done', false)
         // Confirmed but not posted: Mark posted is the next thing to do, unless Demo.K still needs a signature.
         ->where('tutorialMode.steps.0.highlight', fn ($selector) => in_array($selector, ['[data-testid="mark-posted"]'], true) || str_starts_with((string) $selector, '[data-trooper="')));
+});
+
+it('ticks the subject of a platoon report from its training topic, and points at the subject and notes, then Send', function () {
+    $leader = User::factory()->commanding($this->section)->create();
+    $this->actingAs($leader)->post('/tutorial');
+    $persona = new TutorialPersona(
+        admin: false, leads: UnitType::Platoon, hqStaff: null,
+        username: 'Someone.X', forumUserId: 1, cavId: 1, rankShort: '1LT', rank: 'First Lieutenant',
+    );
+    $steps = fn () => collect(app(TutorialSteps::class)->describe($leader->id, $persona))->keyBy('id');
+
+    $before = inTutorial($leader->id, $steps);
+    expect($before['weekly-report']['checklist'][1]['done'])->toBeFalse()
+        ->and($before['weekly-report']['highlight'])->toBe('#training-subject, #platoon-topic, #report-notes')
+        ->and($before['weekly-report']['nav'])->toBe('[data-testid="nav-Reports"]')
+        ->and($before['rollcall']['nav'])->toBe('[data-testid="nav-Roll call"]');
+
+    $after = inTutorial($leader->id, function () use ($steps) {
+        PlatoonTrainingTopic::query()->create([
+            'unit_id' => app(TutorialPracticeRepository::class)->unitByCallsign(PracticeWorld::PLATOON)->id,
+            'week_start' => WeekOf::reporting(CarbonImmutable::now('UTC')),
+            'subject' => 'Radio procedure',
+            'set_by' => User::query()->value('id'),
+        ]);
+
+        return $steps();
+    });
+    expect($after['weekly-report']['checklist'][1]['done'])->toBeTrue()
+        ->and($after['weekly-report']['highlight'])->toBe('[data-testid="send-button"], [data-testid="send-anyway"]');
+});
+
+it('leaves no unmatched player on the practice roll call, as no step teaches matching one', function () {
+    $leader = User::factory()->commanding($this->section)->create();
+    $this->actingAs($leader)->post('/tutorial');
+
+    expect(inTutorial($leader->id, fn () => PracticeCapturePlayer::query()->whereNull('trooper_id')->count()))->toBe(0);
 });
 
 it('links every practice trooper to the practice game, so no identity warning shows', function () {
@@ -264,4 +303,17 @@ it('serves the blue tutorial icons in the tutorial and the usual ones outside it
     expect(file_exists(public_path('tutorial-icons/favicon.ico')))->toBeTrue();
     // A public/tutorial folder would shadow the POST /tutorial route on the web server.
     expect(is_dir(public_path('tutorial')))->toBeFalse();
+});
+
+it('notes starting, starting over and leaving the tutorial in the real audit log, against the person', function () {
+    $leader = User::factory()->commanding($this->section)->create();
+
+    $this->actingAs($leader)->post('/tutorial');
+    $this->post('/tutorial/restart');
+    $this->delete('/tutorial');
+
+    $entries = AuditLogEntry::query()->orderBy('id')->get();
+    expect($entries->pluck('action')->all())->toBe(['tutorial.started', 'tutorial.restarted', 'tutorial.exited'])
+        ->and($entries->pluck('actor_id')->unique()->all())->toBe([$leader->id])
+        ->and($entries->pluck('target_id')->map(fn ($id) => (int) $id)->unique()->all())->toBe([$leader->id]);
 });

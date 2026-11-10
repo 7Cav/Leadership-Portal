@@ -402,7 +402,7 @@ function confirmDialog(reason) {
             <div class="px-4 pt-3.5 pb-2">
                 <h2 class="text-[15px] font-semibold">Admin billets</h2>
                 <p class="mt-1 text-xs text-muted-foreground">
-                    Approve a Regimental HQ, S6 1IC or S6 2IC billet to make whoever holds it an Admin. When Cav renames the billet or moves it to
+                    Approve a Regimental HQ, S6 1IC or S6 2IC billet to make whoever holds it an Admin. When the Cav renames the billet or moves it to
                     another group, it waits here again until an Admin approves the new names. A billet moved out of Regimental HQ, or an S6 billet renamed, cannot be
                     approved. You cannot decide on a billet you hold.
                 </p>

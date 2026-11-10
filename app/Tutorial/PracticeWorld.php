@@ -159,7 +159,6 @@ final class PracticeWorld
                 $this->practice->capturePlayer($practice, $game, $trooper->username, 'practice-'.$trooper->cav_id, $trooper);
             }
         }
-        $this->practice->capturePlayer($practice, $game, 'Unknown.Visitor', 'practice-visitor', null);
         // No identity warnings in the tutorial: no step teaches linking, so every practice trooper is linked.
         $this->practice->linkEveryone($game);
 

@@ -41,3 +41,44 @@ export function stepLabel(steps, index) {
 export function finishedGuides(steps) {
     return (steps ?? []).filter((step) => step.done && step.guide).map((step) => step.guide);
 }
+
+/**
+ * The CSS that shows what a step points at (`selector`) in the tutorial blue: an outline on anything, such as a trooper
+ * card, a text box or a sidebar link, and a solid fill on a button. A stylesheet rather than a class on the element, so
+ * the page drawing that element again (a mark changing a card) never drops it.
+ */
+export function targetCss(selector) {
+    if (!selector) return '';
+
+    return [
+        `:is(${selector}) { outline: 2px solid var(--changelog) !important; outline-offset: 1px; }`,
+        `button:is(${selector}) { background-color: var(--changelog) !important; border-color: var(--changelog) !important; color: #fff !important; }`,
+    ].join('\n');
+}
+
+/** Whether the page at `url` is the step's own page, `href` (queries ignored): `/rollcall/5` is not `/rollcall/50`. */
+export function onStepPage(url, href) {
+    if (!href) return false;
+    const path = (value) => String(value ?? '').split(/[?#]/)[0].replace(/\/+$/, '');
+    const here = path(url);
+    const page = path(href);
+
+    return here === page || here.startsWith(`${page}/`);
+}
+
+/**
+ * Which bottom corner the coach card sits in: `left` when, in the bottom right, it would cover one of `obstacles` (what
+ * the step points at, an open side panel) and in the bottom left it would not, else `right`. Rectangles are in viewport
+ * pixels; `card` gives the card's width and its top and bottom.
+ *
+ * @param {{width: number, top: number, bottom: number}} card
+ * @param {number} viewportWidth
+ * @param {Array<{left: number, right: number, top: number, bottom: number, width: number, height: number}>} obstacles
+ */
+export function coachSide(card, viewportWidth, obstacles, margin = 16) {
+    const at = (left) => ({ left, right: left + card.width, top: card.top, bottom: card.bottom });
+    const covers = (box) =>
+        obstacles.some((o) => o.width > 0 && o.height > 0 && o.left < box.right && o.right > box.left && o.top < box.bottom && o.bottom > box.top);
+
+    return covers(at(viewportWidth - margin - card.width)) && !covers(at(margin)) ? 'left' : 'right';
+}

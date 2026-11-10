@@ -17,8 +17,6 @@ final class DocsPages
     public function home(Audience $reader, array $facts = []): array
     {
         $guides = array_filter($this->library->guides(), fn (Guide $guide) => $reader->reads($guide->audience) && $guide->section !== GuideLibrary::TUTORIAL);
-        $recent = array_values(array_filter($guides, fn (Guide $guide) => $guide->updated !== null));
-        usort($recent, fn (Guide $a, Guide $b) => [$b->updated, $a->title] <=> [$a->updated, $b->title]);
 
         return [
             ...$this->shared($reader, $facts),
@@ -29,8 +27,6 @@ final class DocsPages
                 'blurb' => $path['blurb'],
                 'guides' => array_map(fn (Guide $guide) => $this->link($guide), $path['guides']),
             ], $this->library->paths($reader)),
-            // The five guides changed last, by their `updated` date.
-            'recent' => array_map(fn (Guide $guide) => [...$this->link($guide), 'updated' => $guide->updated], array_slice($recent, 0, 5)),
         ];
     }
 

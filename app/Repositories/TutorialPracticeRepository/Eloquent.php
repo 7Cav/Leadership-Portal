@@ -9,6 +9,7 @@ use App\Models\LoaParseStatus;
 use App\Models\LoaType;
 use App\Models\PageVisit;
 use App\Models\PlacementSource;
+use App\Models\PlatoonTrainingTopic;
 use App\Models\PracticeCapturePlayer;
 use App\Models\RollcallSignature;
 use App\Models\SectionPractice;
@@ -205,7 +206,9 @@ class Eloquent implements TutorialPracticeRepository
             'demoMarked' => $demo?->status !== null,
             'confirmed' => $practice?->confirmed_at !== null,
             'posted' => $practice?->rollcall_posted_at !== null,
-            'draft' => $report !== null && ($report->status === WeeklyReportStatus::Sent || filled($report->notes) || filled($report->training_subject)),
+            // A platoon writes its subject as the training topic for its sections, which is saved on its own.
+            'draft' => ($report !== null && ($report->status === WeeklyReportStatus::Sent || filled($report->notes) || filled($report->training_subject)))
+                || ($reportUnitId !== null && PlatoonTrainingTopic::query()->where('unit_id', $reportUnitId)->where('week_start', $week)->exists()),
             'sent' => $report?->status === WeeklyReportStatus::Sent,
             'staffSent' => $personaTrooperId !== null && StaffReport::query()->where('trooper_id', $personaTrooperId)->exists(),
         ];

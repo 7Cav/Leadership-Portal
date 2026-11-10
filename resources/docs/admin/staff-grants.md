@@ -52,7 +52,7 @@ Every Regimental HQ billet the org import finds, and the S6 1IC and S6 2IC bille
 1. Choose **Approve** to make whoever holds the billet an Admin, or **Reject** to leave it a plain billet.
 2. Give a reason. It goes to the audit log.
 
-> [!good-to-know] When Cav renames a billet or moves it to another group, the billet waits here again, tagged **Renamed**, with "Approved as:" and the old names under the new ones. Its holder stops being an Admin until someone approves the new names. A rejected billet stays rejected until its name changes.
+> [!good-to-know] When the Cav renames a billet or moves it to another group, the billet waits here again, tagged **Renamed**, with "Approved as:" and the old names under the new ones. Its holder stops being an Admin until someone approves the new names. A rejected billet stays rejected until its name changes.
 
 > [!good-to-know] A billet moved out of Regimental HQ, or an S6 1IC or S6 2IC billet renamed to another title, is tagged **Not an Admin billet** and cannot be approved. Reject it, or wait for Cav to move it back or restore its title.
 
