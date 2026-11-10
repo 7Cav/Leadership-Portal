@@ -11,10 +11,10 @@ audience: admin
 ## What runs on its own
 
 1. The roster syncs every hour.
-2. Leave syncs every hour at a quarter past, reading new posts, and once a day at 0330Z reading every thread again.
+2. Leave syncs every hour at a quarter past, reading the last two weeks, and once a day at 0330Z reading the whole year again. Leave a trooper cancelled by deleting their thread is removed from the portal by that daily run.
 3. Pages that show roster or leave data say when it last synced, and warn when a sync failed.
 4. Leave has no sync button yet. If leave is wrong after the hourly run, ask S6 to run the leave sync on the server.
-5. The first leave sync reads a year of posts, newest first, so this week's leave comes in first. It takes several hourly runs, each carrying on where the last stopped. Until it is done, the leave note says "Older leave is still being read" and how far back it has got.
+5. The first leave sync reads the whole year in one run. Only ELOA, which is read from the forum, still goes back a share at a time; until that is done, the leave note says "Older leave is still being read" and how far back it has got.
 
 ## Sync the whole roster now
 

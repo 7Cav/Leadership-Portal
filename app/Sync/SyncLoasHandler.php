@@ -2,6 +2,8 @@
 
 namespace App\Sync;
 
+use App\Integration\Cav\CavApi;
+use App\Integration\Cav\Data\CavLoa;
 use App\Integration\Forum\Data\ForumThreadSummary;
 use App\Integration\Forum\ForumApi;
 use App\Integration\Forum\ForumRequestException;
@@ -20,13 +22,22 @@ use Carbon\CarbonImmutable;
 use Throwable;
 
 /**
- * The sole writer of the `loas` cache (AD-4, AD-22). It reads leave threads through {@see ForumApi}, reads
- * each with {@see LoaPostParser}, and applies it through {@see LoaRepository::sync()}, a section (or, going
- * back through history, a page) at a time, each as one transaction. Rows are upserted by `forum_thread_id`,
- * never truncated, so a failure part-way leaves what was already saved, and nothing else changes. A run that
- * dies without recording itself (a killed worker) is closed as failed by the next run.
+ * The sole writer of the `loas` cache (AD-4, AD-22). A run has two halves, each applied through
+ * {@see LoaRepository::sync()} and each skipped when its source is not configured. Rows are upserted by
+ * `forum_thread_id`, never truncated, so a failure part-way leaves what was already saved, and nothing else
+ * changes. A run that dies without recording itself (a killed worker) is closed as failed by the next run.
  *
- * Which threads it reads: the forum lists a section newest first by creation date. An hourly run carries on
+ * LOA, from the roster API (#690): {@see CavApi::fetchLoas()} lists the dated leave, already read and matched to a
+ * member, by reading the forum live, so each response is a snapshot. Every run stores what it lists, as one
+ * transaction. The first run, and a full one, ask for the whole year; an hourly run for the last two weeks, which is
+ * all an edit to a recent leave needs. A thread a trooper deleted is not in the list: after a full run that read
+ * everything cleanly, a stored LOA the list left out is deleted (see {@see LoaRepository::deleteUnlisted()}). A record
+ * the API sent that cannot be used makes the run `partial` and stops it deleting anything. A failed call fails the run.
+ *
+ * ELOA, from the forum (below): open-ended leave is not in the roster API's list, so it is still read from the forum,
+ * through {@see ForumApi} and {@see LoaPostParser}, a section (or, going back through history, a page) at a time.
+ *
+ * Which ELOA threads it reads: the forum lists a section newest first by creation date. An hourly run carries on
  * from the cursor the last run saved in `sync_runs.cursor`, per section:
  * - New posts: it walks the section from the top until a thread older than the last time that section's new
  *   posts were read (less three hours of overlap), which keeps an hourly run to a page or two.
@@ -65,15 +76,20 @@ use Throwable;
  *
  * A thread that goes away: a full run that finished with no problem has seen every visible thread posted in
  * its window, in every section. A stored row from one of those sections, posted in that window, whose thread
- * it did not see (deleted, hidden, or moved out of the leave sections) is marked withdrawn, so it stops
- * excusing the trooper; the row is kept as history, and is put back if a later run sees the thread again.
- * A partial or failed run, and an incremental one, never withdraws anything, since it did not see everything.
- * Withdrawn rows are counted in `inactivated`; rows put back count as `updated`.
+ * it did not see (deleted, hidden, or moved out of the leave sections) is deleted, so it stops excusing the
+ * trooper. A partial or failed run, and an incremental one, never deletes anything, since it did not see
+ * everything. Deleted rows, from either half, are counted in `inactivated`.
  */
 class SyncLoasHandler
 {
-    /** How far back the first run, and a full run, look. */
+    /** How far back the first run, and a full run, look in the forum, for ELOA. */
     private const HISTORY_DAYS = 365;
+
+    /**
+     * How far back the first run, and a full run, ask the roster API for leave. Its limit is 365 days before today's
+     * UTC date, and a day short of it keeps a run started at midnight from asking for a day too many.
+     */
+    private const API_HISTORY_DAYS = 364;
 
     /**
      * Added back onto the start of the run that last read a section's new posts, so a thread posted while it
@@ -105,6 +121,7 @@ class SyncLoasHandler
     private const BACKFILL_SECONDS = 600;
 
     public function __construct(
+        private readonly CavApi $cav,
         private readonly ForumApi $forum,
         private readonly LoaRepository $loas,
         private readonly TrooperRepository $troopers,
@@ -128,19 +145,25 @@ class SyncLoasHandler
             $horizon = $now->subDays(self::HISTORY_DAYS)->startOfDay();
             $problems = [];
             $tally = ['created' => 0, 'updated' => 0, 'needsReview' => 0];
-            $withdrawn = 0;
+            $deleted = 0;
 
-            if ($full) {
-                $withdrawn = $this->fullRun($now, $horizon, $problems, $tally);
-            } else {
-                $this->incrementalRun($run, $now, $horizon, $problems, $tally);
+            if ($this->cav->isConfigured()) {
+                $deleted += $this->rosterRun($now, $full, $problems, $tally);
+            }
+
+            if ($this->forum->canReadLeave()) {
+                if ($full) {
+                    $deleted += $this->fullRun($now, $horizon, $problems, $tally);
+                } else {
+                    $this->incrementalRun($run, $now, $horizon, $problems, $tally);
+                }
             }
 
             $this->syncRuns->complete(
                 $run,
                 inserted: $tally['created'],
                 updated: $tally['updated'],
-                inactivated: $withdrawn,
+                inactivated: $deleted,
                 errored: count($problems),
                 error: $problems === [] ? null : mb_substr(implode('; ', $problems), 0, 2000),
                 needsReview: $tally['needsReview'],
@@ -210,10 +233,118 @@ class SyncLoasHandler
             return 0;
         }
 
-        $result = $this->loas->withdrawUnseen($nodes, array_keys($seen), $horizon, $now);
-        $tally['updated'] += $result['restored'];
+        return $this->loas->deleteUnseen($nodes, array_keys($seen), $horizon);
+    }
 
-        return $result['withdrawn'];
+    /**
+     * The LOA half: one read of the roster API's list, stored, and, after a clean read of the whole year, the removal
+     * of the stored LOAs the list no longer has (their thread is gone). A call that fails is not caught: the run
+     * fails, with nothing of this half stored.
+     *
+     * @param  list<string>  $problems
+     * @param  array{created: int, updated: int, needsReview: int}  $tally
+     * @return int how many rows were deleted
+     */
+    private function rosterRun(CarbonImmutable $now, bool $full, array &$problems, array &$tally): int
+    {
+        // A portal that has never synced leave reads the whole year, whatever kind of run it is, so it does not wait
+        // for the daily one to fill it.
+        $wholeYear = $full || $this->syncRuns->latestSuccessful(SyncRun::SOURCE_LOA) === null;
+        $since = $now->utc()->startOfDay()->subDays($wholeYear ? self::API_HISTORY_DAYS : self::SETTLED_AFTER_DAYS);
+
+        $result = $this->cav->fetchLoas($since);
+
+        // A record that could not be used may be a thread that exists, so the list is not a full picture of the forum.
+        array_push($problems, ...$result->errors);
+
+        $match = $this->matchRoster($result->loas);
+        $writes = array_map(fn (CavLoa $loa) => $this->rosterWrite($loa, $match), $result->loas);
+        $tally['needsReview'] += count(array_filter($writes, fn (LoaWrite $write) => $write->parseStatus === LoaParseStatus::NeedsReview));
+
+        $counts = $this->loas->sync($writes, []);
+        $tally['created'] += $counts['created'];
+        $tally['updated'] += $counts['updated'];
+
+        if (! $wholeYear || ! $result->isComplete()) {
+            return 0;
+        }
+
+        return $this->loas->deleteUnlisted(array_map(fn (CavLoa $loa) => $loa->threadId, $result->loas), $since);
+    }
+
+    /**
+     * The troopers each listed LOA could be for, by forum user id and by milpac id.
+     *
+     * @param  list<CavLoa>  $loas
+     * @return array{byForumId: array<int, list<int>>, byCavId: array<int, list<int>>}
+     */
+    private function matchRoster(array $loas): array
+    {
+        return [
+            'byForumId' => $this->troopers->idsByForumUserId(array_values(array_filter(array_map(fn (CavLoa $loa) => $loa->forumUserId, $loas)))),
+            'byCavId' => $this->troopers->idsByCavId(array_values(array_filter(array_map(fn (CavLoa $loa) => $loa->cavId, $loas)))),
+        ];
+    }
+
+    /**
+     * One listed LOA as the row to store. The roster API has already read the post, so its verdict stands: a thread it
+     * sent for review is stored as `needs_review` with no dates asserted (the ones it gave are kept apart, only to
+     * place the row's shield: see LoaCoverage). The portal adds one check of its own, that the member is a trooper it
+     * knows, matched on forum user id and then on milpac id, never on the name; without one, nobody is excused.
+     *
+     * @param  array{byForumId: array<int, list<int>>, byCavId: array<int, list<int>>}  $troopers
+     */
+    private function rosterWrite(CavLoa $loa, array $troopers): LoaWrite
+    {
+        $byForumId = $loa->forumUserId === null ? [] : ($troopers['byForumId'][$loa->forumUserId] ?? []);
+        $byCavId = $loa->cavId === null ? [] : ($troopers['byCavId'][$loa->cavId] ?? []);
+        $trooperId = count($byForumId) === 1 ? $byForumId[0] : (count($byCavId) === 1 ? $byCavId[0] : null);
+
+        $reasons = [];
+
+        if ($loa->needsReview) {
+            $reasons[] = $loa->reviewReason ?? 'The roster API flagged the thread for review.';
+        } elseif ($loa->startsOn === null || $loa->endsOn === null) {
+            $reasons[] = 'The dates could not be read.';
+        } elseif ($trooperId === null) {
+            $reasons[] = 'No trooper on the portal matches this member.';
+        }
+
+        $clean = $reasons === [];
+        $hasDates = $loa->startsOn !== null && $loa->endsOn !== null && ! $loa->endsOn->lessThan($loa->startsOn);
+
+        return new LoaWrite(
+            forumThreadId: $loa->threadId,
+            forumNodeId: null,
+            trooperId: $trooperId,
+            type: LoaType::Loa,
+            startsAt: $clean ? $loa->startsOn : null,
+            endsAt: $clean ? $loa->endsOn : null,
+            parseStatus: $clean ? LoaParseStatus::Ok : LoaParseStatus::NeedsReview,
+            reviewReason: $clean ? null : mb_substr(implode(' ', $reasons), 0, 250),
+            sourceThread: $this->rosterSourceThread($loa),
+            rawUsername: $loa->username === '' ? null : mb_substr($loa->username, 0, self::RAW_LENGTH),
+            rawStartDate: $loa->startsOn?->toDateString(),
+            rawEndDate: $loa->endsOn?->toDateString(),
+            rawExcerpt: $loa->reason === '' ? null : mb_substr($loa->reason, 0, 1000),
+            postedAt: $loa->postedAt,
+            reviewStartsAt: ! $clean && $hasDates ? $loa->startsOn : null,
+            reviewEndsAt: ! $clean && $hasDates ? $loa->endsOn : null,
+            forum: $loa->forum,
+        );
+    }
+
+    /**
+     * Where the thread is, for `source_thread`: the address the API gave, or, when it had no forum base URL or the
+     * address would not fit the column, the plain one built from the thread id, which reaches the same thread.
+     */
+    private function rosterSourceThread(CavLoa $loa): string
+    {
+        $url = $loa->forumUrl;
+
+        return $url !== null && mb_strlen($url) <= self::RAW_LENGTH
+            ? $url
+            : rtrim((string) config('services.sevencav.base_url'), '/')."/threads/{$loa->threadId}/";
     }
 
     /**

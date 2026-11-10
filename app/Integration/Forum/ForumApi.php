@@ -58,6 +58,18 @@ class ForumApi
     }
 
     /**
+     * Whether leave can be read from the forum at all: an API key and at least one leave section. Since leave
+     * moved to the roster API (#690) that is only ELOA, so the leave sync skips this half when it is false, rather
+     * than failing on a forum nobody set up.
+     */
+    public function canReadLeave(): bool
+    {
+        $key = $this->config['api_key'] ?? null;
+
+        return is_string($key) && trim($key) !== '' && $this->loaNodes() !== [];
+    }
+
+    /**
      * One page of a leave section's threads, without their bodies. Only a configured leave section may
      * be listed; the key is checked before any request is made.
      *

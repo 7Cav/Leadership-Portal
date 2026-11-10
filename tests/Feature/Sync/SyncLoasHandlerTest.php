@@ -1129,22 +1129,20 @@ describe('a thread that goes away', function () {
         return $trooper;
     }
 
-    it('stops counting a leave whose thread a clean full run no longer finds, and keeps the row', function () {
+    it('deletes a leave whose thread a clean full run no longer finds', function () {
         $trooper = storedThenGone();
         expect(app(LoaCoverage::class)->forTrooper($trooper->id, CarbonImmutable::parse('2026-10-10', 'UTC'))->state)->toBe(LoaCoverageState::Covered);
 
         forumWith([180 => [[]]], [4001 => MockResponse::make(['errors' => []], 404)]);
         runLoaSync(1, true);
 
-        $row = Loa::sole();
-        expect($row->withdrawn_at)->not->toBeNull()
-            ->and($row->parse_status)->toBe(LoaParseStatus::Ok)
+        expect(Loa::count())->toBe(0)
             ->and(latestLoaRun()->status)->toBe(SyncRunStatus::Success)
             ->and(latestLoaRun()->inactivated)->toBe(1)
             ->and(app(LoaCoverage::class)->forTrooper($trooper->id, CarbonImmutable::parse('2026-10-10', 'UTC'))->state)->toBe(LoaCoverageState::None);
     });
 
-    it('withdraws a thread the listing shows as deleted or moderated, or the forum says is gone', function (string $state, ?int $status) {
+    it('deletes a thread the listing shows as deleted or moderated, or the forum says is gone', function (string $state, ?int $status) {
         storedThenGone();
         $listed = loaThread(4001, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-05 08:00', 180, $state);
         $fetched = $status === null ? loaThread(4001, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-05 08:00', 180, 'deleted') : MockResponse::make(['errors' => []], $status);
@@ -1152,7 +1150,7 @@ describe('a thread that goes away', function () {
 
         runLoaSync(1, true);
 
-        expect(Loa::sole()->withdrawn_at)->not->toBeNull()->and(latestLoaRun()->status)->toBe(SyncRunStatus::Success);
+        expect(Loa::count())->toBe(0)->and(latestLoaRun()->status)->toBe(SyncRunStatus::Success);
     })->with([
         'deleted in the listing' => ['deleted', null],
         'moderated in the listing' => ['moderated', null],
@@ -1185,13 +1183,13 @@ describe('a thread that goes away', function () {
             ->and(collect(askedFor($client))->filter(fn ($endpoint) => $endpoint === '/api/threads/4001')->count())->toBe(1);
     });
 
-    it('withdraws a thread the listing missed once the forum says it is hidden, gone or out of the leave sections', function (MockResponse|array $answer) {
+    it('deletes a thread the listing missed once the forum says it is hidden, gone or out of the leave sections', function (MockResponse|array $answer) {
         storedThenGone();
         forumWith([180 => [[]]], [4001 => $answer]);
 
         runLoaSync(1, true);
 
-        expect(Loa::sole()->withdrawn_at)->not->toBeNull()
+        expect(Loa::count())->toBe(0)
             ->and(latestLoaRun()->status)->toBe(SyncRunStatus::Success)
             ->and(latestLoaRun()->inactivated)->toBe(1);
     })->with([
@@ -1200,27 +1198,27 @@ describe('a thread that goes away', function () {
         'moved out of the leave sections' => [loaThread(4001, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-05 08:00', 7)],
     ]);
 
-    it('withdraws nothing when the forum cannot say whether a thread the listing missed is still there', function () {
+    it('deletes nothing when the forum cannot say whether a thread the listing missed is still there', function () {
         storedThenGone();
         forumWith([180 => [[]]], [4001 => MockResponse::make([], 503)]);
 
         runLoaSync(1, true);
 
-        expect(Loa::sole()->withdrawn_at)->toBeNull()
+        expect(Loa::count())->toBe(1)
             ->and(latestLoaRun()->status)->toBe(SyncRunStatus::Partial)
             ->and(latestLoaRun()->inactivated)->toBe(0);
     });
 
-    it('withdraws nothing on an incremental run, which does not see every thread', function () {
+    it('deletes nothing on an incremental run, which does not see every thread', function () {
         storedThenGone();
         forumWith([180 => [[]]]);
 
         runLoaSync();
 
-        expect(Loa::sole()->withdrawn_at)->toBeNull();
+        expect(Loa::count())->toBe(1);
     });
 
-    it('withdraws nothing on a full run that was partial or failed', function () {
+    it('deletes nothing on a full run that was partial or failed', function () {
         storedThenGone();
         $other = loaThread(4002, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-06 08:00');
         forumWith([180 => [[$other]]], [4002 => MockResponse::make([], 503)]);
@@ -1230,7 +1228,7 @@ describe('a thread that goes away', function () {
         forumWith([180 => [[]], 341 => MockResponse::make([], 503)]);
         expect(fn () => runLoaSync(1, true))->toThrow(ForumRequestException::class);
 
-        expect(Loa::sole()->withdrawn_at)->toBeNull();
+        expect(Loa::count())->toBe(1);
     });
 
     it('leaves rows outside the window it read, and from sections it did not read, alone', function () {
@@ -1243,39 +1241,32 @@ describe('a thread that goes away', function () {
 
         runLoaSync(1, true);
 
-        expect(Loa::whereNotNull('withdrawn_at')->count())->toBe(0)
-            ->and($old->fresh()->withdrawn_at)->toBeNull()
-            ->and($elsewhere->fresh()->withdrawn_at)->toBeNull()
-            ->and($undated->fresh()->withdrawn_at)->toBeNull();
+        expect(Loa::query()->whereKey([$old->id, $elsewhere->id, $undated->id])->count())->toBe(3);
     });
 
-    it('counts a withdrawn leave again once a later run finds its thread', function () {
+    it('stores a leave again once a later run finds its thread, if it was deleted before', function () {
         $trooper = storedThenGone();
         forumWith([180 => [[]]], [4001 => MockResponse::make(['errors' => []], 404)]);
         runLoaSync(1, true);
-        expect(Loa::sole()->withdrawn_at)->not->toBeNull();
+        expect(Loa::count())->toBe(0);
 
         $this->travelTo(CarbonImmutable::parse('2026-10-09 18:00:00', 'UTC'));
         $back = loaThread(4001, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-05 08:00');
         forumWith([180 => [[$back]]], [4001 => $back]);
         runLoaSync(1, true);
 
-        expect(Loa::sole()->withdrawn_at)->toBeNull()
+        expect(Loa::sole()->forum_thread_id)->toBe(4001)
             ->and(app(LoaCoverage::class)->forTrooper($trooper->id, CarbonImmutable::parse('2026-10-10', 'UTC'))->state)->toBe(LoaCoverageState::Covered);
     });
 
-    it('puts back a settled leave the full run lists but does not re-read', function () {
-        Trooper::factory()->create(['username' => 'Smith.J']);
-        $finished = loaThread(4001, '[LOA Request] - PVT.Smith.J | Mar 1, 2026 - Mar 10, 2026', "Username: Smith.J\nStart Date\nMar 1, 2026\nEnd Date\nMar 10, 2026\n", '2026-02-25 08:00');
-        forumWith([180 => [[$finished]]], [4001 => $finished]);
-        runLoaSync(1, true);
+    it('deletes a row an earlier version withdrew, once its thread is gone for good', function () {
+        storedThenGone();
         Loa::sole()->forceFill(['withdrawn_at' => now()])->save();
+        forumWith([180 => [[]]], [4001 => MockResponse::make(['errors' => []], 404)]);
 
-        $client = forumWith([180 => [[$finished]]], [4001 => $finished]);
         runLoaSync(1, true);
 
-        expect(askedFor($client))->not->toContain('/api/threads/4001')
-            ->and(Loa::sole()->withdrawn_at)->toBeNull();
+        expect(Loa::count())->toBe(0);
     });
 });
 
@@ -1387,13 +1378,14 @@ describe('when something goes wrong', function () {
             ->and(latestLoaRun()->cursor['retry'])->toBe([]);
     });
 
-    it('fails with a clear message, and sends nothing, when no forum API key is set', function () {
+    it('skips the forum, sending nothing and keeping what it has, when no forum API key is set', function () {
+        $existing = Loa::factory()->create(['forum_thread_id' => 3001, 'forum_node_id' => 341, 'type' => LoaType::Eloa, 'posted_at' => '2026-10-01 08:00:00']);
         bindForum(['api_key' => null]);
         $client = forumWith([180 => [[]]]);
 
-        expect(fn () => runLoaSync())->toThrow(ForumRequestException::class, 'SEVENCAV_FORUM_API_KEY');
+        runLoaSync(1, true);
 
-        expect(latestLoaRun()->status)->toBe(SyncRunStatus::Failure)->and(latestLoaRun()->error)->toContain('SEVENCAV_FORUM_API_KEY');
+        expect(latestLoaRun()->status)->toBe(SyncRunStatus::Success)->and(Loa::sole()->id)->toBe($existing->id);
         $client->assertNothingSent();
     });
 

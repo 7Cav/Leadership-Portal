@@ -19,9 +19,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * ended keeps the return's `ends_at`; coverage ignores the dates of a `needs_review` row). `trooper_id` is
  * null while the thread's username matches no trooper, so an unmatched request stays visible.
  * `posted_at` is when the thread was posted on the forum (null on a row not re-read since the column
- * was added), which is not `created_at`, the day the portal first stored it. `withdrawn_at` is set when a
- * complete full sync no longer finds the thread (deleted, hidden or moved out of the leave sections): the row
- * stays as history but no longer counts for coverage, until a later run sees the thread again.
+ * was added), which is not `created_at`, the day the portal first stored it. A complete full sync that no longer
+ * finds the thread (deleted, hidden or moved out of the leave sections) deletes the row (#690). `withdrawn_at` is
+ * what an earlier version set instead: a row that still has it no longer counts for coverage, and the next full
+ * sync deletes it if its thread is still gone. `forum_node_id` is the forum section an ELOA was read from; a
+ * dated LOA is read from the roster API, which names only the LOA forum (`forum`: `1-7`, `2-7`, `3-7`, `acd`,
+ * `regimental`), so its node id is null.
  * `review_starts_at`/`review_ends_at` are the leave dates a `needs_review` row's post still gives, kept apart
  * from `starts_at`/`ends_at` because they assert no leave: they only place the row's needs-review shield.
  *
@@ -30,7 +33,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * gives them no row of their own.
  */
 #[Fillable([
-    'trooper_id', 'forum_thread_id', 'return_thread_id', 'forum_node_id', 'type', 'starts_at', 'ends_at', 'expected_return_at', 'parse_status',
+    'trooper_id', 'forum_thread_id', 'return_thread_id', 'forum_node_id', 'forum', 'type', 'starts_at', 'ends_at', 'expected_return_at', 'parse_status',
     'review_reason', 'review_starts_at', 'review_ends_at', 'source_thread', 'posted_at', 'withdrawn_at', 'raw_username', 'raw_start_date', 'raw_end_date', 'raw_excerpt',
 ])]
 class Loa extends Model

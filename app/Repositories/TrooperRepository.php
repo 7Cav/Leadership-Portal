@@ -280,6 +280,15 @@ interface TrooperRepository
     public function idsByForumUserId(array $forumUserIds): array;
 
     /**
+     * The troopers carrying each of these milpac ids (`cav_id`), keyed by milpac id. An id with no trooper is absent;
+     * one with more than one lists them all, so the caller can refuse to guess.
+     *
+     * @param  list<int>  $cavIds
+     * @return array<int, list<int>> milpac id => trooper ids
+     */
+    public function idsByCavId(array $cavIds): array;
+
+    /**
      * Every trooper placed within `$unit`'s subtree — departed (`inactive`) troopers included, so
      * a roster can show them as departed rather than silently drop them (2.8, AD-21) — ordered by
      * id. One query, however large the subtree. Unplaced troopers (no `primary_section_id`) never

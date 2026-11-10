@@ -74,7 +74,7 @@ interface LoaRepository
      * date. A return that was already applied is skipped, and one with no open ELOA to end is counted, not
      * stored.
      *
-     * A write also clears `withdrawn_at`: a thread read again is there again.
+     * A write also clears `withdrawn_at`, which an earlier version of the sync set instead of deleting a row.
      *
      * @param  list<LoaWrite>  $writes
      * @param  list<LoaReturn>  $returns
@@ -83,19 +83,34 @@ interface LoaRepository
     public function sync(array $writes, array $returns): array;
 
     /**
-     * After a complete full run: every row from one of `$forumNodeIds` posted on or after `$postedFrom` whose thread
-     * is not in `$seenThreadIds` is marked withdrawn at `$at` (deleted, hidden or moved out of the leave sections), and
-     * any withdrawn row whose thread is in `$seenThreadIds` is put back. Rows are never deleted, so the history stays.
-     * A row with no `posted_at` is left alone, since it cannot be placed inside the window. One transaction.
+     * After a complete full forum run: deletes every row from one of `$forumNodeIds` posted on or after `$postedFrom`
+     * whose thread is not in `$seenThreadIds`: a thread that was deleted, hidden or moved out of the leave sections is
+     * not leave any more, and the row goes with it. A row with no `posted_at` is left alone, since it cannot be placed
+     * inside the window. One transaction.
      *
      * @param  list<int>  $forumNodeIds  the sections the run read in full
      * @param  list<int>  $seenThreadIds  the visible threads it found there
-     * @return array{withdrawn: int, restored: int}
+     * @return int how many rows were deleted
      */
-    public function withdrawUnseen(array $forumNodeIds, array $seenThreadIds, CarbonImmutable $postedFrom, CarbonImmutable $at): array;
+    public function deleteUnseen(array $forumNodeIds, array $seenThreadIds, CarbonImmutable $postedFrom): int;
 
     /**
-     * The threads of the rows {@see withdrawUnseen()} would withdraw with these arguments, so the sync can ask the
+     * After a complete full read of the roster API's LOA list (`$windowStart` is the `endedSince` day it asked for):
+     * deletes every LOA row (type `loa`) whose thread is not among `$listedThreadIds`, because the API reads the forum
+     * live and a thread that is gone is simply not listed.
+     *
+     * Only a row the API would have listed if its thread still existed is deleted: one posted on or after
+     * `$windowStart` (a row posted earlier, or with no `posted_at`, is left alone), and either a row that needs review
+     * or one whose leave ends on or after `$windowStart`. A leave that ended before the window is absent from the list
+     * whether or not its thread exists, so its absence says nothing. One transaction.
+     *
+     * @param  list<int>  $listedThreadIds  every thread the API listed
+     * @return int how many rows were deleted
+     */
+    public function deleteUnlisted(array $listedThreadIds, CarbonImmutable $windowStart): int;
+
+    /**
+     * The threads of the rows {@see deleteUnseen()} would delete with these arguments, so the sync can ask the
      * forum about each one first. In id order.
      *
      * @param  list<int>  $forumNodeIds

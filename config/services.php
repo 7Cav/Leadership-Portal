@@ -56,15 +56,15 @@ return [
             'trim',
             explode(',', (string) env('SEVENCAV_OAUTH_SCOPES', 'user:read')),
         ))),
-        // Reading leave threads (Story 4.1) uses a forum API key, a machine credential created in the
+        // Reading ELOA threads (Story 4.1) uses a forum API key, a machine credential created in the
         // forum's admin panel, not a user's OAuth token. Env only (AD-23); empty means the forum
-        // cannot be read for leave.
+        // cannot be read for leave, and ELOA is skipped. LOA does not need it: it comes from the roster API.
         'api_key' => env('SEVENCAV_FORUM_API_KEY'),
         // The forum sections (node ids) that hold leave threads, as `id:type` pairs, comma separated,
-        // e.g. `180:loa,341:eloa`. The type is loa or eloa. The 7Cav forum keeps one LOA
-        // section per battalion (plus HHQ and non-battalion) and one section for ELOA. Only these are
-        // ever read; none configured means no leave section is read. A malformed pair throws, so a typo
-        // fails at boot instead of silently leaving a section unread.
+        // e.g. `341:eloa`. The type is loa or eloa. Dated leave (LOA) is read from the roster API (`cav` below,
+        // #690), so a `loa` pair is accepted, so an existing .env keeps booting, but not read. Only ELOA, which the
+        // roster API does not list, is read from the forum, in the sections named here; none configured means no
+        // ELOA is read. A malformed pair throws, so a typo fails at boot instead of silently leaving a section unread.
         'loa_nodes' => collect(explode(',', (string) env('SEVENCAV_FORUM_LOA_NODES', '')))
             ->map(fn (string $pair) => trim($pair))
             ->filter(fn (string $pair) => $pair !== '')
@@ -77,6 +77,7 @@ return [
 
                 return [(int) $id => $type];
             })
+            ->filter(fn (string $type) => $type === 'eloa')
             ->all(),
         // The forum section where personnel action forms (PAFs) are filed. Only the creation date of a thread
         // there is read, to date an ELOA, never its contents. Unset means PAFs are not followed and an ELOA

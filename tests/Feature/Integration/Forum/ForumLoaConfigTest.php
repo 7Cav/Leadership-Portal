@@ -33,13 +33,17 @@ function loaNodesFor(?string $value): array
     }
 }
 
-it('reads the leave sections as section id and kind pairs', function () {
-    expect(loaNodesFor('180:loa,400:loa,540:loa,178:loa,369:loa,341:eloa'))
-        ->toBe([180 => 'loa', 400 => 'loa', 540 => 'loa', 178 => 'loa', 369 => 'loa', 341 => 'eloa']);
+it('reads the ELOA sections as section id and kind pairs', function () {
+    expect(loaNodesFor('341:eloa,342:eloa'))->toBe([341 => 'eloa', 342 => 'eloa']);
+});
+
+it('accepts the LOA sections an existing .env still lists, but does not read them: LOA comes from the roster API', function () {
+    expect(loaNodesFor('180:loa,400:loa,540:loa,178:loa,369:loa,341:eloa'))->toBe([341 => 'eloa'])
+        ->and(loaNodesFor('180:loa,400:loa'))->toBe([]);
 });
 
 it('tolerates spaces around the pairs', function () {
-    expect(loaNodesFor(' 180 : loa , 341:eloa '))->toBe([180 => 'loa', 341 => 'eloa']);
+    expect(loaNodesFor(' 180 : loa , 341:eloa '))->toBe([341 => 'eloa']);
 });
 
 it('reads nothing when none is configured', function (?string $value) {
@@ -64,7 +68,7 @@ it('fails loudly on a malformed pair: a bad id, an unknown kind (reserve is not 
 })->with(['abc:loa', '12x:loa', '0:loa', '-3:loa', '1.5:loa', '180:vacation', '400', ':eloa', '541:reserve', '180:loa,400:LOA', '180;loa']);
 
 it('still skips empty entries', function () {
-    expect(loaNodesFor('180:loa,,341:eloa,'))->toBe([180 => 'loa', 341 => 'eloa']);
+    expect(loaNodesFor('180:loa,,341:eloa,'))->toBe([341 => 'eloa']);
 });
 
 it('puts the environment back the way it found it', function () {
@@ -86,9 +90,9 @@ it('puts the environment back the way it found it', function () {
         ->and(getenv(LOA_NODES_ENV))->toBeFalse();
 });
 
-it('ships the 7Cav leave sections in .env.example, so a copied .env reads them', function () {
+it('ships the 7Cav ELOA section in .env.example, so a copied .env reads it', function () {
     $example = file_get_contents(base_path('.env.example'));
 
-    expect($example)->toContain('SEVENCAV_FORUM_LOA_NODES=180:loa,400:loa,540:loa,178:loa,369:loa,341:eloa')
+    expect($example)->toContain('SEVENCAV_FORUM_LOA_NODES=341:eloa')
         ->and($example)->toMatch('/^SEVENCAV_FORUM_API_KEY=$/m');
 });

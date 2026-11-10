@@ -101,26 +101,27 @@ describe('on the schedule', function () {
             ->and(loasEvent()->getExpression())->not->toBe($roster->getExpression());
     });
 
-    it('does not run until the forum key and a leave section are configured', function (?string $key, array $nodes) {
-        config(['services.sevencav.api_key' => $key, 'services.sevencav.loa_nodes' => $nodes]);
+    it('does not run until the roster API key is configured', function (?string $key) {
+        config(['services.cav.api_key' => $key]);
 
         expect(loasEvent()->filtersPass($this->app))->toBeFalse()
             ->and(loasEvent(full: true)->filtersPass($this->app))->toBeFalse()
             ->and(SyncLoasJob::isConfigured())->toBeFalse();
     })->with([
-        'nothing' => [null, []],
-        'no key' => [null, [180 => 'loa']],
-        'empty key' => ['', [180 => 'loa']],
-        'no section' => ['forum-key', []],
+        'no key' => [null],
+        'empty key' => [''],
     ]);
 
-    it('runs once both are configured', function () {
-        config(['services.sevencav.api_key' => 'forum-key', 'services.sevencav.loa_nodes' => [180 => 'loa']]);
+    it('runs once the roster API key is configured, with or without a forum key for ELOA', function (?string $forumKey) {
+        config(['services.cav.api_key' => 'cav7_key', 'services.sevencav.api_key' => $forumKey, 'services.sevencav.loa_nodes' => []]);
 
         expect(loasEvent()->filtersPass($this->app))->toBeTrue()
             ->and(loasEvent(full: true)->filtersPass($this->app))->toBeTrue()
             ->and(SyncLoasJob::isConfigured())->toBeTrue();
-    });
+    })->with([
+        'no forum key' => [null],
+        'a forum key' => ['forum-key'],
+    ]);
 
     it('also has a daily full run at 03:30, a different time from the hourly ones', function () {
         expect(loasEvent(full: true))->not->toBeNull()
@@ -130,7 +131,7 @@ describe('on the schedule', function () {
 
 describe('portal:sync-loas', function () {
 
-    beforeEach(fn () => config(['services.sevencav.api_key' => 'forum-key', 'services.sevencav.loa_nodes' => [180 => 'loa']]));
+    beforeEach(fn () => config(['services.cav.api_key' => 'cav7_key']));
 
     it('queues an incremental sync stamped as triggered by system', function () {
         Queue::fake();
@@ -156,12 +157,12 @@ describe('portal:sync-loas', function () {
         Bus::assertDispatchedSync(SyncLoasJob::class, fn (SyncLoasJob $job) => $job->triggeredBy === 'system' && $job->full === false);
     });
 
-    it('refuses, queueing nothing, until the forum key and a leave section are configured', function () {
-        config(['services.sevencav.api_key' => null]);
+    it('refuses, queueing nothing, until the roster API key is configured', function () {
+        config(['services.cav.api_key' => null]);
         Queue::fake();
 
         $this->artisan('portal:sync-loas')
-            ->expectsOutput('The LOA sync is not configured. Set SEVENCAV_FORUM_API_KEY and SEVENCAV_FORUM_LOA_NODES in .env.')
+            ->expectsOutput('The LOA sync is not configured. Set CAV_API_KEY in .env (a key with the read:loas scope).')
             ->assertFailed();
 
         Queue::assertNothingPushed();
