@@ -164,3 +164,20 @@ it('lets many rows have no return thread', function () {
 
     expect(Loa::whereNull('return_thread_id')->count())->toBe(2);
 });
+
+// #690: leave from the roster API names the LOA forum but not the forum section, so the section id is optional.
+it('keeps the forum a leave was read from, and lets a leave read from the roster API have no section id', function () {
+    DB::table('loas')->insert(rawLoaRow(['forum_thread_id' => 4101, 'forum_node_id' => null, 'forum' => '1-7']));
+    DB::table('loas')->insert(rawLoaRow(['forum_thread_id' => 4102, 'forum_node_id' => 341, 'type' => 'eloa']));
+
+    $rows = DB::table('loas')->orderBy('forum_thread_id')->get(['forum_node_id', 'forum']);
+
+    expect($rows[0]->forum_node_id)->toBeNull()
+        ->and($rows[0]->forum)->toBe('1-7')
+        ->and($rows[1]->forum_node_id)->toBe(341)
+        ->and($rows[1]->forum)->toBeNull();
+});
+
+it('still refuses an unknown type or parse status after the table was changed for it', function (string $column, string $value) {
+    expect(fn () => DB::table('loas')->insert(rawLoaRow([$column => $value, 'forum_node_id' => null])))->toThrow(QueryException::class);
+})->with([['type', 'vacation'], ['parse_status', 'maybe']]);

@@ -52,6 +52,12 @@ function rosterApiReturns(array|MockResponse $loas, ?array &$queries = null): Mo
     }]);
 }
 
+/** Some other trooper's LOA, so a list is not empty: the sync refuses to delete on a list with nothing in it. */
+function otherApiLoa(): array
+{
+    return rosterApiLoa(['threadId' => '109999', 'subject' => ['userId' => '7', 'username' => 'Hart.A', 'milpacId' => '70']]);
+}
+
 function rosterSyncRun(bool $full = false): void
 {
     config(['services.cav.api_key' => 'cav7_test-key']);
@@ -254,10 +260,10 @@ describe('a thread that was deleted', function () {
         $trooper = loaStoredThenDeleted();
         expect(app(LoaCoverage::class)->forTrooper($trooper->id, CarbonImmutable::parse('2026-11-07', 'UTC'))->state)->toBe(LoaCoverageState::Covered);
 
-        rosterApiReturns([]);
+        rosterApiReturns([otherApiLoa()]);
         rosterSyncRun(full: true);
 
-        expect(Loa::count())->toBe(0)
+        expect(Loa::query()->where('forum_thread_id', 101150)->exists())->toBeFalse()
             ->and(latestRosterLoaRun()->status)->toBe(SyncRunStatus::Success)
             ->and(latestRosterLoaRun()->inactivated)->toBe(1)
             ->and(app(LoaCoverage::class)->forTrooper($trooper->id, CarbonImmutable::parse('2026-11-07', 'UTC'))->state)->toBe(LoaCoverageState::None);
@@ -319,7 +325,7 @@ describe('a thread that was deleted', function () {
         // An ELOA is not in the roster API's list at all.
         $eloa = Loa::factory()->create(['trooper_id' => $trooper->id, 'forum_thread_id' => 3004, 'type' => LoaType::Eloa, 'forum_node_id' => 341, 'starts_at' => '2026-11-01', 'ends_at' => null, 'posted_at' => '2026-11-01 08:00:00']);
         $gone = Loa::factory()->create(['trooper_id' => $trooper->id, 'forum_thread_id' => 3005, 'starts_at' => '2026-11-02', 'ends_at' => '2026-11-04', 'posted_at' => '2026-11-01 08:00:00']);
-        rosterApiReturns([]);
+        rosterApiReturns([otherApiLoa()]);
 
         rosterSyncRun(full: true);
 
@@ -329,45 +335,140 @@ describe('a thread that was deleted', function () {
 
     it('deletes a needs-review row as well as a clean one, when its thread is gone', function () {
         Loa::factory()->needsReview()->create(['trooper_id' => null, 'forum_thread_id' => 3001, 'posted_at' => '2026-11-01 08:00:00']);
+        rosterApiReturns([otherApiLoa()]);
+
+        rosterSyncRun(full: true);
+
+        expect(Loa::query()->where('forum_thread_id', 3001)->exists())->toBeFalse();
+    });
+
+    it('keeps a needs-review row the portal sent to review itself, whose leave ended before the window, though the API no longer lists it', function () {
+        // The API listed this thread as clean leave; the portal sent it to review only because nobody matched. Once
+        // its end passes the window the API stops listing it, which says nothing about whether the thread exists.
+        Loa::factory()->needsReview()->create(['trooper_id' => null, 'forum_thread_id' => 3001, 'posted_at' => '2025-11-14 08:00:00', 'review_starts_at' => '2025-11-06', 'review_ends_at' => '2025-11-10']);
+        rosterApiReturns([otherApiLoa()]);
+
+        rosterSyncRun(full: true);
+
+        expect(Loa::query()->where('forum_thread_id', 3001)->exists())->toBeTrue();
+    });
+
+    it('deletes nothing, and says so, when the list is empty but stored leave would be deleted', function () {
+        $trooper = colt();
+        Loa::factory()->create(['trooper_id' => $trooper->id, 'forum_thread_id' => 3001, 'starts_at' => '2026-11-02', 'ends_at' => '2026-11-04', 'posted_at' => '2026-11-01 08:00:00']);
         rosterApiReturns([]);
 
         rosterSyncRun(full: true);
 
-        expect(Loa::count())->toBe(0);
+        expect(Loa::count())->toBe(1)
+            ->and(latestRosterLoaRun()->status)->toBe(SyncRunStatus::Partial)
+            ->and(latestRosterLoaRun()->error)->toContain('nothing was deleted')->toContain('read:loas')
+            ->and(latestRosterLoaRun()->inactivated)->toBe(0);
+    });
+
+    it('accepts an empty list when there is nothing it would delete', function () {
+        rosterApiReturns([]);
+
+        rosterSyncRun(full: true);
+
+        expect(latestRosterLoaRun()->status)->toBe(SyncRunStatus::Success);
     });
 
     it('is deleted too when the very first run is the one that finds it gone', function () {
         colt();
         Loa::factory()->create(['forum_thread_id' => 3001, 'starts_at' => '2026-11-02', 'ends_at' => '2026-11-04', 'posted_at' => '2026-11-01 08:00:00']);
-        rosterApiReturns([]);
+        rosterApiReturns([otherApiLoa()]);
 
         rosterSyncRun();
 
-        expect(Loa::count())->toBe(0)->and(latestRosterLoaRun()->inactivated)->toBe(1);
+        expect(Loa::query()->where('forum_thread_id', 3001)->exists())->toBeFalse()->and(latestRosterLoaRun()->inactivated)->toBe(1);
     });
 
     it('comes back as a new row if the thread is restored', function () {
         loaStoredThenDeleted();
-        rosterApiReturns([]);
+        rosterApiReturns([otherApiLoa()]);
         rosterSyncRun(full: true);
-        expect(Loa::count())->toBe(0);
+        expect(Loa::query()->where('forum_thread_id', 101150)->exists())->toBeFalse();
 
-        rosterApiReturns([rosterApiLoa()]);
+        rosterApiReturns([rosterApiLoa(), otherApiLoa()]);
         rosterSyncRun();
 
-        expect(Loa::sole()->forum_thread_id)->toBe(101150);
+        expect(Loa::query()->where('forum_thread_id', 101150)->exists())->toBeTrue();
     });
 });
 
 describe('when the roster API is not set up', function () {
-    it('skips the LOA half without sending anything or failing, so an ELOA-only install still runs', function () {
+    it('does not send anything to it, and says so in the run, when nothing else is set up either', function () {
         $client = rosterApiReturns([rosterApiLoa()]);
         config(['services.cav.api_key' => null]);
         app()->instance(CavApi::class, new CavApi(['base_url' => 'https://api.7cav.us', 'api_key' => null]));
 
         app(SyncLoasHandler::class)->handle('system', true);
 
-        expect(latestRosterLoaRun()->status)->toBe(SyncRunStatus::Success)->and(Loa::count())->toBe(0);
+        expect(latestRosterLoaRun()->status)->toBe(SyncRunStatus::Partial)->and(Loa::count())->toBe(0);
         $client->assertNothingSent();
+    });
+});
+
+describe('the exact edge of what a full run may delete', function () {
+    /** One stored LOA that the API no longer lists, with its post and end on the given days, and whether that run deleted it. */
+    function deletedAt(string $postedAt, ?string $endsAt, bool $needsReview = false, ?string $reviewEndsAt = null): bool
+    {
+        $row = Loa::factory()->create([
+            'forum_thread_id' => 3001, 'posted_at' => $postedAt, 'starts_at' => $needsReview ? null : '2025-11-01', 'ends_at' => $needsReview ? null : $endsAt,
+            'parse_status' => $needsReview ? LoaParseStatus::NeedsReview : LoaParseStatus::Ok, 'review_ends_at' => $reviewEndsAt,
+        ]);
+        rosterApiReturns([otherApiLoa()]);
+
+        // Today is 2026-11-10, so the whole-year window opens on 2025-11-11 (00:00 UTC).
+        rosterSyncRun(full: true);
+
+        return ! Loa::query()->whereKey($row->id)->exists();
+    }
+
+    it('deletes a clean row that ends on the first day of the window and keeps one that ended the day before', function () {
+        expect(deletedAt('2026-01-01 08:00:00', '2025-11-11'))->toBeTrue();
+    });
+
+    it('keeps a clean row that ended the day before the window', function () {
+        expect(deletedAt('2026-01-01 08:00:00', '2025-11-10'))->toBeFalse();
+    });
+
+    it('deletes a row posted at the very start of the window and keeps one posted a second earlier', function () {
+        expect(deletedAt('2025-11-11 00:00:00', '2025-11-12'))->toBeTrue();
+    });
+
+    it('keeps a row posted a second before the window', function () {
+        expect(deletedAt('2025-11-10 23:59:59', '2025-11-12'))->toBeFalse();
+    });
+
+    it('deletes a needs-review row posted in the window that kept no dates, and one whose kept end is not before it', function (?string $reviewEndsAt) {
+        expect(deletedAt('2025-11-11 00:00:00', null, needsReview: true, reviewEndsAt: $reviewEndsAt))->toBeTrue();
+    })->with([null, '2025-11-11', '2026-01-01']);
+
+    it('keeps a needs-review row posted in the window whose kept end is before it', function () {
+        expect(deletedAt('2025-11-12 08:00:00', null, needsReview: true, reviewEndsAt: '2025-11-10'))->toBeFalse();
+    });
+
+    it('keeps a row the list does list, whatever its dates', function () {
+        $row = Loa::factory()->create(['forum_thread_id' => 109999, 'posted_at' => '2026-01-01 08:00:00', 'starts_at' => '2025-11-01', 'ends_at' => '2025-11-02']);
+        rosterApiReturns([otherApiLoa()]);
+
+        rosterSyncRun(full: true);
+
+        expect(Loa::query()->where('forum_thread_id', 109999)->exists())->toBeTrue();
+    });
+
+    it('deletes every stored row that is gone, past one chunk of 500', function () {
+        $now = CarbonImmutable::parse('2026-11-01 08:00', 'UTC');
+        Loa::query()->insert(array_map(fn (int $n) => [
+            'forum_thread_id' => 500000 + $n, 'forum' => '1-7', 'type' => 'loa', 'starts_at' => '2026-11-02', 'ends_at' => '2026-11-04', 'parse_status' => 'ok',
+            'source_thread' => 'https://7cav.us/threads/x/', 'posted_at' => $now, 'created_at' => $now, 'updated_at' => $now,
+        ], range(1, 620)));
+        rosterApiReturns([otherApiLoa()]);
+
+        rosterSyncRun(full: true);
+
+        expect(Loa::query()->where('forum_thread_id', '>=', 500000)->count())->toBe(0)->and(latestRosterLoaRun()->inactivated)->toBe(620);
     });
 });

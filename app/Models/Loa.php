@@ -21,8 +21,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * `posted_at` is when the thread was posted on the forum (null on a row not re-read since the column
  * was added), which is not `created_at`, the day the portal first stored it. A complete full sync that no longer
  * finds the thread (deleted, hidden or moved out of the leave sections) deletes the row (#690). `withdrawn_at` is
- * what an earlier version set instead: a row that still has it no longer counts for coverage, and the next full
- * sync deletes it if its thread is still gone. `forum_node_id` is the forum section an ELOA was read from; a
+ * what an earlier version set instead: a row that still has it no longer counts for coverage; a full sync clears
+ * it when the thread is read again, and deletes the row if the thread is still gone and falls in what that sync
+ * checks. `forum_node_id` is the forum section an ELOA was read from; a
  * dated LOA is read from the roster API, which names only the LOA forum (`forum`: `1-7`, `2-7`, `3-7`, `acd`,
  * `regimental`), so its node id is null.
  * `review_starts_at`/`review_ends_at` are the leave dates a `needs_review` row's post still gives, kept apart

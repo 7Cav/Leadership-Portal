@@ -55,14 +55,15 @@ class SyncLoasJob implements ShouldBeUnique, ShouldQueue
     ) {}
 
     /**
-     * Whether leave can be read at all: the roster API's key, which dated leave (LOA) is read with (#690). ELOA
-     * needs a forum key and a section as well, but only adds to a run: the handler skips it when they are not set.
-     * The scheduler only runs the sync once this is true, so an unconfigured install does not record a failed run
-     * every hour.
+     * Whether leave can be read from either source: the roster API's key, which dated leave (LOA) is read with
+     * (#690), or a forum key and an ELOA section, which ELOA is. The handler reads whichever is set up and skips the
+     * other. The scheduler only runs the sync once this is true, so an unconfigured install does not record a refused
+     * run every hour.
      */
     public static function isConfigured(): bool
     {
-        return filled(config('services.cav.api_key'));
+        return filled(config('services.cav.api_key'))
+            || (filled(config('services.sevencav.api_key')) && config('services.sevencav.loa_nodes', []) !== []);
     }
 
     public function uniqueId(): string

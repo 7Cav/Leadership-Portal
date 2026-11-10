@@ -42,6 +42,9 @@ final readonly class CavLoa
         'LOA_FORUM_REGIMENTAL' => 'regimental',
     ];
 
+    /** The states the portal knows how to read: leave that is open, upcoming or over, and a thread sent for review. */
+    private const STATES = ['LOA_STATE_OPEN', 'LOA_STATE_UPCOMING', 'LOA_STATE_ENDED', 'LOA_STATE_NEEDS_REVIEW'];
+
     /** What each review reason means, in the words a person checking the row reads. */
     private const REVIEW_REASONS = [
         'LOA_REVIEW_REASON_DATES_UNREADABLE' => 'The dates could not be read.',
@@ -69,6 +72,12 @@ final readonly class CavLoa
 
         $subject = is_array($payload['subject'] ?? null) ? $payload['subject'] : [];
         $state = is_string($payload['state'] ?? null) ? $payload['state'] : '';
+
+        // Only a state it knows is taken as leave. A missing one, or a state a newer API adds, is a record the portal
+        // cannot vouch for, so it is skipped (the run is partial and deletes nothing) rather than excusing a trooper.
+        if (! in_array($state, self::STATES, true)) {
+            throw CavRequestException::malformedLoa("thread {$threadId} had an unknown `state` ('{$state}')");
+        }
         $reviewCode = is_string($payload['reviewReason'] ?? null) ? $payload['reviewReason'] : '';
         $start = self::day($payload['startDate'] ?? null);
         $end = self::day($payload['endDate'] ?? null);
@@ -79,6 +88,12 @@ final readonly class CavLoa
         }
 
         $needsReview = $state === 'LOA_STATE_NEEDS_REVIEW';
+
+        // The API itself sends a thread with its end before its start for review. One that arrives as leave is a
+        // record that contradicts itself.
+        if (! $needsReview && $start !== null && $end !== null && $end->lessThan($start)) {
+            throw CavRequestException::malformedLoa("thread {$threadId} ends before it starts");
+        }
 
         return new self(
             threadId: $threadId,

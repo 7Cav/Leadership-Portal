@@ -149,7 +149,21 @@ it('collects a record it cannot use instead of throwing, and says the list is no
     'no post date' => [apiLoa(['postDate' => null])],
     'a start date that is not a day' => [apiLoa(['startDate' => 'next Monday'])],
     'an impossible end date' => [apiLoa(['endDate' => '2026-02-30'])],
+    'a state it does not know' => [apiLoa(['state' => 'LOA_STATE_CANCELLED'])],
+    'an unspecified state' => [apiLoa(['state' => 'LOA_STATE_UNSPECIFIED'])],
+    'no state' => [apiLoa(['state' => null])],
+    'leave that ends before it starts' => [apiLoa(['startDate' => '2026-11-09', 'endDate' => '2026-11-02'])],
 ]);
+
+it('keeps a needs-review thread whose end is before its start: that is what the API sends for review', function () {
+    MockClient::global([LOAS_URL => MockResponse::make(['loas' => [apiLoa([
+        'state' => 'LOA_STATE_NEEDS_REVIEW', 'reviewReason' => 'LOA_REVIEW_REASON_END_BEFORE_START', 'startDate' => '2026-11-09', 'endDate' => '2026-11-02',
+    ])]])]);
+
+    $result = loasCav()->fetchLoas();
+
+    expect($result->isComplete())->toBeTrue()->and($result->loas[0]->needsReview)->toBeTrue();
+});
 
 it('collects an entry that is not an object', function () {
     MockClient::global([LOAS_URL => MockResponse::make(['loas' => [apiLoa(), 'oops']])]);

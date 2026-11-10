@@ -1,5 +1,7 @@
 <?php
 
+use App\Integration\Cav\CavApi;
+use App\Integration\Cav\CavRequestException;
 use App\Integration\Forum\ForumApi;
 use App\Integration\Forum\ForumRequestException;
 use App\Loa\LoaCoverage;
@@ -1378,24 +1380,13 @@ describe('when something goes wrong', function () {
             ->and(latestLoaRun()->cursor['retry'])->toBe([]);
     });
 
-    it('skips the forum, sending nothing and keeping what it has, when no forum API key is set', function () {
-        $existing = Loa::factory()->create(['forum_thread_id' => 3001, 'forum_node_id' => 341, 'type' => LoaType::Eloa, 'posted_at' => '2026-10-01 08:00:00']);
-        bindForum(['api_key' => null]);
-        $client = forumWith([180 => [[]]]);
-
-        runLoaSync(1, true);
-
-        expect(latestLoaRun()->status)->toBe(SyncRunStatus::Success)->and(Loa::sole()->id)->toBe($existing->id);
-        $client->assertNothingSent();
-    });
-
-    it('reads nothing, and succeeds, when no leave section is configured', function () {
+    it('reads nothing, and says there was nothing to read, when no leave section is configured', function () {
         bindForum(['loa_nodes' => []]);
         $client = forumWith([]);
 
         runLoaSync();
 
-        expect(latestLoaRun()->status)->toBe(SyncRunStatus::Success)->and(Loa::count())->toBe(0);
+        expect(latestLoaRun()->status)->toBe(SyncRunStatus::Partial)->and(Loa::count())->toBe(0);
         $client->assertNothingSent();
     });
 
@@ -1408,5 +1399,88 @@ describe('when something goes wrong', function () {
         runLoaSync();
 
         expect(Loa::count())->toBe(0)->and(latestLoaRun()->errored)->toBe(1)->and(latestLoaRun()->error)->toContain('not a configured LOA section');
+    });
+});
+
+/** The roster API's answer for the LOA half, added to whatever forumWith() faked (it starts a fresh global mock). */
+function addRosterLoas(MockClient $client, array|MockResponse $loas): void
+{
+    config(['services.cav.api_key' => 'cav7_test-key']);
+    app()->instance(CavApi::class, new CavApi(['base_url' => 'https://api.7cav.us', 'api_key' => 'cav7_test-key']));
+    $client->addResponses(['api.7cav.us/api/v1/loas*' => $loas instanceof MockResponse ? $loas : MockResponse::make(['loas' => $loas])]);
+}
+
+describe('a run with both the roster API and the forum', function () {
+    it('reads the ELOA from the forum and the LOA from the roster API in one run, and adds up what each stored', function () {
+        $lane = Trooper::factory()->create(['username' => 'Lane.M']);
+        Trooper::factory()->create(['username' => 'Colt.DL', 'forum_user_id' => 4453, 'cav_id' => 2246]);
+        $report = eloaThread();
+        $client = forumWith([341 => [[$report]]], [5001 => $report], [106503 => ['2026-09-22 20:30']]);
+        addRosterLoas($client, [[
+            'threadId' => '101150', 'forumUrl' => 'https://7cav.us/threads/101150/', 'postDate' => CarbonImmutable::parse('2026-10-05 08:00', 'UTC')->getTimestamp(),
+            'forum' => 'LOA_FORUM_1_7', 'subject' => ['userId' => '4453', 'username' => 'Colt.DL', 'milpacId' => '2246'],
+            'startDate' => '2026-10-06', 'endDate' => '2026-10-12', 'state' => 'LOA_STATE_OPEN', 'reviewReason' => 'LOA_REVIEW_REASON_UNSPECIFIED', 'reason' => '',
+        ]]);
+
+        runLoaSync();
+
+        expect(Loa::count())->toBe(2)
+            ->and(Loa::where('type', LoaType::Eloa->value)->sole()->trooper_id)->toBe($lane->id)
+            ->and(Loa::where('type', LoaType::Loa->value)->sole()->forum)->toBe('1-7')
+            ->and(latestLoaRun()->inserted)->toBe(2)
+            ->and(latestLoaRun()->status)->toBe(SyncRunStatus::Success);
+    });
+
+    it('still reads the ELOA when the roster API refuses the key, and then fails the run with that reason', function () {
+        Trooper::factory()->create(['username' => 'Lane.M']);
+        $report = eloaThread();
+        $client = forumWith([341 => [[$report]]], [5001 => $report], [106503 => ['2026-09-22 20:30']]);
+        addRosterLoas($client, MockResponse::make(['errors' => []], 403));
+
+        expect(fn () => runLoaSync())->toThrow(CavRequestException::class, 'read:loas');
+
+        expect(Loa::sole()->type)->toBe(LoaType::Eloa)
+            ->and(latestLoaRun()->status)->toBe(SyncRunStatus::Failure)
+            ->and(latestLoaRun()->error)->toContain('HTTP 403');
+    });
+
+    it('deletes an ELOA whose thread the full run no longer finds, closed by a return or not, and leaves a roster LOA alone', function () {
+        $lane = Trooper::factory()->create(['username' => 'Lane.M']);
+        $open = Loa::factory()->create(['trooper_id' => $lane->id, 'forum_thread_id' => 5001, 'forum_node_id' => 341, 'type' => LoaType::Eloa, 'starts_at' => '2026-09-22', 'ends_at' => null, 'posted_at' => '2026-09-22 08:00:00']);
+        $closed = Loa::factory()->create(['trooper_id' => $lane->id, 'forum_thread_id' => 5002, 'forum_node_id' => 341, 'type' => LoaType::Eloa, 'starts_at' => '2026-08-01', 'ends_at' => '2026-09-01', 'return_thread_id' => 5099, 'posted_at' => '2026-08-01 08:00:00']);
+        $fromApi = Loa::factory()->create(['trooper_id' => $lane->id, 'forum_thread_id' => 6001, 'forum_node_id' => null, 'forum' => '1-7', 'posted_at' => '2026-10-01 08:00:00']);
+        forumWith([341 => [[]]], [5001 => MockResponse::make(['errors' => []], 404), 5002 => MockResponse::make(['errors' => []], 404)]);
+
+        runLoaSync(1, true);
+
+        expect(Loa::query()->whereKey([$open->id, $closed->id])->count())->toBe(0)
+            ->and(Loa::query()->whereKey($fromApi->id)->exists())->toBeTrue()
+            ->and(latestLoaRun()->inactivated)->toBe(2);
+    });
+
+    it('counts an ELOA an earlier version withdrew again once its thread is seen, even one too old to be read again', function () {
+        $lane = Trooper::factory()->create(['username' => 'Lane.M']);
+        $report = eloaThread();
+        $row = Loa::factory()->create([
+            'trooper_id' => $lane->id, 'forum_thread_id' => 5001, 'forum_node_id' => 341, 'type' => LoaType::Eloa, 'starts_at' => '2026-01-10', 'ends_at' => '2026-02-01',
+            'return_thread_id' => 5099, 'posted_at' => '2026-01-10 08:00:00', 'withdrawn_at' => '2026-10-01 08:00:00',
+        ]);
+        forumWith([341 => [[$report]]], [5001 => $report], [106503 => ['2026-09-22 20:30']]);
+
+        runLoaSync(1, true);
+
+        expect($row->fresh()->withdrawn_at)->toBeNull();
+    });
+
+    it('records a run with nothing to read as partial, saying why, instead of a green run that did nothing', function () {
+        config(['services.cav.api_key' => null]);
+        app()->instance(CavApi::class, new CavApi(['base_url' => 'https://api.7cav.us', 'api_key' => null]));
+        bindForum(['api_key' => null]);
+        $client = forumWith([]);
+
+        runLoaSync(1, true);
+
+        expect(latestLoaRun()->status)->toBe(SyncRunStatus::Partial)->and(latestLoaRun()->error)->toContain('CAV_API_KEY');
+        $client->assertNothingSent();
     });
 });

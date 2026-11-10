@@ -8,8 +8,9 @@ Everything the portal needs to *read* about leave lives here, so no screen re-de
   `STALE_AFTER_HOURS` (syncs that simply stopped must not look fresh), so the page says it is
   showing the last good cache (AD-4). With no successful sync yet, `neverSynced()` is true and
   `lastSyncedAt` is null: an explicit state, never a blank or an invented time.
-  `backfilling` and `backfilledTo` say whether the sync's first read of the year is still going back through
-  older posts (a share per hourly run, from the cursor the sync saves in `sync_runs.cursor`) and the oldest post
+  `backfilling` and `backfilledTo` say whether the sync's first read of the year for ELOA, the only leave still read
+  from the forum, is still going back through older posts (a share per hourly run, from the cursor the sync saves in
+  `sync_runs.cursor`) and the oldest post
   it has reached. It is not a staleness signal: recent leave is read first, so only older weeks can miss leave,
   and the note says so in words.
 - `LoaCoverage::forTroopers($ids, $weekStart)` → `array<trooperId, LoaCover>` (4.4, AD-21): the one
@@ -31,7 +32,8 @@ Everything the portal needs to *read* about leave lives here, so no screen re-de
   - A cleanly read leave that covers the week wins over one that needs review.
   - A withdrawn row (`withdrawn_at` set) counts for nothing. The sync no longer withdraws: since #690 a row whose
     thread a complete full sync no longer finds (deleted, hidden or moved out of the leave sections) is deleted.
-    Only a row an earlier version withdrew can still carry the mark, until the next full sync deletes it.
+    Only a row an earlier version withdrew can still carry the mark: a full sync clears it when the thread is read
+    again, and deletes the row if the thread is still gone (an LOA only inside the window the roster API was asked for).
   - `toArray()` is the badge's prop shape.
 
 - `LoaCover::derivedAttendanceStatus()` (3.4, AD-14): the attendance status a cover derives for the week, `Loa`

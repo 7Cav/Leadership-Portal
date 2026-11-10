@@ -101,16 +101,24 @@ describe('on the schedule', function () {
             ->and(loasEvent()->getExpression())->not->toBe($roster->getExpression());
     });
 
-    it('does not run until the roster API key is configured', function (?string $key) {
-        config(['services.cav.api_key' => $key]);
+    it('does not run until the roster API key, or a forum key and an ELOA section, is configured', function (?string $key, ?string $forumKey, array $nodes) {
+        config(['services.cav.api_key' => $key, 'services.sevencav.api_key' => $forumKey, 'services.sevencav.loa_nodes' => $nodes]);
 
         expect(loasEvent()->filtersPass($this->app))->toBeFalse()
             ->and(loasEvent(full: true)->filtersPass($this->app))->toBeFalse()
             ->and(SyncLoasJob::isConfigured())->toBeFalse();
     })->with([
-        'no key' => [null],
-        'empty key' => [''],
+        'no key' => [null, null, []],
+        'empty key' => ['', '', []],
+        'a forum key but no section' => [null, 'forum-key', []],
+        'an ELOA section but no forum key' => [null, null, [341 => 'eloa']],
     ]);
+
+    it('runs for ELOA alone, with a forum key and a section but no roster API key', function () {
+        config(['services.cav.api_key' => null, 'services.sevencav.api_key' => 'forum-key', 'services.sevencav.loa_nodes' => [341 => 'eloa']]);
+
+        expect(loasEvent()->filtersPass($this->app))->toBeTrue()->and(SyncLoasJob::isConfigured())->toBeTrue();
+    });
 
     it('runs once the roster API key is configured, with or without a forum key for ELOA', function (?string $forumKey) {
         config(['services.cav.api_key' => 'cav7_key', 'services.sevencav.api_key' => $forumKey, 'services.sevencav.loa_nodes' => []]);
@@ -162,7 +170,7 @@ describe('portal:sync-loas', function () {
         Queue::fake();
 
         $this->artisan('portal:sync-loas')
-            ->expectsOutput('The LOA sync is not configured. Set CAV_API_KEY in .env (a key with the read:loas scope).')
+            ->expectsOutput('The LOA sync is not configured. Set CAV_API_KEY in .env (a key with the read:loas scope), or a forum key and an ELOA section for ELOA alone.')
             ->assertFailed();
 
         Queue::assertNothingPushed();

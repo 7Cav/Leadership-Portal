@@ -9,7 +9,7 @@ use InvalidArgumentException;
 
 /**
  * Sole DB access for the `loas` cache (AD-2, AD-22). The LOA sync (4.2) is its one writer, through
- * {@see sync()}; every other method here reads.
+ * {@see sync()}, {@see deleteUnseen()} and {@see deleteUnlisted()}; every other method here reads.
  */
 interface LoaRepository
 {
@@ -86,7 +86,8 @@ interface LoaRepository
      * After a complete full forum run: deletes every row from one of `$forumNodeIds` posted on or after `$postedFrom`
      * whose thread is not in `$seenThreadIds`: a thread that was deleted, hidden or moved out of the leave sections is
      * not leave any more, and the row goes with it. A row with no `posted_at` is left alone, since it cannot be placed
-     * inside the window. One transaction.
+     * inside the window. A row an earlier version withdrew (`withdrawn_at`) whose thread is in `$seenThreadIds` counts
+     * again. One transaction.
      *
      * @param  list<int>  $forumNodeIds  the sections the run read in full
      * @param  list<int>  $seenThreadIds  the visible threads it found there
@@ -100,14 +101,24 @@ interface LoaRepository
      * live and a thread that is gone is simply not listed.
      *
      * Only a row the API would have listed if its thread still existed is deleted: one posted on or after
-     * `$windowStart` (a row posted earlier, or with no `posted_at`, is left alone), and either a row that needs review
-     * or one whose leave ends on or after `$windowStart`. A leave that ended before the window is absent from the list
-     * whether or not its thread exists, so its absence says nothing. One transaction.
+     * `$windowStart` (a row posted earlier, or with no `posted_at`, is left alone), and either one whose leave ends on
+     * or after `$windowStart`, or one that needs review and whose kept dates (`review_ends_at`), if it has any, do not
+     * end before it. A leave that ended before the window is absent from the list whether or not its thread exists,
+     * so its absence says nothing. One transaction.
      *
      * @param  list<int>  $listedThreadIds  every thread the API listed
      * @return int how many rows were deleted
      */
     public function deleteUnlisted(array $listedThreadIds, CarbonImmutable $windowStart): int;
+
+    /**
+     * The threads of the rows {@see deleteUnlisted()} would delete with these arguments, in id order, so the sync can
+     * refuse to delete (and say why) when that is more than a list it has reason to doubt would explain.
+     *
+     * @param  list<int>  $listedThreadIds
+     * @return list<int>
+     */
+    public function unlistedThreadIds(array $listedThreadIds, CarbonImmutable $windowStart): array;
 
     /**
      * The threads of the rows {@see deleteUnseen()} would delete with these arguments, so the sync can ask the

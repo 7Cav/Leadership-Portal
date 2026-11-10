@@ -40,11 +40,12 @@ Artisan::command('portal:sync-roster {--now : Run the sync in the foreground ins
     return 0;
 })->purpose('Sync the roster from the Cav API (queued unless --now)');
 
-// Refuses on an install without the forum API key and leave sections, instead of recording a failed run.
-Artisan::command('portal:sync-loas {--full : Re-read recent and open leave, not just threads newer than the last good run}
+// Refuses on an install with neither the roster API key (LOA) nor a forum key and ELOA section (ELOA), instead of
+// recording a failed run.
+Artisan::command('portal:sync-loas {--full : Read the whole year of leave and remove what the forum no longer has, not just the last two weeks and new ELOA threads}
     {--now : Run the sync in the foreground instead of queueing it}', function () {
     if (! SyncLoasJob::isConfigured()) {
-        $this->error('The LOA sync is not configured. Set CAV_API_KEY in .env (a key with the read:loas scope).');
+        $this->error('The LOA sync is not configured. Set CAV_API_KEY in .env (a key with the read:loas scope), or a forum key and an ELOA section for ELOA alone.');
 
         return 1;
     }

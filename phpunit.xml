@@ -49,7 +49,6 @@
         <env name="JSAM_WINDOW_WEEKS" value="12"/>
         <env name="CAV_API_BASE_URL" value="https://api.7cav.us"/>
         <env name="CAV_API_KEY" value=""/>
-        <env name="CAV_API_KEY" value=""/>
         <env name="CAV_API_SWEEP_BUDGET_SECONDS" value="12"/>
         <env name="CRCON_BASE_URL" value=""/>
         <env name="CRCON_SERVERS" value=""/>
