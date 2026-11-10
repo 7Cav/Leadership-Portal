@@ -227,7 +227,7 @@ class OrgStructureController extends Controller
             'lead_vacant_label' => ($vacantLabel = $standins->has($unit->id) ? LeadStandin::label($unit->type, $standin) : null),
             'acting_lead' => ($actor = $acting->get($unit->id)) === null ? null : ['id' => $actor->id, 'displayName' => $actor->display_name],
             // Whether an Admin may make someone this unit's acting lead now, by the Command's own rule: a line unit below
-            // the regiment that no serving billet holder or portfolio officer leads.
+            // the regiment, or a staff portfolio, that no serving billet holder or portfolio officer leads.
             'acting_lead_allowed' => AssignActingLeadHandler::takesActingLead($unit) && AssignActingLeadHandler::ledByNoBillet($leads->get($unit->id)),
             'empty' => ! $withTroopers->has($unit->id),
             // Who oversees the unit: a battalion or the Reservists. A battalion with no

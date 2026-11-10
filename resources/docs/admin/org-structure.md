@@ -11,7 +11,7 @@ page: /settings/org-structure
 
 ## Read the page
 
-The page has two cards. **Chain of command** holds the regiment, its battalions (ACD and DEVCOM, Development Command, included) and everything under them. **Regimental staff** holds the portfolios, their departments and the holding groups. ACD and DEVCOM also show under Reserve & Development Command, and DEVCOM Staff under DEVCOM, as reference rows. Choose one to open the unit where it really sits.
+The page has two cards. **Chain of command** holds the regiment, its battalions (ACD and DEVCOM, Development Command, included) and everything under them. **Regimental staff** holds the portfolios, their departments and the holding groups. ACD and DEVCOM also show under Reserve & Development Command, 1-7 under the Chief of Staff, 3-7 and 2-7 under the two Deputy Chiefs of Staff, and DEVCOM Staff under DEVCOM, as reference rows. Choose one to open the unit where it really sits.
 
 > [!good-to-know] A line unit with nobody in it or under it is hidden. Tick **Show empty units** to see it, for example to rename, move or delete it. It shows again on its own once someone is placed in it.
 
@@ -47,7 +47,9 @@ The page has two cards. **Chain of command** holds the regiment, its battalions 
 1. Select the unit and choose **Make acting lead**.
 2. Pick the trooper, give a reason, and save. They get exactly a platoon leader's rights over that unit and everything under it.
 
-> [!good-to-know] A unit whose leader billet (CO, PL or SL) someone serving holds already has its lead, so it takes no acting lead. You cannot make yourself acting lead either: ask another Admin.
+Both Deputy Chiefs of Staff hold the same billet, so the import cannot tell whose portfolio is whose. Make each one acting lead of theirs: Deputy Chief of Staff 1 (S5, RRD, RTC) and Deputy Chief of Staff 2 (S3, S7). On the regimental staff, only a portfolio takes an acting lead, never a department or holding group.
+
+> [!good-to-know] A unit whose leader billet (CO, PL or SL, or a portfolio's officer) someone serving holds already has its lead, so it takes no acting lead. You cannot make yourself acting lead either: ask another Admin.
 
 > [!good-to-know] What this changes, and how to undo it: choose **Remove acting lead** with a reason. Their access to the unit ends on their next page load. Both are in the audit log.
 

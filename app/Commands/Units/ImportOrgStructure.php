@@ -365,8 +365,8 @@ class ImportOrgStructure
                     $portfolio = StaffBillet::portfolioFor($position->title);
 
                     if ($portfolio !== null) {
-                        // The portfolio's officer leads it. One who commands nothing above (SecOps, Recruiting
-                        // Oversight, IMO, RDC Commander) commands the portfolio; the XO keeps commanding the regiment.
+                        // The portfolio's officer leads it. One who commands nothing above (Chief of Staff,
+                        // SecOps, IMO, RDC Commander) commands the portfolio; the XO and CSM keep commanding the regiment.
                         $this->addGroup($groupNodes, $portfolio);
                         $leadPositions[$portfolio->key()] ??= $position->id;
                     }
