@@ -11,12 +11,14 @@ use Carbon\CarbonImmutable;
  * only place that knows the columns. Immutable. The dates are calendar days; `postedAt` is the moment the
  * thread was posted on the forum. `reviewStartsAt`/`reviewEndsAt` are set only on a row that needs review whose
  * post still gives usable leave dates (see ParsedLoaThread): they place its shield and never assert leave.
+ * A thread read from the forum carries the section it was found in (`forumNodeId`); one read from the roster API
+ * carries the LOA forum that API names (`forum`) and no section id.
  */
 final readonly class LoaWrite
 {
     public function __construct(
         public int $forumThreadId,
-        public int $forumNodeId,
+        public ?int $forumNodeId,
         public ?int $trooperId,
         public LoaType $type,
         public ?CarbonImmutable $startsAt,
@@ -32,5 +34,6 @@ final readonly class LoaWrite
         public ?CarbonImmutable $postedAt = null,
         public ?CarbonImmutable $reviewStartsAt = null,
         public ?CarbonImmutable $reviewEndsAt = null,
+        public ?string $forum = null,
     ) {}
 }

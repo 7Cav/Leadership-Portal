@@ -59,6 +59,31 @@ class CavRequestException extends RuntimeException
         );
     }
 
+    /**
+     * The LOA list could not be read. A 401 or 403 here, when the rosters read fine, means the key lacks the
+     * `read:loas` scope, which the message says so a deployer is not sent after the key itself.
+     */
+    public static function loasFetchFailed(int $status): self
+    {
+        $hint = in_array($status, [401, 403], true) ? ' The CAV_API_KEY may lack the read:loas scope.' : '';
+
+        return new self(
+            CavFailureReason::HttpError,
+            "Cav LOA fetch failed (HTTP {$status}).{$hint}",
+            status: $status,
+        );
+    }
+
+    public static function malformedLoa(string $detail): self
+    {
+        return new self(CavFailureReason::Malformed, "Cav LOA record was unusable: {$detail}.");
+    }
+
+    public static function malformedLoas(string $detail): self
+    {
+        return new self(CavFailureReason::Malformed, "Cav LOA response was unusable: {$detail}.");
+    }
+
     public static function malformedPositionGroups(string $detail): self
     {
         return new self(CavFailureReason::Malformed, "Cav position groups response was unusable: {$detail}.");

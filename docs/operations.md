@@ -33,8 +33,7 @@ php artisan queue:restart
 
 1. Check the containers are up: `docker compose ps`.
 2. Check the schedule is loaded: `php artisan schedule:list` (roster sync hourly, LOA sync hourly at :15 and a full
-   run daily at 03:30, the LOA ones only once the forum key and sections are set; the activity log prune daily at
-   04:15).
+   run daily at 03:30, the LOA ones only once `CAV_API_KEY` is set; the activity log prune daily at 04:15).
 3. If this deploy changes the org import or billet rules (as the HQ staff placement, staff portfolios and acting leads
    change did), run the import step below.
 
@@ -73,7 +72,7 @@ Never run a bare `db:seed` or `migrate --seed` in production; see the main READM
 | Command | What it does |
 | --- | --- |
 | `php artisan portal:sync-roster [--now]` | Queue (or run now) a whole-roster sync |
-| `php artisan portal:sync-loas [--full] [--now]` | Queue (or run now) the LOA sync; refuses while the forum key or sections are unset |
+| `php artisan portal:sync-loas [--full] [--now]` | Queue (or run now) the LOA sync; refuses while `CAV_API_KEY` is unset |
 | `php artisan portal:admin <username> [--revoke] [--force]` | Grant or remove the Admin flag (audited) |
 | `php artisan portal:prune-page-visits` | Delete activity log page visits older than 30 days (scheduled daily) |
 | `php artisan portal:tutorial-template` | Build the empty, migrated database every tutorial practice copy starts from. Run after a deploy with new migrations, or the first person to start the tutorial waits for it |
@@ -93,8 +92,8 @@ Names only. Every key is documented in `.env.example` and `.env.production.examp
 | Database | `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `DB_ROOT_PASSWORD` (Docker only) |
 | Queue and sessions | `QUEUE_CONNECTION`, `DB_QUEUE_RETRY_AFTER` (must be above 900), `SESSION_LIFETIME`, `SESSION_SECURE_COOKIE` (leave unset) |
 | Sign-in (7cav.us OAuth) | `SEVENCAV_OAUTH_CLIENT_ID`, `SEVENCAV_OAUTH_CLIENT_SECRET`, `SEVENCAV_OAUTH_REDIRECT_URI`, `SEVENCAV_FORUM_BASE_URL`, `SEVENCAV_OAUTH_AUTHORIZE_URL`, `SEVENCAV_OAUTH_SCOPES` |
-| Cav roster API | `CAV_API_KEY`, `CAV_API_BASE_URL`, `CAV_API_SWEEP_BUDGET_SECONDS` |
-| Leave (LOA) sync | `SEVENCAV_FORUM_API_KEY`, `SEVENCAV_FORUM_LOA_NODES`, `SEVENCAV_FORUM_PAF_NODE`, `LOA_SYNC_REQUEST_DELAY_MS` |
+| Cav roster API | `CAV_API_KEY` (also reads LOA: it needs the `read:loas` scope), `CAV_API_BASE_URL`, `CAV_API_SWEEP_BUDGET_SECONDS` |
+| Leave (LOA) sync, ELOA half | `SEVENCAV_FORUM_API_KEY`, `SEVENCAV_FORUM_LOA_NODES` (`341:eloa`), `SEVENCAV_FORUM_PAF_NODE`, `LOA_SYNC_REQUEST_DELAY_MS`. Optional: without them ELOA is skipped, LOA is not affected |
 | Practice capture | `CRCON_SERVERS`, `CRCON_BASE_URL`, `CRCON_API_KEY`, `BATTLEMETRICS_BASE_URL`, `BATTLEMETRICS_API_KEY`, `BATTLEMETRICS_SERVER_ID`, `NIGHTWATCH_BASE_URL`, `NIGHTWATCH_API_KEY`, `NIGHTWATCH_SERVER_IDS` |
 | Steam ID check on save | `STEAM_WEB_API_KEY` (optional; empty saves Steam IDs unchecked) |
 | Counseling documents to Google Drive | `GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_DRIVE_PRIVATE_KEY`, `GOOGLE_DRIVE_FOLDER_ID` (see below) |

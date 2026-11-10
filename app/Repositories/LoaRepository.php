@@ -9,7 +9,7 @@ use InvalidArgumentException;
 
 /**
  * Sole DB access for the `loas` cache (AD-2, AD-22). The LOA sync (4.2) is its one writer, through
- * {@see sync()}; every other method here reads.
+ * {@see sync()}, {@see deleteUnseen()} and {@see deleteUnlisted()}; every other method here reads.
  */
 interface LoaRepository
 {
@@ -74,7 +74,7 @@ interface LoaRepository
      * date. A return that was already applied is skipped, and one with no open ELOA to end is counted, not
      * stored.
      *
-     * A write also clears `withdrawn_at`: a thread read again is there again.
+     * A write also clears `withdrawn_at`, which an earlier version of the sync set instead of deleting a row.
      *
      * @param  list<LoaWrite>  $writes
      * @param  list<LoaReturn>  $returns
@@ -83,19 +83,45 @@ interface LoaRepository
     public function sync(array $writes, array $returns): array;
 
     /**
-     * After a complete full run: every row from one of `$forumNodeIds` posted on or after `$postedFrom` whose thread
-     * is not in `$seenThreadIds` is marked withdrawn at `$at` (deleted, hidden or moved out of the leave sections), and
-     * any withdrawn row whose thread is in `$seenThreadIds` is put back. Rows are never deleted, so the history stays.
-     * A row with no `posted_at` is left alone, since it cannot be placed inside the window. One transaction.
+     * After a complete full forum run: deletes every row from one of `$forumNodeIds` posted on or after `$postedFrom`
+     * whose thread is not in `$seenThreadIds`: a thread that was deleted, hidden or moved out of the leave sections is
+     * not leave any more, and the row goes with it. A row with no `posted_at` is left alone, since it cannot be placed
+     * inside the window. A row an earlier version withdrew (`withdrawn_at`) whose thread is in `$seenThreadIds` counts
+     * again. One transaction.
      *
      * @param  list<int>  $forumNodeIds  the sections the run read in full
      * @param  list<int>  $seenThreadIds  the visible threads it found there
-     * @return array{withdrawn: int, restored: int}
+     * @return int how many rows were deleted
      */
-    public function withdrawUnseen(array $forumNodeIds, array $seenThreadIds, CarbonImmutable $postedFrom, CarbonImmutable $at): array;
+    public function deleteUnseen(array $forumNodeIds, array $seenThreadIds, CarbonImmutable $postedFrom): int;
 
     /**
-     * The threads of the rows {@see withdrawUnseen()} would withdraw with these arguments, so the sync can ask the
+     * After a complete full read of the roster API's LOA list (`$windowStart` is the `endedSince` day it asked for):
+     * deletes every LOA row (type `loa`) whose thread is not among `$listedThreadIds`, because the API reads the forum
+     * live and a thread that is gone is simply not listed.
+     *
+     * Only a row the API would have listed if its thread still existed is deleted: one posted on or after
+     * `$windowStart` (a row posted earlier, or with no `posted_at`, is left alone), and either one whose leave ends on
+     * or after `$windowStart`, or one that needs review and whose kept dates (`review_ends_at`), if it has any, do not
+     * end before it. A leave that ended before the window is absent from the list whether or not its thread exists,
+     * so its absence says nothing. One transaction.
+     *
+     * @param  list<int>  $listedThreadIds  every thread the API listed
+     * @return int how many rows were deleted
+     */
+    public function deleteUnlisted(array $listedThreadIds, CarbonImmutable $windowStart): int;
+
+    /**
+     * The threads of the rows {@see deleteUnlisted()} would delete with these arguments, in id order, so the sync can
+     * refuse to delete (and say why) when that is more than a list it has reason to doubt would explain.
+     *
+     * @param  list<int>  $listedThreadIds
+     * @return list<int>
+     */
+    public function unlistedThreadIds(array $listedThreadIds, CarbonImmutable $windowStart): array;
+
+    /**
+     * The threads of the rows {@see deleteUnseen()} would delete with these arguments, so the sync can ask the
      * forum about each one first. In id order.
      *
      * @param  list<int>  $forumNodeIds

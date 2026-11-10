@@ -111,6 +111,7 @@ class Eloquent implements LoaRepository
                     'trooper_id' => $write->trooperId,
                     'forum_thread_id' => $write->forumThreadId,
                     'forum_node_id' => $write->forumNodeId,
+                    'forum' => $write->forum,
                     'type' => $write->type,
                     'starts_at' => $write->startsAt,
                     'ends_at' => $write->endsAt,
@@ -152,29 +153,77 @@ class Eloquent implements LoaRepository
         });
     }
 
-    public function withdrawUnseen(array $forumNodeIds, array $seenThreadIds, CarbonImmutable $postedFrom, CarbonImmutable $at): array
+    public function deleteUnseen(array $forumNodeIds, array $seenThreadIds, CarbonImmutable $postedFrom): int
     {
-        return DB::transaction(function () use ($forumNodeIds, $seenThreadIds, $postedFrom, $at) {
-            $seen = array_flip($seenThreadIds);
-            $restored = 0;
+        if ($forumNodeIds === []) {
+            return 0;
+        }
 
+        return DB::transaction(function () use ($forumNodeIds, $seenThreadIds, $postedFrom) {
+            // A row an earlier version withdrew, whose thread is there after all, counts again.
             foreach (array_chunk($seenThreadIds, 500) as $threadIds) {
-                $restored += Loa::query()->whereIn('forum_thread_id', $threadIds)->whereNotNull('withdrawn_at')->update(['withdrawn_at' => null]);
+                Loa::query()->whereIn('forum_thread_id', $threadIds)->whereNotNull('withdrawn_at')->update(['withdrawn_at' => null]);
             }
 
-            if ($forumNodeIds === []) {
-                return ['withdrawn' => 0, 'restored' => $restored];
-            }
-
-            $unseen = $this->unseen($forumNodeIds, $seen, $postedFrom)->keys()->all();
-            $withdrawn = 0;
+            $unseen = $this->unseen($forumNodeIds, array_flip($seenThreadIds), $postedFrom)->keys()->all();
+            $deleted = 0;
 
             foreach (array_chunk($unseen, 500) as $ids) {
-                $withdrawn += Loa::query()->whereIn('id', $ids)->update(['withdrawn_at' => $at]);
+                $deleted += Loa::query()->whereIn('id', $ids)->delete();
             }
 
-            return ['withdrawn' => $withdrawn, 'restored' => $restored];
+            return $deleted;
         });
+    }
+
+    public function deleteUnlisted(array $listedThreadIds, CarbonImmutable $windowStart): int
+    {
+        return DB::transaction(function () use ($listedThreadIds, $windowStart) {
+            $deleted = 0;
+
+            foreach (array_chunk(array_keys($this->unlisted($listedThreadIds, $windowStart)->all()), 500) as $ids) {
+                $deleted += Loa::query()->whereIn('id', $ids)->delete();
+            }
+
+            return $deleted;
+        });
+    }
+
+    public function unlistedThreadIds(array $listedThreadIds, CarbonImmutable $windowStart): array
+    {
+        return $this->unlisted($listedThreadIds, $windowStart)
+            ->map(fn ($threadId) => (int) $threadId)
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The rows {@see deleteUnlisted()} would delete: thread id by row id. Each is a row the API would have listed had
+     * its thread still existed, so its absence is the thread's. A row that needs review is one the API lists when it
+     * was posted on or after the window; but the portal also sends to review a clean thread whose member it does not
+     * know, and the API does not list an ended one of those, so such a row counts only when the dates it kept do not
+     * put its end before the window.
+     *
+     * @param  list<int>  $listedThreadIds
+     * @return SupportCollection<int, int|string>
+     */
+    private function unlisted(array $listedThreadIds, CarbonImmutable $windowStart): SupportCollection
+    {
+        $listed = array_flip($listedThreadIds);
+        $day = $windowStart->toDateString();
+
+        return Loa::query()
+            ->where('type', LoaType::Loa->value)
+            ->whereNotNull('posted_at')
+            ->where('posted_at', '>=', $windowStart)
+            ->where(fn ($query) => $query
+                ->where(fn ($review) => $review
+                    ->where('parse_status', LoaParseStatus::NeedsReview->value)
+                    ->where(fn ($end) => $end->whereNull('review_ends_at')->orWhere('review_ends_at', '>=', $day)))
+                ->orWhere('ends_at', '>=', $day))
+            ->pluck('forum_thread_id', 'id')
+            ->reject(fn ($threadId) => isset($listed[(int) $threadId]));
     }
 
     public function unseenThreadIds(array $forumNodeIds, array $seenThreadIds, CarbonImmutable $postedFrom): array
@@ -192,7 +241,7 @@ class Eloquent implements LoaRepository
     }
 
     /**
-     * The rows {@see withdrawUnseen()} would withdraw: thread id by row id.
+     * The rows {@see deleteUnseen()} would delete: thread id by row id.
      *
      * @param  list<int>  $forumNodeIds
      * @param  array<int, mixed>  $seen  keyed by thread id
@@ -202,7 +251,6 @@ class Eloquent implements LoaRepository
     {
         return Loa::query()
             ->whereIn('forum_node_id', $forumNodeIds)
-            ->whereNull('withdrawn_at')
             ->whereNotNull('posted_at')
             ->where('posted_at', '>=', $postedFrom)
             ->pluck('forum_thread_id', 'id')

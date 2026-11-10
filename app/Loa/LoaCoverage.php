@@ -29,8 +29,8 @@ use InvalidArgumentException;
  * broken post cannot drop a trooper out of the KPIs for good. `created_at` stands in only for a row that has
  * no `posted_at` yet. A cleanly read leave that covers the week wins over one that needs review.
  *
- * A row whose thread the LOA sync no longer finds (deleted, hidden or moved out of the leave sections) is
- * withdrawn and counts for nothing, either way.
+ * A row an earlier sync withdrew (`withdrawn_at` set) counts for nothing, either way. The sync now deletes a row whose
+ * thread it no longer finds, so there is nothing left here to count.
  */
 final class LoaCoverage
 {
@@ -120,7 +120,7 @@ final class LoaCoverage
      * the week's seven; or a row with no usable dates at all (needs review, or no start) posted in this week or
      * the one before, so it shields the week it was posted in and the next, then stops. `created_at` stands in
      * for a row with no `posted_at`. The End Date is a day of leave, so a Saturday to Friday leave bears on its
-     * own Cav week only. A withdrawn row (its thread was deleted, hidden or moved away) bears on no week at all.
+     * own Cav week only. A withdrawn row (one an earlier sync withdrew: `withdrawn_at` set) bears on no week at all.
      * {@see LoaRepository::touchingWeeks()} only prefilters, in SQL, to a superset of what
      * this accepts across a range; a test pins that, so the two cannot drift apart.
      */

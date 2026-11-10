@@ -2,14 +2,17 @@
 
 namespace App\Integration\Cav;
 
+use App\Integration\Cav\Data\CavLoa;
 use App\Integration\Cav\Data\CavPositionGroup;
 use App\Integration\Cav\Data\CavRosterEntry;
 use App\Integration\Cav\Data\CavRosterProfile;
+use App\Integration\Cav\Data\LoaFetchResult;
 use App\Integration\Cav\Data\MilpacId;
 use App\Integration\Cav\Data\PositionGroupsFetchResult;
 use App\Integration\Cav\Data\RosterFetchResult;
 use App\Integration\Cav\Data\RosterRowError;
 use App\Integration\Cav\Data\RosterType;
+use App\Integration\Cav\Requests\FetchLoasRequest;
 use App\Integration\Cav\Requests\FetchMilpacProfileRequest;
 use App\Integration\Cav\Requests\FetchPositionGroupsRequest;
 use App\Integration\Cav\Requests\FetchRosterRequest;
@@ -294,6 +297,65 @@ class CavApi
         usort($parsed, fn (CavPositionGroup $a, CavPositionGroup $b) => $a->displayOrder <=> $b->displayOrder);
 
         return new PositionGroupsFetchResult($parsed, $fetchedAt);
+    }
+
+    /**
+     * Whether a key is configured, so a caller that can do without this API (the leave sync's ELOA half) can tell
+     * "not set up" from "failing".
+     */
+    public function isConfigured(): bool
+    {
+        $apiKey = $this->config['api_key'] ?? null;
+
+        return is_string($apiKey) && trim($apiKey) !== '';
+    }
+
+    /**
+     * Fetch the leave of absence the API reads live from the LOA forums: every open and upcoming LOA, plus, from
+     * `$endedSince` on, the ones that ended and the posts that need review (the API refuses a day more than 365 back).
+     *
+     * Each response is the complete set for its window, and an LOA whose thread was deleted is simply not in it,
+     * which is what lets the caller conclude a stored LOA is gone. Because of that, a record that cannot be used is
+     * collected, not thrown, and reported by {@see LoaFetchResult::isComplete()}: the caller must not conclude
+     * anything from a thread's absence when a record was skipped. A response that is not the expected shape fails the
+     * whole call.
+     *
+     * @throws CavRequestException when the call fails (a missing `read:loas` scope is a 401/403) or the payload is unusable
+     */
+    public function fetchLoas(?CarbonImmutable $endedSince = null): LoaFetchResult
+    {
+        $fetchedAt = $this->now();
+
+        $payload = $this->sendForJson(
+            new FetchLoasRequest($endedSince),
+            fn (int $status) => CavRequestException::loasFetchFailed($status),
+        );
+
+        $records = $payload['loas'] ?? null;
+
+        // No `loas` key at all is a broken answer. An empty list is a real one: nobody is on leave.
+        if (! is_array($records) || ($records !== [] && ! array_is_list($records))) {
+            throw CavRequestException::malformedLoas('it carried no `loas` list');
+        }
+
+        $loas = [];
+        $errors = [];
+
+        foreach ($records as $record) {
+            try {
+                if (! is_array($record)) {
+                    throw CavRequestException::malformedLoa('the entry was not an object');
+                }
+
+                $loas[] = CavLoa::fromPayload($record);
+            } catch (CavRequestException $e) {
+                Log::warning('Skipped an unparseable Cav LOA record.', ['reason' => $e->getMessage()]);
+
+                $errors[] = $e->getMessage();
+            }
+        }
+
+        return new LoaFetchResult($loas, $errors, $endedSince, $fetchedAt);
     }
 
     /**

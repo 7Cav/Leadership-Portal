@@ -40,11 +40,12 @@ Artisan::command('portal:sync-roster {--now : Run the sync in the foreground ins
     return 0;
 })->purpose('Sync the roster from the Cav API (queued unless --now)');
 
-// Refuses on an install without the forum API key and leave sections, instead of recording a failed run.
-Artisan::command('portal:sync-loas {--full : Re-read recent and open leave, not just threads newer than the last good run}
+// Refuses on an install with neither the roster API key (LOA) nor a forum key and ELOA section (ELOA), instead of
+// recording a failed run.
+Artisan::command('portal:sync-loas {--full : Read the whole year of leave and remove what the forum no longer has, not just the last two weeks and new ELOA threads}
     {--now : Run the sync in the foreground instead of queueing it}', function () {
     if (! SyncLoasJob::isConfigured()) {
-        $this->error('The LOA sync is not configured. Set SEVENCAV_FORUM_API_KEY and SEVENCAV_FORUM_LOA_NODES in .env.');
+        $this->error('The LOA sync is not configured. Set CAV_API_KEY in .env (a key with the read:loas scope), or a forum key and an ELOA section for ELOA alone.');
 
         return 1;
     }
@@ -132,13 +133,14 @@ Artisan::command('portal:backfill-practice-captures {--dry-run : Read the server
 })->purpose('Capture past practices again over their slot hour, giving the marks and make-ups a live run would');
 
 // Hourly roster sync, and the leave sync offset to a quarter past so the two do not start together. The leave
-// sync only runs once the forum key and the leave sections are configured, so an install without them does not
-// log a refused run every hour.
+// sync only runs once the roster API key is configured (it reads dated leave from there; ELOA also needs the forum
+// key and sections, and is skipped without them), so an install without it does not log a refused run every hour.
 Schedule::command('portal:sync-roster')->hourly();
 Schedule::command('portal:sync-loas')->hourlyAt(15)->when(fn () => SyncLoasJob::isConfigured());
 
-// A daily full run: once past its first read of the year, an hourly run reads only threads posted since the last, so a post edited after that
-// (an LOA extended, say) is caught here. It skips leave that ended more than two weeks ago.
+// A daily full run: an hourly run asks the roster API for the last two weeks of leave and reads only the ELOA threads posted since
+// the last run, so a post edited after that (an ELOA extended, say) is caught here, and this is the run that reads the whole year
+// and deletes the leave whose thread is gone.
 Schedule::command('portal:sync-loas --full')->dailyAt('03:30')->when(fn () => SyncLoasJob::isConfigured());
 
 // The activity log keeps 30 days (#382). Deleted in chunks so the prune never holds a long lock on a table every page

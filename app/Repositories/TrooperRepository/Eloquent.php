@@ -457,6 +457,23 @@ class Eloquent implements TrooperRepository
         return $found;
     }
 
+    public function idsByCavId(array $cavIds): array
+    {
+        $wanted = array_values(array_unique($cavIds));
+
+        if ($wanted === []) {
+            return [];
+        }
+
+        $found = [];
+
+        foreach (Trooper::query()->whereIn('cav_id', $wanted)->orderBy('id')->get(['id', 'cav_id']) as $trooper) {
+            $found[(int) $trooper->cav_id][] = $trooper->id;
+        }
+
+        return $found;
+    }
+
     public function placedWithin(Unit $unit): EloquentCollection
     {
         return Trooper::query()
