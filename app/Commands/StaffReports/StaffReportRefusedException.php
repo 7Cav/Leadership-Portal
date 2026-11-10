@@ -2,6 +2,7 @@
 
 namespace App\Commands\StaffReports;
 
+use App\Commands\Units\AccountabilityRules;
 use App\Support\Time\WeekLabel;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonInterface;
@@ -87,7 +88,7 @@ class StaffReportRefusedException extends RuntimeException
     }
 
     /**
-     * A type the HQ does not report. `$types` are the ones it does ({@see \App\Commands\Units\AccountabilityRules::staff()}).
+     * A type the HQ does not report. `$types` are the ones it does ({@see AccountabilityRules::staff()}).
      *
      * @param  list<string>  $types
      */
