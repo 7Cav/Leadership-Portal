@@ -78,6 +78,7 @@ Never run a bare `db:seed` or `migrate --seed` in production; see the main READM
 | `php artisan portal:prune-page-visits` | Delete activity log page visits older than 30 days (scheduled daily) |
 | `php artisan portal:tutorial-template` | Build the empty, migrated database every tutorial practice copy starts from. Run after a deploy with new migrations, or the first person to start the tutorial waits for it |
 | `php artisan portal:tutorial-prune [--days=2]` | Remove tutorial practice copies unused for two days (scheduled daily at 04:10). Exit already removes a copy |
+| `php artisan portal:prune-notifications` | Delete notifications read more than 14 days ago; unread ones stay (scheduled daily) |
 | `php artisan portal:demo-history <unit> [--weeks=N] [--purge] [--as=<admin>]` | Demo history, only with `DEMO_TOOLS=true` |
 
 ## Env keys that matter

@@ -3,6 +3,7 @@
 namespace App\Commands\Attendance;
 
 use App\Authorization\ScopeResolver;
+use App\Commands\Units\AccountabilityRules;
 use App\Loa\LoaCoverage;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
@@ -69,6 +70,7 @@ class MarkAttendanceHandler
         private readonly AuditEnvelope $audit,
         private readonly LoaCoverage $loaCoverage,
         private readonly CrossSectionSightingRepository $sightings,
+        private readonly AccountabilityRules $accountability,
     ) {}
 
     /**
@@ -348,8 +350,9 @@ class MarkAttendanceHandler
         foreach ($trooperIds as $trooperId) {
             $sectionId = $own[$trooperId] ?? null;
 
-            // Unplaced (no section of their own to make up), or the host's own trooper, whom preMark() handles.
-            if ($sectionId === null || $sectionId === $host->section_id) {
+            // Unplaced (no section of their own to make up), the host's own trooper, whom preMark() handles, or a host
+            // practice their section's accountability options do not count as a makeup (AccountabilityRules).
+            if ($sectionId === null || $sectionId === $host->section_id || ! $this->accountability->makeupCounts($sectionId, $host->section_id)) {
                 $result = $result->plus(new MakeupMarkResult(kept: 1));
 
                 continue;
@@ -393,7 +396,7 @@ class MarkAttendanceHandler
 
         // Grouped by their own section for the host's week, as preMarkMakeups() groups them.
         foreach ($this->troopers->ownSectionsInWeek($trooperIds, $weekStart) as $trooperId => $sectionId) {
-            if ($sectionId !== $host->section_id) {
+            if ($sectionId !== $host->section_id && $this->accountability->makeupCounts($sectionId, $host->section_id)) {
                 $bySection[$sectionId][] = $trooperId;
             }
         }

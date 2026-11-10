@@ -7,6 +7,7 @@ use App\Http\Controllers\CounselingController;
 use App\Http\Controllers\DocsController;
 use App\Http\Controllers\GameIdentityController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReportRollupController;
 use App\Http\Controllers\RollcallController;
@@ -14,6 +15,7 @@ use App\Http\Controllers\RollcallFireteamController;
 use App\Http\Controllers\RollcallGuestController;
 use App\Http\Controllers\RollcallPracticeSlotController;
 use App\Http\Controllers\RollcallTemplateController;
+use App\Http\Controllers\RosterAccountabilityController;
 use App\Http\Controllers\RosterController;
 use App\Http\Controllers\RosterPresenceMinimumController;
 use App\Http\Controllers\ScopeUnitsController;
@@ -118,6 +120,8 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/roster/{unit?}', [RosterController::class, 'index'])->name('roster.index');
     // A battalion's practice presence minimum (#558): an audited Command for its HQ staff and Admins.
     Route::post('/roster/{unit}/presence-minimum', [RosterPresenceMinimumController::class, 'update'])->middleware('throttle:audited-writes')->name('roster.presence-minimum');
+    // A unit's accountability options: an audited Command for Admins, Regimental HQ staff and battalion HQ staff.
+    Route::post('/roster/{unit}/accountability', [RosterAccountabilityController::class, 'update'])->middleware('throttle:audited-writes')->name('roster.accountability');
     // The shell's trooper search (JSON): troopers in the viewer's scope by username, for a jump to their milpac. It
     // offers only troopers the milpac below would open (ScopeResolver::canSee's rule), throttled per user.
     Route::get('/troopers/search', TrooperSearchController::class)->middleware('throttle:trooper-search')->name('troopers.search');
@@ -250,6 +254,11 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
 
     // The sidebar's unit switcher (#426): the units in the viewer's scope, read when its menu opens. Navigation only;
     // an Admin's list is the whole regiment, so it has a small limit of its own.
+    // The header's bell: the signed-in user's own notifications, read when it opens; marking them read is on the
+    // audited-writes throttle. Someone else's id is a 404.
+    Route::get('/notifications', [NotificationController::class, 'index'])->middleware('throttle:scope-units')->name('notifications.index');
+    Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->middleware('throttle:audited-writes')->name('notifications.read-all');
+    Route::post('/notifications/{notification}/read', [NotificationController::class, 'read'])->middleware('throttle:audited-writes')->name('notifications.read');
     Route::get('/scope/units', ScopeUnitsController::class)->middleware('throttle:scope-units')->name('scope.units');
     Route::post('/view-as', [ViewAsController::class, 'store'])->middleware('throttle:audited-writes')->name('view-as.store');
     Route::delete('/view-as', [ViewAsController::class, 'destroy'])->middleware('throttle:audited-writes')->name('view-as.destroy');

@@ -30,6 +30,8 @@ import { moveOutcome, movePreview, ordinalOptions, ordinalWord } from '@/lib/uni
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import OrgTreeNode from './OrgTreeNode.vue';
 import { Checkbox } from '@/components/ui/checkbox';
+import AccountabilityPanel from '@/components/roster/AccountabilityPanel.vue';
+import AccountabilityUnderBattalion from '@/components/roster/AccountabilityUnderBattalion.vue';
 
 // Flat units array with `path` (AD-18) — nested here for rendering; the server keeps the
 // authoritative shape flat so subtree scoping elsewhere never depends on this tree walk.
@@ -53,6 +55,9 @@ const props = defineProps({
     // Units shown again under a node that is not their parent, as `{ parent_id, unit_id }`: ACD and DEVCOM under RDC in
     // the staff card, DEVCOM's staff under DEVCOM in the chain of command. Nothing moves.
     references: { type: Array, default: () => [] },
+    // Each battalion's accountability options by unit id (`AccountabilityRules::props()`), editable by Admins and
+    // Regimental HQ staff.
+    battalionAccountability: { type: Object, default: () => ({}) },
 });
 
 // New Recruits are hidden until asked for: they are not yet part of any unit, and never in an ancestor's count.
@@ -1322,6 +1327,19 @@ function confirmDelete() {
                         </p>
                         <p v-if="gameForm.errors.game_id" class="text-xs text-destructive" data-testid="edit-error-game">{{ gameForm.errors.game_id }}</p>
                     </div>
+
+                    <!-- A battalion's accountability: Admins and Regimental HQ staff set it here; its roster shows it. -->
+                    <AccountabilityPanel
+                        v-if="battalionAccountability[selectedUnit.id]"
+                        class="mt-4"
+                        :accountability="battalionAccountability[selectedUnit.id]"
+                        :unit-id="selectedUnit.id"
+                    />
+                    <AccountabilityUnderBattalion
+                        v-if="battalionAccountability[selectedUnit.id]?.units"
+                        :units="battalionAccountability[selectedUnit.id].units"
+                        :choices="battalionAccountability[selectedUnit.id].choices"
+                    />
 
                 </div>
                 <p v-else class="text-[13px] text-muted-foreground">Select a unit to see its details.</p>

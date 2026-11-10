@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Authorization\ScopeResolver;
+use App\Commands\Units\AccountabilityRules;
 use App\Commands\Units\ActingLeadForbiddenException;
 use App\Commands\Units\AssignActingLead;
 use App\Commands\Units\AssignActingLeadHandler;
@@ -91,7 +92,7 @@ class OrgStructureController extends Controller
      * Everyone authenticated may view the tree (AC #3); only the Admin flag gates authoring
      * (checked client-side for the hidden control, and again below on write — AC #5).
      */
-    public function index(Request $request, ScopeResolver $scope, UnitGuidonRepository $guidons, Headcount $headcount, UnitOversightRepository $oversights, GameRepository $gameRepository, UnitCommandMappingRepository $commands): Response
+    public function index(Request $request, ScopeResolver $scope, UnitGuidonRepository $guidons, Headcount $headcount, UnitOversightRepository $oversights, GameRepository $gameRepository, UnitCommandMappingRepository $commands, AccountabilityRules $accountability): Response
     {
         $tree = $this->units->tree();
         // The game each unit plays, its own or the nearest ancestor's, worked out once over the tree.
@@ -252,6 +253,8 @@ class OrgStructureController extends Controller
 
         return Inertia::render('Settings/OrgStructure', [
             'units' => $units,
+            // Each battalion's accountability options, by unit id: Admins and Regimental HQ staff set them here.
+            'battalionAccountability' => (object) collect($accountability->battalions($viewer))->keyBy('unitId')->all(),
             'isAdmin' => $isAdmin,
             // The Games list, for the game picker. Retired games are sent flagged: the picker offers none of them, but
             // names the one a unit still has.

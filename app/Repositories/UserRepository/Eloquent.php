@@ -64,6 +64,11 @@ class Eloquent implements UserRepository
         return User::query()->where('cav_id', $cavId)->first();
     }
 
+    public function withCavIds(array $cavIds): Collection
+    {
+        return $cavIds === [] ? new Collection : User::query()->whereIn('cav_id', $cavIds)->orderBy('id')->get();
+    }
+
     public function withForumUserId(int $forumUserId): ?User
     {
         return User::query()->where('forum_user_id', $forumUserId)->first();

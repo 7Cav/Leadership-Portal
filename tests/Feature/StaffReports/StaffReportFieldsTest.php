@@ -146,11 +146,13 @@ it('lets battalion HQ staff send their own report, from the battalion HQ', funct
         ->and(AuditLogEntry::query()->where('action', 'staff_report.sent')->count())->toBe(1);
 });
 
-it('lets battalion command file theirs too, and shows them "Staff report" in the sidebar', function () {
+// Battalion HQ staff read their battalion (to set its accountability), so they read the HQ staff reports in it too: the
+// sidebar opens "Staff reports", where their own report has its own card, as for battalion command.
+it('lets battalion command file theirs too, and shows battalion HQ staff "Staff reports" in the sidebar', function () {
     $commander = Trooper::query()->where('cav_id', $this->battalionCo->cav_id)->sole();
 
     expect(sendFields($this->battalionCo, $commander, false, [])->unit_id)->toBe($this->tree['units']['battalion']->id);
-    $this->actingAs($this->bnStaffUser)->get('/home')->assertInertia(fn (AssertableInertia $page) => $page->where('features.staffReports', 'own'));
+    $this->actingAs($this->bnStaffUser)->get('/home')->assertInertia(fn (AssertableInertia $page) => $page->where('features.staffReports', 'overview'));
 });
 
 it('lets regiment command and Admins read a battalion HQ staff report, and not battalion command or a company commander', function () {

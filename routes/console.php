@@ -19,6 +19,7 @@ use App\Models\PageVisit;
 use App\Models\Trooper;
 use App\Models\User;
 use App\Repositories\ChangelogRepository;
+use App\Repositories\NotificationRepository;
 use App\Repositories\PageVisitRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
@@ -151,6 +152,17 @@ Artisan::command('portal:prune-page-visits', function (PageVisitRepository $visi
 })->purpose('Delete activity-log page visits older than '.PageVisit::RETENTION_DAYS.' days');
 
 Schedule::command('portal:prune-page-visits')->dailyAt('04:15');
+
+// A notification in the bell is deleted 14 days after it was read; unread ones stay. Daily, after the page-visit prune.
+Artisan::command('portal:prune-notifications', function (NotificationRepository $notifications) {
+    $deleted = $notifications->pruneReadBefore(now()->subDays(14));
+
+    $this->info("Deleted {$deleted} ".($deleted === 1 ? 'notification' : 'notifications').' read more than 14 days ago.');
+
+    return 0;
+})->purpose('Delete notifications read more than 14 days ago');
+
+Schedule::command('portal:prune-notifications')->dailyAt('04:30');
 
 // Changelog entries a delete all removed can be restored for 72 hours. After that the page already treats them as gone;
 // this removes the rows. Hourly, so none stay much past the window.

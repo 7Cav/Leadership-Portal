@@ -46,7 +46,7 @@ A line unit with no troopers is left out (see "Units with no troopers" below).
 
 Your scope's units and troopers, from the cached Cav roster.
 
-- Three views, kept in the URL (`?view=orbat|matrix|strength`): ORBAT (the order of battle, by unit), Matrix (each
+- Three views, kept in the URL (`?view=orbat|matrix|strength`), and an Admin tab (`?view=admin`, see below): ORBAT (the order of battle, by unit), Matrix (each
   trooper's SP marks for the last 20 Cav weeks, with LOA weeks shown) and Strength (see below).
 - Strength tab (`/roster/<id>?view=strength`, also from "Strength" on Home's unit rows): the unit's headcount and in
   roll call per Cav week over 12, 26, 52 weeks or all (`&range=`), the change over the range, joins and departures per
@@ -87,7 +87,7 @@ Your scope's units and troopers, from the cached Cav roster.
   forum (each thread linked to the forum), how many posts it read that need review, or why a failed run stopped. Read
   from what the sync records; nothing extra is asked of the forum. There is no leave sync button.
 - Guidon: a company, battalion or the regiment can have a guidon, the unit's flag. Its command (and the command
-  above it, and Admins) opens "Edit guidon" on the unit's roster to pick a format, the colors (a set palette or any
+  above it, and Admins) opens "Edit guidon" on the unit's roster Admin tab to pick a format, the colors (a set palette or any
   custom color) and the text, with a live preview; nothing is saved until Save. Formats: diagonal (two colors split
   corner to corner, the text top left and bottom right), top and bottom (two colors split across the middle, like the
   wiki's Regimental HQ and 3-7 HQ guidons, each text left or centered on its half), quartered (four quarters like a
@@ -131,6 +131,40 @@ Related pages reached from the roster:
   milpac page.
   Type a username, with or without a leading rank and with a space for the dot ("SGT Vasquez R"), or a cav id
   ("#1234"). An empty result says whether it was limited to your units. Departed troopers are flagged.
+
+- Admin tab (`?view=admin`): shown, and its data sent, only to a viewer who may change something on it; asked for
+  otherwise, the roster opens on the order of battle. It holds the guidon generator (moved from the roster header) and
+  what counts for accountability on the unit. On a company or platoon it also lists the platoons and sections under it
+  the viewer may change, each behind its own disclosure. See "Accountability options".
+
+### Accountability options
+
+What counts for accountability, set per unit (`unit_accountability_settings`, one row per unit with a list of
+options). The options: section practice in own unit, section practice elsewhere in the battalion, FTX, operation, S7
+class, other official event, public or training server hour with a leader present, section practice in another game.
+Every option may be ticked.
+
+- On a battalion, company or platoon they set what counts for its HQ staff report: the report offers the section
+  practice (with either SP option), FTX, operation, class and event as ticked, and its section picker follows the SP
+  options and "another game". On a section they set what counts as a makeup for its troopers: an automatic makeup at
+  another section's practice needs that practice in the section's own company or elsewhere in its battalion, each as
+  ticked, and in the same game unless "another game" is ticked. Options with no automatic effect (the server hour,
+  and on a section the FTX, operation, class and event) are stored and shown, and recorded by hand.
+- A unit with nothing set uses its echelon's default, the rules from before: a battalion HQ a section practice in the
+  battalion, an operation, a class or an event; a company or platoon HQ a section practice in its own unit or an FTX;
+  a section any other section's practice. Every unit under a battalion is cut down to the battalion's set. With
+  nothing set anywhere, nothing changes.
+- A battalion is set on Settings, Org structure ("What counts for Battalion HQ accountability") by Admins and
+  Regimental HQ staff; below it a greyed list shows what each company, platoon and section under it uses, marked set
+  or default, each linked to its roster Admin tab. Its companies, platoons and sections are set on their roster Admin
+  tab by the battalion's HQ staff, Admins and Regimental HQ staff. "Use the default" removes a unit's own set. Every
+  change is audited; view as never changes anything.
+- Notifications: when someone not on the battalion's HQ staff changes a company, platoon or section under it, each
+  serving trooper placed on the battalion node with a portal account gets a notification (`notifications`, Laravel's
+  database channel) naming who changed what, linked to the unit's Admin tab. A change to the battalion's own set
+  notifies nobody, and the actor is never told. The bell in the header shows the signed-in user's own unread count
+  and list (`/notifications`, mark one or all read); it is hidden during view as and while an Admin acts as someone.
+  A notification read more than 14 days ago is deleted by `portal:prune-notifications` (see "Background jobs").
 
 ### Roll call
 
@@ -831,7 +865,7 @@ the step list per echelon.
 | Activity log | The pages each user opened and when, newest first, filterable by user (a searchable list) and date range, to retrace a bug report. Shows when an Admin was acting as or viewing as someone. Addresses and times only (sensitive query values and every sign-in query are dropped), never form contents. Kept 30 days. |
 | Demo data | Only when `DEMO_TOOLS=true`. Generate 1 to 12 completed weeks of demo signatures, marks and sent reports for a unit's real troopers, or purge them. Never touches a week that holds real records. A staff practice entry on a generated week is a real record: the purge clears the week's generated marks and keeps the entry. |
 
-Non-Admins do not see the Settings menu. They can still open Org structure, Staff grants, Templates and Games by URL, read only (Templates only for the companies and sections in their scope; a company's command can manage its own company's templates there, and a section's command its section's own).
+Non-Admins do not see the Settings menu, except Regimental HQ staff, who see Org structure there to set each battalion's accountability options. Non-Admins can still open Org structure, Staff grants, Templates and Games by URL, read only (Templates only for the companies and sections in their scope; a company's command can manage its own company's templates there, and a section's command its section's own).
 
 ## Background jobs
 
@@ -849,7 +883,8 @@ minimum as guests, with an automatic makeup (see "Makeups"). A capture over the 
 servers are shared, so being online that week does not mean being at that practice.
 
 Activity log pruning runs from the scheduler itself, not the queue: daily at 04:15 `portal:prune-page-visits` deletes
-page visits older than 30 days, in chunks.
+page visits older than 30 days, in chunks. Daily at 04:30 `portal:prune-notifications` deletes notifications read
+more than 14 days ago, in chunks; unread ones stay.
 
 The org import (Settings, Org structure, Import from Cav roster) is not scheduled; an Admin runs it. It repoints a billet mapping it wrote when Cav now lists the billet under another unit, and keeps (and counts) a mapping corrected by hand.
 
@@ -929,6 +964,7 @@ the sum of its direct children's sent reports.
 | Reports | `app/Commands/WeeklyReports/`, `app/Kpi/RollupKpis.php`, `ReportChain.php`, `resources/js/lib/report.js` |
 | Training plans | `app/Commands/TrainingPlans/`, `TrainingPlanController`, `resources/js/Pages/Reports/TrainingPlan.vue`, `resources/js/lib/trainingPlan.js` |
 | Staff practices | `app/Commands/StaffPractices/`, `app/Authorization/StaffPracticeAccess.php`, `app/Milpac/StaffPracticeHistory.php`, `resources/js/components/milpac/StaffPracticesPanel.vue` (stored in `cross_section_sightings` with source `staff`) |
+| Accountability options | `app/Commands/Units/AccountabilityRules.php`, `SetAccountabilityOptions`, `AccountabilityChangeNotifier`, `RosterAccountabilityController`, `NotificationController`, `resources/js/components/roster/AccountabilityPanel.vue`, `resources/js/Layouts/partials/NotificationBell.vue` |
 | Staff report | `app/Commands/StaffReports/`, `app/Authorization/StaffReportAccess.php`, `app/Milpac/StaffReportWeek.php`, `StaffReportController`, `resources/js/Pages/StaffReport.vue`, `resources/js/components/reports/StaffReportsPanel.vue` (`staff_reports`; the practices picked are `cross_section_sightings` rows with source `staff`) |
 | Counseling | `app/Commands/Counseling/`, `app/Authorization/CounselingAccess.php`, `app/Milpac/CounselingHistory.php`, `app/Milpac/CounselingStanding.php`, `app/Integration/GoogleDrive/`, `app/Jobs/UploadCounselingDocumentJob.php`, `resources/js/components/milpac/CounselingPanel.vue` |
 | Tutorial | `app/Tutorial/` (`TutorialSandbox`, `PracticeWorld`, `TutorialSteps`, `TutorialSession`, `TutorialPersonaResolver`), `app/Http/Middleware/RunInTutorial.php`, `TutorialController`, `TutorialPracticeRepository`, `resources/js/Layouts/partials/TutorialBanner.vue`, `TutorialCoach.vue`, `resources/js/composables/useTutorial.js`, `resources/js/lib/tutorial.js` |

@@ -26,6 +26,7 @@ use App\Models\Trooper;
 use App\Models\TrooperCourse;
 use App\Models\TrooperGameIdentity;
 use App\Models\Unit;
+use App\Models\UnitAccountabilitySetting;
 use App\Models\UnitActingLead;
 use App\Models\UnitGuidon;
 use App\Models\UnitOversight;
@@ -85,6 +86,7 @@ class Eloquent implements AuditLogRepository
         'StaffReport' => [StaffReport::class, []],
         'SectionPracticeSlot' => [SectionPracticeSlot::class, []],
         'BattalionSetting' => [BattalionSetting::class, []],
+        'UnitAccountabilitySetting' => [UnitAccountabilitySetting::class, []],
         'CounselingRecord' => [CounselingRecord::class, []],
         'ChangelogEntry' => [ChangelogEntry::class, []],
         'CrossSectionSighting' => [CrossSectionSighting::class, []],

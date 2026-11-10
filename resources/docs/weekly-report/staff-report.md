@@ -32,6 +32,7 @@ The form asks one question at a time. The numbered steps at the top show where y
 1. Answer the accountability question with **Yes** or **No**. No skips to the presence question.
 2. For Yes, pick what it was: **Section practice** or **FTX** on a platoon or company HQ; **Section practice**, **Operation**, **Class** or **Other official event** on a battalion HQ.
 3. For a section practice, pick each one you attended. Only sections in your own platoon or company (for battalion HQ staff, the battalion) that play its game are listed, in order of battle under a heading for each platoon. When the list spans many platoons, only your own starts open; click a platoon's heading to open it. **Find a section** narrows the list and opens every platoon.
+   What the form offers follows what counts for your HQ's accountability, set per unit. See [Set what counts for accountability](/docs/your-troopers/accountability-options).
 4. For an FTX, an operation, a class or an event, give its name and its date, a day in that Cav week. An FTX may also list the sections that took part.
 5. Answer the presence question: **Public server hour**, **Office hour** or **I did not**. Every report needs an answer. For an office hour, give its date, a day in that Cav week, and a short note of what it was, up to 200 characters.
 6. Practices already entered for you this week are picked, with who entered them, and the form opens on them. Take off one you did not attend: sending takes it off.

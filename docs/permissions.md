@@ -232,6 +232,7 @@ their own plan unless they also command the company.
 | Org structure: Import from Cav roster | Yes | No | No |
 | Org structure: place a trooper the sync could not place | Yes | No | No |
 | Org structure: set or clear the game a unit plays (from the Games list, not a retired game; only while no unit above has one) (12) | Yes | Regimental HQ staff on any unit; an overseer on the units they oversee and those under them; DEVCOM's 1IC and 2IC on DEVCOM and the units under it (12) | No |
+| Org structure: set a battalion's accountability options | Yes | Regimental HQ staff | No |
 | Org structure: set or clear a unit's nickname | Yes | No | No |
 | Org structure: assign or remove an acting lead (10) | Yes | No | No |
 | Org structure: set, change or clear a unit's overseer | Yes | No | No |
@@ -286,9 +287,18 @@ an add". Admins delete any empty unit as before. Act as may undo what the person
 | Set or remove a trooper's game identity | All | All | Own | Own | Own | Own | Own | Own | No | No | No |
 | Sync my unit's troopers from Cav (roster page) | Any unit | Own | Own | Own | Own | Own | Own | Own | No | No | No |
 | Save a unit's guidon (companies, battalions and the regiment only) | Any | Own | No | Own | Own | No | If acting lead of the unit or above | No | No | No | No |
+| Set what counts for accountability on a company, platoon or section (roster Admin tab) | Any | Any | No | HQ staff of its battalion | No | No | No | No | No | No | No |
 | Set a battalion's practice presence minimum (roster page) (14) | Any battalion | HQ staff | HQ staff | HQ staff | No | No | No | No | HQ staff | No | No |
 | View as a unit | Any | Own | Own | Own | Own | Own | Own | Own | No | Granted units | Switch target |
 | View as a person | Yes | No | No | No | No | No | No | No | No | No | Switch target |
+
+Accountability options: Admins and Regimental HQ staff set a battalion's on Org structure and any company, platoon
+or section under a battalion on its roster Admin tab; the battalion's HQ staff (a serving trooper placed on the
+battalion node, by their own milpac or the one acted as) set the units under it, never the battalion's own set and
+never wider than it. Battalion HQ staff placed on the battalion node read that battalion (read only, like Regimental
+HQ staff read the regiment) so they can open its rosters; the read ends when they stop serving. Regimental HQ staff see
+Settings, Org structure in the sidebar. The roster Admin tab shows only to someone who may change its accountability
+or its guidon. Each user reads and marks read only their own notifications; another user's notification answers 404.
 
 ### Act as
 

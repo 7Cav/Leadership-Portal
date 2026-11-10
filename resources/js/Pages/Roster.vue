@@ -9,6 +9,7 @@ import {
     PhCheck,
     PhFlag,
     PhChartLine,
+    PhGearSix,
     PhGridFour,
     PhListBullets,
     PhLockSimple,
@@ -47,6 +48,7 @@ import OrbatView from "@/components/roster/OrbatView.vue";
 import StrengthView from "@/components/roster/StrengthView.vue";
 import GuidonGenerator from "@/components/roster/GuidonGenerator.vue";
 import PracticeGuestsPanel from "@/components/roster/PracticeGuestsPanel.vue";
+import AccountabilityPanel from "@/components/roster/AccountabilityPanel.vue";
 import PresenceMinimumPanel from "@/components/roster/PresenceMinimumPanel.vue";
 import TrooperSheet from "@/components/roster/TrooperSheet.vue";
 import { useNow } from "@/composables/useNow";
@@ -84,6 +86,10 @@ const props = defineProps({
     guests: { type: Object, default: null },
     // A battalion's practice presence minimum (#558): `{ minutes, isDefault, default, canEdit }`, null for other units.
     presenceMinimum: { type: Object, default: null },
+    // What counts for the unit's HQ staff report or a section's makeups (`AccountabilityRules::props()`), null above a battalion.
+    accountability: { type: Object, default: null },
+    // On a company's or platoon's Admin tab, `{ platoons, sections }` under it the viewer may change, each like `accountability`.
+    accountabilityUnits: { type: Object, default: () => ({ platoons: [], sections: [] }) },
     // The Strength tab (`StrengthTrends`): `{ range, weeks, change, children }`, sent only while that tab is open.
     strengthTrends: { type: Object, default: null },
 });
@@ -98,8 +104,16 @@ function queryParam(name) {
     return new URLSearchParams(search).get(name);
 }
 
-const view = ref(
-    VIEWS.includes(queryParam("view")) ? queryParam("view") : "orbat",
+// The Admin tab only for a viewer the server lets change something on it (`can.admin`); asked for without that, the
+// roster opens on the order of battle like any other unknown view.
+const allowedView = (v) =>
+    VIEWS.includes(v) || (v === "admin" && props.can?.admin === true);
+const view = ref(allowedView(queryParam("view")) ? queryParam("view") : "orbat");
+watch(
+    () => props.can?.admin,
+    () => {
+        if (!allowedView(view.value)) view.value = "orbat";
+    },
 );
 const query = ref("");
 const filter = ref("all");
@@ -496,16 +510,6 @@ function syncNow() {
                     {{ unitSyncLabel }}
                 </Badge>
 
-                <Button
-                    v-if="can.editGuidon"
-                    variant="outline"
-                    size="sm"
-                    data-testid="roster-guidon"
-                    @click="guidonOpen = true"
-                >
-                    <PhFlag />Edit guidon
-                </Button>
-
                 <template v-if="can.sync || can.syncUnit">
                     <Tooltip v-if="viewAs">
                         <TooltipTrigger as-child>
@@ -575,6 +579,9 @@ function syncNow() {
                     <TabsTrigger value="strength" data-testid="view-strength"
                         ><PhChartLine />Strength</TabsTrigger
                     >
+                    <TabsTrigger v-if="can.admin" value="admin" data-testid="view-admin"
+                        ><PhGearSix />Admin</TabsTrigger
+                    >
                 </TabsList>
             </Tabs>
 
@@ -586,8 +593,46 @@ function syncNow() {
                 data-testid="roster-up"
                 ><PhCaretRight class="size-3.5 rotate-180" aria-hidden="true" />Return to {{ parentCrumb.callsign ?? parentCrumb.name }}</Link
             >
+            <section v-if="view === 'admin'" class="grid gap-3" data-testid="roster-admin">
+                <div v-if="can.editGuidon" class="flex items-center gap-3 rounded-lg border border-border p-4">
+                    <h2 class="text-sm font-semibold">Guidon</h2>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        data-testid="roster-guidon"
+                        @click="guidonOpen = true"
+                    >
+                        <PhFlag />Edit guidon
+                    </Button>
+                </div>
+                <AccountabilityPanel
+                    v-if="accountability"
+                    :accountability="accountability"
+                    :unit-id="unit.id"
+                />
+                <template v-for="group in [{ key: 'platoons', title: 'Platoon HQ' }, { key: 'sections', title: 'Sections' }]" :key="group.key">
+                    <div
+                        v-if="accountabilityUnits?.[group.key]?.length"
+                        class="rounded-lg border border-border p-4"
+                        :data-testid="`accountability-${group.key}`"
+                    >
+                        <h2 class="text-sm font-semibold">{{ group.title }}</h2>
+                        <details
+                            v-for="child in accountabilityUnits[group.key]"
+                            :key="child.unitId"
+                            class="mt-2 border-t border-border pt-2"
+                            :data-testid="`accountability-unit-${child.unitId}`"
+                        >
+                            <summary class="cursor-pointer text-sm">{{ child.label }}</summary>
+                            <div class="mt-2 pl-4">
+                                <AccountabilityPanel :accountability="child" :unit-id="child.unitId" nested />
+                            </div>
+                        </details>
+                    </div>
+                </template>
+            </section>
             <StrengthView
-                v-if="view === 'strength'"
+                v-else-if="view === 'strength'"
                 :unit="unit"
                 :trends="strengthTrends"
                 :loading="strengthLoading"

@@ -45,7 +45,7 @@ it('lists the unit\'s weekly report and the staff report while unsent, and drops
     $this->actingAs($user)->get('/home')->assertInertia(fn (AssertableInertia $page) => $page
         ->where('reportsDue.reports', [['kind' => 'staff', 'label' => null, 'href' => $staffHref]]));
 
-    app(SendStaffReportHandler::class)->handle($user, new SendStaffReport($this->pl->id, CarbonImmutable::parse('2026-10-03', 'UTC'), false, []));
+    app(SendStaffReportHandler::class)->handle($user, new SendStaffReport($this->pl->id, CarbonImmutable::parse('2026-10-03', 'UTC'), false, [], presenceType: 'none'));
 
     $this->actingAs($user)->get('/home')->assertInertia(fn (AssertableInertia $page) => $page->where('reportsDue', null));
 });

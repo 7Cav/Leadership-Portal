@@ -12,6 +12,7 @@ use App\Commands\Practices\InvalidPresenceMinimumException;
 use App\Commands\Practices\PresenceMinimum;
 use App\Commands\Practices\PresenceMinimumForbiddenException;
 use App\Commands\Practices\SetPresenceMinimum;
+use App\Commands\Units\AccountabilityRules;
 use App\Integration\Crcon\Data\CrconPlayer;
 use App\Integration\Crcon\Data\CrconPresence;
 use App\Models\Attendance;
@@ -32,6 +33,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Repositories\SectionPracticeRepository;
+use App\Repositories\UnitAccountabilitySettingRepository;
 use App\Repositories\UnitRepository;
 use App\Rollcall\RollcallRoster;
 use Carbon\CarbonImmutable;
@@ -318,4 +320,16 @@ it('skips a week whose report was sent when backfilling', function () {
     $this->artisan('portal:backfill-practice-captures', ['--dry-run' => true])
         ->expectsOutputToContain('week of 2026-10-17: week locked, its report was sent')
         ->assertSuccessful();
+});
+
+it('gives no make-up at a practice the trooper\'s section does not count, and one where it does', function () {
+    // The guest's section counts a practice elsewhere in the battalion only: the host is in their own company.
+    app(UnitAccountabilitySettingRepository::class)->set($this->home->id, [AccountabilityRules::SP_BATTALION]);
+
+    captureHost($this, [seen('76561190000000001', 50)]);
+    expect(homeRow($this)?->status)->not->toBe(AttendanceStatus::Makeup);
+
+    // Back to the default, it counts again.
+    app(UnitAccountabilitySettingRepository::class)->set($this->home->id, null);
+    expect(app(AccountabilityRules::class)->makeupCounts($this->home->id, $this->host->id))->toBeTrue();
 });

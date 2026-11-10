@@ -54,6 +54,14 @@ interface UserRepository
     public function withCavId(int $cavId): ?User;
 
     /**
+     * The accounts linked to any of the milpacs `$cavIds`, by id. One query, none for an empty list.
+     *
+     * @param  list<int>  $cavIds
+     * @return Collection<int, User>
+     */
+    public function withCavIds(array $cavIds): Collection;
+
+    /**
      * The user signed in as forum account `$forumUserId`, or null. `forum_user_id` is unique, so unlike
      * a username this names exactly one account.
      */

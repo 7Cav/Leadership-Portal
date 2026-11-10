@@ -60,6 +60,11 @@ Admins and Regimental HQ staff can change any unit's game. An overseer can chang
 
 > [!good-to-know] What this changes, and how to undo it: Game identities opens Add identity on this game, and the practice capture reads the section's practice from it. Pick the inherited choice at the top of the list to clear it. A unit keeps a game that has since been retired, marked retired, until you change it. A unit under one with a game keeps a game of its own set before until you choose **Clear game**; no new one can be set there. A unit with units under it that have their own games cannot be given one until you clear those; the error names them. Both are in the audit log.
 
+## Set what counts for battalion accountability
+
+1. Select a battalion. Under **What counts for Battalion HQ accountability**, tick the options and choose **Save**. Regimental HQ staff can do this too: they see **Org structure** under **Settings** in the sidebar.
+2. Below it, greyed out, is what each unit under the battalion uses now, each linked to its roster's Admin tab. See [Set what counts for accountability](/docs/your-troopers/accountability-options).
+
 ## Set a nickname
 
 1. Select the unit, fill in **Nickname**, such as Jaegers, and choose **Save nickname**. It shows next to the unit's name on the rosters of that unit and of the company or platoon above it, not in the Org structure tree or across a battalion. It is free text and changes nothing else; to rename the unit itself, change **Name** above it.
