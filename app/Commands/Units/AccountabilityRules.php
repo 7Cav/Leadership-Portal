@@ -4,6 +4,7 @@ namespace App\Commands\Units;
 
 use App\Authorization\ScopeResolver;
 use App\Models\Unit;
+use App\Models\UnitAccountabilitySetting;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\TrooperRepository;
@@ -47,16 +48,7 @@ class AccountabilityRules
     public const SP_OTHER_GAME = 'sp_other_game';
 
     /** Every option, in the order the tick list shows them, with its label. */
-    public const OPTIONS = [
-        self::SP_OWN_UNIT => 'Section practice in own unit',
-        self::SP_BATTALION => 'Section practice elsewhere in the battalion',
-        self::FTX => 'FTX',
-        self::OPERATION => 'Operation',
-        self::CLASS_TYPE => 'S7 class',
-        self::EVENT => 'Other official event',
-        self::SERVER_HOUR => 'Public or training server hour with a leader present',
-        self::SP_OTHER_GAME => 'Section practice in another game',
-    ];
+    public const OPTIONS = UnitAccountabilitySetting::OPTION_LABELS;
 
     public function __construct(
         private readonly UnitRepository $units,

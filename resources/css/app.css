@@ -518,15 +518,3 @@
         animation: none;
     }
 }
-
-/* The element a tutorial step points at, such as a trooper card: the card's own border in the tutorial blue. */
-.tutorial-target {
-    border-color: var(--changelog) !important;
-    box-shadow: 0 0 0 1px var(--changelog);
-}
-
-/* A button the step points at turns solid tutorial blue, so the next click is obvious. */
-button.tutorial-target {
-    background-color: var(--changelog) !important;
-    color: #fff !important;
-}

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import DocsLayout from '@/components/docs/DocsLayout.vue';
 import DocsSearchBox from '@/components/docs/DocsSearchBox.vue';
 import { useTutorialProgress } from '@/composables/useTutorialProgress';
-import { cavDate, homeGroups, initialPath, roleLabel } from '@/lib/docs';
+import { homeGroups, initialPath, roleLabel } from '@/lib/docs';
 
 // Docs home (#410): the search first, then "New here?" into the tutorial, the guides that matter for one role, the
 // guides changed last, and every guide the viewer may read grouped as Every week, When it comes up, For everyone and
@@ -24,7 +24,6 @@ const props = defineProps({
     // `[{ key, title, blurb, guides: [{ title, summary, url }] }]`: the role paths this viewer can follow.
     paths: { type: Array, default: () => [] },
     // `[{ title, summary, url, updated }]`: the guides changed last.
-    recent: { type: Array, default: () => [] },
     // `{ url, steps: [{ id, title, url }] }`, or null when this viewer has no tutorial.
     tutorial: { type: Object, default: null },
 });
@@ -193,18 +192,6 @@ function moveRole(event, index) {
                         </li>
                     </ol>
                 </div>
-            </section>
-
-            <section v-if="recent.length" class="mb-10" aria-labelledby="docs-recent-title" data-testid="docs-recent">
-                <h2 id="docs-recent-title" class="mb-3 text-xl font-semibold tracking-tight">Recently updated</h2>
-                <ul class="space-y-0.5">
-                    <li v-for="guide in recent" :key="guide.url">
-                        <Link :href="guide.url" class="flex items-baseline gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-accent">
-                            <span class="min-w-0 truncate font-medium">{{ guide.title }}</span>
-                            <time :datetime="guide.updated" class="ml-auto flex-none font-mono text-xs text-muted-foreground">{{ cavDate(guide.updated) }}</time>
-                        </Link>
-                    </li>
-                </ul>
             </section>
 
             <section aria-labelledby="docs-all-title">

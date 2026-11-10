@@ -3,6 +3,8 @@
 use App\Commands\StaffReports\PushStaffReportToSheet;
 use App\Jobs\PushStaffReportToSheetJob;
 use App\Models\AuditLogEntry;
+use App\Models\PlatoonTrainingTopic;
+use App\Models\PracticeCapturePlayer;
 use App\Models\Trooper;
 use App\Models\TrooperGameIdentity;
 use App\Models\Unit;
@@ -98,6 +100,42 @@ it('ticks the coach card from what was done in the practice copy', function () {
         ->where('tutorialMode.steps.0.checklist.4.done', false)
         // Confirmed but not posted: Mark posted is the next thing to do, unless Demo.K still needs a signature.
         ->where('tutorialMode.steps.0.highlight', fn ($selector) => in_array($selector, ['[data-testid="mark-posted"]'], true) || str_starts_with((string) $selector, '[data-trooper="')));
+});
+
+it('ticks the subject of a platoon report from its training topic, and points at the subject and notes, then Send', function () {
+    $leader = User::factory()->commanding($this->section)->create();
+    $this->actingAs($leader)->post('/tutorial');
+    $persona = new TutorialPersona(
+        admin: false, leads: UnitType::Platoon, hqStaff: null,
+        username: 'Someone.X', forumUserId: 1, cavId: 1, rankShort: '1LT', rank: 'First Lieutenant',
+    );
+    $steps = fn () => collect(app(TutorialSteps::class)->describe($leader->id, $persona))->keyBy('id');
+
+    $before = inTutorial($leader->id, $steps);
+    expect($before['weekly-report']['checklist'][1]['done'])->toBeFalse()
+        ->and($before['weekly-report']['highlight'])->toBe('#training-subject, #platoon-topic, #report-notes')
+        ->and($before['weekly-report']['nav'])->toBe('[data-testid="nav-Reports"]')
+        ->and($before['rollcall']['nav'])->toBe('[data-testid="nav-Roll call"]');
+
+    $after = inTutorial($leader->id, function () use ($steps) {
+        PlatoonTrainingTopic::query()->create([
+            'unit_id' => app(TutorialPracticeRepository::class)->unitByCallsign(PracticeWorld::PLATOON)->id,
+            'week_start' => WeekOf::reporting(CarbonImmutable::now('UTC')),
+            'subject' => 'Radio procedure',
+            'set_by' => User::query()->value('id'),
+        ]);
+
+        return $steps();
+    });
+    expect($after['weekly-report']['checklist'][1]['done'])->toBeTrue()
+        ->and($after['weekly-report']['highlight'])->toBe('[data-testid="send-button"], [data-testid="send-anyway"]');
+});
+
+it('leaves no unmatched player on the practice roll call, as no step teaches matching one', function () {
+    $leader = User::factory()->commanding($this->section)->create();
+    $this->actingAs($leader)->post('/tutorial');
+
+    expect(inTutorial($leader->id, fn () => PracticeCapturePlayer::query()->whereNull('trooper_id')->count()))->toBe(0);
 });
 
 it('links every practice trooper to the practice game, so no identity warning shows', function () {

@@ -94,15 +94,23 @@ describe('tutorial shell', () => {
         expect(coach.find('[data-testid="tutorial-skip"]').exists()).toBe(false);
         expect(coach.get('[data-testid="tutorial-next"]').attributes('disabled')).toBeUndefined();
     });
-    it('rings what the step points at in the tutorial blue', async () => {
-        document.body.innerHTML = '<div data-trooper="9"></div><div data-trooper="10"></div>';
-        setTutorial({ steps: [{ ...STEPS[1], highlight: '[data-trooper="9"]' }] });
+    it('shows what the step points at in the tutorial blue through a stylesheet, gone once the card is', async () => {
+        setTutorial({ steps: [{ ...STEPS[1], href: '/', highlight: '[data-trooper="9"]' }] });
         const coach = mount(TutorialCoach);
         await new Promise((resolve) => setTimeout(resolve));
 
-        expect(document.querySelector('[data-trooper="9"]').classList.contains('tutorial-target')).toBe(true);
-        expect(document.querySelector('[data-trooper="10"]').classList.contains('tutorial-target')).toBe(false);
+        expect(document.getElementById('tutorial-target-style').textContent).toContain(':is([data-trooper="9"])');
         coach.unmount();
-        expect(document.querySelector('.tutorial-target')).toBeNull();
+        expect(document.getElementById('tutorial-target-style')).toBeNull();
+    });
+
+    it('points at the sidebar link while the step is on another page', async () => {
+        setTutorial({ steps: [{ ...STEPS[1], href: '/reports/4/2026-11-07', nav: '[data-testid="nav-Reports"]', highlight: '#report-notes' }] });
+        const coach = mount(TutorialCoach);
+        await new Promise((resolve) => setTimeout(resolve));
+
+        expect(document.getElementById('tutorial-target-style').textContent).toContain('[data-testid="nav-Reports"]');
+        expect(document.getElementById('tutorial-target-style').textContent).not.toContain('#report-notes');
+        coach.unmount();
     });
 });

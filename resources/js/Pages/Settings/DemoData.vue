@@ -125,7 +125,7 @@ const hasDemoData = computed(() => props.existing.practices + props.existing.att
         </div>
 
         <EmptyState v-if="!units.length" :icon="PhTreeStructure" title="No units to generate for" class="rounded-lg border border-border bg-card py-12" data-testid="no-units">
-            Import the regiment from Cav on
+            Import the regiment from the Cav roster on
             <Link href="/settings/org-structure" class="underline underline-offset-2">Org structure</Link>
             and sync the roster, then choose a unit here.
         </EmptyState>

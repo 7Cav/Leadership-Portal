@@ -41,7 +41,7 @@ audience: leader                         # required: everyone, leader or admin
 page: /rollcall                          # optional: the portal path it explains, for the "?" help
 weekly: true                             # optional: a weekly task, listed under "Every week" on docs home
 minutes: 5                               # optional: about how long it takes
-updated: 2026-10-31                      # optional: when it last changed in a way readers should know; lists it under "Recently updated"
+updated: 2026-10-31                      # optional: when it last changed in a way readers should know; shown as "Updated" on the guide
 ---
 ```
 

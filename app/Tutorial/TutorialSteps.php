@@ -32,6 +32,15 @@ final class TutorialSteps
     }
 
     /**
+     * The sidebar link to `$labels` (`nav-{label}` in AppSidebar.vue), shown in the tutorial blue while the step's page
+     * is not open.
+     */
+    private static function nav(string ...$labels): string
+    {
+        return implode(', ', array_map(fn (string $label) => '[data-testid="nav-'.$label.'"]', $labels));
+    }
+
+    /**
      * Every step with its checklist ticked from the practice copy. Runs inside the sandbox.
      *
      * @return list<array<string, mixed>>
@@ -57,6 +66,7 @@ final class TutorialSteps
         $rollcall = '/rollcall/'.($section?->id ?? '');
         $report = '/reports/'.($reportUnit?->id ?? '').'/'.$week->toDateString();
         $roster = '/roster';
+        $strength = $visits->contains(fn (string $url) => str_starts_with($url, '/roster') && str_contains($url, 'view=strength'));
 
         $steps = [
             'rollcall' => [
@@ -65,6 +75,7 @@ final class TutorialSteps
                 'href' => $rollcall,
                 'note' => 'In your real section, a mark you set by hand always wins over the game server.',
                 'guide' => 'run-roll-call',
+                'nav' => self::nav('Roll call'),
                 // The next thing to do is shown in the tutorial blue: Demo.K's card, then Confirm practice took place, then Mark posted.
                 'highlight' => match (true) {
                     $demo !== null && ! ($facts['demoSigned'] && $facts['demoMarked']) => '[data-trooper="'.$demo->id.'"]',
@@ -86,6 +97,13 @@ final class TutorialSteps
                 'href' => $report,
                 'note' => 'A sent report is final for the week. Here it goes nowhere.',
                 'guide' => 'send-the-weekly-report',
+                'nav' => self::nav('Reports'),
+                // The subject (a section's training subject, a platoon's topic for its sections) and the notes, then Send.
+                'highlight' => match (true) {
+                    ! $facts['draft'] => '#training-subject, #platoon-topic, #report-notes',
+                    ! $facts['sent'] => '[data-testid="send-button"], [data-testid="send-anyway"]',
+                    default => null,
+                },
                 'checklist' => [
                     ['label' => 'Open the report for this week', 'done' => $opened($report)],
                     ['label' => 'Write the subject or a note', 'done' => $facts['draft']],
@@ -96,8 +114,10 @@ final class TutorialSteps
                 'title' => 'Send your staff report',
                 'body' => 'Say which section practices you attended this week, add anything else you did, then send it.',
                 'href' => '/staff-report',
-                'note' => 'In the portal it also goes to the staff Sheet. Here it does not.',
+                'note' => 'In the portal it also goes to the staff sheet. Here it does not.',
                 'guide' => 'send-a-staff-report',
+                'nav' => self::nav('Staff report', 'Staff reports'),
+                'highlight' => $facts['staffSent'] ? null : '[data-testid="staff-report-send"]',
                 'checklist' => [
                     ['label' => 'Open your staff report', 'done' => $visited('/staff-report')],
                     ['label' => 'Send it', 'done' => $facts['staffSent']],
@@ -109,9 +129,16 @@ final class TutorialSteps
                 'href' => $roster,
                 'note' => null,
                 'guide' => 'read-your-roster',
+                'nav' => self::nav('Roster'),
+                // The Strength tab, then Open milpac in a trooper's panel (the panel opens from any row).
+                'highlight' => match (true) {
+                    ! $strength => '[data-testid="view-strength"]',
+                    ! $visited('/troopers/') => '[data-testid="sheet-open-trooper"]',
+                    default => null,
+                },
                 'checklist' => [
                     ['label' => 'Open the roster', 'done' => $visited('/roster')],
-                    ['label' => 'Open the Strength tab', 'done' => $visits->contains(fn (string $url) => str_starts_with($url, '/roster') && str_contains($url, 'view=strength'))],
+                    ['label' => 'Open the Strength tab', 'done' => $strength],
                     ['label' => 'Open the milpac of a trooper', 'done' => $visited('/troopers/')],
                 ],
             ],
@@ -121,6 +148,13 @@ final class TutorialSteps
                 'href' => '/settings/org-structure',
                 'note' => 'The real audit log has none of it.',
                 'guide' => null,
+                // Both pages are in the sidebar: the one still to open.
+                'nav' => null,
+                'highlight' => match (true) {
+                    ! $visited('/settings/org-structure') => self::nav('Org structure'),
+                    ! $visited('/settings/audit-log') => self::nav('Audit log'),
+                    default => null,
+                },
                 'checklist' => [
                     ['label' => 'Open Org structure', 'done' => $visited('/settings/org-structure')],
                     ['label' => 'Open the Audit log', 'done' => $visited('/settings/audit-log')],
@@ -131,7 +165,7 @@ final class TutorialSteps
         return array_map(function (string $id) use ($steps) {
             $step = $steps[$id];
 
-            return ['id' => $id, 'highlight' => null, ...$step, 'done' => collect($step['checklist'])->every(fn (array $item) => $item['done'])];
+            return ['id' => $id, 'highlight' => null, 'nav' => null, ...$step, 'done' => collect($step['checklist'])->every(fn (array $item) => $item['done'])];
         }, self::idsFor($persona));
     }
 }

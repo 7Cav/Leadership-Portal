@@ -34,7 +34,7 @@ const STEPS = [
 const TUTORIAL = { url: STEPS[0].url, steps: STEPS };
 
 const home = (props = {}) =>
-    mount(Index, { props: { audience: 'leader', contents: [], search: [], paths: PATHS, recent: [], tutorial: TUTORIAL, ...props } });
+    mount(Index, { props: { audience: 'leader', contents: [], search: [], paths: PATHS, tutorial: TUTORIAL, ...props } });
 
 const step = (index, props = {}) =>
     mount(Tutorial, {
@@ -109,11 +109,11 @@ describe('Docs home role paths', () => {
         expect(resumed.attributes('href')).toBe('/docs/tutorial/second');
     });
 
-    it('shows no tutorial call to action to a reader without one, and lists recent guides with Cav dates', () => {
-        const wrapper = home({ tutorial: null, recent: [{ ...link('Read the roster', '/docs/b/roster'), updated: '2026-10-31' }] });
+    it('shows no tutorial call to action to a reader without one, and no recently updated list', () => {
+        const wrapper = home({ tutorial: null });
 
         expect(wrapper.find('[data-testid="docs-tutorial-cta"]').exists()).toBe(false);
-        expect(wrapper.get('[data-testid="docs-recent"]').text()).toContain('31OCT26');
+        expect(wrapper.find('[data-testid="docs-recent"]').exists()).toBe(false);
         expect(cavDate('2026-01-05')).toBe('05JAN26');
         expect(cavDate('soon')).toBe('');
     });

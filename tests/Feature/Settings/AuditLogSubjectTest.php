@@ -19,6 +19,8 @@ use App\Models\WeeklyReport;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\AuditedBatch;
 use App\Repositories\AuditLogRepository;
+use App\Repositories\AuditSubject;
+use App\Repositories\UnitAccountabilitySettingRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -178,4 +180,20 @@ describe('details written with new entries', function () {
             ->and($details['changes'])->toBe([['field' => 'Dated', 'from' => '10OCT26', 'to' => '11OCT26']])
             ->and(json_encode($details))->not->toContain('private');
     });
+});
+
+it('says what counted before and after when the accountability options of a unit change', function () {
+    $repo = app(UnitAccountabilitySettingRepository::class);
+
+    $created = $repo->set($this->section->id, ['sp_own_unit', 'ftx']);
+    expect(AuditSubject::details($created))->toBe([
+        'subject' => 'Accountability options 1/1/F/1-7',
+        'changes' => [['field' => 'Counts', 'from' => 'Inherited', 'to' => 'Section practice in own unit, FTX']],
+    ]);
+
+    $changed = $repo->set($this->section->id, ['ftx']);
+    expect(AuditSubject::details($changed)['changes'])->toBe([['field' => 'Counts', 'from' => 'Section practice in own unit, FTX', 'to' => 'FTX']]);
+
+    $cleared = $repo->set($this->section->id, null);
+    expect(AuditSubject::details($cleared)['changes'])->toBe([['field' => 'Counts', 'from' => 'FTX', 'to' => 'Inherited']]);
 });

@@ -257,6 +257,23 @@ final class AuditSubject
             return $gamertagChanged ? [...$sourceChanges, ['field' => 'Gamertag', 'from' => $gamertagFrom ?? 'none', 'to' => $gamertagTo ?? 'none']] : $sourceChanges;
         }
 
+        // A unit's accountability options (#663): what counts before and after, by label. No row means the unit follows
+        // the options above it, which reads "Inherited".
+        if ($model instanceof UnitAccountabilitySetting) {
+            $list = fn (mixed $options) => $options === null ? 'Inherited'
+                : (implode(', ', array_map(fn ($key) => UnitAccountabilitySetting::OPTION_LABELS[$key] ?? (string) $key, (array) $options)) ?: 'Nothing');
+            $now = $model->options;
+            $previous = $model->getPrevious();
+            $before = array_key_exists('options', $previous) ? json_decode((string) $previous['options'], true) : $now;
+
+            return match (true) {
+                ! $model->exists => [['field' => 'Counts', 'from' => $list($now), 'to' => 'Inherited']],
+                $model->wasRecentlyCreated => [['field' => 'Counts', 'from' => 'Inherited', 'to' => $list($now)]],
+                $list($before) === $list($now) => [],
+                default => [['field' => 'Counts', 'from' => $list($before), 'to' => $list($now)]],
+            };
+        }
+
         // A guest a leader added or took back (#628): the entry names whose attendance changed.
         if ($model instanceof CrossSectionSighting) {
             if (! $model->isManual()) {

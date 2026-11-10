@@ -19,7 +19,8 @@ vi.mock('@inertiajs/vue3', () => ({
 
 const { LEAVE_MESSAGE, useUnsavedChanges } = await import('../useUnsavedChanges');
 
-const visit = (method = 'get') => handlers.filter((entry) => entry.type === 'before').map((entry) => entry.handler({ detail: { visit: { method } } }));
+const visit = (method = 'get', extra = {}) =>
+    handlers.filter((entry) => entry.type === 'before').map((entry) => entry.handler({ detail: { visit: { method, ...extra } } }));
 const unload = () => {
     const event = new Event('beforeunload', { cancelable: true });
     window.dispatchEvent(event);
@@ -35,6 +36,15 @@ describe('useUnsavedChanges', () => {
         vi.restoreAllMocks();
         stop.mockClear();
         handlers.length = 0;
+    });
+
+    it('never asks about a partial reload, which stays on the page', () => {
+        const wrapper = host(ref(true));
+
+        expect(visit('get', { only: ['tutorialMode'] })).toEqual([undefined]);
+        expect(visit('get', { except: ['report'] })).toEqual([undefined]);
+        expect(window.confirm).not.toHaveBeenCalled();
+        wrapper.unmount();
     });
 
     it('lets a clean page go without asking', () => {

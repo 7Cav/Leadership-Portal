@@ -872,11 +872,11 @@ function confirmDelete() {
                 Imported from the Cav roster: {{ importResult.unitsCreated }} {{ importResult.unitsCreated === 1 ? 'node' : 'nodes' }} and
                 {{ importResult.mappingsCreated }} placement {{ importResult.mappingsCreated === 1 ? 'mapping' : 'mappings' }} created.
                 <template v-if="importResult.mappingsRepointed">
-                    {{ importResult.mappingsRepointed }} {{ importResult.mappingsRepointed === 1 ? 'mapping' : 'mappings' }} moved to the unit Cav now lists.
+                    {{ importResult.mappingsRepointed }} {{ importResult.mappingsRepointed === 1 ? 'mapping' : 'mappings' }} moved to the unit the Cav now lists.
                 </template>
                 <template v-if="importResult.mappingsDiffering">
                     {{ importResult.mappingsDiffering }} existing {{ importResult.mappingsDiffering === 1 ? 'mapping points' : 'mappings point' }}
-                    at a different unit than Cav now lists but {{ importResult.mappingsDiffering === 1 ? 'was' : 'were' }} not set by the import, kept as they are.
+                    at a different unit than the Cav now lists but {{ importResult.mappingsDiffering === 1 ? 'was' : 'were' }} not set by the import, kept as they are.
                 </template>
                 <!-- Story 1.16's command-billet counts: shown only when the server sends them. -->
                 <template v-if="importResult.commandMappingsCreated !== undefined">
