@@ -244,7 +244,7 @@ class RosterController extends Controller
                 'mos' => $found->mos,
                 'section' => $this->unitSummary($section),
                 'sectionLeader' => $lead ? [...$this->person($lead->trooper), 'source' => $lead->source] : null,
-                'milpacUrl' => Trooper::MILPAC_PROFILE_URL.$found->cav_id,
+                'milpacUrl' => $found->milpacUrl(),
                 // The weeks behind `kpis.missed`, oldest first, for the Sheet's makeup PM link.
                 'missedWeeks' => $kpis?->missedWeeks ?? [],
                 // Their moves between units, newest first (2026-10-27).

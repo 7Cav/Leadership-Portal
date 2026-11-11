@@ -64,13 +64,20 @@ describe('tutorial shell', () => {
 
         expect(coach.get('#tutorial-coach-title').text()).toBe('Read the roster');
         expect(coach.get('[data-testid="tutorial-checklist"] li').attributes('data-done')).toBe('false');
-        expect(coach.find('[data-testid="tutorial-last"]').exists()).toBe(true);
+        expect(coach.get('[data-testid="tutorial-last"]').text()).toBe('Last step');
         expect(JSON.parse(localStorage.getItem('docs-tutorial:7'))).toEqual(['run-roll-call']);
 
         await coach.get('[data-testid="tutorial-back"]').trigger('click');
         expect(mockRouter.visit).toHaveBeenCalledWith('/rollcall/5');
         expect(coach.get('#tutorial-coach-title').text()).toBe('Run roll call');
     });
+    it('says Finished once the last step is done', () => {
+        const last = { ...STEPS[1], done: true, checklist: [{ label: 'Open the roster', done: true }] };
+        setTutorial({ steps: [STEPS[0], last] });
+
+        expect(mount(TutorialCoach).get('[data-testid="tutorial-last"]').text()).toBe('Finished');
+    });
+
     it('holds Next step until every item is done, and lets Skip move on', async () => {
         const open = { ...STEPS[0], done: false, checklist: [{ label: 'Open the roll call of 1st Section', done: false }] };
         setTutorial({ steps: [open, STEPS[1]] });

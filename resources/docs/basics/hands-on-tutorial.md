@@ -29,6 +29,8 @@ minutes: 15
 3. Every other trooper is made up, apart from two of the people who build the portal.
 4. The practice data is yours alone. Nobody else sees what you do in it.
 
+> [!good-to-know] The practice troopers are made up, so **View on 7cav.us** on their milpac opens the milpac of one of the portal's maintainers instead. When the last step is done, the card says **Finished**.
+
 > [!good-to-know] When you finish a step, the same step of the Getting started tutorial is ticked too.
 
 ## Fixing problems tutorial
