@@ -2,6 +2,7 @@
 
 use App\Commands\StaffReports\PublicServerHour;
 use App\Commands\StaffReports\PushStaffReportToSheet;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Jobs\PushStaffReportToSheetJob;
 use App\Models\AuditLogEntry;
 use App\Models\PageVisit;
@@ -196,6 +197,25 @@ it('asks a company leader for a note only, as a company report has no subject, a
     expect(array_column($opened['weekly-report']['checklist'], 'label'))->toBe(['Open the report for this week', 'Write a note', 'Send the report'])
         ->and($opened['weekly-report']['body'])->toStartWith('Write a short note, check the numbers')
         ->and($opened['weekly-report']['highlight'])->toBe('#report-notes');
+});
+
+it('keeps a tab switch as a visit in the practice copy, but never the coach card\'s own refresh', function () {
+    $leader = User::factory()->commanding($this->section)->create();
+    $this->actingAs($leader)->post('/tutorial');
+    $partial = fn (string $url, string $only) => $this->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) app(HandleInertiaRequests::class)->version(request()),
+        'X-Requested-With' => 'XMLHttpRequest',
+        'X-Inertia-Partial-Component' => 'Roster',
+        'X-Inertia-Partial-Data' => $only,
+    ])->get($url)->assertOk();
+
+    $partial('/roster?view=matrix', 'roster');
+    $partial('/roster?view=orbat', 'tutorialMode');
+
+    $urls = inTutorial($leader->id, fn () => PageVisit::query()->where('user_id', $leader->id)->pluck('url')->all());
+    expect($urls)->toContain('/roster?view=matrix')
+        ->and($urls)->not->toContain('/roster?view=orbat');
 });
 
 it('leaves no unmatched player on the practice roll call, as no step teaches matching one', function () {

@@ -90,7 +90,7 @@ class RunInTutorial
         if (! $request->attributes->get(self::ATTRIBUTE) || ! $this->sandbox->entered() || ! $request->isMethod('GET')
             || ! $request->hasHeader('X-Inertia-Partial-Component') || $response->getStatusCode() !== 200
             // The coach card's own refresh is not something the person did.
-            || $request->header('X-Inertia-Partial-Data') === 'tutorial') {
+            || $request->header('X-Inertia-Partial-Data') === 'tutorialMode') {
             return;
         }
 
