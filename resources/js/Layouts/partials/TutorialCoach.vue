@@ -36,6 +36,8 @@ function onClick(event) {
 // (`step.highlight`, such as Demo.K's card); elsewhere, the sidebar link to that page (`step.nav`).
 const target = computed(() => {
     if (!active.value || !step.value) return null;
+    // A finished step points nowhere: the reader moves on with Next step.
+    if (step.value.done) return null;
     if (step.value.nav && ![step.value.area ?? step.value.href].flat().some((href) => onStepPage(page.url, href))) return step.value.nav;
 
     return step.value.highlight ?? null;

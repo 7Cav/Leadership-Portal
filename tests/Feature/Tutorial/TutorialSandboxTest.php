@@ -177,6 +177,27 @@ it('ticks the subject of a platoon report from its training topic, and points at
         ->and($after['weekly-report']['highlight'])->toBe('#report-notes');
 });
 
+it('asks a company leader for a note only, as a company report has no subject, and then points at Send', function () {
+    $leader = User::factory()->commanding($this->section)->create();
+    $this->actingAs($leader)->post('/tutorial');
+    $persona = new TutorialPersona(
+        admin: false, leads: UnitType::Company, hqStaff: null,
+        username: 'Someone.X', forumUserId: 1, cavId: 1, rankShort: 'CPT', rank: 'Captain',
+    );
+    $steps = fn () => collect(app(TutorialSteps::class)->describe($leader->id, $persona))->keyBy('id');
+    $company = inTutorial($leader->id, fn () => app(TutorialPracticeRepository::class)->unitByCallsign(PracticeWorld::COMPANY)->id);
+
+    $opened = inTutorial($leader->id, function () use ($steps, $company, $leader) {
+        PageVisit::query()->create(['user_id' => $leader->id, 'url' => '/reports/'.$company.'/'.WeekOf::reporting(CarbonImmutable::now('UTC'))->toDateString(), 'visited_at' => CarbonImmutable::now()]);
+
+        return $steps();
+    });
+
+    expect(array_column($opened['weekly-report']['checklist'], 'label'))->toBe(['Open the report for this week', 'Write a note', 'Send the report'])
+        ->and($opened['weekly-report']['body'])->toStartWith('Write a short note, check the numbers')
+        ->and($opened['weekly-report']['highlight'])->toBe('#report-notes');
+});
+
 it('leaves no unmatched player on the practice roll call, as no step teaches matching one', function () {
     $leader = User::factory()->commanding($this->section)->create();
     $this->actingAs($leader)->post('/tutorial');

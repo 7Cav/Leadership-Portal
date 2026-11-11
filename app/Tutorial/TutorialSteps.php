@@ -2,6 +2,7 @@
 
 namespace App\Tutorial;
 
+use App\Models\UnitType;
 use App\Repositories\TutorialPracticeRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
@@ -67,6 +68,9 @@ final class TutorialSteps
         $demo = $this->practice->trooperByUsername(PracticeWorld::DEMO);
         $self = $this->practice->trooperByUsername($persona->username);
         $facts = $this->practice->progress($userId, $section?->id, $reportUnit?->id, $demo?->id, $self?->id, $week);
+        // A section writes its training subject and a platoon its topic for the sections; a company's or battalion's
+        // report has neither, only notes.
+        $hasSubject = $reportUnit === null || in_array($reportUnit->type, [UnitType::Section, UnitType::Platoon], true);
 
         $visits = collect($facts['visits']);
         $visited = fn (string $prefix) => $visits->contains(fn (string $url) => str_starts_with($url, $prefix));
@@ -105,28 +109,28 @@ final class TutorialSteps
             ],
             'weekly-report' => [
                 'title' => 'Send the weekly report',
-                'body' => 'Write the training subject and a short note, check the numbers, then send the report for '.($reportUnit?->callsign ?? 'your unit').'.',
+                'body' => ($hasSubject ? 'Write the training subject and a short note' : 'Write a short note').', check the numbers, then send the report for '.($reportUnit?->callsign ?? 'your unit').'.',
                 'href' => $report,
                 // Reports opens on the top of the roll-up, so the way to the report is shown there too.
                 'area' => '/reports',
-                'note' => 'A sent report is final for the week. Here it goes nowhere.',
+                'note' => 'A sent report can still be edited until its deadline. Here it goes nowhere.',
                 'guide' => 'send-the-weekly-report',
                 'nav' => self::nav('Reports'),
                 // On the roll-up, the unit's row, then Open report beside it; on the report, the subject (a section's
                 // training subject, a platoon's topic for its sections), then the notes, then Send.
                 'highlight' => match (true) {
                     $reportUnit !== null && ! $opened($report) => '[data-row-id="'.$reportUnit->id.'"]:not([aria-selected="true"]), [data-report-unit="'.$reportUnit->id.'"] [data-testid="open-report"]',
-                    ! $facts['subject'] => '#training-subject, #platoon-topic',
+                    $hasSubject && ! $facts['subject'] => '#training-subject, #platoon-topic',
                     ! $facts['note'] => '#report-notes',
                     ! $facts['sent'] => '[data-testid="send-button"], [data-testid="send-anyway"]',
                     default => null,
                 },
-                'checklist' => [
+                'checklist' => array_values(array_filter([
                     ['label' => 'Open the report for this week', 'done' => $opened($report)],
-                    ['label' => 'Write the subject', 'done' => $facts['subject']],
+                    $hasSubject ? ['label' => 'Write the subject', 'done' => $facts['subject']] : null,
                     ['label' => 'Write a note', 'done' => $facts['note']],
                     ['label' => 'Send the report', 'done' => $facts['sent']],
-                ],
+                ])),
             ],
             'staff-report' => [
                 'title' => 'Send your staff report',
