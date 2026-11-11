@@ -31,6 +31,16 @@ minutes: 15
 
 > [!good-to-know] When you finish a step, the same step of the Getting started tutorial is ticked too.
 
+## Fixing problems tutorial
+
+If you lead a unit, a second tutorial practises what to do when a roll call or a report does not go smoothly.
+
+1. On the guides home, under Fixing problems tutorial, choose **Start**.
+2. Mark a trooper who made up the practice elsewhere **Make-up complete**.
+3. Add a trooper from 2nd Section who played at your practice but was not seen by the game server as a guest. They get a make-up on their own section's roll call.
+4. Get 1st Section's report sent: confirm the practice, give a missed trooper a reason, and say whether they made up the practice.
+5. A Platoon Leader and above also chase 2nd Section's report: copy the reminder for its leader and open its roll call.
+
 ## Start over or leave
 
 1. Choose **Start over** in the blue bar to get fresh practice data and begin again.

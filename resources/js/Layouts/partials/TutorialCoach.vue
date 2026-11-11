@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { PhCaretDown, PhCaretUp, PhCheckCircle, PhCircle } from '@phosphor-icons/vue';
 import { Button } from '@/components/ui/button';
-import { leaving, useTutorial } from '@/composables/useTutorial';
+import { leaving, recordClick, useTutorial } from '@/composables/useTutorial';
 import { coachSide, onStepPage, targetCss } from '@/lib/tutorial';
 
 // The coach card beside the page while the tutorial is on: the step's instruction, its checklist and Next/Back. The
@@ -28,6 +28,7 @@ function refresh() {
 
 function onClick(event) {
     if (!active.value || card.value?.contains(event.target)) return;
+    recordClick(steps.value, event.target);
     clickTimers.forEach((id) => window.clearTimeout(id));
     clickTimers = AFTER_CLICK_MS.map((ms) => window.setTimeout(refresh, ms));
 }

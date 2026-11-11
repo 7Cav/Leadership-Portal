@@ -19,6 +19,24 @@ export function currentIndex(steps, picked) {
     return open === -1 ? steps.length - 1 : open;
 }
 
+/**
+ * The steps with the items ticked by a click in this tab (`clicked`, `step id:item index`) marked done, and each step
+ * done once all its items are.
+ *
+ * @param {Array<{id: string, done: boolean, checklist?: Array<{done: boolean, click?: string}>}>} steps
+ * @param {string[]} clicked
+ */
+export function withClicks(steps, clicked) {
+    if (!clicked?.length) return steps;
+    const keys = new Set(clicked);
+
+    return steps.map((step) => {
+        const checklist = (step.checklist ?? []).map((item, i) => (item.click && keys.has(`${step.id}:${i}`) ? { ...item, done: true } : item));
+
+        return { ...step, checklist, done: checklist.length > 0 && checklist.every((item) => item.done) };
+    });
+}
+
 /** `done`, `now` or `open`, for the bar's dots. */
 export function dotState(step, index, current) {
     if (index === current) return 'now';

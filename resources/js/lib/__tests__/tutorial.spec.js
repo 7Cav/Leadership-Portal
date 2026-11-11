@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { coachSide, currentIndex, dotState, finishedGuides, onStepPage, stepLabel, targetCss } from '../tutorial';
+import { coachSide, currentIndex, dotState, finishedGuides, onStepPage, stepLabel, targetCss, withClicks } from '../tutorial';
 
 const steps = [
     { id: 'rollcall', title: 'Run roll call', done: true, guide: 'run-roll-call' },
@@ -61,5 +61,24 @@ describe('what the coach points at, and where it sits', () => {
         expect(coachSide(card, 1920, [box(0, 900, 1920, 60)])).toBe('right');
         // Something not drawn has no size and covers nothing.
         expect(coachSide(card, 1920, [box(1600, 900, 0, 0)])).toBe('right');
+    });
+
+    it('ticks an item by a click in this tab, and its step once every item is done', () => {
+        const chase = {
+            id: 'missing-report',
+            done: false,
+            checklist: [
+                { label: 'Copy the reminder', done: false, click: '[data-testid="copy-reminder"]' },
+                { label: 'Open the roll call', done: true },
+            ],
+        };
+
+        expect(withClicks([chase], [])).toEqual([chase]);
+        const [ticked] = withClicks([chase], ['missing-report:0']);
+        expect(ticked.checklist[0].done).toBe(true);
+        expect(ticked.done).toBe(true);
+        // A key for an item with no click selector ticks nothing.
+        expect(withClicks([chase], ['missing-report:1', 'other:0'])[0].done).toBe(false);
+        expect(withClicks([{ ...chase, checklist: [chase.checklist[0], { label: 'x', done: false }] }], ['missing-report:0'])[0].done).toBe(false);
     });
 });

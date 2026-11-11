@@ -11,12 +11,13 @@ use App\Tutorial\TutorialPersonaResolver;
 use App\Tutorial\TutorialSandbox;
 use App\Tutorial\TutorialSession;
 use App\Tutorial\TutorialSteps;
+use App\Tutorial\TutorialTrack;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 /**
- * Start, start over and exit the hands-on tutorial. These run outside the sandbox (the sandbox middleware skips the
+ * Start, start over and exit a hands-on tutorial ({@see TutorialTrack}: the basics, or fixing problems). These run outside the sandbox (the sandbox middleware skips the
  * `tutorial.*` routes): they read the person's real standing, make or remove their practice copy, and fill it from
  * inside the sandbox. Starting, starting over and leaving are noted in the real audit log against the person
  * (RecordTutorialUse); what they do inside stays in their practice copy.
@@ -40,13 +41,19 @@ class TutorialController extends Controller
         }
 
         $persona = $personas->for($user);
+        $track = TutorialTrack::tryFrom((string) $request->input('track', TutorialTrack::Basics->value)) ?? TutorialTrack::Basics;
+
+        if (! $track->offeredTo($persona)) {
+            return back()->with('notice', 'That tutorial is for troopers who lead a unit.');
+        }
+
         $from = PreviousPage::of($request);
-        $this->fresh($user->id, $persona);
-        $this->tutorial->start($user->id, $persona, $from !== null && ! str_starts_with($from, '/tutorial') ? $from : '/home');
+        $this->fresh($user->id, $persona, $track);
+        $this->tutorial->start($user->id, $persona, $from !== null && ! str_starts_with($from, '/tutorial') ? $from : '/home', $track);
         $this->record->handle($user, RecordTutorialUse::STARTED);
         Inertia::clearHistory();
 
-        return redirect($this->firstStep($user->id, $persona));
+        return redirect($this->firstStep($user->id, $persona, $track));
     }
 
     public function restart(Request $request): RedirectResponse
@@ -58,11 +65,12 @@ class TutorialController extends Controller
             return redirect()->route('docs.index');
         }
 
-        $this->fresh($user->id, $persona);
+        $track = $this->tutorial->track();
+        $this->fresh($user->id, $persona, $track);
         $this->record->handle($user, RecordTutorialUse::RESTARTED);
         Inertia::clearHistory();
 
-        return redirect($this->firstStep($user->id, $persona))->with('notice', 'The tutorial starts over with fresh practice data.');
+        return redirect($this->firstStep($user->id, $persona, $track))->with('notice', 'The tutorial starts over with fresh practice data.');
     }
 
     public function destroy(Request $request): RedirectResponse
@@ -77,14 +85,14 @@ class TutorialController extends Controller
         return redirect('/docs');
     }
 
-    private function fresh(int $userId, TutorialPersona $persona): void
+    private function fresh(int $userId, TutorialPersona $persona, TutorialTrack $track): void
     {
         $this->sandbox->prepare($userId);
-        $this->sandbox->run($userId, fn () => $this->world->build($userId, $persona));
+        $this->sandbox->run($userId, fn () => $this->world->build($userId, $persona, track: $track));
     }
 
-    private function firstStep(int $userId, TutorialPersona $persona): string
+    private function firstStep(int $userId, TutorialPersona $persona, TutorialTrack $track): string
     {
-        return $this->sandbox->run($userId, fn () => $this->steps->describe($userId, $persona)[0]['href'] ?? '/home');
+        return $this->sandbox->run($userId, fn () => $this->steps->describe($userId, $persona, track: $track)[0]['href'] ?? '/home');
     }
 }

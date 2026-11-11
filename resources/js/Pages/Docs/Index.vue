@@ -26,6 +26,8 @@ const props = defineProps({
     // `[{ title, summary, url, updated }]`: the guides changed last.
     // `{ url, steps: [{ id, title, url }] }`, or null when this viewer has no tutorial.
     tutorial: { type: Object, default: null },
+    // Whether the fixing problems tutorial is offered: to whoever leads a unit, and Admins.
+    fixTutorial: { type: Boolean, default: false },
 });
 
 const page = usePage();
@@ -73,9 +75,9 @@ const tutorialAction = computed(() => {
 // reader is already in it.
 const inTutorial = computed(() => page.props.tutorialMode != null);
 const starting = ref(false);
-function startTutorial() {
+function startTutorial(track = 'basics') {
     starting.value = true;
-    router.post('/tutorial', {}, { onFinish: () => (starting.value = false) });
+    router.post('/tutorial', { track }, { onFinish: () => (starting.value = false) });
 }
 
 // Arrow keys move between the role buttons, as in any tab list.
@@ -133,7 +135,7 @@ function moveRole(event, index) {
                         </div>
                     </div>
                     <div class="flex flex-col gap-2 self-start sm:self-center">
-                        <Button v-if="!inTutorial" size="lg" :disabled="starting" data-testid="docs-tutorial-practice" @click="startTutorial">
+                        <Button v-if="!inTutorial" size="lg" :disabled="starting" data-testid="docs-tutorial-practice" @click="startTutorial()">
                             <PhGraduationCap weight="bold" />Start the tutorial
                         </Button>
                         <Button as-child size="lg" :variant="inTutorial ? 'default' : 'outline'">
@@ -143,6 +145,23 @@ function moveRole(event, index) {
                         </Button>
                     </div>
                 </div>
+            </section>
+
+            <section
+                v-if="fixTutorial && !inTutorial"
+                class="mb-10 flex flex-col gap-4 rounded-lg border border-border bg-card p-5 sm:flex-row sm:items-center"
+                aria-labelledby="docs-fix-tutorial-title"
+                data-testid="docs-fix-tutorial"
+            >
+                <div class="min-w-0 flex-1">
+                    <h2 id="docs-fix-tutorial-title" class="mb-1 text-base font-semibold tracking-tight">Fixing problems tutorial</h2>
+                    <p class="text-sm text-muted-foreground">
+                        Add a make-up and a guest, get a blocked report sent, and chase one that is missing, on practice data.
+                    </p>
+                </div>
+                <Button variant="outline" :disabled="starting" class="self-start sm:self-center" data-testid="docs-fix-tutorial-start" @click="startTutorial('fix-problems')">
+                    <PhGraduationCap weight="bold" />Start
+                </Button>
             </section>
 
             <section v-if="paths.length" class="mb-10" aria-labelledby="docs-paths-title" data-testid="docs-paths">

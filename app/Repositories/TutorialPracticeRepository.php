@@ -57,4 +57,13 @@ interface TutorialPracticeRepository
      * @return array{visits: list<string>, demoSigned: bool, demoMarked: bool, confirmed: bool, posted: bool, subject: bool, note: bool, sent: bool, staffSent: bool}
      */
     public function progress(int $userId, ?int $sectionId, ?int $reportUnitId, ?int $demoTrooperId, ?int $personaTrooperId, CarbonInterface $week): array;
+
+    /**
+     * What the person has fixed in the fixing problems tutorial: `madeUp` when the trooper who made the practice up
+     * elsewhere is marked Make-up complete, `guestAdded` when the guest was added by hand to the section's practice,
+     * `sectionSent` when the section's report for the week is sent.
+     *
+     * @return array{madeUp: bool, guestAdded: bool, sectionSent: bool}
+     */
+    public function fixProgress(?int $sectionId, ?int $madeUpTrooperId, ?int $guestTrooperId, CarbonInterface $week): array;
 }
