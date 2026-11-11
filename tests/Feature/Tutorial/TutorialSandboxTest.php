@@ -507,6 +507,8 @@ it('walks a platoon leader through a make-up, a guest, a blocked report and a mi
         ->and($missing['highlight'])->toContain('[data-row-id="'.$ids['other'].'"]')
         ->and($missing['highlight'])->toContain('body:not(:has([data-check])) nav[aria-label="Report mode"] a[href="/reports"]');
     $this->get("/rollcall/{$ids['other']}")->assertOk();
+    // Opening the roll call first leaves the copy to do, so the way to it stays blue.
     expect($steps()['missing-report']['checklist'][1]['done'])->toBeTrue()
-        ->and($steps()['missing-report']['highlight'])->toBeNull();
+        ->and($steps()['missing-report']['done'])->toBeFalse()
+        ->and($steps()['missing-report']['highlight'])->toContain('[data-testid="copy-reminder"]');
 });

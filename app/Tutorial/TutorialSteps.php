@@ -295,7 +295,8 @@ final class TutorialSteps
                 'note' => 'Here the reminder goes nowhere. In the portal, paste it to the section leader.',
                 'guide' => null,
                 'nav' => self::nav('Reports'),
-                'highlight' => $opened($otherRollcall) || $other === null ? null : implode(', ', [
+                // Until both items are done: the copy is ticked in the browser, so the coach drops the blue once it is.
+                'highlight' => $other === null ? null : implode(', ', [
                     // On a sent report (1st Section's, where the step before ends): back to the roll-up.
                     'body:not(:has([data-check])) nav[aria-label="Report mode"] a[href="/reports"]',
                     '[data-row-id="'.$other->id.'"]:not([aria-selected="true"])',
