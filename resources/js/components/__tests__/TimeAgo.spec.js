@@ -77,6 +77,17 @@ describe('TimeAgo', () => {
         expect(tip.textContent).toContain(`Your time: ${localTime(AT)}`);
     });
 
+    it('is named by its own text when focused, so a screen reader reads the time, and quiet leaves the relative part out', async () => {
+        const wrapper = stamp();
+        await nextTick();
+        expect(wrapper.get('[data-time-ago]').attributes('aria-label')).toBe('16OCT26 22 16Z (1 h ago)'.replace('(1 h ago)', wrapper.get('[data-relative]').text()));
+
+        const quiet = mount(TimeAgo, { props: { at: AT, quiet: true }, slots: { default: '16OCT26 22 16Z' } });
+        await nextTick();
+        expect(quiet.get('[data-time-ago]').attributes('aria-label')).toBe('16OCT26 22 16Z');
+        quiet.unmount();
+    });
+
     it('leaves the tooltip to its host when told to', () => {
         const wrapper = stamp({ at: AT, tooltip: false });
 

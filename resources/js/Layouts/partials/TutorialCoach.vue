@@ -152,6 +152,9 @@ onBeforeUnmount(() => {
                         Next step
                     </Button>
                 </template>
+                <span v-else-if="stepDone" class="ml-auto inline-flex items-center gap-1.5 text-sm font-medium" data-testid="tutorial-last">
+                    <PhCheckCircle weight="fill" class="size-4 text-changelog dark:text-foreground" aria-hidden="true" />Finished
+                </span>
                 <span v-else class="ml-auto text-sm font-medium" data-testid="tutorial-last">Last step</span>
             </div>
         </div>

@@ -25,6 +25,7 @@ use LogicException;
  *
  * Every name is made up and obviously so, except two: Laui.M and Grayson.J, the portal's maintainers, who serve in
  * every practice unit as ordinary troopers (approved by the project). Nothing here is read from real troopers.
+ * Their made-up milpac ids sit in `Trooper::PRACTICE_CAV_IDS`, so "View on 7cav.us" opens a maintainer's real milpac.
  *
  * Only runs inside the sandbox: it writes to whatever the default connection is.
  */
