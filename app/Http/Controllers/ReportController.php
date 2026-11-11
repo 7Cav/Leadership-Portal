@@ -106,7 +106,7 @@ class ReportController extends Controller
         private readonly SectionPracticeRepository $practices,
     ) {}
 
-    public function show(Request $request, UnaccountedSuggestions $suggestions, AuditLogRepository $audit, int $unit, string $week): Response
+    public function show(Request $request, UnaccountedSuggestions $suggestions, AuditLogRepository $audit, ReportEditProps $editProps, int $unit, string $week): Response
     {
         $unit = $this->unitInScope($request, $unit);
         $weekStart = $this->weekStart($week);
@@ -176,13 +176,21 @@ class ReportController extends Controller
                 'next' => $weekStart->addWeek()->lessThanOrEqualTo($this->currentWeek()) ? $weekStart->addWeek()->toDateString() : null,
                 // Older than the week floor: shown read-only, a draft or send for it is a 404.
                 'beforeFloor' => WeekOf::isBeforeFloor($weekStart),
+                // The week before, while its report is still owed and this one is not sent: a late report sent from here
+                // would land in this week, so the page points at that one first.
+                'owed' => $this->owedPreviousWeek($unit, $weekStart, $sent, $canWrite),
             ],
             'report' => [
                 ...$this->reportProps($report, $senders),
                 'editing' => $editing,
-                // "Edit report": whoever could send it now, until its deadline. A view-as preview changes nothing.
-                'canEdit' => $sent && $canWrite && ReportEditWindow::isOpen($weekStart) && ! WeekOf::isBeforeFloor($weekStart)
+                // "Edit report": whoever could send it now, until its deadline or the time an approved request unlocked it
+                // to. A view-as preview changes nothing.
+                'canEdit' => $sent && $canWrite && ReportEditWindow::mayEdit($weekStart, $report->unlocked_until) && ! WeekOf::isBeforeFloor($weekStart)
                     && $this->scope->activeViewAs($request->user()) === null,
+                // Locked: asking a leader above to unlock it, and their decision ({@see ReportEditProps}).
+                'editRequest' => $report?->status === WeeklyReportStatus::Sent && ! WeekOf::isBeforeFloor($weekStart)
+                    ? $editProps->for($request->user(), $unit->id, null, $weekStart, $report->unlocked_until, $canWrite, $this->scope->activeViewAs($request->user()) !== null)
+                    : null,
                 // The children sent again since this roll-up froze: its numbers still hold their earlier reports.
                 'changedChildren' => $sent && ! $isLeaf ? $this->changedChildren($report, $children) : [],
                 // The versions an edit replaced, newest first, for the History tab.
@@ -472,6 +480,21 @@ class ReportController extends Controller
         abort_unless($unit->isLine(), 404);
 
         return $unit;
+    }
+
+    /**
+     * `YYYY-MM-DD` of the week before `$weekStart` when its report is not sent and the viewer could send it, while this
+     * week's is not sent either; otherwise null. Nothing before the week floor is owed.
+     */
+    private function owedPreviousWeek(Unit $unit, CarbonImmutable $weekStart, bool $sent, bool $canWrite): ?string
+    {
+        $previous = $weekStart->subWeek();
+
+        if ($sent || ! $canWrite || WeekOf::isBeforeFloor($previous)) {
+            return null;
+        }
+
+        return $this->reports->find($unit->id, $previous)?->status === WeeklyReportStatus::Sent ? null : $previous->toDateString();
     }
 
     /** `YYYY-MM-DD` of a Saturday that opens a Cav week no later than the current one (AD-11). */

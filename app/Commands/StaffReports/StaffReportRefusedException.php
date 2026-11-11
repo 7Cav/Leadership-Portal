@@ -48,7 +48,7 @@ class StaffReportRefusedException extends RuntimeException
     {
         $due = WeekOf::reportDue(WeekOf::start($weekStart));
 
-        return new self('The staff report for the '.WeekLabel::phrase($weekStart).' locked at its deadline, '.WeekLabel::date($due).' '.WeekLabel::zulu($due).', so it can no longer change.', 'locked', 'report');
+        return new self('The staff report for the '.WeekLabel::phrase($weekStart).' locked at its deadline, '.WeekLabel::date($due).' '.WeekLabel::zulu($due).'. Request an edit and a leader above you can unlock it.', 'locked', 'report');
     }
 
     /** Editing a sent report is recorded with why. */

@@ -344,6 +344,17 @@ leaves the Cav; one who left before it began doing so has no date and is on no p
     have not sent, the button becomes "Send anyway"; missing children are recorded and their numbers stay out.
   - A sent report is read back exactly as frozen and never recalculated. Sending a section's report locks that week's
     roll call.
+  - Edit report: anyone who could send it reopens a sent report with a reason until its deadline, which opens that
+    week's roll call again until it is sent again (the replaced version goes to History). Not sent again, it locks at
+    the deadline as it was.
+  - Request edit (a weekly or staff report past its deadline): whoever could send it asks, with a reason
+    (`report_edit.requested`). The leaders one level above the unit (above the HQ, for a staff report) get it in the
+    bell; with no leader with an account there, the next unit up does. Any leader higher up or an Admin may also
+    decide it on the report, never the person who asked. Approving (`report_edit.approved`) unlocks the report until
+    the coming Saturday 2359Z, so Edit report works again until then; denying (`report_edit.denied`) leaves it locked.
+    The answer goes to the asker's bell. One request waits at a time.
+  - Last week owed: while the week before has no sent report and this one is not sent, the page says so to anyone
+    who could send it and links to that week, so a late report is not sent into the current week by mistake.
   - Weeks before the week floor open read-only.
   - HQ staff reports (a platoon's, company's or battalion's report only): each staff member on that HQ when the week ended (placed where they are now when their placement history began after it), with
     "Not sent", "Attended 2 practices", an FTX, operation, class or event with its name and date, or "Did not attend", with the presence answer, other events and notes, linked to their staff report. Read only and live: it is not

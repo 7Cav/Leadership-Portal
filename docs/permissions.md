@@ -216,11 +216,18 @@ they move with it and are not copied. Fireteam settings, labels, unit games and 
 | Read a platoon's monthly training plan | All | All | No | Own | Own | Own | Own | No | No | Read | Target |
 | Write a platoon's monthly training plan | All | All | No | Own | Own | Own | Own (if it covers the platoon) | No | No | No | No |
 | Approve or send back a training plan | All | All | No | Own | Own | No (5) | If acting lead of the company or above | No | No | No | No |
+| Request an edit of a sent report past its deadline | All | All | No | Own | Own | Own | Own | Own | No | No | No |
+| Approve or deny that request (15) | All | All | No | Below their battalion | Below their company | Below their platoon | Below the unit they lead | No | No | No | No |
 
 "Own" includes every report below you: a company commander can draft and send a section's report in their company.
 
 (5) The review belongs to the command of the company the platoon is in, or above it. A platoon leader cannot approve
 their own plan unless they also command the company.
+
+(15) Only the leaders one level above the report's unit get the request in their bell (the next unit up when nobody
+there has a portal account); anyone higher up decides it on the report too. Never the person who asked, and never the
+unit's own command team: a Platoon Sergeant does not decide on their own platoon's report. Approving unlocks the report
+until the coming Saturday 2359Z.
 
 ### Settings and admin actions
 
@@ -408,7 +415,9 @@ and the Regimental HQ read count.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Read a staff member's staff report, and their row on the HQ's report | All | All | No | Above their HQ | Above their HQ | Their own only (11) | Above their HQ | Their own only (11) | Their own only (11) | Above their HQ | Target |
 | Open the staff reports overview (`/staff-reports`) (13) | All | All | No | Yes | Yes | No | If above an HQ | No | No | If above an HQ | Target |
-| Send one (final, no edit) | Their own only (12) | Their own only | Their own only | Their own only | Their own only | Their own only | Their own only | Their own only | Their own only | Their own only | No |
+| Send one (edit until its deadline) | Their own only (12) | Their own only | Their own only | Their own only | Their own only | Their own only | Their own only | Their own only | Their own only | Their own only | No |
+| Request an edit of their own past its deadline | Their own only | Their own only | Their own only | Their own only | Their own only | Their own only | Their own only | Their own only | Their own only | Their own only | No |
+| Approve or deny that request (15) | All | All | No | Above their HQ | Above their HQ | No | Above their HQ | No | No | No | No |
 
 (11) Everyone reads their own. A peer on the same HQ (a PL and their PSG, a CO and their XO) does not read the other's:
 reading starts at the unit above the HQ, so a Platoon Leader reads no other staff report.
@@ -475,7 +484,8 @@ your next click. Nothing has to be revoked by hand.
 | Week floor (`PORTAL_WEEK_FLOOR_WEEKS`, default 20 Cav weeks back) | Marking, confirming, marking posted, capture, linking unmatched players, guests, staff practices, report drafts and sends, the platoon topic, a training plan's weeks. Older reports open read-only. |
 | Future weeks | Marking, confirming, posting, capture and staff practices for a week that has not started. |
 | HQ report sent for the week | That week's staff practice entries of the staff placed on that HQ during that week, wherever they are placed now, entered on the milpac. The staff member's own staff report is not locked by it. |
-| Staff report sent for the week | The staff report itself (no edit, no second send), and that week's staff practice entries of that staff member. |
+| Staff report sent for the week | That week's staff practice entries of that staff member. The report itself can be edited until its deadline. |
+| Report deadline passed (2359Z on the Saturday after the week) | Editing a sent weekly or staff report. A leader above can approve a request to edit it, which unlocks it until the coming Saturday 2359Z. |
 | Section report sent for the week | That section's roll call marks, confirming, marking posted, capture "Try again", guests at that practice and automatic makeups into that week. The sent report itself is frozen. A platoon's topic, and that week's subject in its training plan, are locked once the platoon's report is sent. |
 | Practice confirmed by a leader | Capture re-runs and linked players no longer change its marks. A leader's own hand edit still saves and clears the confirmation. |
 | Leave covering the week | That trooper's practice mark (the row posts as LOA). Their signature can still be saved. |

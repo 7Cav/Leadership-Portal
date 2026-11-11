@@ -41,6 +41,7 @@ import WeekHeading from '@/components/week/WeekHeading.vue';
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import { onHttpException } from '@/lib/httpError';
 import { stamp } from '@/lib/report';
+import ReportEditRequestPanel from '@/components/reports/ReportEditRequestPanel.vue';
 import { NAMED_TYPES, attendedText, defaultTypes, namedSentence, pickerCollapses, pickerGroups, pickerScopeText, presenceAnswer, sheetText, typesPhrase } from '@/lib/staffReport';
 import { Checkbox } from '@/components/ui/checkbox';
 
@@ -68,6 +69,8 @@ const props = defineProps({
     canSend: { type: Boolean, default: false },
     // Sent, and the staff member may still send it again with a reason, until it locks at its deadline.
     canEdit: { type: Boolean, default: false },
+    // Sent and past its deadline: asking a leader above to unlock it, and their decision (`ReportEditProps`).
+    editRequest: { type: Object, default: null },
     // The week's staff practice entries already there, `[{ sectionId, section, enteredBy, selfReported }]`.
     entries: { type: Array, default: () => [] },
     // Section ids whose capture saw them on the game server this week: a hint, never ticked for them.
@@ -428,14 +431,17 @@ function entryNote(id) {
                         <StaffReportPresence :presence="report.publicServer" :name="trooper.displayName" testid="staff-report-public-server" />
                     </p>
                     <p class="mt-0.5 text-xs text-muted-foreground">
-                        Sent {{ stamp(report.sentAt) }}.<template v-if="!canEdit"> A sent staff report is final.</template>
+                        Sent {{ stamp(report.sentAt) }}.<template v-if="!canEdit && !editRequest"> A sent staff report is final.</template>
                         <span v-if="sheetLine" data-testid="staff-report-sheet">{{ sheetLine }}.</span>
                     </p>
                 </div>
                 <div v-if="canEdit" class="flex flex-none flex-col items-end gap-1">
                     <Button variant="outline" size="sm" data-testid="staff-report-edit" @click="startEdit"><PhPencilSimpleLine aria-hidden="true" />Edit report</Button>
-                    <span class="text-xs text-muted-foreground">Open until {{ stamp(week.due) }}</span>
+                    <span class="text-xs text-muted-foreground">Open until {{ stamp(editRequest?.editableUntil ?? week.due) }}</span>
                 </div>
+            </div>
+            <div v-if="editRequest" class="px-4 pb-3 empty:hidden">
+                <ReportEditRequestPanel :edit-request="editRequest" :request-url="`${weekUrl(week.date)}/edit-request`" />
             </div>
             <p v-if="report.officeHour?.note" class="border-b border-border px-4 py-3 whitespace-pre-line" data-testid="staff-report-office-hour">
                 {{ report.officeHour.note }}

@@ -55,6 +55,8 @@ class WeeklyReport extends Model
             'makeup_checks' => 'array',
             'sent_at' => 'immutable_datetime',
             'reopened_at' => 'immutable_datetime',
+            // Set by an approved request to edit it after its deadline ({@see ReportEditRequest}): editable until then.
+            'unlocked_until' => 'immutable_datetime',
             'revisions' => 'array',
             // Demo history (#115): set only by the demo writer, never mass-assigned.
             'is_demo' => 'boolean',

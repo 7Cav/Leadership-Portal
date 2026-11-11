@@ -32,6 +32,8 @@ class StaffReport extends Model
             'office_hour_date' => 'immutable_date',
             'practices' => 'array',
             'sheet_pushed_at' => 'immutable_datetime',
+            // Set by an approved request to edit it after its deadline ({@see ReportEditRequest}): editable until then.
+            'unlocked_until' => 'immutable_datetime',
             'revisions' => 'array',
             'public_server_minutes' => 'integer',
         ];
