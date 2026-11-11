@@ -43,6 +43,7 @@ function isgGroups(): array
         ],
         'ACD Command' => [
             ['Reserve Commander', '9030'],
+            ['Reserve Executive Officer', '9031'],
         ],
     ];
 
@@ -161,8 +162,9 @@ it('maps every staff billet to where it places its holder', function () {
         ->and($placements[(int) $fixture['ELOA']])->toBe('group|ELOA')
         ->and($placements[(int) $fixture['Reservist']])->toBe('group|RES')
         ->and($placements[(int) $fixture['New Recruit']])->toBe('group|NR')
-        // ACD's reserve command team sits on the battalion HQ.
-        ->and($placements[9030])->toBe('battalion|ACD')
+        // The reserve's command team is listed under ACD Command but sits with the Reservists, under RDC, not on ACD.
+        ->and($placements[9030])->toBe('group|RES')
+        ->and($placements[9031])->toBe('group|RES')
         // DEVCOM Lead: placed with DEVCOM staff, commanding nothing by billet (acting leads are assigned by hand).
         ->and($placements[9023])->toBe('group|DEVCOM STAFF')
         ->and($commands)->not->toHaveKey(9023)
