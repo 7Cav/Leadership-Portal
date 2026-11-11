@@ -1,8 +1,10 @@
 <?php
 
+use App\Commands\StaffReports\PublicServerHour;
 use App\Commands\StaffReports\PushStaffReportToSheet;
 use App\Jobs\PushStaffReportToSheetJob;
 use App\Models\AuditLogEntry;
+use App\Models\PageVisit;
 use App\Models\PlatoonTrainingTopic;
 use App\Models\PracticeCapturePlayer;
 use App\Models\Trooper;
@@ -10,8 +12,10 @@ use App\Models\TrooperGameIdentity;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\PracticeCapturePlayerRepository;
 use App\Repositories\TutorialPracticeRepository;
 use App\Support\Time\WeekOf;
+use App\Tutorial\PracticePublicServerHour;
 use App\Tutorial\PracticeWorld;
 use App\Tutorial\RealDatabaseTouched;
 use App\Tutorial\TutorialPersona;
@@ -92,15 +96,43 @@ it('ticks the coach card from what was done in the practice copy', function () {
     $section = practiceSectionId($leader->id);
     $week = WeekOf::start(CarbonImmutable::now())->toDateString();
 
-    $this->get("/rollcall/{$section}")->assertInertia(fn ($page) => $page->where('tutorialMode.steps.0.highlight', fn ($selector) => str_starts_with((string) $selector, '[data-trooper="')));
+    $demo = inTutorial($leader->id, fn () => app(TutorialPracticeRepository::class)->trooperByUsername(PracticeWorld::DEMO)->id);
+    // Demo.K's card on Signatures, or the Signatures step while another one is open.
+    $this->get("/rollcall/{$section}")->assertInertia(fn ($page) => $page->where('tutorialMode.steps.0.highlight',
+        '[data-step="1"]:not([aria-current="step"]), section[aria-labelledby="step-1-title"] [data-trooper="'.$demo.'"]'));
     markDemo($this, $leader->id, $section, $week);
     $this->postJson("/rollcall/{$section}/confirm", ['week' => $week])->assertOk();
     $this->get("/rollcall/{$section}")->assertInertia(fn ($page) => $page
         ->where('tutorialMode.steps.0.checklist.0.done', true)
         ->where('tutorialMode.steps.0.checklist.3.done', true)
         ->where('tutorialMode.steps.0.checklist.4.done', false)
-        // Confirmed but not posted: Mark posted is the next thing to do, unless Demo.K still needs a signature.
-        ->where('tutorialMode.steps.0.highlight', fn ($selector) => in_array($selector, ['[data-testid="mark-posted"]'], true) || str_starts_with((string) $selector, '[data-trooper="')));
+        // Marked and confirmed, but not signed: Demo.K's signature is the next thing to do.
+        ->where('tutorialMode.steps.0.highlight', fn ($selector) => str_contains((string) $selector, 'step-1-title')));
+});
+
+it('points at each roll call step in turn: its tab while another step is open, then what to do on it', function () {
+    $leader = User::factory()->commanding($this->section)->create();
+    $this->actingAs($leader)->post('/tutorial');
+    $section = practiceSectionId($leader->id);
+    $week = WeekOf::start(CarbonImmutable::now())->toDateString();
+    $demo = inTutorial($leader->id, fn () => app(TutorialPracticeRepository::class)->trooperByUsername(PracticeWorld::DEMO)->id);
+    $highlight = function () use ($section) {
+        $selector = null;
+        $this->get("/rollcall/{$section}")->assertInertia(function ($page) use (&$selector) {
+            $selector = $page->toArray()['props']['tutorialMode']['steps'][0]['highlight'];
+        });
+
+        return $selector;
+    };
+
+    $this->postJson("/rollcall/{$section}", ['week' => $week, 'marks' => [['trooper_id' => $demo, 'rollcall' => 'will_attend']]])->assertOk();
+    expect($highlight())->toBe('[data-step="2"]:not([aria-current="step"]), section[aria-labelledby="step-2-title"] [data-trooper="'.$demo.'"]');
+
+    markDemo($this, $leader->id, $section, $week);
+    expect($highlight())->toBe('[data-testid="confirm-practice"]');
+
+    $this->postJson("/rollcall/{$section}/confirm", ['week' => $week])->assertOk();
+    expect($highlight())->toBe('[data-step="3"]:not([aria-current="step"]), section[aria-labelledby="step-3-title"] [data-testid="mark-posted"]');
 });
 
 it('ticks the subject of a platoon report from its training topic, and points at the subject and notes, then Send', function () {
@@ -112,11 +144,22 @@ it('ticks the subject of a platoon report from its training topic, and points at
     );
     $steps = fn () => collect(app(TutorialSteps::class)->describe($leader->id, $persona))->keyBy('id');
 
+    $platoon = inTutorial($leader->id, fn () => app(TutorialPracticeRepository::class)->unitByCallsign(PracticeWorld::PLATOON)->id);
     $before = inTutorial($leader->id, $steps);
+    // Not opened yet: the platoon's row on the roll-up, then Open report in its panel.
     expect($before['weekly-report']['checklist'][1]['done'])->toBeFalse()
-        ->and($before['weekly-report']['highlight'])->toBe('#training-subject, #platoon-topic, #report-notes')
+        ->and($before['weekly-report']['highlight'])->toBe('[data-row-id="'.$platoon.'"]:not([aria-selected="true"]), [data-report-unit="'.$platoon.'"] [data-testid="open-report"]')
+        ->and($before['weekly-report']['area'])->toBe('/reports')
         ->and($before['weekly-report']['nav'])->toBe('[data-testid="nav-Reports"]')
         ->and($before['rollcall']['nav'])->toBe('[data-testid="nav-Roll call"]');
+
+    $opened = inTutorial($leader->id, function () use ($steps, $platoon, $leader) {
+        PageVisit::query()->create(['user_id' => $leader->id, 'url' => '/reports/'.$platoon.'/'.WeekOf::reporting(CarbonImmutable::now('UTC'))->toDateString(), 'visited_at' => CarbonImmutable::now()]);
+
+        return $steps();
+    });
+    expect($opened['weekly-report']['checklist'][0]['done'])->toBeTrue()
+        ->and($opened['weekly-report']['highlight'])->toBe('#training-subject, #platoon-topic');
 
     $after = inTutorial($leader->id, function () use ($steps) {
         PlatoonTrainingTopic::query()->create([
@@ -129,7 +172,9 @@ it('ticks the subject of a platoon report from its training topic, and points at
         return $steps();
     });
     expect($after['weekly-report']['checklist'][1]['done'])->toBeTrue()
-        ->and($after['weekly-report']['highlight'])->toBe('[data-testid="send-button"], [data-testid="send-anyway"]');
+        ->and($after['weekly-report']['checklist'][2]['label'])->toBe('Write a note')
+        ->and($after['weekly-report']['checklist'][2]['done'])->toBeFalse()
+        ->and($after['weekly-report']['highlight'])->toBe('#report-notes');
 });
 
 it('leaves no unmatched player on the practice roll call, as no step teaches matching one', function () {
@@ -137,6 +182,29 @@ it('leaves no unmatched player on the practice roll call, as no step teaches mat
     $this->actingAs($leader)->post('/tutorial');
 
     expect(inTutorial($leader->id, fn () => PracticeCapturePlayer::query()->whereNull('trooper_id')->count()))->toBe(0);
+});
+
+it('backs up an HQ staff member\'s staff report with practice server data', function () {
+    $platoon = Unit::factory()->create(['type' => UnitType::Platoon]);
+    $leader = User::factory()->commanding($platoon)->create();
+    Trooper::query()->where('cav_id', $leader->cav_id)->first()->forceFill(['primary_section_id' => $platoon->id])->save();
+    $this->actingAs($leader)->post('/tutorial')->assertRedirect();
+
+    [$public, $seen, $sections] = inTutorial($leader->id, function () use ($leader) {
+        $practice = app(TutorialPracticeRepository::class);
+        $self = $practice->trooperByUsername($leader->username);
+        $week = WeekOf::reporting(CarbonImmutable::now('UTC'));
+
+        return [
+            app(PublicServerHour::class)->check($self->id, $practice->unitByCallsign(PracticeWorld::PLATOON), $week),
+            array_keys(app(PracticeCapturePlayerRepository::class)->seenInWeek([$self->id], $week)[$self->id] ?? []),
+            [$practice->unitByCallsign(PracticeWorld::SECTION)->id, $practice->unitByCallsign(PracticeWorld::OTHER_SECTION)->id],
+        ];
+    });
+
+    expect($public)->toBe(['check' => 'confirmed', 'minutes' => PracticePublicServerHour::MINUTES, 'reason' => null])
+        ->and(collect($seen)->sort()->values()->all())->toBe(collect($sections)->sort()->values()->all())
+        ->and(app(PublicServerHour::class))->not->toBeInstanceOf(PracticePublicServerHour::class);
 });
 
 it('links every practice trooper to the practice game, so no identity warning shows', function () {

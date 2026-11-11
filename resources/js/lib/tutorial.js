@@ -44,15 +44,18 @@ export function finishedGuides(steps) {
 
 /**
  * The CSS that shows what a step points at (`selector`) in the tutorial blue: an outline on anything, such as a trooper
- * card, a text box or a sidebar link, and a solid fill on a button. A stylesheet rather than a class on the element, so
- * the page drawing that element again (a mark changing a card) never drops it.
+ * card, a text box or a sidebar link; a solid fill on a button or a link drawn as one (Open milpac); and a soft tint
+ * inside a tab or a roll call step, where a fill would swallow the tab strip. A stylesheet rather than a class on the
+ * element, so the page drawing that element again (a mark changing a card) never drops it.
  */
 export function targetCss(selector) {
     if (!selector) return '';
+    const tab = '[role="tab"], [data-step]';
 
     return [
         `:is(${selector}) { outline: 2px solid var(--changelog) !important; outline-offset: 1px; }`,
-        `button:is(${selector}) { background-color: var(--changelog) !important; border-color: var(--changelog) !important; color: #fff !important; }`,
+        `:is(button, [data-slot="button"]):is(${selector}):not(${tab}) { background-color: var(--changelog) !important; border-color: var(--changelog) !important; color: #fff !important; }`,
+        `:is(${tab}):is(${selector}) { background-color: color-mix(in oklab, var(--changelog) 14%, transparent) !important; outline-offset: -2px; border-radius: 0.375rem; }`,
     ].join('\n');
 }
 

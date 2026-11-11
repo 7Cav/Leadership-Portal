@@ -32,11 +32,11 @@ function onClick(event) {
     clickTimers = AFTER_CLICK_MS.map((ms) => window.setTimeout(refresh, ms));
 }
 
-// What to show in the tutorial blue: on the step's page, what the step points at (`step.highlight`, such as Demo.K's
-// card); elsewhere, the sidebar link to that page (`step.nav`).
+// What to show in the tutorial blue: on the step's pages (`step.area`, one path or several, else its own page), what the step points at
+// (`step.highlight`, such as Demo.K's card); elsewhere, the sidebar link to that page (`step.nav`).
 const target = computed(() => {
     if (!active.value || !step.value) return null;
-    if (step.value.nav && !onStepPage(page.url, step.value.href)) return step.value.nav;
+    if (step.value.nav && ![step.value.area ?? step.value.href].flat().some((href) => onStepPage(page.url, href))) return step.value.nav;
 
     return step.value.highlight ?? null;
 });

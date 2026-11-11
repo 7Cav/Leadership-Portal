@@ -759,12 +759,18 @@ checks, messages, layout and theme toggle). Only the data and the consequences d
 - Coach card, bottom right: the step's instruction, a checklist that ticks itself from what the person did, a note,
   **Back** and **Next step**, which stays disabled until every checklist item is done, with **Skip** beside it until then. The card reads the steps again every 4 seconds, as roll call marks save without a page
   visit. A finished step ticks the matching step of the Getting started guide list (`useTutorialProgress`).
+- What to do next is shown in the tutorial blue: a filled button, a soft tint on a tab or a roll call step, an outline on
+  anything else. Off the step's pages it is the sidebar link. Roll call points at each roll call step's tab while another
+  step is open; Reports points at the unit's row on the roll-up, then Open report; the roster at Demo.K's row, then
+  Open milpac.
 - Steps by who the person is for real, read once at the start: roll call (signature, mark, confirm, roll call posted)
   and the weekly report for anyone who leads a unit and Admins; the staff report for platoon, company and battalion HQ
   staff; the roster with its Strength tab and a milpac for everyone; Org structure and the Audit log for Admins.
 - Practice data: a fixed practice battalion 9-7 (Practice Regiment 9CAV, Alpha Company A/9-7, 1st Platoon 1/A/9-7, 1st
   and 2nd Section) with made-up troopers (Practice.L, Sample.R, Demo.K, Mock.T on leave, Trial.B and others), four
   weeks of sent reports, this week's practice already seen on a practice game server, and Demo.K unsigned and unseen.
+  HQ staff were seen at both sections' practices this week, and a public server hour shows 75 minutes of practice
+  server data (`PracticePublicServerHour`), so their staff report is backed up as the real servers would back it up.
   Two maintainers, Laui.M and Grayson.J, serve in it as ordinary troopers in every copy (approved). No other real
   member. The person is placed in it at their own echelon, under their own name: a Section Leader leads 1st Section,
   a Platoon Leader 1st Platoon, HQ staff sit on that HQ, an Admin keeps Admin.

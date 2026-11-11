@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { attendedText, namedSentence, presenceAnswer, presenceText } from '@/lib/staffReport';
+import { attendedText, confirmedText, namedSentence, presenceAnswer, presenceText } from '@/lib/staffReport';
 
 describe('attendedText', () => {
     it('reads each named type by its name and date', () => {
@@ -43,5 +43,9 @@ describe('presenceAnswer', () => {
         expect(presenceText({ check: 'conflict', source: 'public server', minutes: 1 })).toBe('1 minute of server data');
         expect(presenceText({ check: 'conflict', source: 'public server', minutes: 0 })).toBe('0 minutes of server data');
         expect(presenceText({ check: 'confirmed', source: 'public server', minutes: 75 })).toBe('');
+        expect(confirmedText({ check: 'confirmed', source: 'public server', minutes: 75 })).toBe('75 minutes of server data');
+        expect(confirmedText({ check: 'confirmed', source: 'CRCON' })).toBe('Seen on CRCON');
+        expect(confirmedText({ check: 'conflict', source: 'public server', minutes: 43 })).toBe('');
+        expect(confirmedText(null)).toBe('');
     });
 });
