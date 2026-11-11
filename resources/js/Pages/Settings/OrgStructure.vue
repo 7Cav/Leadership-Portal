@@ -190,9 +190,8 @@ const actingPick = ref(null);
 const actingReason = ref('');
 const actingError = ref(null);
 const actingBusy = ref(false);
-const canTakeActingLead = computed(
-    () => selectedUnit.value !== null && selectedUnit.value.type !== 'group' && selectedUnit.value.type !== 'regiment',
-);
+// The server says which units take one (`acting_lead_allowed`): a line unit below the regiment, or a staff portfolio.
+const canTakeActingLead = computed(() => selectedUnit.value !== null && selectedUnit.value.type !== 'regiment');
 
 // Oversight (Admin): the regimental staff officer who oversees a battalion or the Reservists. Read-only scope over it
 // for them while they serve; audited with a required reason on the server.
@@ -1058,8 +1057,8 @@ function confirmDelete() {
                         data-testid="acting-lead" aria-label="Acting lead" class="mb-4 rounded-lg border border-dashed border-border p-3">
                         <h3 class="text-[13px] font-semibold">Acting lead</h3>
                         <p class="mt-0.5 text-xs text-muted-foreground">
-                            For a unit whose lead is not in the roster data, such as a DEVCOM starter platoon run by a DEVCOM Lead. They get a
-                            Platoon Leader's command over this unit while they serve.
+                            For a unit whose lead is not in the roster data, such as a DEVCOM starter platoon run by a DEVCOM Lead, or
+                            a Deputy Chief of Staff's portfolio. They command this unit while they serve.
                         </p>
                         <p v-if="selectedUnit.acting_lead" data-testid="acting-lead-current" class="mt-2 text-[13px]">{{ selectedUnit.acting_lead.displayName }}</p>
                         <div v-else class="mt-2 grid gap-1.5">

@@ -197,3 +197,28 @@ it('tells the page which units may take an acting lead, by the Command\'s own ru
         ->and($units[$this->staff->id]['acting_lead_allowed'])->toBeFalse()
         ->and($units[$this->regiment->id]['acting_lead_allowed'])->toBeFalse();
 });
+
+// 2026-11-10: both Deputy Chiefs of Staff hold one billet, so an Admin makes each acting lead of their portfolio. A staff
+// portfolio takes an acting lead and gives its command, as a portfolio officer's billet does; a department never does.
+it('lets an Admin make a deputy acting lead of a staff portfolio, commanding the departments under it', function () {
+    $units = app(UnitRepository::class);
+    $cos = $units->create(UnitType::Group, 'Chief of Staff', 'COS', $this->regiment->id, UnitKind::Staff);
+    $deputy = $units->create(UnitType::Group, 'Deputy Chief of Staff 1', 'DCOS1', $cos->id, UnitKind::Staff);
+    $rrd = $units->create(UnitType::Group, 'RRD', 'RRD', $deputy->id, UnitKind::Staff);
+    $rob = Trooper::factory()->create(['cav_id' => 777, 'billet' => 'Regimental Deputy Chief of Staff', 'status' => TrooperStatus::Combat]);
+    $robUser = User::factory()->create(['cav_id' => 777]);
+
+    $allowed = alUnits($this->actingAs($this->admin)->get('/settings/org-structure'));
+    expect($allowed[$deputy->id]['acting_lead_allowed'])->toBeTrue()
+        ->and($allowed[$rrd->id]['acting_lead_allowed'])->toBeFalse();
+
+    $this->actingAs($this->admin)->post(alUrl($deputy), ['trooper_id' => $rob->id, 'reason' => 'Oversees S5, RRD and RTC.'])
+        ->assertSessionHasNoErrors();
+    $this->actingAs($this->admin)->post(alUrl($rrd), ['trooper_id' => $rob->id, 'reason' => 'Lead.'])
+        ->assertSessionHasErrors('acting_lead');
+
+    $scope = app(ScopeResolver::class);
+    expect($scope->writeScope($robUser)->sort()->values()->all())->toBe([$deputy->id, $rrd->id])
+        ->and($scope->commandsUnit($robUser, $rrd))->toBeTrue()
+        ->and($scope->commandsUnit($robUser, $cos))->toBeFalse();
+});
