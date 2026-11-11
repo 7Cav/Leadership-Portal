@@ -525,7 +525,8 @@ describe('StaffReport page', () => {
         expect(none.find('[data-testid="staff-report-presence-answer"]').text()).toBe('Presence: I did not (no public server hour or office hour)');
 
         const confirmed = page({ canSend: false, report: { sentAt: '2026-10-08T20:00:00+00:00', attended: false, practices: [], presenceType: 'public_server', publicServer: { check: 'confirmed', source: 'public server', minutes: 75 } } });
-        expect(confirmed.find('[data-testid="staff-report-public-server"]').exists()).toBe(false);
+        // A confirmed check reads back in green.
+        expect(confirmed.find('[data-testid="staff-report-public-server"]').text()).toBe('75 minutes of server data');
 
         const before = page({ canSend: false, report: { sentAt: '2026-10-08T20:00:00+00:00', attended: false, practices: [] } });
         expect(before.find('[data-testid="staff-report-presence-answer"]').exists()).toBe(false);
