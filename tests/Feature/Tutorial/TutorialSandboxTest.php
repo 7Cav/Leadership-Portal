@@ -470,6 +470,12 @@ it('walks a platoon leader through a make-up, a guest, a blocked report and a mi
     expect($steps()['blocked-report']['checklist'][2]['done'])->toBeFalse()
         ->and($steps()['blocked-report']['highlight'])->toBe('[data-check="confirmed"] a, [data-testid="confirm-practice"]');
     $this->postJson("/rollcall/{$section}/confirm", ['week' => $week])->assertOk();
+    // Confirmed: Reports from the roll call, the section on the roll-up, then the reason before the send.
+    expect(array_column($steps()['blocked-report']['checklist'], 'label')[0])->toBe('Confirm the practice')
+        ->and($steps()['blocked-report']['highlight'])->toContain('body:has([data-step]) [data-testid="nav-Reports"]')
+        ->and($steps()['blocked-report']['highlight'])->toContain('[data-report-unit="'.$section.'"] [data-testid="open-report"]')
+        ->and($steps()['blocked-report']['highlight'])->toContain('[data-check="unaccounted"]:not([data-done])')
+        ->and($steps()['blocked-report']['highlight'])->toContain('body:has([data-check="unaccounted"][data-done]) :is(');
     $send()->assertSessionHasNoErrors();
     expect($steps()['blocked-report']['checklist'][2]['done'])->toBeTrue()
         ->and($steps()['blocked-report']['done'])->toBeTrue();
@@ -477,7 +483,8 @@ it('walks a platoon leader through a make-up, a guest, a blocked report and a mi
     // The missing report: the copy is ticked in the browser, the roll call from the visit.
     $missing = $steps()['missing-report'];
     expect($missing['checklist'][0]['click'])->toBe('[data-report-unit="'.$ids['other'].'"] [data-testid="copy-reminder"]')
-        ->and($missing['highlight'])->toContain('[data-row-id="'.$ids['other'].'"]');
+        ->and($missing['highlight'])->toContain('[data-row-id="'.$ids['other'].'"]')
+        ->and($missing['highlight'])->toContain('body:not(:has([data-check])) nav[aria-label="Report mode"] a[href="/reports"]');
     $this->get("/rollcall/{$ids['other']}")->assertOk();
     expect($steps()['missing-report']['checklist'][1]['done'])->toBeTrue()
         ->and($steps()['missing-report']['highlight'])->toBeNull();

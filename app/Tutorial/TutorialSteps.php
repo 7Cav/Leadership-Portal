@@ -265,12 +265,22 @@ final class TutorialSteps
                 'nav' => self::nav('Reports'),
                 'highlight' => match (true) {
                     ! $confirmed => '[data-check="confirmed"] a, [data-testid="confirm-practice"]',
-                    ! $facts['sectionSent'] => '[data-check="unaccounted"], [data-testid="send-button"], [data-testid="send-anyway"], [data-testid="makeup-checks"], [data-testid="send-confirm"]',
+                    // Confirmed: from the roll call to Reports, on the roll-up to the section's row and Open report,
+                    // on the report to Trial.B's reason first and then the send.
+                    ! $facts['sectionSent'] => implode(', ', [
+                        'body:has([data-step]) [data-testid="nav-Reports"]',
+                        '[data-row-id="'.($section?->id ?? 0).'"]:not([aria-selected="true"])',
+                        '[data-report-unit="'.($section?->id ?? 0).'"] [data-testid="open-report"]',
+                        '[data-check="unaccounted"]:not([data-done])',
+                        'body:has([data-check="unaccounted"][data-done]) :is([data-testid="send-button"], [data-testid="send-anyway"])',
+                        '[data-testid="makeup-checks"]',
+                        '[data-testid="send-confirm"]',
+                    ]),
                     default => null,
                 },
                 'checklist' => [
-                    ['label' => 'Open 1st Section\'s report', 'done' => $opened($report)],
                     ['label' => 'Confirm the practice', 'done' => $confirmed],
+                    ['label' => 'Open 1st Section\'s report', 'done' => $opened($report)],
                     ['label' => 'Send the report, with PVT Trial.B\'s make-up answered', 'done' => $facts['sectionSent']],
                 ],
             ],
@@ -283,6 +293,8 @@ final class TutorialSteps
                 'guide' => null,
                 'nav' => self::nav('Reports'),
                 'highlight' => $opened($otherRollcall) || $other === null ? null : implode(', ', [
+                    // On a sent report (1st Section's, where the step before ends): back to the roll-up.
+                    'body:not(:has([data-check])) nav[aria-label="Report mode"] a[href="/reports"]',
                     '[data-row-id="'.$other->id.'"]:not([aria-selected="true"])',
                     '[data-report-unit="'.$other->id.'"] :is([data-testid="copy-reminder"], [data-testid="open-report"])',
                     '[data-check="confirmed"] a',
