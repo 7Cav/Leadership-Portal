@@ -1,9 +1,9 @@
 ---
 title: Run this week's roll call
-summary: Record who signed, mark section practice, copy the roll call post and mark it posted.
+summary: Create the week's roll call, post it, record who signed, mark section practice, then close it for review.
 section: weekly-rollcall
 order: 1
-updated: 2026-11-04
+updated: 2026-11-12
 audience: leader
 page: /rollcall
 weekly: true
@@ -28,9 +28,36 @@ minutes: 10
 
 > [!good-to-know] A past week lists everyone who was in your section during that week, so you can still finish it after a move or a departure. Those who left say **Moved out** or **Departed**, and **Joined** marks someone who moved in partway through the week. A trooper who joined the Cav after that week is not on it. The current week lists who is in your section now.
 
+## Which steps your week has
+
+The steps are along the top of the roll call. A week follows the steps it started with, so a week that is already under way never changes.
+
+1. **The new roll call**: **Create**, **Post**, **Sign and mark**, **Close for review**. The badge beside the title says where the week stands: **Not created yet**, **Created · not posted**, **Posted · open**, **Ready to close** or **Closed · sent for review**.
+2. **A week from before the new roll call**: **Signatures**, **Section practice**, **Review and post**. You then send the report as before.
+
+The sections below cover both. Where a step differs, it says which roll call it is.
+
+## Create the week's roll call
+
+On the new roll call, nothing else opens until the week's roll call is created.
+
+1. In step 1, **Create**, check the **Training date**. It comes from your section's practice slot. Change the day or time to move this week's practice only; the slot stays as it is for later weeks.
+2. Check the **Training topic**. It comes from your platoon's topic for the week. When your platoon enforces it, it shows **Set by** and the platoon, and you cannot change it. Otherwise you can change it for your section, or type your own when the platoon has set none.
+3. Choose **Create roll call**. If there is no practice this week, choose **Practice will not take place** instead: it cancels this week's practice and creates the roll call.
+
+> [!good-to-know] With no practice slot, the roll call is created without a date; choose **Set the practice slot** to add one. The training date and topic go into the forum post, and the topic is the same one the weekly report shows: change it in either place and both show the change.
+
+## The training date and topic
+
+The card at the top of the roll call shows when practice starts this week and the training topic.
+
+1. Choose **Change** beside the date to move or cancel this week's practice (see [Set the practice slot](#set-the-practice-slot)).
+2. Type a new topic and choose **Save**. It is the weekly report's training subject, so the report shows it too. A topic your platoon enforces is locked.
+3. If the post is already on the forum, a changed date or topic makes it out of date: copy it again and edit your forum post.
+
 ## Record the signatures
 
-1. In step 1, **Signatures**, set each trooper to **Will attend**, **Will not attend**, **Make-up requested**, **Excused** or **Unsigned**, as they signed this week's forum thread.
+1. In step 1, **Signatures** (on the new roll call, step 3, **Sign and mark**), set each trooper to **Will attend**, **Will not attend**, **Make-up requested**, **Excused** or **Unsigned**, as they signed this week's forum thread.
 2. Every change saves as you click. If a save fails, the page says your last changes are not saved and keeps them on screen. Choose **Retry**.
 
 > [!good-to-know] Troopers whose leave covers the week are locked and listed under **On LOA**, with the **LOA** button pressed on both tabs from the LOA data. Every other trooper shows the **LOA** button unpressed: it cannot be clicked, it is set only from the LOA thread. They post as LOA; you do not mark them. A trooper whose leave starts next Cav week shows **Leave from** and the date; mark them as usual this week.
@@ -41,9 +68,9 @@ minutes: 10
 
 ## Mark section practice
 
-1. In step 2, **Section practice**, mark each trooper **Attended**, **Not attended**, **Excused** or **Make-up complete**. A trooper who trained at another section's practice is **Make-up complete**.
+1. In step 2, **Section practice** (on the new roll call, the second list in **Sign and mark**), mark each trooper **Attended**, **Not attended**, **Excused** or **Make-up complete**. A trooper who trained at another section's practice is **Make-up complete**.
 2. **Mark all attended** and **Mark the rest not attended** fill many rows at once, and leave an automatically excused trooper alone. Choose **Undo** on the notice to take it back.
-3. With the keyboard, J and K or the arrow keys move between troopers. The number keys set the mark: 1 to 5 for signatures, 1 to 4 for practice. Press `?` for **All keyboard shortcuts**.
+3. With the keyboard, J and K or the arrow keys move between troopers. The number keys set the mark: 1 to 5 for signatures, 1 to 4 for practice. On **Sign and mark** they set the kind of card that has focus. Press `?` for **All keyboard shortcuts**.
 
 ## Set the practice slot
 
@@ -80,14 +107,24 @@ If your section plays a game and has no slot, a warning sits at the top of the r
 
 ## Copy the post and put it on the forum
 
-1. In step 3, **Review and post**, check the changes you made on this visit.
+1. In step 3, **Review and post**, check the changes you made on this visit. On the new roll call this is step 2, **Post**, right after you create the roll call: the marks fill in as the week goes on.
 2. Under **Template**, pick the template your section uses: one of your section's own, one your company switched on, the regiment default, or **Company default**. Your pick is kept for later weeks. Templates are made and edited under **Settings**, then **Templates**, in the sidebar; [Roll call templates](/docs/admin/rollcall-templates) says who can edit which and how.
 3. Choose **Copy BBCode** and paste it as a reply in the forum's roll call thread yourself. The portal never posts to the forum.
 
 ## Mark it posted
 
-1. Once the post is on the forum, choose **Mark roll call posted**.
+1. Once the post is on the forum, choose **Mark roll call posted**. On the new roll call, choose **Mark as posted, continue**, which takes you on to **Sign and mark**.
 2. If you change a mark later, the page says the copied BBCode is out of date. Repost the updated BBCode, then choose **Mark posted again**. A template that uses the live Signed RC and Attended SP images ([Roll call templates](/docs/admin/rollcall-templates) says how) shows the new marks in those images on its own, once the forum reloads them, which can take a minute; the rest of the post is still text you repost.
-3. Then [write and send your report](/docs/weekly-report/send-your-report).
+3. Then [write and send your report](/docs/weekly-report/send-your-report). On a week from before the new roll call, **Send for review** at the end of **Review and post** opens the report's send window for you.
 
-> [!good-to-know] Once your section's report is sent, that week's roll call is locked: marks, the practice confirmation and guests can no longer change. Choosing **Edit report** on the report before it is due opens the roll call again until you send the report again or the deadline passes. A week too far back is read only too.
+## Close for review
+
+On the new roll call, closing the week is sending its weekly report.
+
+1. When everyone is signed and marked, confirm the practice, then choose **Continue to close** (or step 4, **Close for review**).
+2. Under **A. Update your forum post**, choose **Copy updated BBCode**, edit your roll call post on the forum with it, then tick **I edited the forum post**.
+3. Check **B. Weekly report for Platoon Staff**: the training and the attendance it will report.
+4. Under **Before you close**, check **Practice confirmed**, **Every trooper has a mark** and **Forum post edited**. **Close and send for review** opens once the practice is confirmed.
+5. Choose **Close and send for review**. The report opens with its send window: add your notes, a reason for anyone unaccounted for, and answer any make-up still owed, then send it. See [Write and send your report](/docs/weekly-report/send-your-report).
+
+> [!good-to-know] Once your section's report is sent, that week's roll call is locked: marks, the training topic, the practice confirmation and guests can no longer change. Choosing **Edit report** on the report before it is due opens the roll call again until you send the report again or the deadline passes. On the new roll call you then close it again from **Close for review**. A week too far back is read only too.
