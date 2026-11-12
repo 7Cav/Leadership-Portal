@@ -10,7 +10,9 @@ use App\Models\UnitKind;
  * which portfolio a department starts under:
  *
  *  - **Holding groups**, by exact billet title: `ELOA` → Extended Leave of Absence, `Reservist` → Reservists,
- *    `New Recruit` → New Recruits. Each sits directly under the regiment.
+ *    `New Recruit` → New Recruits. Each sits directly under the regiment. The reserve's command team (`Reserve
+ *    Commander`, `Reserve Executive Officer`) is placed with the Reservists too: Cav lists them in `ACD Command`, but
+ *    the reserve is not ACD's, both sit under RDC ({@see HOLDING_TITLES}).
  *  - **Staff departments**, by the department code that starts the billet title, as the ADR lists them: S1, S2, S3, S5,
  *    S6, S7, ODS, NCOA, WAG, MP, RRD, RTC, JAG and DEVCOM (`S6 1IC`, `RRD Recruiter - Squad`, `ODS Lead Instructor`,
  *    `DEVCOM Support Clerk`). A few billets carry no code but belong to one: `Regimental Technical Aide` (S6),
@@ -33,6 +35,12 @@ final class StaffBillet
         'ELOA' => ['ELOA', 'Extended Leave of Absence', UnitKind::Eloa],
         'Reservist' => ['RES', 'Reservists', UnitKind::Reserve],
         'New Recruit' => ['NR', 'New Recruits', UnitKind::Recruit],
+    ];
+
+    /** Billets placed in a holding group whose title is not the group's own, by exact title → the group's billet. */
+    private const HOLDING_TITLES = [
+        'Reserve Commander' => 'Reservist',
+        'Reserve Executive Officer' => 'Reservist',
     ];
 
     /** Department code → [callsign, name]. */
@@ -152,9 +160,10 @@ final class StaffBillet
     public static function groupFor(string $title, string $groupTitle = ''): ?GroupDesignation
     {
         $title = trim($title);
+        $holding = self::HOLDING_TITLES[$title] ?? $title;
 
-        if (isset(self::HOLDING[$title])) {
-            [$callsign, $name, $kind] = self::HOLDING[$title];
+        if (isset(self::HOLDING[$holding])) {
+            [$callsign, $name, $kind] = self::HOLDING[$holding];
 
             return new GroupDesignation($callsign, $name, $kind, self::HOLDING_PORTFOLIO[$callsign] ?? null);
         }
