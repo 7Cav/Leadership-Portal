@@ -49,6 +49,8 @@ import ForumPost from '@/components/rollcall/ForumPost.vue';
 import TemplatePick from '@/components/rollcall/TemplatePick.vue';
 import PracticeSlot from '@/components/rollcall/PracticeSlot.vue';
 import TrainingCard from '@/components/rollcall/TrainingCard.vue';
+import RollcallClose from '@/components/rollcall/RollcallClose.vue';
+import RollcallCreate from '@/components/rollcall/RollcallCreate.vue';
 import WarningBanner from '@/components/WarningBanner.vue';
 import { copyText } from '@/lib/clipboard';
 import { messageFor, unreachable, useRollcallAutosave, whenLeft } from '@/composables/useRollcallAutosave';
@@ -60,6 +62,8 @@ import { displayKeys, isShortcut, keyLabel, shortcutIndex, SHORTCUTS } from '@/l
 import {
     captureSourceLabel,
     countsOf,
+    cycleLandingStep,
+    cycleStepsOf,
     displayName,
     feedLabel,
     isLocked,
@@ -80,7 +84,8 @@ import Guidon from '@/components/Guidon.vue';
 
 // The weekly rollcall of one section (Stories 3.7–3.10), binding design mockups/v2/rollcall-r3.html
 // "Guided week": three steps — signatures, Section Practice, review and post — over the section's
-// troopers. With no section chosen (`section` null) it is the section picker.
+// troopers. With no section chosen (`section` null) it is the section picker. A week on the new flow (#703, mockups
+// 703-1 to 703-4) is the weekly cycle instead: create (date and topic), post, sign and mark, close for review.
 const props = defineProps({
     // The section's company guidon (or the nearest one above it), for the header; null for none.
     guidon: { type: Object, default: null },
@@ -153,6 +158,8 @@ const props = defineProps({
     resultImages: { type: Object, default: null },
     // The week's training topic (#703): `{ subject, enforced, platoon, canEdit }`, the weekly report's training subject.
     training: { type: Object, default: null },
+    // Which roll call flow the week follows (#703): `{ version, created: { at, by } | null }`. Null for the picker.
+    flow: { type: Object, default: null },
 });
 
 const page = usePage();
@@ -445,7 +452,8 @@ function onCardKeydown(event) {
     const faces = [...event.currentTarget.querySelectorAll('[data-card-face]')];
     const index = faces.indexOf(face);
 
-    const kind = step.value === 1 ? 'signature' : 'practice';
+    // Sign and mark lists both: the focused card's own list says which marks the number keys set.
+    const kind = face.closest('[data-kind]')?.dataset.kind ?? (panel.value === 'signatures' ? 'signature' : 'practice');
     const mark = shortcutIndex(event, `rollcall.${kind}`);
 
     // The keys come from lib/shortcuts.js, which also feeds the `?` list and the keyboard card below.
@@ -480,7 +488,7 @@ function onCardKeydown(event) {
 }
 
 // The number keys the keyboard card shows for this step: "1 to 5" for signatures, "1 to 4" for marks.
-const markKeys = computed(() => displayKeys(SHORTCUTS[step.value === 1 ? 'rollcall.signature' : 'rollcall.practice']).map(keyLabel));
+const markKeys = computed(() => displayKeys(SHORTCUTS[panel.value === 'signatures' ? 'rollcall.signature' : 'rollcall.practice']).map(keyLabel));
 
 // What changed on this visit, for the review step.
 const changes = computed(() =>
@@ -635,6 +643,22 @@ async function markPosted() {
     } finally {
         posting.value = false;
     }
+}
+
+// The roll call was created (#703): the server's flow, topic and practice slot replace the page's, and the leader goes
+// on to post it.
+function onCreated({ flow, training: saved, practiceSlot }) {
+    flowState.value = flow;
+    training.value = saved;
+    slotOverride.value = practiceSlot;
+    go(2);
+}
+
+// "Mark as posted, continue" on the post step: the same stamp as "Mark roll call posted", then on to sign and mark.
+async function markPostedAndContinue() {
+    const before = posted.value?.at ?? null;
+    await markPosted();
+    if (posted.value && posted.value.at !== before) go(3);
 }
 
 // "Send for review" (#703): the weekly report's own send dialog, on the report page (`?send=1`), so the notes, the
@@ -832,23 +856,71 @@ watch(
 );
 
 const counts = computed(() => countsOf(rows.value));
-const steps = computed(() => stepsOf(rows.value, posted.value && !editedSincePost.value ? posted.value.at : null, unlinkedCount.value));
+
+// The week's flow (#703): a create answers with the flow as the server now holds it.
+const flowState = ref(props.flow);
+watch(
+    () => props.flow,
+    (value) => (flowState.value = value),
+);
+// The weekly cycle of the new flow; the three steps otherwise.
+const cycle = computed(() => flowState.value?.version === 2);
+const created = computed(() => Boolean(flowState.value?.created));
+const reportSent = computed(() => Boolean(props.report?.sent) || weekLocked.value);
+const steps = computed(() =>
+    cycle.value
+        ? cycleStepsOf(rows.value, {
+              created: created.value,
+              postedAt: posted.value?.at ?? null,
+              confirmed: Boolean(confirmation.value),
+              sent: reportSent.value,
+              unlinked: unlinkedCount.value,
+          })
+        : stepsOf(rows.value, posted.value && !editedSincePost.value ? posted.value.at : null, unlinkedCount.value),
+);
+// Where the cycle stands, for the badge beside the title (mockups 703-1 to 703-4).
+const cycleState = computed(() => {
+    if (!cycle.value) return null;
+    if (reportSent.value) return 'Closed · sent for review';
+    if (!created.value) return 'Not created yet';
+    if (!posted.value) return 'Created · not posted';
+    if (steps.value[2].state === 'done') return 'Ready to close';
+
+    return 'Posted · open';
+});
 
 // The step is part of the URL (`?step=2`), so a step can be linked to and Back walks the steps.
 // Without one the rollcall opens on the first step with work left. The rollcall thread closes on
 // the week's last minute, so only the current week's signatures are still open. Worked out once on
 // load: marking the last trooper of a step does not move the screen.
-const landing = props.section ? landingStep(props.troopers, props.week.isCurrent) : 1;
+const landing = !props.section
+    ? 1
+    : props.flow?.version === 2
+      ? cycleLandingStep(props.troopers, { created: Boolean(props.flow.created), postedAt: props.practice?.posted?.at ?? null, sent: props.locked }, props.week.isCurrent)
+      : landingStep(props.troopers, props.week.isCurrent);
 const query = computed(() => new URL(page.url, 'http://portal.local').searchParams);
 const step = computed(() => {
+    // A week on the new flow has nothing to post, sign or mark before its roll call is created.
+    if (cycle.value && !created.value && !reportSent.value) return 1;
+
     const requested = Number(query.value.get('step'));
 
-    if ([1, 2, 3].includes(requested)) return requested;
+    if (requested >= 1 && requested <= steps.value.length) return requested;
 
     // A milpac jump (`?focus=`) needs the trooper's card on screen, and the review step has none: a week with no work
-    // left opens on the practice step instead.
-    return query.value.has('focus') ? Math.min(landing, 2) : landing;
+    // left opens on the practice step instead (sign and mark on the new flow).
+    if (query.value.has('focus')) return cycle.value ? 3 : Math.min(landing, 2);
+
+    return landing;
 });
+// What the step shows: the three steps' signatures, practice and review, or the cycle's create, post, sign (signatures
+// and practice together) and close.
+const panel = computed(() => (cycle.value ? ['create', 'post', 'sign', 'close'] : ['signatures', 'practice', 'review'])[step.value - 1]);
+// The steps that list the trooper cards, and the ones with the practice marks (the unmatched players drawer goes there).
+const markingCards = computed(() => ['signatures', 'practice', 'sign'].includes(panel.value));
+const markingPractice = computed(() => panel.value === 'practice' || panel.value === 'sign');
+// A step that cannot be opened yet: everything after create, until the roll call is created.
+const stepClosed = (n) => cycle.value && !created.value && !reportSent.value && n > 1;
 const stepHeading = ref(null);
 
 // A trooper's milpac links here with `?focus=<trooper id>` ("Jump to rollcall"): the page opens on that trooper's card,
@@ -887,6 +959,7 @@ onMounted(() => {
 // Moving to another step commits the marks held for Undo (see `commitHeld`): the save goes now, while
 // this screen is still here to show whether it worked.
 function go(n) {
+    if (stepClosed(n)) return;
     if (autosave && n !== step.value) commitHeld();
     const params = new URLSearchParams(query.value);
     params.set('step', String(n));
@@ -991,7 +1064,10 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                         <Link :href="pickerHref" class="underline-offset-2 hover:text-foreground hover:underline" data-testid="choose-section">Choose a section</Link>
                     </template>
                 </p>
-                <h1 class="text-xl font-semibold tracking-tight sm:text-[22px]">Roll call, <WeekHeading :week="week.start" phrase /></h1>
+                <h1 class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xl font-semibold tracking-tight sm:text-[22px]">
+                    <span>Roll call, <WeekHeading :week="week.start" phrase /></span>
+                    <Badge v-if="cycleState" variant="outline" class="text-xs font-normal tracking-normal" data-testid="cycle-state">{{ cycleState }}</Badge>
+                </h1>
             </div>
             <div class="flex items-center gap-1 text-muted-foreground">
                 <Button variant="ghost" size="icon-sm" class="relative" as-child>
@@ -1106,8 +1182,9 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
 
         <ReportDeadlineBanner v-if="report" class="mt-3" :due="report.due" :overdue-until="report.overdueUntil" :sent="report.sent" :href="report.href" :read-only="!editable" />
 
+        <!-- On the new flow the create step asks for the date and topic first; the card follows once it is created. -->
         <TrainingCard
-            v-if="training"
+            v-if="training && !(cycle && !created && !reportSent)"
             class="mt-3"
             :section-id="section.id"
             :week="week.date"
@@ -1192,7 +1269,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
             class="sticky top-[var(--shell-top,3rem)] z-20 -mx-4 mt-3 border-b border-border bg-background/95 px-4 pt-3 pb-2 backdrop-blur sm:-mx-6 sm:px-6"
         >
             <nav aria-label="Roll call steps">
-                <ol class="grid grid-cols-3 gap-1.5">
+                <ol :class="cn('grid gap-1.5', steps.length === 4 ? 'grid-cols-4' : 'grid-cols-3')">
                     <li v-for="s in steps" :key="s.n">
                         <button
                             type="button"
@@ -1200,7 +1277,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                             :aria-label="`Step ${s.n}, ${s.title}, ${s.sub}${s.unlinked ? `, ${unlinkedLabel(s.unlinked)}` : ''}`"
                             :class="
                                 cn(
-                                    'relative grid h-full min-h-[3.75rem] w-full grid-cols-1 items-center justify-items-center gap-x-2.5 gap-y-0.5 rounded-md px-1 pt-1.5 pb-3 text-center hover:bg-accent/70 sm:min-h-14 sm:grid-cols-[auto_minmax(0,1fr)] sm:justify-items-start sm:px-2.5 sm:pt-2 sm:text-left',
+                                    'relative grid h-full min-h-[3.75rem] w-full grid-cols-1 items-center justify-items-center gap-x-2.5 gap-y-0.5 rounded-md px-1 pt-1.5 pb-3 text-center hover:bg-accent/70 sm:min-h-14 sm:grid-cols-[auto_minmax(0,1fr)] sm:justify-items-start sm:px-2.5 sm:pt-2 sm:text-left disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent',
                                     'after:absolute after:inset-x-2.5 after:bottom-1 after:h-[3px] after:rounded-full after:bg-border',
                                     s.state === 'done' && 'after:bg-success/70',
                                     s.state === 'warn' && 'after:bg-warning/70',
@@ -1208,6 +1285,8 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                                 )
                             "
                             :data-step="s.n"
+                            :disabled="stepClosed(s.n)"
+                            :title="stepClosed(s.n) ? 'Create the roll call first' : undefined"
                             @click="go(s.n)"
                         >
                             <span
@@ -1261,7 +1340,57 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
             </template>
         </WarningBanner>
 
-        <div class="mt-4 grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18.5rem]">
+        <!-- The new flow's create step (#703): the form until the roll call is created, then what was created. -->
+        <template v-if="panel === 'create'">
+            <RollcallCreate
+                v-if="!created"
+                class="mt-4"
+                :section-id="section.id"
+                :week="week.date"
+                :slot="currentSlot"
+                :training="training"
+                :editable="editable"
+                :disabled-reason="readOnlyReason"
+                @created="onCreated"
+                @set-slot="slotEditor?.startEditing()"
+            />
+            <Card v-else class="mt-4 gap-2 p-5 text-[13px]" data-testid="rollcall-created">
+                <h2 id="step-1-title" ref="stepHeading" tabindex="-1" class="text-[17px] font-semibold tracking-tight outline-none">Roll call created</h2>
+                <p class="text-muted-foreground">
+                    Created {{ forumDateTime(flowState.created.at) }}Z<template v-if="flowState.created.by"> by {{ flowState.created.by }}</template>. Change the
+                    training date or topic in the card above.
+                </p>
+                <div class="mt-2 flex">
+                    <Button class="ml-auto h-11 flex-1 sm:h-9 sm:flex-none" @click="go(2)">Next: post<PhCaretRight /></Button>
+                </div>
+            </Card>
+        </template>
+
+        <!-- The new flow's close step (#703): re-copy the post, then close, which sends the weekly report. -->
+        <RollcallClose
+            v-else-if="panel === 'close'"
+            class="mt-4"
+            :posted="posted"
+            :edited-since-post="editedSincePost"
+            :copied="copied"
+            :post-ready="post.state === 'ready'"
+            :counts="counts"
+            :confirmed="Boolean(confirmation)"
+            :training-start="trainingStart"
+            :topic="training?.subject ?? null"
+            :platoon="training?.platoon ?? null"
+            :report="{ sent: reportSent, href: report?.href ?? '' }"
+            :disabled-reason="readOnlyReason"
+            :posting="posting"
+            :sending="sendingForReview"
+            @copy="copyBbcode"
+            @mark-posted="markPosted"
+            @send="sendForReview"
+        >
+            <StepReview :troopers="orderedRows" :at-risk="liveAtRisk" :makeup-owed="makeupOwed" :fix-step="3" @go="go" />
+        </RollcallClose>
+
+        <div v-else class="mt-4 grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18.5rem]">
             <section class="min-w-0" :aria-labelledby="`step-${step}-title`" @keydown="onCardKeydown">
                 <!-- Empty roster -->
                 <Card v-if="!rows.length" class="py-0">
@@ -1270,12 +1399,22 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                     </EmptyState>
                 </Card>
 
+                <template v-else>
+                <!-- The new flow's sign and mark (#703): the signatures and the practice marks on one step. -->
+                <div v-if="panel === 'sign'" class="mb-2">
+                    <h2 :id="`step-${step}-title`" ref="stepHeading" tabindex="-1" class="text-[17px] font-semibold tracking-tight outline-none">Sign and mark</h2>
+                    <p class="mt-0.5 max-w-[62ch] text-[13px] text-muted-foreground">
+                        Set signatures from the thread, or by hand, and practice marks from the game server, or by hand. Then confirm the practice took place.
+                    </p>
+                </div>
+
                 <!-- Step 1: signatures -->
-                <template v-else-if="step === 1">
+                <template v-if="panel === 'signatures' || panel === 'sign'">
                     <div class="mb-1">
-                        <h2 :id="`step-${step}-title`" ref="stepHeading" tabindex="-1" class="text-[17px] font-semibold tracking-tight outline-none">
+                        <h2 v-if="panel !== 'sign'" :id="`step-${step}-title`" ref="stepHeading" tabindex="-1" class="text-[17px] font-semibold tracking-tight outline-none">
                             Signatures
                         </h2>
+                        <h3 v-else class="mt-2 text-[15px] font-semibold">Signatures</h3>
                         <p class="mt-0.5 max-w-[62ch] text-[13px] text-muted-foreground">
                             You can record a signature for a trooper who told you directly.
                         </p>
@@ -1283,7 +1422,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                     <p v-if="editable" class="mt-2 hidden items-center gap-2 text-xs text-muted-foreground pointer-coarse:flex">
                         <PhHandSwipeRight class="size-4" aria-hidden="true" />Swipe a card right for will attend, left for will not attend.
                     </p>
-                    <div v-for="group in signatureView" :key="group.id" role="group" :aria-label="group.title">
+                    <div v-for="group in signatureView" :key="group.id" role="group" :aria-label="group.title" data-kind="signature">
                         <div class="flex items-baseline justify-between gap-3 px-1 pt-3.5 pb-1.5 text-[13px] font-semibold">
                             <span>{{ group.title }}</span>
                             <span class="text-xs font-normal text-muted-foreground tabular-nums">{{ group.troopers.length }}</span>
@@ -1302,18 +1441,19 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                             />
                         </div>
                     </div>
-                    <div class="mt-5 flex items-center gap-2 py-3">
+                    <div v-if="panel === 'signatures'" class="mt-5 flex items-center gap-2 py-3">
                         <Button class="ml-auto h-11 flex-1 sm:h-9 sm:flex-none" @click="go(2)">Next: section practice<PhCaretRight /></Button>
                     </div>
                 </template>
 
                 <!-- Step 2: section practice -->
-                <template v-else-if="step === 2">
-                    <div class="mb-1 flex flex-wrap items-start gap-3">
+                <template v-if="panel === 'practice' || panel === 'sign'">
+                    <div :class="cn('mb-1 flex flex-wrap items-start gap-3', panel === 'sign' && 'mt-8')">
                         <div class="min-w-0 flex-1 basis-full sm:basis-0">
-                            <h2 :id="`step-${step}-title`" ref="stepHeading" tabindex="-1" class="text-[17px] font-semibold tracking-tight outline-none">
+                            <h2 v-if="panel !== 'sign'" :id="`step-${step}-title`" ref="stepHeading" tabindex="-1" class="text-[17px] font-semibold tracking-tight outline-none">
                                 Section practice
                             </h2>
+                            <h3 v-else class="text-[15px] font-semibold">Section practice</h3>
                             <p class="mt-0.5 max-w-[62ch] text-[13px] text-muted-foreground">
                                 Mark everyone who was expected. Troopers who said they will not attend or asked for a make-up are listed first.
                             </p>
@@ -1393,7 +1533,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                     </div>
 
                     <template v-if="practiceView.length">
-                        <div v-for="group in practiceView" :key="group.id" role="group" :aria-label="group.title">
+                        <div v-for="group in practiceView" :key="group.id" role="group" :aria-label="group.title" data-kind="practice">
                             <div class="flex items-baseline justify-between gap-3 px-1 pt-3.5 pb-1.5 text-[13px] font-semibold">
                                 <span>{{ group.title }}</span>
                                 <span class="text-xs font-normal text-muted-foreground tabular-nums">{{ group.hint ?? group.troopers.length }}</span>
@@ -1427,13 +1567,15 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                     />
 
                     <div class="mt-5 flex items-center gap-2 py-3">
-                        <Button variant="outline" class="h-11 sm:h-9" @click="go(1)"><PhCaretLeft />Back</Button>
-                        <Button class="ml-auto h-11 flex-1 sm:h-9 sm:flex-none" @click="go(3)">Next: review and post<PhCaretRight /></Button>
+                        <Button variant="outline" class="h-11 sm:h-9" @click="go(cycle ? 2 : 1)"><PhCaretLeft />Back</Button>
+                        <Button class="ml-auto h-11 flex-1 sm:h-9 sm:flex-none" @click="go(cycle ? 4 : 3)">
+                            {{ cycle ? 'Next: close for review' : 'Next: review and post' }}<PhCaretRight />
+                        </Button>
                     </div>
                 </template>
 
                 <!-- Step 3: review and post -->
-                <template v-else>
+                <template v-if="panel === 'review'">
                     <div class="mb-1">
                         <h2 :id="`step-${step}-title`" ref="stepHeading" tabindex="-1" class="text-[17px] font-semibold tracking-tight outline-none">
                             Review and post
@@ -1555,13 +1697,72 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                         </div>
                     </StepReview>
                 </template>
+
+                <!-- The new flow's post step (#703, mockup 703-2-post): copy the post to the forum, then say it is posted. -->
+                <template v-if="panel === 'post'">
+                    <div class="mb-1">
+                        <h2 :id="`step-${step}-title`" ref="stepHeading" tabindex="-1" class="text-[17px] font-semibold tracking-tight outline-none">Post</h2>
+                        <p class="mt-0.5 max-w-[62ch] text-[13px] text-muted-foreground">
+                            Copy the post and put it in the roll call thread on the forum. Marks fill in as the week goes on; you'll copy the same post again when you close.
+                        </p>
+                    </div>
+                    <div
+                        v-if="posted"
+                        role="status"
+                        class="mt-3 flex items-start gap-2.5 rounded-lg border border-success/35 bg-success/7 px-3.5 py-3 text-[13px]"
+                        data-testid="posted-state"
+                    >
+                        <PhCheckCircle class="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
+                        <p class="flex-1 font-medium">
+                            Roll call posted <TimeAgo :at="posted.at" quiet>{{ postedLabel }}</TimeAgo><template v-if="posted.by"> by {{ posted.by }}</template>
+                        </p>
+                    </div>
+                    <div class="mt-4 space-y-4">
+                        <FireteamPanel
+                            v-if="fireteams"
+                            :section-id="section.id"
+                            :troopers="orderedRows"
+                            :fireteams="fireteams"
+                            :editable="editable"
+                            :disabled-reason="readOnlyReason"
+                            @updated="onFireteams"
+                        />
+                        <TemplatePick
+                            v-if="templatePicker"
+                            :picker="templatePicker"
+                            :template="currentTemplate"
+                            :disabled-reason="templatePickDisabled"
+                            :saving="pickingTemplate"
+                            @pick="pickTemplate"
+                        />
+                        <ForumPost :post="post" />
+                    </div>
+                    <div class="mt-5 flex flex-wrap items-center gap-2 py-3">
+                        <Button variant="outline" class="hidden h-11 sm:inline-flex sm:h-9" @click="go(1)"><PhCaretLeft />Back</Button>
+                        <Button variant="outline" class="h-11 flex-1 sm:ml-auto sm:h-9 sm:flex-none" data-testid="copy-bbcode" :disabled="post.state !== 'ready'" @click="copyBbcode">
+                            <PhCopy />{{ copied ? 'Copy again' : 'Copy BBCode' }}
+                        </Button>
+                        <Button
+                            v-if="!posted"
+                            class="h-11 flex-1 sm:h-9 sm:flex-none"
+                            data-testid="mark-posted"
+                            :disabled="Boolean(readOnlyReason) || posting"
+                            :title="readOnlyReason ?? undefined"
+                            @click="markPostedAndContinue"
+                        >
+                            <PhCheck />Mark as posted, continue
+                        </Button>
+                        <Button v-else class="h-11 flex-1 sm:h-9 sm:flex-none" data-testid="post-next" @click="go(3)">Next: sign and mark<PhCaretRight /></Button>
+                    </div>
+                </template>
+                </template>
             </section>
 
             <!-- Aside: the step's tallies -->
-            <aside :class="cn('space-y-4 lg:sticky lg:top-[calc(var(--shell-top,3rem)+5.5rem)]', !(step === 2 && showDrawer) && 'hidden lg:block')" aria-label="Step details">
+            <aside :class="cn('space-y-4 lg:sticky lg:top-[calc(var(--shell-top,3rem)+5.5rem)]', !(markingPractice && showDrawer) && 'hidden lg:block')" aria-label="Step details">
                 <!-- Under the marks list on a phone, beside it on a wide screen (capture-review.html C). -->
                 <UnmatchedDrawer
-                    v-if="step === 2 && showDrawer"
+                    v-if="markingPractice && showDrawer"
                     :section-id="section.id"
                     :week="week.date"
                     :players="unmatchedPlayers"
@@ -1576,7 +1777,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                     @dismissed="onDismissed"
                 />
                 <div class="hidden space-y-4 lg:block">
-                    <Card v-if="step === 1" class="gap-0 p-4 text-[13px]">
+                    <Card v-if="panel === 'signatures'" class="gap-0 p-4 text-[13px]">
                         <p class="mb-1 font-semibold">This week's thread</p>
                         <p class="text-xs text-muted-foreground">Signatures close {{ closesLabel }}.</p>
                         <dl class="mt-3 divide-y divide-border">
@@ -1588,7 +1789,21 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                             <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">On LOA</dt><dd class="font-medium text-muted-foreground tabular-nums">{{ counts.loa }}</dd></div>
                         </dl>
                     </Card>
-                    <Card v-else-if="step === 2" class="gap-0 p-4 text-[13px]">
+                    <!-- Sign and mark (#703, mockup 703-3): the week's tallies, and on to close once it is done. -->
+                    <Card v-else-if="panel === 'sign'" class="gap-0 p-4 text-[13px]" data-testid="sign-tallies">
+                        <p class="mb-1 font-semibold">This week</p>
+                        <p class="text-xs text-muted-foreground">Signatures close {{ closesLabel }}.</p>
+                        <dl class="mt-3 divide-y divide-border">
+                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Will attend</dt><dd class="font-medium tabular-nums">{{ counts.willAttend }}</dd></div>
+                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Unsigned</dt><dd :class="cn('font-medium tabular-nums', counts.unsigned && 'text-warning')">{{ counts.unsigned }}</dd></div>
+                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Attended</dt><dd class="font-medium tabular-nums">{{ counts.present }}</dd></div>
+                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Not attended</dt><dd :class="cn('font-medium tabular-nums', counts.missed && 'text-destructive')">{{ counts.missed }}</dd></div>
+                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Not marked</dt><dd :class="cn('font-medium tabular-nums', counts.unmarked && 'text-warning')">{{ counts.unmarked }}</dd></div>
+                        </dl>
+                        <Button variant="outline" class="mt-3 w-full" data-testid="continue-to-close" @click="go(4)">Continue to close<PhCaretRight /></Button>
+                        <p class="mt-2 text-xs text-muted-foreground">You can keep editing until you close. A mark you set by hand always wins over the game server.</p>
+                    </Card>
+                    <Card v-else-if="panel === 'practice'" class="gap-0 p-4 text-[13px]">
                         <p class="mb-1 font-semibold">Section practice</p>
                         <p class="text-xs text-muted-foreground">Week {{ weekRange }}.</p>
                         <dl class="mt-3 divide-y divide-border">
@@ -1601,7 +1816,13 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                             <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">On LOA</dt><dd class="font-medium text-muted-foreground tabular-nums">{{ counts.loa }}</dd></div>
                         </dl>
                     </Card>
-                    <Card v-if="step === 3" class="gap-0 p-4 text-[13px]">
+                    <Card v-if="panel === 'post'" class="gap-2 p-4 text-[13px]" data-testid="post-aside">
+                        <p class="font-semibold">Posted it?</p>
+                        <p class="text-xs text-muted-foreground">
+                            The portal never posts for you. Once the post is in the roll call thread, mark it posted; signatures are read from that thread.
+                        </p>
+                    </Card>
+                    <Card v-if="panel === 'review'" class="gap-0 p-4 text-[13px]">
                         <p class="mb-2 font-semibold">To finish</p>
                         <ol class="space-y-2.5">
                             <li
@@ -1628,7 +1849,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                             </li>
                         </ol>
                     </Card>
-                    <Card v-if="editable && step < 3" class="gap-1.5 p-4 text-xs text-muted-foreground pointer-coarse:hidden">
+                    <Card v-if="editable && markingCards" class="gap-1.5 p-4 text-xs text-muted-foreground pointer-coarse:hidden">
                         <p class="mb-1 text-[13px] font-semibold text-foreground">Keyboard</p>
                         <p class="flex justify-between" data-testid="keyboard-move">
                             <span>Next or previous trooper</span>
