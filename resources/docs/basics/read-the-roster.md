@@ -3,7 +3,7 @@ title: Read the roster
 summary: See your units and troopers by order of battle, by their attendance week by week, or your unit's strength over time.
 section: basics
 order: 3
-updated: 2026-11-01
+updated: 2026-11-12
 audience: everyone
 page: /roster
 ---
@@ -19,7 +19,7 @@ page: /roster
 ## Choose a view
 
 1. **Order of battle** lists the units and their troopers by billet.
-2. **Attendance matrix** shows each trooper's section practice mark for the last 20 Cav weeks. Weeks on leave are marked LOA. Weeks before a trooper joined read "Not in the unit yet", weeks on HQ staff or in a group "No section that week", and weeks from the one they left in "Left the Cav".
+2. **Attendance matrix** shows each trooper's section practice mark for the last 20 Cav weeks. Weeks on leave are marked LOA. Weeks before a trooper joined read "Not in the unit yet", weeks in a group or on regimental staff "No section that week", and weeks from the one they left in "Left the Cav".
 3. **Strength** shows the unit's strength over time (see below).
 4. Filter by name, rank or billet with the box above the list.
 5. **Headcount** under the unit's name and on each unit in the order of battle is its headcount: everyone serving placed in the unit or under it, HQ staff and staff departments included. New Recruits, ELOA and Reservists count only on their own group. RC and SP are counted over the troopers in sections only, so the headcount never changes them.
@@ -27,6 +27,20 @@ page: /roster
 6. A warning icon next to a section means it has no practice slot set (point at it to read why). When a unit you lead has such sections, a warning above the views lists them, each linking to its roll call where the slot is set.
 
 > [!good-to-know] A warning icon by a name means the trooper has no identity for their unit's game; the warning at the top of the page lists them all.
+
+## Read HQ staff attendance
+
+Platoon, company and battalion HQ staff are on no section's roll call. A week they were on the HQ shows their weekly staff report instead, as one block in place of the roll call and SP halves:
+
+- Green: the report was sent and met the rule, the same rule the **Staff reports** pages use.
+- Red with a slash: the report was sent and fell short.
+- Red outline: the week is over and no report was sent.
+- Dashed: the current week, not sent yet.
+- LOA: the week is on leave, as for troopers.
+
+Point at a week to see the HQ, whether the report was sent, the practices they attended as a staff guest and their presence answer (public server hour or office hour). The practices and presence show only to those who can read that staff report: the staff member, the chain above their HQ and Admins. Everyone else sees whether it met the rule.
+
+RC 30d and SP 30d stay blank for HQ staff. In their place, **Reports 3 of 4 met** counts the reports over the last 4 finished Cav weeks, leaving out weeks on leave. It shows in the last column of both views and on the trooper's details. A week they were on a section's roll call, or in a group or on regimental staff, does not count.
 
 ## Set the practice presence minimum
 
