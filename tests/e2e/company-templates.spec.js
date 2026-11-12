@@ -17,6 +17,7 @@ test('a company commander adds a template and a section leader picks it for the 
     await expect(co.getByTestId('open-template-name')).toHaveText(NAME);
 
     // Its own text, so the post shows which template it came from.
+    await co.getByTestId('template-mode-source').click();
     const body = co.getByTestId('template-body');
     await body.fill(`[B]${NAME} {{unit}}[/B]`);
     await co.getByTestId('template-reason').fill('Mark it');

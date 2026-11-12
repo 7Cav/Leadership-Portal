@@ -30,9 +30,13 @@ page: /settings/templates
 
 ## Edit and preview it
 
-1. Choose the template in the list. Its text is under **Template**.
-2. **Preview** shows the post as it would be this week. Under **Fill with**, pick which section fills it, or **Sample section**.
-3. Give a **Reason** and choose **Save as a new version**. A template with a mistake is refused, so it never reaches a roll call.
+1. Choose the template in the list. It opens in **Visual**: the text formatted as the forum shows it, each code as a gold chip named for what it prints (**Trooper name**, **Roll call mark**), and the trooper loop as a row marked **Repeats for each trooper**.
+2. Type into it as into any text. Select text and use the toolbar for bold, italic, underline, size, colour, centre and a link, or press Ctrl+B, Ctrl+I or Ctrl+U. The toolbar also adds an image, a trooper table, and a column after the one the cursor is in (or removes it), in the header and the trooper row alike. Ctrl+Z takes a change back.
+3. **Insert code** lists only the codes that can go where the cursor is: the post's own codes (callsign, week, counts, the live images) anywhere, a trooper's own codes as well inside the trooper loop, and the loop itself as well outside it. A chip is deleted whole with Backspace, and deleting either end of a condition (**If Will attend** … **End**) removes the condition but keeps what it showed.
+4. **Source** shows the template as written, BBCode and codes, for whoever prefers to type it. Both edit the same text, and switching between them changes nothing. The page remembers which one you used last.
+5. **Preview**, beside the editor, shows the post as it would be this week, as you type. Under **Fill with**, pick which section fills it, or **Sample section**.
+6. A mistake shows under the editor as you type, with the line and column and the same words the save would be refused with. **Show in Source** selects it.
+7. Give a **Reason** and choose **Save as a new version**. A template with a mistake is refused, so it never reaches a roll call.
 
 ## Choose what the sections use
 
@@ -51,7 +55,7 @@ page: /settings/templates
 1. Write the BBCode as normal and put codes where the week's data goes. `{{name}}` prints a value.
 2. `{{#troopers}}...{{/troopers}}` repeats for each trooper. `{{#name}}...{{/name}}` shows only when a value or flag is set, and `{{^name}}...{{/name}}` only when it is not.
 3. `{{name|upper}}` and `{{name|lower}}` print a value in capitals or small letters.
-4. **Template codes** on the page lists every code you can use, with an example. Click one to put it in the template. A code not on the list is refused when you save.
+4. **Template codes** on the page lists every code you can use, with an example. Click one to put it in the template at the cursor, in **Visual** or **Source**. A code not on the list is refused when you save.
 5. To keep the Signed RC and Attended SP marks current after the post is on the forum, put the two live images in the template: `[IMG]{{rc_image}}[/IMG]` for who signed and `[IMG]{{sp_image}}[/IMG]` for who attended practice. Each lists every trooper with their mark, and the portal draws it from the marks as they are when the forum fetches it, so a mark changed later shows without pasting the post again (the forum may reuse an image for about a minute). The text table keeps working beside them if you want both.
 6. To show the week's training in the post, use `{{training_date}}` for when practice starts (such as `Wed 20May26 2300Z`) and `{{training_topic}}` for the topic, which is the same one the weekly report shows. Either is empty until it is set, so `{{#training_topic}}Topic: {{training_topic}}{{/training_topic}}` leaves the line out when there is none.
 
