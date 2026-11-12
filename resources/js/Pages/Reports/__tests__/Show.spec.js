@@ -359,6 +359,20 @@ describe('Reports/Show', () => {
         expect(wrapper.get('#training-subject').attributes('disabled')).toBeDefined();
     });
 
+    it('leaves the live roster sync out of a frozen report, and keeps it on a draft', () => {
+        const rosterSync = { source: 'milpac', at: '2026-10-12T17:00:00+00:00' };
+        const sent = mountShow({
+            rosterSync,
+            report: { status: 'sent', notes: '', trainingSubject: '', unaccounted: [], savedAt: null, sentAt: '2026-10-08T16:24:00+00:00', sentBy: null },
+            troopers: null,
+        });
+        const provenance = sent.get('[data-testid="provenance"]').text();
+
+        expect(provenance).toContain('Frozen');
+        expect(provenance).not.toContain('Roster from');
+        expect(mountShow({ rosterSync }).get('[data-testid="roster-sync"]').text()).toContain('Roster from milpac, synced');
+    });
+
     it('badges a reopened report Being edited and says until when it can be sent again', () => {
         const wrapper = mountShow({
             report: { status: 'sent', editing: true, notes: 'Good.', trainingSubject: 'Land nav', unaccounted: [], savedAt: null, sentAt: '2026-10-08T16:24:00+00:00', sentBy: 'SGT Vasquez.R' },
