@@ -30,6 +30,8 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import EmptyState from '@/components/EmptyState.vue';
 import MissingIdentityNotice from '@/components/MissingIdentityNotice.vue';
@@ -160,6 +162,8 @@ const props = defineProps({
     training: { type: Object, default: null },
     // Which roll call flow the week follows (#703): `{ version, created: { at, by } | null }`. Null for the picker.
     flow: { type: Object, default: null },
+    // The section's report draft for the close step (#703): `{ notes, unaccounted, reasons }`. Null for the picker.
+    reportDraft: { type: Object, default: null },
 });
 
 const page = usePage();
@@ -624,7 +628,9 @@ async function markPosted() {
         const editsBefore = edits;
         // Copied here, but the post changed since: the forum has the older text, so the stamp is not a current post.
         const staleCopy = copyStale.value;
-        const result = await postJson(`/rollcall/${props.section.id}/posted`, { week: props.week.date }).catch(unreachable);
+        // The forum thread it went in (#703), when the leader gave one on the post step; none keeps the one on record.
+        const thread = threadUrl.value.trim();
+        const result = await postJson(`/rollcall/${props.section.id}/posted`, { week: props.week.date, ...(thread ? { thread_url: thread } : {}) }).catch(unreachable);
         if (result.ok && result.data?.posted) {
             posted.value = result.data.posted;
             editedSincePost.value = staleCopy || edits !== editsBefore;
@@ -667,6 +673,38 @@ async function markPostedAndContinue() {
 const sendingForReview = ref(false);
 // A topic typed on the training card and not saved yet (#703): the send would freeze the old one.
 const trainingDirty = ref(false);
+
+// The report's notes and unaccounted reasons, written on the close step (#703): saved a moment after each change, and
+// before closing, as the report's own draft. A reload keeps what is still waiting to save.
+const reportDraft = ref(props.reportDraft ?? { notes: null, unaccounted: [], reasons: [] });
+let notesTimer = null;
+watch(
+    () => props.reportDraft,
+    (value) => {
+        if (value && notesTimer === null) reportDraft.value = value;
+    },
+);
+onBeforeUnmount(() => clearTimeout(notesTimer));
+function onDraft(value) {
+    reportDraft.value = value;
+    clearTimeout(notesTimer);
+    notesTimer = setTimeout(saveNotes, 800);
+}
+async function saveNotes() {
+    clearTimeout(notesTimer);
+    notesTimer = null;
+    const { notes, unaccounted } = reportDraft.value;
+    const result = await postJson(`/rollcall/${props.section.id}/report-notes`, { week: props.week.date, notes: notes || null, unaccounted }).catch(unreachable);
+    if (!result.ok) {
+        toast.error('Could not save the notes', { description: messageFor(result) });
+        if (result.status === 409 && result.data?.locked) router.reload();
+
+        return false;
+    }
+
+    return true;
+}
+
 async function sendForReview() {
     if (trainingDirty.value) {
         toast.warning('Save the training topic first', { description: 'The topic you typed is not saved, so the report would go without it.' });
@@ -675,6 +713,8 @@ async function sendForReview() {
     }
     sendingForReview.value = true;
     try {
+        // Notes still waiting to save go first: the send dialog shows what the report holds.
+        if (notesTimer !== null && !(await saveNotes())) return;
         if (!(await commitHeld())) {
             toast.error('Changes are not saved yet', { description: autosave.error.value ?? autosave.lockedMessage.value });
 
@@ -848,6 +888,11 @@ const markedSince = (practice) =>
     Boolean(practice?.posted && practice.lastMarkedAt && new Date(practice.lastMarkedAt) > new Date(practice.posted.at));
 const posted = ref(props.practice?.posted ?? null);
 const editedSincePost = ref(markedSince(props.practice));
+// The forum thread link typed on the post step (#703), filled from the one on record.
+const threadUrl = ref(props.practice?.posted?.threadUrl ?? '');
+watch(posted, (value) => {
+    if (value?.threadUrl) threadUrl.value = value.threadUrl;
+});
 
 // A reload that keeps this screen (the capture retry's, or any preserve-state visit) brings a fresh
 // `practice`: posted and confirmed are re-read from it, not kept from the first load. An edit seen
@@ -952,7 +997,7 @@ onMounted(() => {
 // screen that was just left has sent what it still held, and keep the opening marks as this visit's "before". It is a
 // partial reload of what changes as the week is worked, so a mark set meanwhile neither trips the leave guard nor is
 // overwritten (the rows keep a mark not saved yet).
-const LIVE_PROPS = ['troopers', 'practice', 'atRisk', 'makeupOwed', 'weekStatus', 'fireteams', 'unmatched', 'dismissed', 'departed', 'capture', 'telemetry', 'locked', 'report', 'training'];
+const LIVE_PROPS = ['troopers', 'practice', 'atRisk', 'makeupOwed', 'weekStatus', 'fireteams', 'unmatched', 'dismissed', 'departed', 'capture', 'telemetry', 'locked', 'report', 'training', 'reportDraft'];
 // A save that never answers must not keep the marks stale for good: past a few seconds, read them anyway.
 const LEFT_WAIT_MS = 3000;
 onMounted(() => {
@@ -1397,6 +1442,9 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
             @copy="copyBbcode"
             @mark-posted="markPosted"
             @send="sendForReview"
+            :troopers="orderedRows"
+            :draft="reportDraft"
+            @update:draft="onDraft"
         >
             <StepReview :troopers="orderedRows" :at-risk="liveAtRisk" :makeup-owed="makeupOwed" :fix-step="3" @go="go" />
         </RollcallClose>
@@ -1747,6 +1795,19 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                             @pick="pickTemplate"
                         />
                         <ForumPost :post="post" />
+                    </div>
+                    <div class="mt-4 grid max-w-xl gap-1.5">
+                        <Label for="thread-url">Forum thread link</Label>
+                        <Input
+                            id="thread-url"
+                            v-model="threadUrl"
+                            type="url"
+                            inputmode="url"
+                            placeholder="https://7cav.us/threads/..."
+                            :disabled="Boolean(readOnlyReason)"
+                            data-testid="thread-url"
+                        />
+                        <p class="text-xs text-muted-foreground">Optional. The close step links to it, and Platoon Staff can open it from the report.</p>
                     </div>
                     <div class="mt-5 flex flex-wrap items-center gap-2 py-3">
                         <Button variant="outline" class="hidden h-11 sm:inline-flex sm:h-9" @click="go(1)"><PhCaretLeft />Back</Button>

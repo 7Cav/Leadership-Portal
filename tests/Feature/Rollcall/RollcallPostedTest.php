@@ -21,12 +21,12 @@ beforeEach(function () {
 it('records when and by whom the rollcall was posted, and shows it on the page', function () {
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted", ['week' => '2026-10-03'])
         ->assertOk()
-        ->assertJsonPath('posted', ['at' => '2026-10-08T16:20:00+00:00', 'by' => 'Vasquez.R']);
+        ->assertJsonPath('posted', ['at' => '2026-10-08T16:20:00+00:00', 'by' => 'Vasquez.R', 'threadUrl' => null]);
 
     expect(AuditLogEntry::query()->where('action', 'rollcall.posted')->count())->toBe(1);
 
     $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
-        ->assertInertia(fn ($page) => $page->where('practice.posted', ['at' => '2026-10-08T16:20:00+00:00', 'by' => 'Vasquez.R']));
+        ->assertInertia(fn ($page) => $page->where('practice.posted', ['at' => '2026-10-08T16:20:00+00:00', 'by' => 'Vasquez.R', 'threadUrl' => null]));
 });
 
 it('shows a week never marked posted as not posted', function () {
@@ -75,3 +75,29 @@ it('refuses to mark a week posted once its report has been sent, as locked (AD-1
     expect(SectionPractice::query()->whereNotNull('rollcall_posted_at')->count())->toBe(0)
         ->and(AuditLogEntry::query()->where('action', 'rollcall.posted')->count())->toBe(0);
 });
+
+it('keeps the forum thread the roll call was posted in, and a later mark without one keeps it (#703)', function () {
+    config(['services.sevencav.base_url' => 'https://7cav.us']);
+    $url = 'https://7cav.us/threads/1-1-a-roll-call.123/';
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted", ['week' => '2026-10-03', 'thread_url' => " {$url} "])
+        ->assertOk()->assertJsonPath('posted.threadUrl', $url);
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted", ['week' => '2026-10-03'])
+        ->assertOk()->assertJsonPath('posted.threadUrl', $url);
+
+    expect(SectionPractice::query()->sole()->rollcall_thread_url)->toBe($url);
+});
+
+it('refuses a thread link that is not on the forum, and writes nothing (#703)', function (string $link) {
+    config(['services.sevencav.base_url' => 'https://7cav.us']);
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted", ['week' => '2026-10-03', 'thread_url' => $link])
+        ->assertStatus(422)->assertJsonPath('message', 'Paste the link to the roll call thread on the forum.');
+
+    expect(SectionPractice::query()->count())->toBe(0);
+})->with([
+    'another site' => 'https://example.com/threads/1/',
+    'a look-alike host' => 'https://7cav.us.example.com/threads/1/',
+    'not https' => 'http://7cav.us/threads/1/',
+    'not a link' => 'roll call thread',
+]);

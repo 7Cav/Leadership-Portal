@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Commands\WeeklyReports\SectionTrainingSubject;
+use App\Models\UnaccountedReason;
 use App\Models\Unit;
 use App\Models\WeeklyReportStatus;
 use App\Repositories\PlatoonTrainingTopicRepository;
@@ -43,6 +44,24 @@ final class RollcallCycleProps
                 'at' => $practice->rollcall_created_at->toIso8601String(),
                 'by' => $practice->rollcallCreatedBy?->username,
             ],
+        ];
+    }
+
+    /**
+     * The section's draft report as the close step writes it (#703): its `notes`, the `unaccounted` reasons chosen
+     * (`[{trooper_id, reason}]`), and the `reasons` a trooper may be given (`[{value, label}]`). A sent report shows what
+     * it froze.
+     *
+     * @return array{notes: ?string, unaccounted: list<array{trooper_id: int, reason: string}>, reasons: list<array{value: string, label: string}>}
+     */
+    public function draft(Unit $section, CarbonImmutable $weekStart): array
+    {
+        $report = $this->reports->find($section->id, $weekStart);
+
+        return [
+            'notes' => $report?->notes,
+            'unaccounted' => array_values($report->unaccounted ?? []),
+            'reasons' => array_map(fn (UnaccountedReason $reason) => ['value' => $reason->value, 'label' => $reason->label()], UnaccountedReason::cases()),
         ];
     }
 

@@ -116,9 +116,13 @@ class Eloquent implements SectionPracticeRepository
             ->toBase();
     }
 
-    public function markRollcallPosted(SectionPractice $practice, int $userId): SectionPractice
+    public function markRollcallPosted(SectionPractice $practice, int $userId, ?string $threadUrl = null): SectionPractice
     {
-        $practice->forceFill(['rollcall_posted_at' => now(), 'rollcall_posted_by' => $userId])->save();
+        $practice->forceFill([
+            'rollcall_posted_at' => now(),
+            'rollcall_posted_by' => $userId,
+            'rollcall_thread_url' => $threadUrl ?? $practice->rollcall_thread_url,
+        ])->save();
 
         return $practice->load('rollcallPostedBy');
     }

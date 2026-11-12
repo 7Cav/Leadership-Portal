@@ -238,6 +238,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // The roll call's weekly cycle (#703): create a week's roll call with its training date and topic (flow 2), and the
     // topic on its own, which is the weekly report's training subject, one value.
     Route::post('/rollcall/{unit}/create', [RollcallTrainingController::class, 'create'])->middleware('throttle:audited-writes')->name('rollcall.create');
+    Route::post('/rollcall/{unit}/report-notes', [RollcallTrainingController::class, 'notes'])->middleware('throttle:report-drafts')->name('rollcall.report-notes');
     Route::post('/rollcall/{unit}/training-topic', [RollcallTrainingController::class, 'topic'])->middleware('throttle:audited-writes')->name('rollcall.training-topic');
     Route::post('/rollcall/{unit}/template', RollcallTemplateController::class)->middleware('throttle:audited-writes')->name('rollcall.template.pick');
 

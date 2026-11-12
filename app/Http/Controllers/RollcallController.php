@@ -252,6 +252,8 @@ class RollcallController extends Controller
             'report' => $this->reportProps($section, $weekStart),
             // Which roll call flow the week follows and whether its roll call was created (#703).
             'flow' => $this->cycle->flow($section, $weekStart),
+            // The section's report notes and unaccounted reasons, which the new flow's close step writes (#703).
+            'reportDraft' => $this->cycle->draft($section, $weekStart),
             // The week's training topic (#703): the weekly report's training subject, which the post prints.
             'training' => $this->cycle->training($section, $weekStart, $this->scope->writeScope($user)->contains($section->id)),
             ...$this->rosterProps($section, $weekStart, $currentWeek),
@@ -353,7 +355,15 @@ class RollcallController extends Controller
      */
     public function posted(Request $request, int $unit, MarkRollcallPostedHandler $handler): JsonResponse
     {
-        $validator = Validator::make($request->all(), ['week' => ['required', 'date_format:Y-m-d']]);
+        $validator = Validator::make($request->all(), [
+            'week' => ['required', 'date_format:Y-m-d'],
+            // The forum thread it was posted in (#703): optional, and only a link on the forum itself.
+            'thread_url' => ['nullable', 'string', 'max:500', 'url:https', function (string $attribute, mixed $value, \Closure $fail) {
+                if (! is_string($value) || parse_url($value, PHP_URL_HOST) !== parse_url((string) config('services.sevencav.base_url'), PHP_URL_HOST)) {
+                    $fail('Paste the link to the roll call thread on the forum.');
+                }
+            }],
+        ], ['thread_url.url' => 'Paste the link to the roll call thread on the forum.']);
 
         if ($validator->fails()) {
             return response()->json(['message' => $validator->errors()->first()], 422);
@@ -367,7 +377,7 @@ class RollcallController extends Controller
         }
 
         try {
-            $practice = $handler->handle($request->user(), new MarkRollcallPosted($unit, $weekStart));
+            $practice = $handler->handle($request->user(), new MarkRollcallPosted($unit, $weekStart, $request->filled('thread_url') ? trim((string) $request->input('thread_url')) : null));
         } catch (MarkRollcallPostedForbiddenException $e) {
             return response()->json(['message' => $e->getMessage()], 403);
         } catch (InvalidAttendanceMarkException $e) {
@@ -653,7 +663,9 @@ class RollcallController extends Controller
     }
 
     /**
-     * @return array{at: string, by: ?string}|null
+     * `threadUrl` is the forum thread it was posted in, when the leader gave it (#703).
+     *
+     * @return array{at: string, by: ?string, threadUrl: ?string}|null
      */
     private function postedProps(?SectionPractice $practice): ?array
     {
@@ -664,6 +676,7 @@ class RollcallController extends Controller
         return [
             'at' => $practice->rollcall_posted_at->toIso8601String(),
             'by' => $practice->rollcallPostedBy?->username,
+            'threadUrl' => $practice->rollcall_thread_url,
         ];
     }
 

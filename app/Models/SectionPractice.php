@@ -21,7 +21,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * Repository layer for the audited `MarkRollcallPosted` Command, so not mass-assignable either.
  * `confirmed_at`/`_by` record the leader confirming the practice's marks as reviewed (7.8), likewise
  * written only for the audited `ConfirmSectionPractice` Command, as is `not_held`, which says the leader confirmed the
- * practice did not take place (#634). `flow_version` is the roll call flow the week follows (#703, `RollcallFlow`),
+ * practice did not take place (#634), and `rollcall_thread_url`, the forum thread it was posted in (#703). `flow_version` is the roll call flow the week follows (#703, `RollcallFlow`),
  * given once when the Repository layer makes the row; `rollcall_created_at`/`_by` record a flow 2 roll call being
  * created, written only for the audited `CreateRollcall` Command.
  */

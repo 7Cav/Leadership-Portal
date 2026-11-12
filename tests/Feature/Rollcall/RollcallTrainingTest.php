@@ -126,3 +126,47 @@ it('refuses a section outside the leader\'s write scope, a future week, and a su
 
     expect(WeeklyReport::query()->exists())->toBeFalse();
 });
+
+function rtrNotes(User $actor, ?string $notes, array $unaccounted = [])
+{
+    return test()->actingAs($actor)->postJson('/rollcall/'.test()->section->id.'/report-notes', ['week' => '2026-10-03', 'notes' => $notes, 'unaccounted' => $unaccounted]);
+}
+
+it('saves the report\'s notes and reasons from the close step, keeping the section\'s own topic', function () {
+    rtrSet($this->leader, 'Our own')->assertOk();
+    $reasons = [['trooper_id' => $this->trooper->id, 'reason' => 'no_notice']];
+
+    rtrNotes($this->leader, 'Good session.', $reasons)->assertOk()
+        ->assertJsonPath('reportDraft.notes', 'Good session.')
+        ->assertJsonPath('reportDraft.unaccounted.0.reason', 'no_notice');
+
+    $report = WeeklyReport::query()->sole();
+    expect($report->notes)->toBe('Good session.')
+        ->and($report->unaccounted)->toEqual($reasons)
+        ->and($report->training_subject)->toBe('Our own');
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('reportDraft.notes', 'Good session.')
+            ->where('reportDraft.reasons.0.value', fn ($value) => is_string($value)));
+});
+
+it('leaves a section following its platoon\'s topic still following it, enforced or not', function () {
+    rtrTopic('Room clearing', false, $this->platoonLeader);
+    rtrNotes($this->leader, 'Notes.')->assertOk();
+    expect(WeeklyReport::query()->sole()->training_subject)->toBeNull();
+
+    rtrTopic('Land navigation', true, $this->platoonLeader);
+    rtrNotes($this->leader, 'More notes.')->assertOk();
+    expect(WeeklyReport::query()->sole())->notes->toBe('More notes.')->training_subject->toBeNull();
+});
+
+it('refuses a reason for a trooper not on the roll call, a sent week, and a section outside scope', function () {
+    rtrNotes($this->leader, null, [['trooper_id' => 999999, 'reason' => 'no_notice']])->assertStatus(422);
+    rtrNotes(User::factory()->serving()->create(), 'Nope')->assertForbidden();
+    expect(WeeklyReport::query()->exists())->toBeFalse();
+
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->week, 'notes' => 'Frozen']);
+    rtrNotes($this->leader, 'Changed')->assertStatus(409)->assertJson(['locked' => true]);
+    expect(WeeklyReport::query()->sole()->notes)->toBe('Frozen');
+});

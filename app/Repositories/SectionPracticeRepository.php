@@ -85,7 +85,10 @@ interface SectionPracticeRepository
      */
     public function weekStatuses(int $sectionId, CarbonInterface $firstWeek, CarbonInterface $lastWeek, array $excused = []): Collection;
 
-    public function markRollcallPosted(SectionPractice $practice, int $userId): SectionPractice;
+    /**
+     * `$threadUrl` is the forum thread it was posted in (#703); null keeps the one recorded before.
+     */
+    public function markRollcallPosted(SectionPractice $practice, int $userId, ?string $threadUrl = null): SectionPractice;
 
     /**
      * Record that a leader reviewed and confirmed the practice's marks (7.8): `confirmed_at` = now,

@@ -11,6 +11,8 @@ use App\Commands\Attendance\RollcallWeekLockedException;
 use App\Commands\Practices\InvalidPracticeSlotException;
 use App\Commands\Practices\PracticeSchedule;
 use App\Commands\WeeklyReports\InvalidReportContentException;
+use App\Commands\WeeklyReports\SaveReportNotes;
+use App\Commands\WeeklyReports\SaveReportNotesHandler;
 use App\Commands\WeeklyReports\SendWeeklyReportForbiddenException;
 use App\Commands\WeeklyReports\SetSectionTrainingSubject;
 use App\Commands\WeeklyReports\SetSectionTrainingSubjectHandler;
@@ -93,6 +95,54 @@ class RollcallTrainingController extends Controller
             'training' => $this->cycle->training($section, $weekStart, true),
             'practiceSlot' => $this->schedule->props($unit, $weekStart, null),
         ]);
+    }
+
+    /**
+     * The report's notes and the reasons for its unaccounted troopers, from the close step (#703). Answers the
+     * `reportDraft` prop as it now stands.
+     */
+    public function notes(Request $request, int $unit, SaveReportNotesHandler $handler): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'week' => ['required', 'date_format:Y-m-d'],
+            'notes' => ['present', 'nullable', 'string', 'max:5000'],
+            'unaccounted' => ['present', 'array', 'max:200'],
+            'unaccounted.*.trooper_id' => ['required', 'integer'],
+            'unaccounted.*.reason' => ['required', 'string'],
+        ], ['notes.max' => 'Keep the notes to :max characters.']);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => $validator->errors()->first()], 422);
+        }
+
+        $weekStart = WeekOf::start(CarbonImmutable::createFromFormat('!Y-m-d', $request->input('week'), 'UTC'));
+
+        if ($weekStart->greaterThan(WeekOf::start(CarbonImmutable::now()))) {
+            return response()->json(['message' => 'A future week cannot be changed yet.'], 422);
+        }
+
+        try {
+            $handler->handle($request->user(), new SaveReportNotes(
+                $unit,
+                $weekStart->toDateTimeImmutable(),
+                $request->input('notes'),
+                array_map(fn (array $row) => ['trooper_id' => (int) $row['trooper_id'], 'reason' => (string) $row['reason']], $request->input('unaccounted', [])),
+            ));
+        } catch (SendWeeklyReportForbiddenException) {
+            return response()->json(['message' => 'This section is outside your scope.'], 403);
+        } catch (InvalidReportContentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (TrainingSubjectEnforcedException) {
+            return response()->json(['message' => "Your platoon changed this week's training topic. Reload the page to see it."], 422);
+        } catch (WeeklyReportAlreadySentException) {
+            return response()->json(['message' => 'The report for this week has been sent, so its roll call is locked.', 'locked' => true], 409);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'The portal hit an error saving the notes. Try again in a moment.'], 500);
+        }
+
+        return response()->json(['reportDraft' => $this->cycle->draft($this->units->find($unit), $weekStart)]);
     }
 
     public function topic(Request $request, int $unit, SetSectionTrainingSubjectHandler $handler): JsonResponse
