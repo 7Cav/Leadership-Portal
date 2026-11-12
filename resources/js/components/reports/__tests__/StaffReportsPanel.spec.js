@@ -60,6 +60,27 @@ describe('StaffReportsPanel', () => {
         expect(line.find('[data-testid="staff-report-public-server"]').text()).toBe('43 minutes of server data');
     });
 
+    it('says once that a game that can never be read is self-reported, in place of each no data alert', () => {
+        const noData = {
+            sent: true, attended: true, practices: 1, presenceType: 'public_server',
+            presence: { check: 'no_data', source: 'game server' },
+            publicServer: { check: 'no_data', source: 'public server', minutes: null, reason: 'no_server' },
+        };
+        const rows = [row(noData), row({ ...noData, trooperId: 2 })];
+
+        const quiet = mount(StaffReportsPanel, { props: { rows, selfReported: 'Battlefield 6' } });
+        expect(quiet.findAll('[data-testid="self-reported-notice"]')).toHaveLength(1);
+        expect(quiet.get('[data-testid="self-reported-notice"]').text()).toBe("Server data can't be read automatically for Battlefield 6. All attendance is self-reported.");
+        expect(quiet.find('[data-testid="staff-report-presence"]').exists()).toBe(false);
+        expect(quiet.find('[data-testid="staff-report-public-server"]').exists()).toBe(false);
+
+        // Not set up yet: the alerts stay, saying so, and there is no notice.
+        const loud = mount(StaffReportsPanel, { props: { rows } });
+        expect(loud.find('[data-testid="self-reported-notice"]').exists()).toBe(false);
+        expect(loud.find('[data-testid="staff-report-row-1"] [data-testid="staff-report-presence"]').text()).toBe('No game server data: not set up for this game yet');
+        expect(loud.find('[data-testid="staff-report-row-1"] [data-testid="staff-report-public-server"]').text()).toBe('No game server data: no public server is set up yet');
+    });
+
     it('says when there is nobody to show', () => {
         expect(mount(StaffReportsPanel, { props: { rows: [] } }).find('[data-testid="staff-reports-empty"]').exists()).toBe(true);
     });

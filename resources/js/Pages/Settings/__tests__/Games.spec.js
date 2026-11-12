@@ -42,6 +42,7 @@ const INTERFACES = [
     { value: 'battlemetrics', label: 'BattleMetrics' },
     { value: 'nightwatch', label: 'Nightwatch' },
     { value: 'none', label: 'None' },
+    { value: 'impossible', label: 'None (impossible)' },
 ];
 const GAMES = [
     { id: 1, slug: 'hll', name: 'Hell Let Loose', abbreviation: 'HLL', idKinds: ['Steam ID'], interface: 'crcon', retired: false, inUse: true },
@@ -118,6 +119,16 @@ describe('Settings/Games', () => {
 
         await wrapper.get('[data-testid="cancel-edit"]').trigger('click');
         expect(wrapper.get('[data-testid="submit-game"]').text()).toBe('Add game');
+    });
+
+    it('offers None (impossible) apart from None, and saves it', async () => {
+        const wrapper = factory();
+        await wrapper.get('[data-testid="edit-squad"]').trigger('click');
+
+        expect(wrapper.findAll('[data-testid="game-interface"] option').map((o) => o.text())).toEqual(['CRCON', 'BattleMetrics', 'Nightwatch', 'None', 'None (impossible)']);
+        await wrapper.get('[data-testid="game-interface"]').setValue('impossible');
+        await wrapper.get('[data-testid="game-form"]').trigger('submit');
+        expect(patch).toHaveBeenCalledWith('/settings/games/4', expect.anything(), expect.objectContaining({ interface: 'impossible' }));
     });
 
     it('retires, brings back and deletes through their routes, showing a refusal by the row', async () => {

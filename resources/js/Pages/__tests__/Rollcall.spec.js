@@ -1743,7 +1743,16 @@ describe('Rollcall page', () => {
         it('says telemetry is not configured, with no retry to offer', () => {
             wrapper = factory({ telemetry: NOT_CONFIGURED });
 
-            expect(wrapper.find('[data-testid="telemetry-banner"]').text()).toContain('Capture is not set up for Hell Let Loose, so nothing was pre-filled. Mark attendance by hand.');
+            expect(wrapper.find('[data-testid="telemetry-banner"]').text()).toContain('Capture is not set up yet for Hell Let Loose, so nothing was pre-filled. Mark attendance by hand.');
+            expect(wrapper.find('[data-testid="telemetry-retry"]').exists()).toBe(false);
+        });
+
+        it('says plainly a game that can never be read is marked by hand, with no retry and no set-up hint', () => {
+            wrapper = factory({ telemetry: { ...NOT_CONFIGURED, platformLabel: 'Battlefield 6', detail: 'impossible' } });
+            const banner = wrapper.find('[data-testid="telemetry-banner"]');
+
+            expect(banner.text()).toBe("Server data can't be read automatically for Battlefield 6. Mark attendance by hand.");
+            expect(banner.classes()).toContain('bg-warning/8');
             expect(wrapper.find('[data-testid="telemetry-retry"]').exists()).toBe(false);
         });
 

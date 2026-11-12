@@ -101,13 +101,19 @@ describe('with no server selected for the game (the legacy env server)', functio
     });
 });
 
-it('has no server, and so is not configured, for a game read by no interface, even with servers selected', function () {
-    $none = Game::factory()->create(['interface' => TelemetryInterface::None]);
+it('has no server, and so is not configured, for a game read by no interface, even with servers selected', function (TelemetryInterface $interface) {
+    $none = Game::factory()->create(['interface' => $interface]);
     GameServer::factory()->trainingFor($none->id)->create();
+    GameServer::factory()->create(['game_id' => $none->id, 'selected' => true, 'type' => GameServerType::Public]);
 
     expect(defaultSources()->for($none))->toBe([])
+        ->and(defaultSources()->publicFor($none))->toBe([])
+        ->and(defaultSources()->readsEnvServer($none))->toBeFalse()
         ->and(defaultSources()->isConfigured($none))->toBeFalse();
-});
+})->with([
+    'none (not set up yet)' => [TelemetryInterface::None],
+    'none (impossible)' => [TelemetryInterface::Impossible],
+]);
 
 describe('with servers selected for the game', function () {
     it('reads only its selected training servers, each by its own interface, a CRCON one with its BattleMetrics twin', function () {

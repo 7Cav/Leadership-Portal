@@ -532,6 +532,24 @@ describe('StaffReport page', () => {
         expect(before.find('[data-testid="staff-report-presence-answer"]').exists()).toBe(false);
     });
 
+    it('says once that a game that can never be read is self-reported, in place of the no data alerts', () => {
+        const report = {
+            sentAt: '2026-10-08T20:00:00+00:00', attended: true, practiceType: 'sp', practices: [{ sectionId: 9, section: '1/1/A/1-7' }], presenceType: 'public_server',
+            presence: { check: 'no_data', source: 'game server' },
+            publicServer: { check: 'no_data', source: 'public server', minutes: null, reason: 'no_server' },
+        };
+
+        const quiet = page({ self: false, canSend: false, report, selfReported: 'Battlefield 6' });
+        expect(quiet.findAll('[data-testid="self-reported-notice"]')).toHaveLength(1);
+        expect(quiet.get('[data-testid="self-reported-notice"]').text()).toBe("Server data can't be read automatically for Battlefield 6. All attendance is self-reported.");
+        expect(quiet.find('[data-testid="staff-report-presence"]').exists()).toBe(false);
+        expect(quiet.find('[data-testid="staff-report-public-server"]').exists()).toBe(false);
+
+        const loud = page({ self: false, canSend: false, report });
+        expect(loud.find('[data-testid="self-reported-notice"]').exists()).toBe(false);
+        expect(loud.get('[data-testid="staff-report-presence"]').text()).toBe('No game server data: not set up for this game yet');
+    });
+
     it('reads a class back by its name and date', () => {
         const wrapper = page({ hq: BATTALION, canSend: false, report: { sentAt: '2026-10-08T20:00:00+00:00', attended: true, practiceType: 'class', ftx: { name: 'NCO class', date: '2026-10-06' }, practices: [] } });
 

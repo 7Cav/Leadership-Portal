@@ -108,8 +108,17 @@ describe('Settings/Servers', () => {
         const wrapper = factory();
 
         expect(wrapper.get('[data-testid="interface-4"]').text()).toBe('None');
-        expect(wrapper.get('[data-testid="env-4"]').text()).toBe('Attendance read by none: leaders mark it by hand.');
+        expect(wrapper.get('[data-testid="env-4"]').text()).toBe('Attendance read by none: not set up yet, so leaders mark it by hand.');
         expect(wrapper.find('[data-testid="test-4"]').exists()).toBe(false);
+    });
+
+    it('says a game set to none (impossible) can never be read, apart from one not set up yet', () => {
+        const wrapper = factory({ games: [...GAMES, { id: 5, name: 'Battlefield 6', retired: false, interface: 'impossible', readsEnvServer: false, captureConfigured: false, connections: [] }] });
+
+        expect(wrapper.get('[data-testid="interface-5"]').text()).toBe('None (impossible)');
+        expect(wrapper.get('[data-testid="configured-5"]').text()).toBe("Can't be read");
+        expect(wrapper.get('[data-testid="env-5"]').text()).toBe("Attendance can't be read automatically for this game: leaders mark it by hand and reports say it is self-reported.");
+        expect(wrapper.get('[data-testid="configured-4"]').text()).toBe('Not configured');
     });
 
     it('tests a game\'s connection and shows each outcome under it', async () => {

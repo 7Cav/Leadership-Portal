@@ -185,6 +185,25 @@ describe('StaffReports', () => {
         expect(decodeURIComponent(flags[0].attributes('src'))).not.toContain('data-text');
     });
 
+    it('says once per HQ that its game can never be read, in place of each row\'s no data alerts', () => {
+        const noData = { presence: { check: 'no_data', source: 'game server' }, publicServer: { check: 'no_data', source: 'public server', minutes: null, reason: 'no_server' } };
+        const groups = [
+            { id: 4, label: 'C/ACD', selfReported: 'Battlefield 6', rows: [row(noData), row({ ...noData, trooperId: 8 })] },
+            { id: 5, label: '1/A/1-7', selfReported: null, rows: [row({ ...noData, trooperId: 9 })] },
+        ];
+        const page = mount(StaffReports, { props: { week: WEEK, groups } });
+
+        const bf6 = page.get('[data-testid="staff-reports-hq-4"]');
+        expect(bf6.findAll('[data-testid="self-reported-notice"]')).toHaveLength(1);
+        expect(bf6.get('[data-testid="self-reported-notice"]').text()).toBe("Server data can't be read automatically for Battlefield 6. All attendance is self-reported.");
+        expect(bf6.find('[data-testid="staff-report-presence"]').exists()).toBe(false);
+        expect(bf6.find('[data-testid="row-public-server"]').exists()).toBe(false);
+
+        const hll = page.get('[data-testid="staff-reports-hq-5"]');
+        expect(hll.find('[data-testid="self-reported-notice"]').exists()).toBe(false);
+        expect(hll.get('[data-testid="row-public-server"]').text()).toBe('No game server data: no public server is set up yet');
+    });
+
     it('counts down to the due time while the viewer has not sent theirs', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-10-10T17:59:00Z'));
