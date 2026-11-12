@@ -406,7 +406,7 @@ trooper may open (decided 2026-10-28); that opens no other trooper's page.
 ### Staff report
 
 A platoon, company or battalion HQ staff member (a serving trooper placed on that HQ node when the week ended, ACD
-included) files their own weekly staff report, once that week has ended. Regiment HQ, staff departments, ELOA,
+included) files their own weekly staff report for each week, and can send it before the week ends. Regiment HQ, staff departments, ELOA,
 Reservists and New Recruits file none. "Above their HQ" is the unit the HQ sits in: the company for a platoon HQ, the
 battalion for a company HQ, the regiment for a battalion HQ (so regiment command and Admins read those). Reading follows the read scope there, as unit reports do, so a staff grant, an overseer
 and the Regimental HQ read count.
