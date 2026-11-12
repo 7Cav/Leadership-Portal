@@ -50,7 +50,7 @@ Deactivate a unit or staff group that no longer exists in the real org, such as 
 1. Select the unit and choose **Deactivate** in its details panel.
 2. The window says how many people are placed in it or under it. Give a reason if you like and choose **Deactivate**.
 
-The unit and everything under it are then hidden everywhere else: the roster and its unit pickers, Home, the reports and roll-ups (a roll-up no longer waits on it), staff reports, Staff grants, the unit switcher and the headcounts. Reports already sent keep what they show.
+The unit and everything under it are then hidden everywhere else: the roster and its unit pickers, Home, the reports and roll-ups (a roll-up no longer waits on it), staff reports, the Staff grants unit picker, the unit switcher and the headcounts. Reports already sent keep what they show. A staff grant on it stays on Staff grants for Admins, tagged **Inactive unit**, and gives no access until the unit is reactivated.
 
 > [!warning] People still placed in an inactive unit count nowhere, and their milpac page shows them as unplaced. Org structure lists them under the details panel, with the unit each one is in. Move each one, or reactivate the unit. If the roster sync places someone there, they show in that list too.
 

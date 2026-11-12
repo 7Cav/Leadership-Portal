@@ -4,6 +4,7 @@ use App\Authorization\ScopeResolver;
 use App\Kpi\Headcount;
 use App\Milpac\TrooperMilpac;
 use App\Models\AuditLogEntry;
+use App\Models\PortalRoleGrant;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
@@ -164,6 +165,34 @@ it('sends a non-Admin no inactive unit and no inactive data on Org structure', f
         ->and($units->contains(fn (array $unit) => array_key_exists('inactive', $unit) || array_key_exists('deactivated_at', $unit) || array_key_exists('placed_count', $unit)))->toBeFalse()
         ->and(collect($props['references'])->pluck('unit_id')->all())->not->toContain($this->roo->id)
         ->and($props['inactivePlaced'])->toBeNull();
+});
+
+it('keeps a staff grant on an inactive unit listed for an Admin, tagged, giving no scope until the unit is back', function () {
+    $holder = User::factory()->serving()->create(['username' => 'Grant.H']);
+    $grant = PortalRoleGrant::factory()->create(['user_id' => $holder->id, 'unit_id' => $this->rooDesk->id]);
+    $this->actingAs($this->admin)->patch("/settings/org-structure/{$this->roo->id}/active", ['active' => false]);
+
+    $rows = collect($this->get('/settings/staff-grants')->assertOk()->viewData('page')['props']['grants']);
+    expect($rows->firstWhere('id', $grant->id))->toMatchArray(['unit_inactive' => true, 'unit_label' => 'Chief of Staff › Recruitment Oversight Office › ROO Desk'])
+        ->and(app(ScopeResolver::class)->resolve($holder))->not->toContain($this->rooDesk->id);
+
+    // Anyone else sees no inactive unit, so not its grant either.
+    $others = collect($this->actingAs(User::factory()->serving()->create())->get('/settings/staff-grants')->viewData('page')['props']['grants']);
+    expect($others->pluck('id')->all())->not->toContain($grant->id);
+
+    $this->actingAs($this->admin)->patch("/settings/org-structure/{$this->roo->id}/active", ['active' => true]);
+    $rows = collect($this->get('/settings/staff-grants')->viewData('page')['props']['grants']);
+    expect($rows->firstWhere('id', $grant->id)['unit_inactive'])->toBeFalse()
+        ->and(app(ScopeResolver::class)->resolve($holder))->toContain($this->rooDesk->id);
+});
+
+it('lets an Admin revoke a staff grant on an inactive unit', function () {
+    $grant = PortalRoleGrant::factory()->create(['user_id' => User::factory()->create()->id, 'unit_id' => $this->roo->id]);
+    $this->actingAs($this->admin)->patch("/settings/org-structure/{$this->roo->id}/active", ['active' => false]);
+
+    $this->delete("/settings/staff-grants/{$grant->id}", ['reason' => 'Office closed'])->assertRedirect();
+
+    expect(PortalRoleGrant::find($grant->id))->toBeNull();
 });
 
 it('counts the people in a unit being deactivated, holding groups included', function () {
