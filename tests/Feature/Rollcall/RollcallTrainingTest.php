@@ -78,7 +78,7 @@ it('saves the topic as the weekly report\'s training subject, keeping the draft\
     $report = WeeklyReport::query()->sole();
     expect($report->training_subject)->toBe('Land navigation')
         ->and($report->notes)->toBe('Good week.')
-        ->and($report->unaccounted)->toBe($reasons)
+        ->and($report->unaccounted)->toEqual($reasons)
         ->and(AuditLogEntry::query()->where('action', SetSectionTrainingSubjectHandler::ACTION)->count())->toBe(1);
 
     // The same value on the report page: one subject, not a copy.
