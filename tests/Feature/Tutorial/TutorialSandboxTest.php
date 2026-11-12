@@ -75,20 +75,22 @@ it('runs every tutorial write on the practice copy, leaving the real audit log o
     $week = WeekOf::start(CarbonImmutable::now())->toDateString();
 
     $this->get("/rollcall/{$section}")->assertOk()->assertInertia(fn ($page) => $page->where('tutorialMode.steps.0.id', 'rollcall'));
+    $this->postJson("/rollcall/{$section}/create", ['week' => $week])->assertOk();
+    $this->postJson("/rollcall/{$section}/posted", ['week' => $week])->assertOk();
     markDemo($this, $leader->id, $section, $week);
     $this->postJson("/rollcall/{$section}/confirm", ['week' => $week])->assertOk();
-    $this->postJson("/rollcall/{$section}/posted", ['week' => $week])->assertOk();
 
     // The one real trace of the tutorial: the start, noted against the person.
     expect(realCounts())->toBe([...$before, 'audit_log' => $before['audit_log'] + 1])
         ->and(AuditLogEntry::query()->latest('id')->value('action'))->toBe('tutorial.started');
 
     $practice = inTutorial($leader->id, fn () => [
+        'created' => AuditLogEntry::query()->where('action', 'rollcall.created')->count(),
         'confirmed' => AuditLogEntry::query()->where('action', 'practice.confirmed')->count(),
         'posted' => AuditLogEntry::query()->where('action', 'rollcall.posted')->count(),
         'units' => Unit::query()->count(),
     ]);
-    expect($practice)->toBe(['confirmed' => 1, 'posted' => 1, 'units' => 6]);
+    expect($practice)->toBe(['created' => 1, 'confirmed' => 1, 'posted' => 1, 'units' => 6]);
 });
 
 it('ticks the coach card from what was done in the practice copy', function () {
@@ -97,17 +99,18 @@ it('ticks the coach card from what was done in the practice copy', function () {
     $section = practiceSectionId($leader->id);
     $week = WeekOf::start(CarbonImmutable::now())->toDateString();
 
-    $demo = inTutorial($leader->id, fn () => app(TutorialPracticeRepository::class)->trooperByUsername(PracticeWorld::DEMO)->id);
-    // Demo.K's card on Signatures, or the Signatures step while another one is open.
-    $this->get("/rollcall/{$section}")->assertInertia(fn ($page) => $page->where('tutorialMode.steps.0.highlight',
-        '[data-step="1"]:not([aria-current="step"]), section[aria-labelledby="step-1-title"] [data-trooper="'.$demo.'"]'));
+    // The tutorial's week is on the new roll call (#703): Create roll call first, or the Create step while another is open.
+    $this->get("/rollcall/{$section}")->assertInertia(fn ($page) => $page
+        ->where('flow.version', 2)
+        ->where('tutorialMode.steps.0.highlight', '[data-step="1"]:not([aria-current="step"]), section[aria-labelledby="step-1-title"] [data-testid="create-rollcall"]'));
     markDemo($this, $leader->id, $section, $week);
     $this->postJson("/rollcall/{$section}/confirm", ['week' => $week])->assertOk();
     $this->get("/rollcall/{$section}")->assertInertia(fn ($page) => $page
         ->where('tutorialMode.steps.0.checklist.0.done', true)
-        ->where('tutorialMode.steps.0.checklist.3.done', true)
-        ->where('tutorialMode.steps.0.checklist.4.done', false)
-        // Marked and confirmed, but not signed: Demo.K's signature is the next thing to do.
+        ->where('tutorialMode.steps.0.checklist.1.done', false)
+        ->where('tutorialMode.steps.0.checklist.4.done', true)
+        ->where('tutorialMode.steps.0.checklist.5.done', true)
+        // Marked and confirmed, but not created: creating the roll call is the next thing to do.
         ->where('tutorialMode.steps.0.highlight', fn ($selector) => str_contains((string) $selector, 'step-1-title')));
 });
 
@@ -160,14 +163,22 @@ it('points at each roll call step in turn: its tab while another step is open, t
         return $selector;
     };
 
+    expect($highlight())->toBe('[data-step="1"]:not([aria-current="step"]), section[aria-labelledby="step-1-title"] [data-testid="create-rollcall"]');
+
+    $this->postJson("/rollcall/{$section}/create", ['week' => $week])->assertOk();
+    expect($highlight())->toBe('[data-step="2"]:not([aria-current="step"]), section[aria-labelledby="step-2-title"] [data-testid="mark-posted"]');
+
+    $this->postJson("/rollcall/{$section}/posted", ['week' => $week])->assertOk();
+    expect($highlight())->toBe('[data-step="3"]:not([aria-current="step"]), section[aria-labelledby="step-3-title"] [data-kind="signature"] [data-trooper="'.$demo.'"]');
+
     $this->postJson("/rollcall/{$section}", ['week' => $week, 'marks' => [['trooper_id' => $demo, 'rollcall' => 'will_attend']]])->assertOk();
-    expect($highlight())->toBe('[data-step="2"]:not([aria-current="step"]), section[aria-labelledby="step-2-title"] [data-trooper="'.$demo.'"]');
+    expect($highlight())->toBe('[data-step="3"]:not([aria-current="step"]), section[aria-labelledby="step-3-title"] [data-kind="practice"] [data-trooper="'.$demo.'"]');
 
     markDemo($this, $leader->id, $section, $week);
     expect($highlight())->toBe('[data-testid="confirm-practice"]');
 
     $this->postJson("/rollcall/{$section}/confirm", ['week' => $week])->assertOk();
-    expect($highlight())->toBe('[data-step="3"]:not([aria-current="step"]), section[aria-labelledby="step-3-title"] [data-testid="mark-posted"]');
+    expect($highlight())->toBeNull();
 });
 
 it('ticks the subject of a platoon report from its training topic, and points at the subject and notes, then Send', function () {

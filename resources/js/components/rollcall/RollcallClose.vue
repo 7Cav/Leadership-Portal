@@ -80,7 +80,7 @@ function onEdited(value) {
 </script>
 
 <template>
-    <div class="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18.5rem]" data-testid="rollcall-close">
+    <section aria-labelledby="step-4-title" class="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18.5rem]" data-testid="rollcall-close">
         <div class="min-w-0 space-y-4">
             <h2 id="step-4-title" tabindex="-1" class="text-[17px] font-semibold tracking-tight outline-none">Close for review</h2>
 
@@ -200,5 +200,5 @@ function onEdited(value) {
                 </p>
             </Card>
         </aside>
-    </div>
+    </section>
 </template>

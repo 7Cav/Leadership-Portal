@@ -101,7 +101,7 @@ async function create(notHeld = false) {
 </script>
 
 <template>
-    <div class="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18.5rem]" data-testid="rollcall-create">
+    <section aria-labelledby="step-1-title" class="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18.5rem]" data-testid="rollcall-create">
         <Card class="gap-0 p-5 sm:p-6">
             <h2 id="step-1-title" tabindex="-1" class="text-[17px] font-semibold tracking-tight outline-none">Create this week's roll call</h2>
             <p class="mt-0.5 max-w-[62ch] text-[13px] text-muted-foreground">
@@ -193,5 +193,5 @@ async function create(notHeld = false) {
                 <p class="text-muted-foreground">The field is empty and editable. Type your own topic; Platoon Staff see it in the report.</p>
             </Card>
         </aside>
-    </div>
+    </section>
 </template>

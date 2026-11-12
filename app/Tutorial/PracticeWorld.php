@@ -146,9 +146,10 @@ final class PracticeWorld
             $this->history($other, $otherMembers, $past, $otherLead, self::SUBJECTS[(self::HISTORY_WEEKS - $back)], $back + 1);
         }
 
-        // This week: seen on the practice server, not confirmed, not posted, and Demo.K neither signed nor seen. The
-        // tutorial walks the three roll call steps, so its weeks stay on that flow (#703) whatever the cutover says.
-        $practice = $this->practices->findOrCreate($section->id, $week, flowVersion: RollcallFlow::V1);
+        // This week: seen on the practice server, not created, not confirmed, not posted, and Demo.K neither signed nor
+        // seen. The tutorial teaches the new roll call (#703), so this week is on it whatever the cutover says; the
+        // weeks of history before it are sent and stay on the three steps.
+        $practice = $this->practices->findOrCreate($section->id, $week, flowVersion: RollcallFlow::V2);
         $this->practice->captured($practice, $start->addHour()->min($now), $start, $start->addHour());
         foreach ($sectionMembers as $trooper) {
             if ($trooper->username === self::DEMO) {
@@ -166,7 +167,7 @@ final class PracticeWorld
         // so the staff report shows server data backing that up.
         if ($persona->hqStaff !== null) {
             $this->practice->capturePlayer($practice, $game, $persona->username, 'practice-'.$self->cav_id, $self);
-            $theirs = $this->practices->findOrCreate($other->id, $week, flowVersion: RollcallFlow::V1);
+            $theirs = $this->practices->findOrCreate($other->id, $week, flowVersion: RollcallFlow::V2);
             $this->practice->captured($theirs, $start->addHour()->min($now), $start, $start->addHour());
             foreach ([...$otherMembers, $self] as $trooper) {
                 $this->practice->capturePlayer($theirs, $game, $trooper->username, 'practice-'.$trooper->cav_id, $trooper);
