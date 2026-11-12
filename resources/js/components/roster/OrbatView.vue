@@ -223,7 +223,7 @@ function stripLabel(trooper) {
     const signed = cells.filter((c) => c.rc === 'ok' || c.rc === 'cn' || c.rc === 'mr').length;
     const attended = cells.filter((c) => ['ok', 'mk'].includes(c.sp)).length;
     const missed = cells.filter((c) => c.sp === 'bad').length;
-    const staff = cells.filter((c) => c.staff && c.staff.state !== 'loa');
+    const staff = cells.filter((c) => c.staff && !['loa', 'before'].includes(c.staff.state));
     if (staff.length) {
         const met = staff.filter((c) => c.staff.state === 'met').length;
         const shown = staff.filter((c) => c.staff.state !== 'open').length;

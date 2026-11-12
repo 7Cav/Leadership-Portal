@@ -11,17 +11,18 @@ export const STAFF_STATES = {
     notSent: 'Report not sent',
     open: 'Report due once the week ends',
     loa: 'On LOA',
+    before: 'No staff reports yet',
 };
 
 /**
  * A roster week cell (`weekCell()`) with the staff report week in place of "No section that week": both halves take
  * the staff state (`staff-met`, `staff-short`, `staff-notSent`, `staff-open`), or `loa` on leave, and `staff` carries
- * the week. Any other cell is left as it is, so a roll call mark, a week before they joined or after they left, and
+ * the week. A week before staff reports could be filed (`before`) keeps the neutral `none` look. Any other cell is left as it is, so a roll call mark, a week before they joined or after they left, and
  * a week the cell already reads as LOA all win.
  */
 export function withStaffWeek(cell, entry) {
     if (!entry || cell.rc !== 'none') return cell;
-    const state = entry.state === 'loa' ? 'loa' : `staff-${entry.state}`;
+    const state = entry.state === 'loa' ? 'loa' : entry.state === 'before' ? 'none' : `staff-${entry.state}`;
 
     return { rc: state, sp: state, staff: entry };
 }
@@ -36,6 +37,7 @@ export function staffWeekText(entry) {
  * attended as staff guest and the presence answer, and whether it was sent.
  */
 export function staffTipRows(entry) {
+    if (entry.state === 'before') return [['Staff report', STAFF_STATES.before, entry.hq]];
     const rows = [
         ['Staff report', STAFF_STATES[entry.state] ?? 'Unknown', entry.hq],
         ['Sent', entry.sent ? 'Yes' : entry.state === 'open' ? 'Not yet' : 'No'],

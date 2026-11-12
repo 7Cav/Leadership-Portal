@@ -575,6 +575,7 @@ class RosterController extends Controller
             $labels,
             fn (int $trooperId, int $hqId) => $trooperId === $own || $readable->has($hqId),
             KpiService::WINDOW_WEEKS,
+            WeekOf::start(CarbonImmutable::parse((string) config('portal.staff_reports_start'), 'UTC'))->toDateString(),
         );
     }
 

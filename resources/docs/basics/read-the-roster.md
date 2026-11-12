@@ -37,10 +37,11 @@ Platoon, company and battalion HQ staff are on no section's roll call. A week th
 - Red outline: the week is over and no report was sent.
 - Dashed: the current week, not sent yet.
 - LOA: the week is on leave, as for troopers.
+- Weeks from before staff reports could be filed read "No staff reports yet" and look like "No section that week".
 
 Point at a week to see the HQ, whether the report was sent, the practices they attended as a staff guest and their presence answer (public server hour or office hour). The practices and presence show only to those who can read that staff report: the staff member, the chain above their HQ and Admins. Everyone else sees whether it met the rule.
 
-RC 30d and SP 30d stay blank for HQ staff. In their place, **Reports 3 of 4 met** counts the reports over the last 4 finished Cav weeks, leaving out weeks on leave. It shows in the last column of both views and on the trooper's details. A week they were on a section's roll call, or in a group or on regimental staff, does not count.
+RC 30d and SP 30d stay blank for HQ staff. In their place, **Reports 3 of 4 met** counts the reports over the last 4 finished Cav weeks, leaving out weeks on leave and weeks before staff reports could be filed. It shows in the last column of both views and on the trooper's details. A week they were on a section's roll call, or in a group or on regimental staff, does not count.
 
 ## Set the practice presence minimum
 

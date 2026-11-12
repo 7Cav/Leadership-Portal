@@ -14,8 +14,9 @@ use Closure;
  * caller's to say, and so is who may read a report in full.
  *
  * A week's `state`: `met` when the sent report keeps to the rule, `short` when it was sent and does not, `notSent` for a
- * finished week with nothing sent, `open` for the running week while nothing is sent, and `loa` for a week leave
- * covers, whatever was sent. One query for the reports, however many troopers and weeks.
+ * finished week with nothing sent, `open` for the running week while nothing is sent, `before` for a week before staff
+ * reports could be filed with nothing sent, and `loa` for a week leave covers, whatever was sent. A `before` week
+ * never counts in the summary. One query for the reports, however many troopers and weeks.
  */
 class StaffReportWeeks
 {
@@ -28,6 +29,8 @@ class StaffReportWeeks
     public const OPEN = 'open';
 
     public const LOA = 'loa';
+
+    public const BEFORE = 'before';
 
     public function __construct(private readonly StaffReportRepository $reports) {}
 
@@ -44,9 +47,10 @@ class StaffReportWeeks
      * @param  list<string>  $weeks
      * @param  array<int, string>  $hqLabels  HQ unit id => its label
      * @param  Closure(int, int): bool  $reads  whether the viewer reads trooper `$1`'s report from HQ `$2`
+     * @param  string|null  $firstWeek  the first week start (Y-m-d) a staff report could be filed for
      * @return array<int, array{weeks: list<?array<string, mixed>>, reports: ?array{met: int, due: int, weeks: int}}>
      */
-    public function forWeeks(array $hqWeeks, array $onLeave, array $weeks, array $hqLabels, Closure $reads, int $window): array
+    public function forWeeks(array $hqWeeks, array $onLeave, array $weeks, array $hqLabels, Closure $reads, int $window, ?string $firstWeek = null): array
     {
         if ($hqWeeks === [] || $weeks === []) {
             return [];
@@ -63,7 +67,7 @@ class StaffReportWeeks
         $out = [];
 
         foreach ($hqWeeks as $trooperId => $byWeek) {
-            $entries = array_map(function (string $week) use ($trooperId, $byWeek, $onLeave, $sent, $running, $hqLabels, $reads) {
+            $entries = array_map(function (string $week) use ($trooperId, $byWeek, $onLeave, $sent, $running, $hqLabels, $reads, $firstWeek) {
                 $hqId = $byWeek[$week] ?? null;
 
                 if ($hqId === null) {
@@ -77,6 +81,7 @@ class StaffReportWeeks
                     'state' => match (true) {
                         $onLeave[$trooperId][$week] ?? false => self::LOA,
                         $props !== null => StaffReportWeek::metRule($props) ? self::MET : self::SHORT,
+                        $firstWeek !== null && $week < $firstWeek => self::BEFORE,
                         $week === $running => self::OPEN,
                         default => self::NOT_SENT,
                     },

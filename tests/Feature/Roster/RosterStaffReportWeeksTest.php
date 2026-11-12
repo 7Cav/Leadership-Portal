@@ -66,6 +66,8 @@ beforeEach(function () {
     $this->platoon = $units->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', $this->company->id);
     $this->section = $units->create(UnitType::Section, '1st Section', '1/1/A/1-7', $this->platoon->id);
     $this->admin = User::factory()->admin()->create();
+    // Staff reports from long before the history window, unless a test says otherwise.
+    config(['portal.staff_reports_start' => '2026-01-03']);
 });
 
 it('reads a company HQ staff member\'s weeks from their staff reports: met, short, not sent and open', function () {
@@ -84,6 +86,21 @@ it('reads a company HQ staff member\'s weeks from their staff reports: met, shor
         ->and($row['staffWeeks'][0]['state'])->toBe('notSent')
         // The four finished weeks before the running one, as RC and SP 30d span four.
         ->and($row['staffReports'])->toBe(['met' => 1, 'due' => 4, 'weeks' => 4]);
+});
+
+it('shows the weeks before staff reports could be filed as none yet, and leaves them out of the summary', function () {
+    // 12SEP26 is the first week a report could be filed for; reading the start as a Saturday, a Monday works too.
+    config(['portal.staff_reports_start' => '2026-09-14']);
+    $xo = hqStaffIn($this->company, ['tis' => '2020-01-01']);
+    hqReport($xo, $this->company, 1, true, [$this->section]);
+
+    $row = hqRow($this->admin, $this->company, $xo);
+
+    expect($row['staffWeeks'][15]['state'])->toBe('before')
+        ->and($row['staffWeeks'][0]['state'])->toBe('before')
+        ->and($row['staffWeeks'][16]['state'])->toBe('notSent')
+        ->and($row['staffWeeks'][18]['state'])->toBe('met')
+        ->and($row['staffReports'])->toBe(['met' => 1, 'due' => 3, 'weeks' => 4]);
 });
 
 it('judges a named type and a sent report the same way the staff report pages do', function () {

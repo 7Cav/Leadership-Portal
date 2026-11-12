@@ -13,6 +13,13 @@ describe('withStaffWeek', () => {
         expect(withStaffWeek(none, { state: 'open' }).sp).toBe('staff-open');
     });
 
+    it('keeps a week before staff reports existed neutral, never not sent', () => {
+        const before = { state: 'before', hq: '1/A/1-7', sent: false, report: null };
+        expect(withStaffWeek(none, before)).toEqual({ rc: 'none', sp: 'none', staff: before });
+        expect(staffWeekText(before)).toBe('Staff report from 1/A/1-7: No staff reports yet');
+        expect(staffTipRows(before)).toEqual([['Staff report', 'No staff reports yet', '1/A/1-7']]);
+    });
+
     it('shows a week on leave as LOA, as for troopers', () => {
         expect(withStaffWeek(none, { state: 'loa', sent: false })).toMatchObject({ rc: 'loa', sp: 'loa' });
     });

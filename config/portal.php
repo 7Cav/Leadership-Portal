@@ -74,6 +74,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | First week of staff reports
+    |--------------------------------------------------------------------------
+    |
+    | The start (a Saturday, Y-m-d) of the first Cav week a staff report could be filed for. The
+    | roster shows an HQ staff member's earlier weeks as "No staff reports yet", never as not sent,
+    | and leaves them out of the reports summary.
+    |
+    */
+
+    'staff_reports_start' => env('PORTAL_STAFF_REPORTS_START', '2026-10-31'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Roll call opens on the week whose report is still due
     |--------------------------------------------------------------------------
     |
