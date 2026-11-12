@@ -32,6 +32,13 @@ describe('KPI formatting', () => {
         expect(kpiChange({ spBp: -312 }, kpi('sp'))).toMatchObject({ value: -3, tone: 'bad', unit: 'points' });
     });
 
+    it('rounds a rate to a whole percent with halves up, as the server does before taking a delta', () => {
+        expect(percent({ numerator: 37, denominator: 40 })).toBe(93);
+        expect(percent({ numerator: 1, denominator: 8 })).toBe(13);
+        expect(percent({ numerator: 1, denominator: 3 })).toBe(33);
+        expect(percent({ numerator: 0, denominator: 0 })).toBeNull();
+    });
+
     it('shows no change when there is no delta or the rate had nothing eligible', () => {
         expect(kpiChange(null, kpi('strength'))).toBeNull();
         expect(kpiChange({ rcBp: null }, kpi('rc'))).toBeNull();

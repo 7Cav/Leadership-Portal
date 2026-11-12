@@ -17,11 +17,12 @@ export const KPIS = [
     { key: 'makeups', label: 'Makeups', polarity: 1, deltaKey: 'makeups' },
 ];
 
-// A ratio as a whole percent, or null when nothing was eligible — rendered "—", never 0%.
+// A ratio as a whole percent, halves up, or null when nothing was eligible — rendered "—", never 0%. Worked in
+// integers, as `Ratio::percent()` on the server, which takes a rate's delta between these same whole percents.
 export function percent(ratio) {
     if (!ratio || !ratio.denominator) return null;
 
-    return Math.round((ratio.numerator / ratio.denominator) * 100);
+    return Math.floor((200 * ratio.numerator + ratio.denominator) / (2 * ratio.denominator));
 }
 
 export function kpiValue(kpis, kpi) {
