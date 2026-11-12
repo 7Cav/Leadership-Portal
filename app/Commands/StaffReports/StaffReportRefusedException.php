@@ -43,10 +43,10 @@ class StaffReportRefusedException extends RuntimeException
         return new self("{$name} was not on a platoon, company or battalion HQ when the ".WeekLabel::phrase($weekStart).' closed, so there is no staff report to send for it.', 'not_owed', 'report');
     }
 
-    /** Sent, and its deadline has passed: it can no longer be edited. */
-    public static function locked(CarbonInterface $weekStart): self
+    /** Sent, and its deadline (or the later time an approved request unlocked it to, `$until`) has passed. */
+    public static function locked(CarbonInterface $weekStart, ?CarbonInterface $until = null): self
     {
-        $due = WeekOf::reportDue(WeekOf::start($weekStart));
+        $due = $until ?? WeekOf::reportDue(WeekOf::start($weekStart));
 
         return new self('The staff report for the '.WeekLabel::phrase($weekStart).' locked at its deadline, '.WeekLabel::date($due).' '.WeekLabel::zulu($due).'. Request an edit and a leader above you can unlock it.', 'locked', 'report');
     }

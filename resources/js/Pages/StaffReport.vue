@@ -50,7 +50,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 // operation, a class or another official event), their presence (a public server hour, an office hour, or neither),
 // the other events they attended and their notes. The server says who may send it (the staff member alone, signed in as themselves), which sections
 // the picker offers, which entries are already there and what the game server saw; this page only draws its answers
-// and posts them. Once sent it is final and reads back as sent.
+// and posts them. Once sent it reads back as sent; past its deadline it is locked until a leader above unlocks it.
 const props = defineProps({
     // `{ id, displayName }`.
     trooper: { type: Object, required: true },
@@ -431,7 +431,7 @@ function entryNote(id) {
                         <StaffReportPresence :presence="report.publicServer" :name="trooper.displayName" testid="staff-report-public-server" />
                     </p>
                     <p class="mt-0.5 text-xs text-muted-foreground">
-                        Sent {{ stamp(report.sentAt) }}.<template v-if="!canEdit && !editRequest"> A sent staff report is final.</template>
+                        Sent {{ stamp(report.sentAt) }}.
                         <span v-if="sheetLine" data-testid="staff-report-sheet">{{ sheetLine }}.</span>
                     </p>
                 </div>

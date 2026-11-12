@@ -3,6 +3,8 @@
 namespace App\Repositories\ReportEditRequestRepository;
 
 use App\Models\ReportEditRequest;
+use App\Models\StaffReport;
+use App\Models\WeeklyReport;
 use App\Repositories\ReportEditRequestRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
@@ -29,15 +31,34 @@ class Eloquent implements ReportEditRequestRepository
         return $this->forReport($unitId, $trooperId, $weekStart)->where('status', ReportEditRequest::PENDING)->exists();
     }
 
-    public function create(int $unitId, ?int $trooperId, CarbonInterface $weekStart, int $requestedBy, string $reason): ReportEditRequest
+    public function create(int $unitId, ?int $trooperId, CarbonInterface $weekStart, int $requestedBy, ?int $realRequestedBy, string $reason): ?ReportEditRequest
     {
+        $weekStart = WeekOf::start($weekStart);
+
+        // The report's own row is the lock two requests at once queue on.
+        ($trooperId === null
+            ? WeeklyReport::query()->where('unit_id', $unitId)->where('week_start', $weekStart)
+            : StaffReport::query()->where('trooper_id', $trooperId)->where('week_start', $weekStart))
+            ->lockForUpdate()
+            ->first(['id']);
+
+        if ($this->hasPending($unitId, $trooperId, $weekStart)) {
+            return null;
+        }
+
         return ReportEditRequest::query()->create([
             'unit_id' => $unitId,
             'trooper_id' => $trooperId,
-            'week_start' => WeekOf::start($weekStart)->toDateString(),
+            'week_start' => $weekStart->toDateString(),
             'requested_by' => $requestedBy,
+            'real_requested_by' => $realRequestedBy,
             'reason' => $reason,
         ]);
+    }
+
+    public function hasForUnit(int $unitId): bool
+    {
+        return ReportEditRequest::query()->where('unit_id', $unitId)->exists();
     }
 
     public function decide(int $id, bool $approve, int $decidedBy, ?string $note, ?CarbonInterface $unlockedUntil): ?ReportEditRequest

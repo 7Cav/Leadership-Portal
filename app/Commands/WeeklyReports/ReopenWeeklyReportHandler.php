@@ -72,7 +72,7 @@ class ReopenWeeklyReportHandler
 
         // Past its deadline only while an approved request to edit it holds ({@see ReportEditWindow::mayEdit()}).
         if (! ReportEditWindow::mayEdit($weekStart, $report->unlocked_until)) {
-            throw WeeklyReportLockedException::deadlinePassed(WeekOf::reportDue($weekStart));
+            throw WeeklyReportLockedException::deadlinePassed(ReportEditWindow::editableUntil($weekStart, $report->unlocked_until));
         }
 
         try {
@@ -85,7 +85,7 @@ class ReopenWeeklyReportHandler
             );
         } catch (WeeklyReportAlreadySentException) {
             // The deadline passed between the check above and the row lock.
-            throw WeeklyReportLockedException::deadlinePassed(WeekOf::reportDue($weekStart));
+            throw WeeklyReportLockedException::deadlinePassed(ReportEditWindow::editableUntil($weekStart, $report->unlocked_until));
         }
     }
 }

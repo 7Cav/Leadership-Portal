@@ -122,7 +122,7 @@ class SendStaffReportHandler
         $editing = $sent !== null;
 
         if ($editing && ! ReportEditWindow::mayEdit($weekStart, $sent->unlocked_until)) {
-            throw StaffReportRefusedException::locked($weekStart);
+            throw StaffReportRefusedException::locked($weekStart, ReportEditWindow::editableUntil($weekStart, $sent->unlocked_until));
         }
 
         if ($editing && blank($command->reason)) {
@@ -154,7 +154,7 @@ class SendStaffReportHandler
                 }
 
                 if ($editing && ! ReportEditWindow::mayEdit($weekStart, $locked->unlocked_until)) {
-                    throw StaffReportRefusedException::locked($weekStart);
+                    throw StaffReportRefusedException::locked($weekStart, ReportEditWindow::editableUntil($weekStart, $locked->unlocked_until));
                 }
 
                 $entries = [];

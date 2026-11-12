@@ -464,7 +464,7 @@ describe('StaffReport page', () => {
         expect(wrapper.find('[data-testid="health-sp"]').text()).toContain('75%');
     });
 
-    it('reads a sent report back as sent and final, staff guest in their own unit and guest elsewhere (sent before), with no form', () => {
+    it('reads a sent report back as sent, staff guest in their own unit and guest elsewhere (sent before), with no form', () => {
         const wrapper = page({
             canSend: false,
             report: {
@@ -479,7 +479,7 @@ describe('StaffReport page', () => {
 
         expect(wrapper.find('[data-testid="status-badge"]').text()).toBe('Sent');
         expect(wrapper.find('[data-testid="staff-report-answer"]').text()).toBe('Attended 2 section practices.');
-        expect(wrapper.find('[data-testid="staff-report-sent"]').text()).toContain('A sent staff report is final.');
+        expect(wrapper.find('[data-testid="staff-report-sent"]').text()).not.toContain('final');
         expect(wrapper.findAll('[data-testid="staff-report-practices"] li').map((li) => li.text())).toEqual(['1/1/A/1-7Staff guest', '1/2/A/1-7Guest']);
         expect(wrapper.find('[data-testid="staff-report-form"]').exists()).toBe(false);
         expect(wrapper.find('[data-testid="staff-report-discrepancy"]').exists()).toBe(false);

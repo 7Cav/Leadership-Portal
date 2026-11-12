@@ -6,6 +6,7 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Repositories\PlatoonTrainingTopicRepository;
 use App\Repositories\PortalRoleGrantRepository;
+use App\Repositories\ReportEditRequestRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\TemplateVersionRepository;
 use App\Repositories\TrainingPlanRepository;
@@ -48,6 +49,7 @@ class DeleteUnit
         private readonly TemplateVersionRepository $templates,
         private readonly TrainingPlanRepository $plans,
         private readonly PlatoonTrainingTopicRepository $topics,
+        private readonly ReportEditRequestRepository $editRequests,
         private readonly AuditEnvelope $audit,
     ) {}
 
@@ -115,6 +117,11 @@ class DeleteUnit
 
                 if ($this->topics->hasTopicsFor($unit)) {
                     throw UnitHasDependentsException::hasTrainingTopics($unit->name);
+                }
+
+                // A request to edit one of its reports, a staff member's included, is report history too.
+                if ($this->editRequests->hasForUnit($unit->id)) {
+                    throw UnitHasDependentsException::hasEditRequests($unit->name);
                 }
 
                 $this->units->delete($unit);

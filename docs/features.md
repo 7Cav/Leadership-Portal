@@ -693,10 +693,11 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
   never through act as or view as. It is due when the unit reports are, 2359Z on the Saturday after the week. Until
   then they may send it again with a reason ("Edit report", audited as `staff_report.edited`): the row is rewritten,
   the version it replaces is kept and listed under "Earlier versions", and its row on the reports sheet is overwritten.
-  After the deadline it is final. The type, the name and date, the presence answer, the office hour's date and note,
+  After the deadline it is locked, unless a leader above approves a request to edit it (see "Request edit"). The type,
+  the name and date, the presence answer, the office hour's date and note,
   other events and notes are frozen with it. Reports sent before (an office hour or an FTX as a battalion's
-  accountability) read back as sent. The sent report reads back with a check, when it was sent, and that it is final once it
-  can no longer be edited. There is no draft: the picks stay
+  accountability) read back as sent. The sent report reads back with a check and when it was sent; once it can no
+  longer be edited it shows Request edit instead. There is no draft: the picks stay
   on the page until it is sent.
 - What sending writes: the staff report, and the week's staff practice entries set to exactly the practices picked
   (an entry for a section not picked, one a leader entered on the milpac say, is taken off, and the page warns before
