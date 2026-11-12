@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffReportAccess;
 use App\Commands\Attendance\InvalidAttendanceMarkException;
+use App\Commands\Practices\PracticeSchedule;
 use App\Commands\WeeklyReports\InvalidPlatoonTrainingTopicException;
 use App\Commands\WeeklyReports\InvalidReportContentException;
 use App\Commands\WeeklyReports\MakeupChecksIncompleteException;
@@ -56,6 +57,7 @@ use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
 use App\Repositories\WeeklyReportAlreadySentException;
 use App\Repositories\WeeklyReportRepository;
+use App\Rollcall\RollcallRoster;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use ErrorException;
@@ -104,6 +106,8 @@ class ReportController extends Controller
         private readonly AutoExcused $autoExcused,
         private readonly UnitGuidonRepository $guidons,
         private readonly SectionPracticeRepository $practices,
+        private readonly PracticeSchedule $schedule,
+        private readonly RollcallRoster $rollcallRoster,
     ) {}
 
     public function show(Request $request, UnaccountedSuggestions $suggestions, AuditLogRepository $audit, ReportEditProps $editProps, int $unit, string $week): Response
@@ -221,6 +225,8 @@ class ReportController extends Controller
             // A section's draft with troopers on its roll call: whether the week's practice is confirmed as held or not
             // held (#634), which the send needs. Null when nothing needs confirming.
             'practice' => $isLeaf && ! $sent && $roster->isNotEmpty() ? $this->practiceProps($unit, $weekStart) : null,
+            // The section's roll call for the summary at the top (#703): when it trained, and the forum thread it was posted in.
+            'rollcall' => $isLeaf ? $this->rollcallProps($unit, $weekStart) : null,
             // An object even when empty: `[]` fails the page's Object prop check.
             'names' => (object) $roster->mapWithKeys(fn (Trooper $t) => [$t->id => $this->trooperLabel($t)])->all(),
             'children' => match (true) {
@@ -321,6 +327,8 @@ class ReportController extends Controller
             'makeup_checks' => ['nullable', 'array', 'max:200'],
             'makeup_checks.*.trooper_id' => ['required', 'integer'],
             'makeup_checks.*.done' => ['required', 'boolean'],
+            // Where the send started (#703), for counting how many are sent from the roll call.
+            'from' => ['nullable', 'string', 'in:rollcall,report'],
         ], [
             ...self::CONTENT_MESSAGES,
             'reason.required' => 'Give a reason for the record before you send the report.',
@@ -335,6 +343,7 @@ class ReportController extends Controller
             $data['training_subject'] ?? null,
             $data['unaccounted'] ?? [],
             array_map(fn (array $check) => ['trooper_id' => (int) $check['trooper_id'], 'done' => (bool) $check['done']], $data['makeup_checks'] ?? []),
+            $data['from'] ?? null,
         )));
 
         // Already frozen (an earlier or concurrent send): the snapshot stands as it was, so the
@@ -516,6 +525,27 @@ class ReportController extends Controller
         abort_if(WeekOf::isBeforeFloor($weekStart), 404);
 
         return $weekStart;
+    }
+
+    /**
+     * The week's practice start (null when there was none: no slot, or cancelled), the forum thread its roll call was
+     * posted in (null when the leader gave none), the roll call's address, and each of its troopers' signature and
+     * practice mark (`[{id, rollcall, status}]`), which a sent report's page has no other copy of. A sent week is locked
+     * (AD-12), so these are the marks it was sent with.
+     *
+     * @return array{trainingStart: ?string, threadUrl: ?string, href: string, troopers: list<array{id: int, rollcall: string, status: ?string}>}
+     */
+    private function rollcallProps(Unit $section, CarbonImmutable $weekStart): array
+    {
+        $practice = $this->practices->find($section->id, $weekStart);
+        $week = $this->schedule->props($section->id, $weekStart, $practice)['week'] ?? null;
+
+        return [
+            'trainingStart' => ($week['cancelled'] ?? false) ? null : ($week['start'] ?? null),
+            'threadUrl' => $practice?->rollcall_thread_url,
+            'href' => route('rollcall.show', ['unit' => $section->id, 'week' => $weekStart->toDateString()]),
+            'troopers' => array_map(fn (array $row) => ['id' => $row['id'], 'rollcall' => $row['rollcall'], 'status' => $row['status']], $this->rollcallRoster->forWeek($section, $weekStart)->troopers),
+        ];
     }
 
     private function currentWeek(): CarbonImmutable

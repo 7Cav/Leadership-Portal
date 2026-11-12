@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
     captureSourceLabel,
     countsOf,
+    cycleLandingStep,
+    cycleStepsOf,
     displayName,
     feedLabel,
     fullName,
@@ -272,5 +274,41 @@ describe('placement note on a past week', () => {
         expect(placementNote('joined')?.label).toBe('Joined');
         expect(placementNote(null)).toBeNull();
         expect(placementNote(undefined)).toBeNull();
+    });
+});
+
+describe('the weekly cycle on the new flow (#703)', () => {
+    const SIGNED = t(1, 'will_attend', 'present');
+    const OPEN = t(2, 'unsigned', null);
+    const at = '2026-11-14T18:00:00Z';
+
+    it('names four steps: create, post, sign and mark, close for review', () => {
+        const steps = cycleStepsOf([SIGNED, OPEN], {});
+
+        expect(steps.map((s) => [s.n, s.title])).toEqual([[1, 'Create'], [2, 'Post'], [3, 'Sign and mark'], [4, 'Close for review']]);
+        expect(steps.map((s) => s.sub)).toEqual(['Date and topic', 'Copy to the forum', '1 of 2 signed · 1 of 2 marked', 'Sends the weekly report']);
+        expect(steps.map((s) => s.state)).toEqual(['todo', 'todo', 'warn', 'todo']);
+    });
+
+    it('ticks each step off as the week moves on, and the last once the report is sent', () => {
+        const steps = cycleStepsOf([SIGNED], { created: true, postedAt: at, confirmed: true, sent: true });
+
+        expect(steps.map((s) => s.sub)).toEqual(['Done', 'Posted 14NOV26', '1 of 1 · practice confirmed', 'Sent for review']);
+        expect(steps.map((s) => s.state)).toEqual(['done', 'done', 'done', 'done']);
+    });
+
+    it('leaves sign and mark open until the practice is confirmed, and warns while a player is unlinked', () => {
+        expect(cycleStepsOf([SIGNED], { created: true })[2].state).toBe('todo');
+        expect(cycleStepsOf([SIGNED], { created: true, confirmed: true, unlinked: 2 })[2]).toMatchObject({ state: 'warn', unlinked: 2 });
+        expect(cycleStepsOf([], { created: true })[2]).toMatchObject({ sub: 'No troopers', state: 'neutral' });
+    });
+
+    it('opens on the first step with work left', () => {
+        expect(cycleLandingStep([SIGNED], { created: false }, true)).toBe(1);
+        expect(cycleLandingStep([SIGNED], { created: true }, true)).toBe(2);
+        expect(cycleLandingStep([SIGNED, OPEN], { created: true, postedAt: at }, true)).toBe(3);
+        expect(cycleLandingStep([SIGNED], { created: true, postedAt: at }, true)).toBe(4);
+        expect(cycleLandingStep([t(3, 'unsigned', 'present')], { created: true, postedAt: at }, false)).toBe(4);
+        expect(cycleLandingStep([OPEN], { created: false, sent: true }, true)).toBe(4);
     });
 });

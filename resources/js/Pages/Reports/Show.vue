@@ -34,6 +34,7 @@ import ReportPreview from '@/components/reports/ReportPreview.vue';
 import EditReportDialog from '@/components/reports/EditReportDialog.vue';
 import ReportEditRequestPanel from '@/components/reports/ReportEditRequestPanel.vue';
 import SendDialog from '@/components/reports/SendDialog.vue';
+import RollcallSummary from '@/components/reports/RollcallSummary.vue';
 import StaffReportsPanel from '@/components/reports/StaffReportsPanel.vue';
 import TimeAgo from '@/components/TimeAgo.vue';
 import Guidon from '@/components/Guidon.vue';
@@ -81,6 +82,8 @@ const props = defineProps({
     // The platoon's training topic for the week: on a section's draft, its platoon's; on a
     // platoon's screen, the one it set for its sections.
     topic: { type: Object, default: null },
+    // A section's roll call for the summary at the top (#703): `{ trainingStart, threadUrl, href }`. Null above a section.
+    rollcall: { type: Object, default: null },
     canSetTopic: { type: Boolean, default: false },
     // Carry-forward: the subject of the section's last sent report, offered on an empty field.
     suggestedSubject: { type: String, default: null },
@@ -314,6 +317,35 @@ function openSend() {
     dialogOpen.value = true;
 }
 
+// Where this send started, for counting how many reports are sent from the roll call (#703, the issue's success check):
+// the dialog the roll call opened (`?send=1`) while it stays open, the report page otherwise. Closing that dialog makes
+// a later send the page's.
+const openedFromRollcall = ref(false);
+watch(dialogOpen, (open) => {
+    if (!open) openedFromRollcall.value = false;
+});
+
+// "Send for review" on the roll call (#703) lands here with `?send=1`: the send dialog opens at once, as "Send anyway"
+// would open it, so the leader sees exactly what freezes and answers the make-up checks. A report the send bar would
+// not open (sent, read-only, practice not confirmed, KPIs unavailable) stays as it is.
+onMounted(() => {
+    const query = new URLSearchParams(window.location.search);
+    if (query.get('send') !== '1') return;
+    // Handled once: a reload or Back does not open it again, or count as the roll call's.
+    query.delete('send');
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${query.size ? `?${query}` : ''}${window.location.hash}`);
+    if (!blocked.value && !readOnly.value && !props.kpiError) {
+        openedFromRollcall.value = true;
+
+        return openSend();
+    }
+    // Arrived to send, but the report cannot go yet: say why instead of opening nothing.
+    if (sent.value) return;
+    toast.warning('This report cannot be sent yet', {
+        description: blocked.value ? 'Confirm the practice in roll call first.' : (props.kpiError ?? readOnlyNote.value ?? 'It is read-only here.'),
+    });
+});
+
 // The send cleared the pending autosave; when it fails, keep the edits saving as a draft.
 function rearm() {
     if (save.state === 'pending' && !timer && !editing.value) timer = setTimeout(saveDraft, 800);
@@ -324,7 +356,7 @@ function confirmSend(reason, makeupChecks = []) {
     timer = null;
     sending.value = true;
     const again = editing.value;
-    router.post(`${baseUrl.value}/send`, { ...payload(), reason, makeup_checks: makeupChecks }, {
+    router.post(`${baseUrl.value}/send`, { ...payload(), reason, makeup_checks: makeupChecks, from: openedFromRollcall.value ? 'rollcall' : 'report' }, {
         preserveScroll: true,
         onSuccess: () => {
             dialogOpen.value = false;
@@ -512,6 +544,18 @@ function useSuggestion() {
         </section>
 
         <ReportDeadlineBanner :due="week.due" :overdue-until="week.overdueUntil" :sent="sent" />
+
+        <!-- The section's roll call in one place (#703, mockup 703-5): the review below is unchanged. -->
+        <RollcallSummary
+            v-if="unit.isLeaf && rollcall"
+            :rollcall="rollcall"
+            :subject="sent ? report.trainingSubject : content.trainingSubject || null"
+            :enforced="Boolean(topic?.enforced)"
+            :troopers="rollcall.troopers ?? troopers ?? []"
+            :unaccounted="sent ? (report.unaccounted ?? []) : chosen.unaccounted"
+            :names="names"
+            :reason-labels="reasonLabels"
+        />
 
         <div
             v-if="week.owed"

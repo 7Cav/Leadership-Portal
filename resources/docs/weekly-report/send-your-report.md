@@ -26,7 +26,7 @@ minutes: 10
 
 1. **Ready to send** lists what is still open: roll call complete, practice marked, practice confirmed, unaccounted troopers explained, training subject filled, notes reviewed.
 2. Under **Unaccounted troopers**, pick a reason for each one. When the portal knows why, such as a trooper who moved out of your section this week, left the Cav, or posted leave the sync could not read, that reason is already chosen and the hint says why. Choose **Keep suggested reason**, or pick another. A suggestion you have not kept is not saved or sent.
-3. Fill in the **Training subject**. Last week's subject is offered; choose **Use it again** to keep it.
+3. Fill in the **Training subject**. Last week's subject is offered; choose **Use it again** to keep it. It is the same topic as the roll call's **Training topic**, so one set on the roll call is already here, as are notes and reasons written on its close step. A section's report opens with a summary of its roll call: the training, the topic, the forum thread, and how the week signed and attended.
 4. Write your **Notes to send with this report**.
 
 > [!good-to-know] The draft saves as you type. You can leave and come back to it any time before you send.

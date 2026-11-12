@@ -67,6 +67,7 @@ class MarkRollcallPostedHandler
                 return $this->practices->markRollcallPosted(
                     $this->practices->findOrCreate($command->sectionId, $weekStart),
                     $actor->id,
+                    $command->threadUrl,
                 );
             },
         );

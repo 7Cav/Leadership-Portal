@@ -2207,3 +2207,309 @@ describe('Rollcall step 2 rank avatars', () => {
         wrapper.unmount();
     });
 });
+
+describe('Rollcall page: the week\'s training (#703)', () => {
+    const TRAINING_TEMPLATE = { ...TEMPLATE, body: 'Training: {{training_date}} · {{training_topic}}' };
+    const SLOT = { weekday: 3, startMinute: 1380, effectiveFrom: null, week: { start: '2026-10-07T23:00:00Z', end: '2026-10-08T00:00:00Z', cancelled: false, moved: false, captured: false } };
+    const TRAINING = { subject: 'Land navigation', enforced: false, platoon: '1st Platoon', canEdit: true };
+
+    beforeEach(() => {
+        page.url = '/rollcall/12?step=3';
+        page.props.viewAs = null;
+        post.mockReset();
+        document.body.innerHTML = '';
+    });
+
+    const copied = async (props) => {
+        const writeText = vi.fn().mockResolvedValue();
+        Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+        const wrapper = factory({ template: TRAINING_TEMPLATE, practiceSlot: SLOT, training: TRAINING, ...props });
+        await wrapper.find('[data-testid="copy-bbcode"]').trigger('click');
+        await vi.waitFor(() => expect(writeText).toHaveBeenCalled());
+
+        return writeText.mock.calls[0][0];
+    };
+
+    it('copies the post with the week\'s practice start and training topic', async () => {
+        expect(await copied()).toBe('Training: Wed 07Oct26 2300Z · Land navigation');
+    });
+
+    it('prints no date for a week whose practice is cancelled', async () => {
+        expect(await copied({ practiceSlot: { ...SLOT, week: { ...SLOT.week, start: null, cancelled: true } } })).toBe('Training:  · Land navigation');
+    });
+
+    it('follows a topic saved on the card, and calls a post already on the forum out of date', async () => {
+        post.mockResolvedValue({ ok: true, status: 200, data: { training: { ...TRAINING, subject: 'Radio procedure' } } });
+        const wrapper = factory({
+            template: TRAINING_TEMPLATE,
+            practiceSlot: SLOT,
+            training: TRAINING,
+            practice: { lastMarkedAt: null, posted: { at: '2026-10-08T10:00:00+00:00', by: 'Vasquez.R' } },
+        });
+
+        expect(wrapper.find('[data-testid="posted-state"]').text()).not.toContain('Repost');
+        await wrapper.find('[data-testid="training-topic-input"]').setValue('Radio procedure');
+        await wrapper.find('[data-testid="training-card"] form').trigger('submit');
+        await flushPromises();
+
+        expect(post).toHaveBeenCalledWith('/rollcall/12/training-topic', { week: '2026-10-03', subject: 'Radio procedure' });
+        expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Repost the updated BBCode');
+    });
+
+    describe('send for review', () => {
+        const REPORT = { due: '2026-10-10T23:59:00+00:00', overdueUntil: '2026-10-31T00:00:00+00:00', sent: false, href: '/reports/12/2026-10-03' };
+
+        beforeEach(() => visit.mockClear());
+
+        it('opens the weekly report\'s send dialog from the review step', async () => {
+            const wrapper = factory({ report: REPORT });
+
+            await wrapper.find('[data-testid="send-for-review-open"]').trigger('click');
+            await flushPromises();
+
+            expect(visit).toHaveBeenCalledWith('/reports/12/2026-10-03?send=1');
+        });
+
+        it('is gone once the report is sent, and closed for a reader', () => {
+            expect(factory({ report: { ...REPORT, sent: true }, locked: true }).find('[data-testid="send-for-review"]').exists()).toBe(false);
+            expect(factory({ report: REPORT, canWrite: false }).get('[data-testid="send-for-review-open"]').attributes('disabled')).toBeDefined();
+        });
+    });
+});
+
+describe('Rollcall page: a week on each flow (#703)', () => {
+    const SLOT = { weekday: 3, startMinute: 1380, effectiveFrom: null, week: { start: '2026-10-07T23:00:00Z', end: '2026-10-08T00:00:00Z', cancelled: false, moved: false, captured: false } };
+    const TRAINING = { subject: 'Land navigation', enforced: false, platoon: '1st Platoon', canEdit: true };
+    const REPORT = { due: '2026-10-10T23:59:00+00:00', overdueUntil: '2026-10-31T00:00:00+00:00', sent: false, href: '/reports/12/2026-10-03' };
+    const CREATED = { version: 2, created: { at: '2026-10-04T10:00:00+00:00', by: 'Vasquez.R' } };
+    const POSTED = { lastMarkedAt: null, posted: { at: '2026-10-04T11:00:00+00:00', by: 'Vasquez.R' } };
+    const cycle = (props = {}) => factory({ practiceSlot: SLOT, training: TRAINING, report: REPORT, flow: { version: 2, created: null }, ...props });
+    const stepTitles = (wrapper) => wrapper.findAll('[data-step]').map((b) => b.text());
+
+    beforeEach(() => {
+        page.url = '/rollcall/12';
+        page.props.viewAs = null;
+        push.mockClear();
+        visit.mockClear();
+        post.mockReset().mockResolvedValue({ ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00', atRisk: [] } });
+        document.body.innerHTML = '';
+    });
+
+    it('keeps a week on the three-step flow exactly as it was', () => {
+        const wrapper = factory({ flow: { version: 1, created: null }, practiceSlot: SLOT, training: TRAINING });
+
+        expect(wrapper.findAll('[data-step]')).toHaveLength(3);
+        expect(stepTitles(wrapper)[0]).toContain('Signatures');
+        expect(wrapper.find('[data-testid="cycle-state"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="rollcall-create"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="training-card"]').exists()).toBe(true);
+    });
+
+    it('opens a new week on "Not created yet" with the create form, and nothing else to do until it is created', async () => {
+        page.url = '/rollcall/12?step=3';
+        const wrapper = cycle();
+
+        expect(wrapper.get('[data-testid="cycle-state"]').text()).toBe('Not created yet');
+        expect(wrapper.findAll('[data-step]')).toHaveLength(4);
+        expect(stepTitles(wrapper)[0]).toContain('Create');
+        expect(stepTitles(wrapper)[3]).toContain('Close for review');
+        expect(wrapper.find('[data-testid="rollcall-create"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="training-card"]').exists()).toBe(false);
+        expect(wrapper.find('[data-step="2"]').attributes('disabled')).toBeDefined();
+
+        await wrapper.find('[data-step="2"]').trigger('click');
+        expect(push).not.toHaveBeenCalled();
+    });
+
+    it('creates the roll call and moves on to posting it', async () => {
+        post.mockResolvedValue({ ok: true, status: 200, data: { flow: CREATED, training: TRAINING, practiceSlot: SLOT } });
+        const wrapper = cycle();
+
+        await wrapper.get('[data-testid="rollcall-create"] form').trigger('submit');
+        await flushPromises();
+
+        expect(post).toHaveBeenCalledWith('/rollcall/12/create', expect.objectContaining({ week: '2026-10-03', moved_to: '2026-10-07T23:00:00.000Z' }));
+        expect(push.mock.calls.at(-1)[0].url).toBe('/rollcall/12?step=2');
+        expect(wrapper.get('[data-testid="cycle-state"]').text()).toBe('Created · not posted');
+    });
+
+    it('lands a created week on the post step, and marking it posted moves on to sign and mark', async () => {
+        post.mockResolvedValue({ ok: true, status: 200, data: { posted: { at: '2026-10-04T11:00:00+00:00', by: 'Vasquez.R' } } });
+        const wrapper = cycle({ flow: CREATED });
+
+        expect(wrapper.find('[data-testid="post-aside"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="forum-bbcode"]').exists()).toBe(true);
+        await wrapper.get('[data-testid="mark-posted"]').trigger('click');
+        await flushPromises();
+
+        expect(post).toHaveBeenCalledWith('/rollcall/12/posted', { week: '2026-10-03' });
+        expect(push.mock.calls.at(-1)[0].url).toBe('/rollcall/12?step=3');
+    });
+
+    it('lists signatures and practice marks together on sign and mark, the number keys setting the focused card\'s own kind', async () => {
+        page.url = '/rollcall/12?step=3';
+        const wrapper = cycle({ flow: CREATED, practice: POSTED });
+
+        expect(wrapper.get('[data-testid="cycle-state"]').text()).toBe('Posted · open');
+        const signature = wrapper.find('[data-kind="signature"] [data-trooper="3"] [data-card-face]');
+        expect(signature.exists()).toBe(true);
+        expect(wrapper.find('[data-kind="practice"] [data-trooper="3"] [data-card-face]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="sign-tallies"]').exists()).toBe(true);
+
+        signature.element.focus();
+        await signature.trigger('keydown', { key: '2' });
+        expect(wrapper.find('[data-kind="signature"] [data-trooper="3"] button[data-value="cannot_attend"]').attributes('aria-pressed')).toBe('true');
+
+        // The signature moved the trooper's practice card into another group: read it again.
+        const practice = wrapper.find('[data-kind="practice"] [data-trooper="3"] [data-card-face]');
+        practice.element.focus();
+        await practice.trigger('keydown', { key: '2' });
+        expect(wrapper.find('[data-kind="practice"] [data-trooper="3"] button[data-value="missed"]').attributes('aria-pressed')).toBe('true');
+
+        await wrapper.get('[data-testid="continue-to-close"]').trigger('click');
+        expect(push.mock.calls.at(-1)[0].url).toBe('/rollcall/12?step=4');
+    });
+
+    it('closes for review through the weekly report\'s send dialog', async () => {
+        page.url = '/rollcall/12?step=4';
+        const wrapper = cycle({ flow: CREATED, practice: { ...POSTED, confirmation: { at: '2026-10-08T10:00:00+00:00', by: 'Vasquez.R', held: true } } });
+
+        expect(wrapper.find('[data-testid="rollcall-close"]').exists()).toBe(true);
+        await wrapper.get('[data-testid="close-send"]').trigger('click');
+        await flushPromises();
+
+        expect(visit).toHaveBeenCalledWith('/reports/12/2026-10-03?send=1');
+    });
+
+    it('opens a reopened week again: the report is still sent, but the week is not locked, so it can be closed again', () => {
+        page.url = '/rollcall/12?step=4';
+        const wrapper = cycle({ flow: CREATED, practice: POSTED, report: { ...REPORT, sent: true }, locked: false });
+
+        expect(wrapper.get('[data-testid="cycle-state"]').text()).not.toBe('Closed · sent for review');
+        expect(wrapper.find('[data-testid="close-sent"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="close-send"]').exists()).toBe(true);
+    });
+
+    it('holds the close while a typed training topic is not saved', async () => {
+        page.url = '/rollcall/12?step=4';
+        const wrapper = cycle({ flow: CREATED, practice: { ...POSTED, confirmation: { at: '2026-10-08T10:00:00+00:00', by: 'Vasquez.R', held: true } } });
+
+        await wrapper.find('[data-testid="training-topic-input"]').setValue('Not saved yet');
+        await wrapper.get('[data-testid="close-send"]').trigger('click');
+        await flushPromises();
+
+        expect(visit).not.toHaveBeenCalled();
+        expect(toastWarning).toHaveBeenCalledWith('Save the training topic first', expect.anything());
+    });
+
+    it('sends the forum thread link with the post, and the close step links to it', async () => {
+        post.mockResolvedValue({ ok: true, status: 200, data: { posted: { at: '2026-10-04T11:00:00+00:00', by: 'Vasquez.R', threadUrl: 'https://7cav.us/threads/rc.1/' } } });
+        const wrapper = cycle({ flow: CREATED });
+
+        await wrapper.get('[data-testid="thread-url"]').setValue(' https://7cav.us/threads/rc.1/ ');
+        await wrapper.get('[data-testid="mark-posted"]').trigger('click');
+        await flushPromises();
+        expect(post).toHaveBeenCalledWith('/rollcall/12/posted', { week: '2026-10-03', thread_url: 'https://7cav.us/threads/rc.1/' });
+
+        page.url = '/rollcall/12?step=4';
+        await flushPromises();
+        expect(wrapper.get('[data-testid="close-thread"]').attributes('href')).toBe('https://7cav.us/threads/rc.1/');
+    });
+
+    it('writes the report\'s notes and reasons on the close step, and saves them before sending', async () => {
+        vi.useFakeTimers();
+        page.url = '/rollcall/12?step=4';
+        const DRAFT = { notes: null, unaccounted: [], reasons: [{ value: 'no_notice', label: 'No notice given' }] };
+        const wrapper = cycle({
+            flow: CREATED,
+            practice: { ...POSTED, confirmation: { at: '2026-10-08T10:00:00+00:00', by: 'Vasquez.R', held: true } },
+            troopers: [trooper(1, 'will_attend', 'present'), trooper(2, 'unsigned', 'missed')],
+            reportDraft: DRAFT,
+        });
+
+        expect(wrapper.get('[data-reason-trooper="2"]').text()).toContain('missed without signing. Why?');
+        await wrapper.get('[data-testid="close-notes"]').setValue('Good session.');
+        await wrapper.get('[data-reason-trooper="2"] select').setValue('no_notice');
+        post.mockResolvedValue({ ok: true, status: 200, data: { reportDraft: DRAFT } });
+        await wrapper.get('[data-testid="close-send"]').trigger('click');
+        await vi.advanceTimersByTimeAsync(1000);
+        await flushPromises();
+
+        expect(post).toHaveBeenCalledWith(
+            '/rollcall/12/report-notes',
+            { week: '2026-10-03', notes: 'Good session.', unaccounted: [{ trooper_id: 2, reason: 'no_notice' }] },
+            { keepalive: false },
+        );
+        expect(visit).toHaveBeenCalledWith('/reports/12/2026-10-03?send=1');
+    });
+
+    describe('the close step\'s notes autosave', () => {
+        const DRAFT = { notes: null, unaccounted: [], reasons: [] };
+        const notesCalls = () => post.mock.calls.filter(([url]) => url === '/rollcall/12/report-notes');
+        const close = () => {
+            page.url = '/rollcall/12?step=4';
+
+            return cycle({ flow: CREATED, practice: { ...POSTED, confirmation: { at: '2026-10-08T10:00:00+00:00', by: 'Vasquez.R', held: true } }, reportDraft: DRAFT });
+        };
+
+        it('sends one save at a time, in order, the later one with the latest text', async () => {
+            vi.useFakeTimers();
+            let answer;
+            post.mockImplementation((url) => (url === '/rollcall/12/report-notes' ? new Promise((resolve) => (answer = resolve)) : Promise.resolve({ ok: true, status: 200, data: {} })));
+            const wrapper = close();
+
+            await wrapper.get('[data-testid="close-notes"]').setValue('First');
+            await vi.advanceTimersByTimeAsync(900);
+            expect(notesCalls()).toHaveLength(1);
+
+            // Typed again while the first save is on its way: the second waits for it, then sends what is on screen.
+            await wrapper.get('[data-testid="close-notes"]').setValue('Second, longer');
+            await vi.advanceTimersByTimeAsync(900);
+            expect(notesCalls()).toHaveLength(1);
+
+            answer({ ok: true, status: 200, data: { reportDraft: DRAFT } });
+            await flushPromises();
+            expect(notesCalls()).toHaveLength(2);
+            expect(notesCalls()[1][1].notes).toBe('Second, longer');
+        });
+
+        it('sends a change still waiting to save when the page is left', async () => {
+            vi.useFakeTimers();
+            post.mockResolvedValue({ ok: true, status: 200, data: { reportDraft: DRAFT } });
+            const wrapper = close();
+
+            await wrapper.get('[data-testid="close-notes"]').setValue('Typed just before leaving');
+            wrapper.unmount();
+            await flushPromises();
+
+            expect(notesCalls()).toHaveLength(1);
+            expect(notesCalls()[0][1].notes).toBe('Typed just before leaving');
+            expect(notesCalls()[0][2]).toEqual({ keepalive: true });
+        });
+
+        it('waits for a save already on its way before sending for review', async () => {
+            vi.useFakeTimers();
+            let answer;
+            post.mockImplementation((url) => (url === '/rollcall/12/report-notes' ? new Promise((resolve) => (answer = resolve)) : Promise.resolve({ ok: true, status: 200, data: {} })));
+            const wrapper = close();
+
+            await wrapper.get('[data-testid="close-notes"]').setValue('On its way');
+            await vi.advanceTimersByTimeAsync(900);
+            await wrapper.get('[data-testid="close-send"]').trigger('click');
+            await flushPromises();
+            expect(visit).not.toHaveBeenCalled();
+
+            answer({ ok: true, status: 200, data: { reportDraft: DRAFT } });
+            await flushPromises();
+            expect(visit).toHaveBeenCalledWith('/reports/12/2026-10-03?send=1');
+        });
+    });
+
+    it('opens a sent week on its closed last step, locked', () => {
+        const wrapper = cycle({ flow: CREATED, practice: POSTED, report: { ...REPORT, sent: true }, locked: true });
+
+        expect(wrapper.get('[data-testid="cycle-state"]').text()).toBe('Closed · sent for review');
+        expect(wrapper.find('[data-testid="close-sent"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="close-send"]').exists()).toBe(false);
+    });
+});

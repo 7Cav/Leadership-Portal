@@ -26,5 +26,7 @@ final readonly class SendWeeklyReport
         public ?string $trainingSubject = null,
         public array $unaccounted = [],
         public array $makeupChecks = [],
+        // Where the send started (#703): `rollcall` or `report`, null when not said. Recorded, never checked.
+        public ?string $sentFrom = null,
     ) {}
 }

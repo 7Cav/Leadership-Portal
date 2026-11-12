@@ -20,5 +20,8 @@ final readonly class SaveReportDraft
         public ?string $notes,
         public ?string $trainingSubject = null,
         public array $unaccounted = [],
+        // Leave the stored training subject as it is and ignore `$trainingSubject` (#703, the roll call's close step):
+        // read under the row lock, so a topic saved meanwhile is never written back over.
+        public bool $keepSubject = false,
     ) {}
 }

@@ -171,7 +171,7 @@ class SendWeeklyReportHandler
                 action: $existing?->status === WeeklyReportStatus::Sent ? self::RESENT : self::ACTION,
                 reason: $command->reason,
                 reasonRequired: true,
-                mutation: function () use ($unit, $weekStart, $content, $actor, $templateVersionId, $trainingSubject, $makeupChecks) {
+                mutation: function () use ($unit, $weekStart, $content, $actor, $templateVersionId, $trainingSubject, $makeupChecks, $command) {
                     // Lock the report row first, then read the numbers it freezes. A rollcall save
                     // holds a shared lock on this row until it commits (`isSentFor()`), so the
                     // lock is granted only once every save that got in first has committed — and
@@ -198,6 +198,7 @@ class SendWeeklyReportHandler
                         // An Admin holding a billet sends in their own name, as that unit's leader.
                         $this->acting->billetOf($actor->id),
                         $makeupChecks,
+                        $command->sentFrom,
                     );
                 },
             );

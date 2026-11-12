@@ -6,6 +6,7 @@ import {
     PhMinus,
     PhX,
 } from '@phosphor-icons/vue';
+import { forumDate } from './forumDate';
 import { initialsOf } from './initials';
 
 // The vocabulary of the rollcall screen (Stories 3.7–3.10, mockups/v2/rollcall-r3.html; statuses of 2026-10-30).
@@ -247,6 +248,42 @@ export function stepsOf(troopers, postedAt = null, unlinked = 0) {
             state: postedAt ? 'done' : 'todo',
         },
     ];
+}
+
+// The four steps of a week on the new flow (#703): create the roll call with its date and topic, post it, sign and
+// mark, then close it for review, which sends the weekly report. `cycle` is what the page knows of the week:
+// `{ created, postedAt, confirmed, sent, unlinked }`. Sign and mark is done once everyone has signed and is marked,
+// nobody seen on the server is left unaccounted for, and the practice is confirmed; an unsigned trooper keeps it open.
+export function cycleStepsOf(troopers, { created = false, postedAt = null, confirmed = false, sent = false, unlinked = 0 } = {}) {
+    const c = countsOf(troopers);
+    const empty = c.total === 0;
+    const signed = c.total - c.unsigned;
+    const marked = c.total - c.unmarked;
+    const settled = !c.unmarked && !unlinked;
+
+    return [
+        { n: 1, title: 'Create', sub: created ? 'Done' : 'Date and topic', state: created ? 'done' : 'todo' },
+        { n: 2, title: 'Post', sub: postedAt ? `Posted ${forumDate(postedAt)}` : 'Copy to the forum', state: postedAt ? 'done' : 'todo' },
+        {
+            n: 3,
+            title: 'Sign and mark',
+            sub: empty ? 'No troopers' : settled && confirmed ? `${marked} of ${c.total} · practice confirmed` : `${signed} of ${c.total} signed · ${marked} of ${c.total} marked`,
+            state: empty ? 'neutral' : !settled || c.unsigned ? 'warn' : confirmed ? 'done' : 'todo',
+            unlinked,
+        },
+        { n: 4, title: 'Close for review', sub: sent ? 'Sent for review' : 'Sends the weekly report', state: sent ? 'done' : 'todo' },
+    ];
+}
+
+// The step a week on the new flow opens on when the URL names none: the first with work left. A sent week opens on
+// its last step, which says so. Signatures count only while the thread is still open, as on the three-step flow.
+export function cycleLandingStep(troopers, { created = false, postedAt = null, sent = false } = {}, signaturesOpen = true) {
+    if (sent) return 4;
+    if (!created) return 1;
+    if (!postedAt) return 2;
+    const c = countsOf(troopers);
+
+    return (signaturesOpen && c.unsigned) || c.unmarked ? 3 : 4;
 }
 
 // The step a rollcall opens on when the URL names none: the first one with work left. Signatures

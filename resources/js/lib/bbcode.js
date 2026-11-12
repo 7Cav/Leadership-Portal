@@ -16,7 +16,7 @@
 import { insigniaWidth } from './rankInsignia';
 
 /** Names printable anywhere in a template. */
-export const TOP_STRINGS = ['unit', 'unit_name', 'week', 'week_start', 'week_end', 'count', 'signed', 'attended', 'rc_image', 'sp_image'];
+export const TOP_STRINGS = ['unit', 'unit_name', 'week', 'week_start', 'week_end', 'training_date', 'training_topic', 'count', 'signed', 'attended', 'rc_image', 'sp_image'];
 /** Yes-or-no names about the whole post, usable only as sections, anywhere in a template. */
 export const TOP_FLAGS = ['fireteams_shown'];
 /** The one list a template may repeat over. */
@@ -39,6 +39,8 @@ const MEANINGS = {
     week: ['The Cav week, Saturday to Friday', '16May26 – 22May26'],
     week_start: ['The Saturday the week starts', '16May26'],
     week_end: ['The Friday the week ends', '22May26'],
+    training_date: ["When this week's practice starts: the section's slot, or this week's own time when it was moved. Empty when there is no practice this week", 'Wed 20May26 2300Z'],
+    training_topic: ["This week's training topic: the platoon's, or the section's own. The weekly report shows the same one. Empty until one is set", 'Land navigation: map and compass'],
     count: ['How many troopers are in the section', '8'],
     signed: ['How many signed the roll call as will attend', '6'],
     attended: ['How many attended practice or completed a make-up', '5'],
@@ -159,6 +161,8 @@ export function sampleContext() {
         week: example('week'),
         week_start: example('week_start'),
         week_end: example('week_end'),
+        training_date: example('training_date'),
+        training_topic: example('training_topic'),
         count: String(troopers.length),
         signed: String(troopers.filter((trooper) => trooper.rc_yes).length),
         attended: String(troopers.filter((trooper) => trooper.sp_present || trooper.sp_makeup).length),
