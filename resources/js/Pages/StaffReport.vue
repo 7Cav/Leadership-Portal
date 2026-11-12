@@ -29,6 +29,7 @@ import { useDueCountdown } from '@/composables/useDueCountdown';
 import StaffHqHealth from '@/components/reports/StaffHqHealth.vue';
 import StaffReportDiscrepancy from '@/components/reports/StaffReportDiscrepancy.vue';
 import StaffReportPresence from '@/components/reports/StaffReportPresence.vue';
+import SelfReportedNotice from '@/components/reports/SelfReportedNotice.vue';
 import StaffReportRevisions from '@/components/reports/StaffReportRevisions.vue';
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
@@ -86,6 +87,8 @@ const props = defineProps({
     discrepancy: { type: Object, default: null },
     // For a reader only: the HQ's unit health that week ({@see StaffHqHealth.vue}), or null.
     health: { type: Object, default: null },
+    // The HQ's game when its attendance can never be read automatically, else null: one notice in place of the alerts.
+    selfReported: { type: String, default: null },
 });
 
 const entered = computed(() => new Map(props.entries.map((entry) => [entry.sectionId, entry])));
@@ -424,12 +427,13 @@ function entryNote(id) {
                             <template v-else>Did not attend a section practice.</template>
                         </span>
                         <StaffReportDiscrepancy :discrepancy="discrepancy" />
-                        <StaffReportPresence :presence="report.presence" />
+                        <StaffReportPresence :presence="report.presence" :self-reported="!!selfReported" />
                     </h2>
                     <p v-if="report.presenceType" class="mt-0.5 flex flex-wrap items-center gap-2" data-testid="staff-report-presence-answer">
                         Presence: {{ presenceAnswer(report) }}
-                        <StaffReportPresence :presence="report.publicServer" :name="trooper.displayName" testid="staff-report-public-server" />
+                        <StaffReportPresence :presence="report.publicServer" :name="trooper.displayName" :self-reported="!!selfReported" testid="staff-report-public-server" />
                     </p>
+                    <SelfReportedNotice v-if="selfReported" :game="selfReported" class="mt-2" />
                     <p class="mt-0.5 text-xs text-muted-foreground">
                         Sent {{ stamp(report.sentAt) }}.
                         <span v-if="sheetLine" data-testid="staff-report-sheet">{{ sheetLine }}.</span>

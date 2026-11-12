@@ -122,7 +122,7 @@ final class CaptureSources
                     $gameServerId,
                     $noServer,
                 ),
-                TelemetryInterface::None => throw new \LogicException('No source reads the `none` interface.'),
+                TelemetryInterface::None, TelemetryInterface::Impossible => throw new \LogicException("No source reads the `{$interface->value}` interface."),
             };
         };
 
@@ -140,7 +140,7 @@ final class CaptureSources
                 TelemetryInterface::Crcon => [$crconSource, $battleMetricsSource],
                 TelemetryInterface::BattleMetrics => [$battleMetricsSource],
                 TelemetryInterface::Nightwatch => [$nightwatchSource],
-                TelemetryInterface::None => [],
+                TelemetryInterface::None, TelemetryInterface::Impossible => [],
             };
         }
 
@@ -168,7 +168,7 @@ final class CaptureSources
      */
     public function publicFor(Game $game): array
     {
-        if ($game->interface === TelemetryInterface::None || $this->public === null) {
+        if (! $game->interface->reads() || $this->public === null) {
             return [];
         }
 
@@ -228,7 +228,7 @@ final class CaptureSources
      */
     public function for(Game $game): array
     {
-        if ($game->interface === TelemetryInterface::None) {
+        if (! $game->interface->reads()) {
             return [];
         }
 
@@ -253,7 +253,7 @@ final class CaptureSources
      */
     public function readsEnvServer(Game $game): bool
     {
-        return $game->interface !== TelemetryInterface::None
+        return $game->interface->reads()
             && $this->ownsEnvServer($game)
             && ($this->selected === null || ($this->selected)($game) === null);
     }

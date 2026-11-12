@@ -93,6 +93,8 @@ const props = defineProps({
     // A platoon's or company's HQ staff and their own staff reports for the week, read only and
     // live; null for any other unit.
     staffReports: { type: Array, default: null },
+    // The unit's game when its attendance can never be read automatically, else null (the staff panel's one notice).
+    staffSelfReported: { type: String, default: null },
     // A section's draft with troopers: whether the week's practice is confirmed (`{ confirmed, held }`), which the send
     // needs (#634). Null when nothing needs confirming.
     practice: { type: Object, default: null },
@@ -814,7 +816,7 @@ function useSuggestion() {
                     </div>
                 </div>
 
-                <StaffReportsPanel v-if="staffReports" class="mt-5" :rows="staffReports" />
+                <StaffReportsPanel v-if="staffReports" class="mt-5" :rows="staffReports" :self-reported="staffSelfReported" />
 
                 <div
                     v-if="!sent && !week.beforeFloor"

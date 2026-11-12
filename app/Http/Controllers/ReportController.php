@@ -34,6 +34,7 @@ use App\Kpi\UnitKpis;
 use App\Kpi\WeeklyReportKpis;
 use App\Loa\LoaProvenance;
 use App\Milpac\RosterProvenance;
+use App\Milpac\SelfReportedGame;
 use App\Milpac\StaffReportWeek;
 use App\Models\AuditLogEntry;
 use App\Models\PlatoonTrainingTopic;
@@ -110,7 +111,7 @@ class ReportController extends Controller
         private readonly RollcallRoster $rollcallRoster,
     ) {}
 
-    public function show(Request $request, UnaccountedSuggestions $suggestions, AuditLogRepository $audit, ReportEditProps $editProps, int $unit, string $week): Response
+    public function show(Request $request, UnaccountedSuggestions $suggestions, AuditLogRepository $audit, ReportEditProps $editProps, SelfReportedGame $selfReported, int $unit, string $week): Response
     {
         $unit = $this->unitInScope($request, $unit);
         $weekStart = $this->weekStart($week);
@@ -246,7 +247,10 @@ class ReportController extends Controller
             // (4.3, AD-20). A sent report is frozen and a roll-up reads its children's frozen reports: neither has any.
             'loaSync' => $isLeaf && ! $sent ? $this->loaProvenance->current()->toArray() : null,
             'computedAt' => CarbonImmutable::now('UTC')->toIso8601String(),
-            'staffReports' => $this->staffReportRows($request, $unit, $weekStart),
+            'staffReports' => $staffReports = $this->staffReportRows($request, $unit, $weekStart),
+            // The unit's game when its attendance can never be read : the staff panel says so once instead of
+            // a "No game server data" alert on every row.
+            'staffSelfReported' => $staffReports === null ? null : $selfReported->for($unit->id),
         ]);
     }
 

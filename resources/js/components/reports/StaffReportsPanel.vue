@@ -2,6 +2,7 @@
 import { Link } from '@inertiajs/vue3';
 import StaffReportDiscrepancy from '@/components/reports/StaffReportDiscrepancy.vue';
 import StaffReportPresence from '@/components/reports/StaffReportPresence.vue';
+import SelfReportedNotice from '@/components/reports/SelfReportedNotice.vue';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { NAMED_TYPES, attendedText, presenceAnswer } from '@/lib/staffReport';
@@ -13,6 +14,8 @@ defineProps({
     // `[{ trooperId, name, sent, attended, practices, practiceType, ftx, officeHour, presenceType, otherEvents, notes,
     // sheetPushedAt, presence, publicServer, discrepancy, href }]`; `practices` is a count here.
     rows: { type: Array, required: true },
+    // The unit's game when its attendance can never be read automatically, else null: one notice for the panel.
+    selfReported: { type: String, default: null },
 });
 </script>
 
@@ -21,14 +24,15 @@ defineProps({
         <div class="border-b border-border px-4 py-3">
             <h2 id="staff-reports-title" class="text-sm font-semibold">HQ staff reports</h2>
             <p class="mt-0.5 text-xs text-muted-foreground">Each HQ staff member reports their accountability and presence for the week.</p>
+            <SelfReportedNotice v-if="selfReported" :game="selfReported" class="mt-2" />
         </div>
         <ul v-if="rows.length" class="divide-y divide-border">
             <li v-for="row in rows" :key="row.trooperId" class="flex flex-wrap items-center gap-x-2.5 gap-y-1 px-4 py-2.5" :data-testid="`staff-report-row-${row.trooperId}`">
                 <Link :href="row.href" class="font-medium underline-offset-2 hover:underline">{{ row.name }}</Link>
                 <span class="ml-auto inline-flex items-center gap-1.5">
                     <StaffReportDiscrepancy :discrepancy="row.discrepancy" />
-                    <StaffReportPresence :presence="row.presence" />
-                    <StaffReportPresence :presence="row.publicServer" :name="row.name" testid="staff-report-public-server" />
+                    <StaffReportPresence :presence="row.presence" :self-reported="!!selfReported" />
+                    <StaffReportPresence :presence="row.publicServer" :name="row.name" :self-reported="!!selfReported" testid="staff-report-public-server" />
                     <Badge v-if="!row.sent" variant="warning" data-testid="staff-report-state">Not sent</Badge>
                     <Badge v-else-if="row.attended && (NAMED_TYPES[row.practiceType] || row.practiceType === 'office_hour')" variant="success" data-testid="staff-report-state">
                         {{ attendedText({ attended: true, practiceType: row.practiceType, ftx: row.ftx, officeHour: row.officeHour, practices: [] }) }}

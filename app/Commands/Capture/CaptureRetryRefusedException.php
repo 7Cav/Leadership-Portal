@@ -3,6 +3,7 @@
 namespace App\Commands\Capture;
 
 use App\Models\Game;
+use App\Models\TelemetryInterface;
 use RuntimeException;
 
 /** A "Try again" that could not even be attempted. The message is written for the leader. */
@@ -15,7 +16,11 @@ class CaptureRetryRefusedException extends RuntimeException
 
     public static function notConfigured(Game $game): self
     {
-        return new self("Capture is not set up for {$game->name}. Mark attendance by hand.");
+        if ($game->interface === TelemetryInterface::Impossible) {
+            return new self("Server data can't be read automatically for {$game->name}. Mark attendance by hand.");
+        }
+
+        return new self("Capture is not set up yet for {$game->name}. Mark attendance by hand.");
     }
 
     public static function nothingToRetry(): self

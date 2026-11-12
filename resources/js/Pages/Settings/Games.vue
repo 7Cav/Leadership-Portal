@@ -244,7 +244,7 @@ const applyAccountLinks = (game) => act('post', `/settings/games/${game.id}/acco
                         <NativeSelect id="game-interface" v-model="form.interface" data-testid="game-interface" :aria-invalid="!!form.errors.interface">
                             <option v-for="option in interfaces" :key="option.value" :value="option.value">{{ option.label }}</option>
                         </NativeSelect>
-                        <p class="text-xs text-muted-foreground">None means leaders mark this game's attendance by hand.</p>
+                        <p class="text-xs text-muted-foreground">None means reading is not set up yet. None (impossible) means this game's attendance can never be read automatically, so reports say it is self-reported. Either way leaders mark it by hand.</p>
                         <p v-if="form.errors.interface" class="text-xs text-destructive" data-testid="error-interface">{{ form.errors.interface }}</p>
                     </div>
 
