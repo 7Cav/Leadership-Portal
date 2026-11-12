@@ -205,6 +205,23 @@ test('in the Source tab the toolbar edits through the browser, so Ctrl+Z takes i
     await expect(body).toHaveValue('aa bb aa\nsecond line');
 });
 
+test('selecting everything in the starter and deleting it empties the template, its table and loops included', async ({ page }) => {
+    await open(page);
+    await page.getByTestId('use-starter').click();
+    const confirm = page.getByTestId('starter-confirm');
+    if (await confirm.isVisible().catch(() => false)) await confirm.click();
+    const surface = page.getByTestId('template-visual');
+    await expect(surface.getByText('Repeats for each trooper')).toBeVisible();
+
+    await caretAtEnd(page);
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.press('Backspace');
+
+    await expect(page.getByTestId('template-refusal')).toHaveCount(0);
+    await page.getByTestId('template-mode-source').click();
+    await expect(page.getByTestId('template-body')).toHaveValue('');
+});
+
 test('a line cut and pasted in the visual mode keeps its codes', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await open(page);

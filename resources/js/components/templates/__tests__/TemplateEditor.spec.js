@@ -355,13 +355,24 @@ describe('what the browser would do its own way', () => {
         expect(inside.defaultPrevented).toBe(false);
     });
 
-    it('leaves deleting everything to the browser, loop and conditions included', async () => {
+    it('deletes everything, loop and conditions included, itself, as Chromium will not across the parts that cannot be edited', async () => {
         editor(STARTER);
         await selectVisual(0, STARTER.length);
         const all = before('deleteContentBackward');
         surface().dispatchEvent(all);
+        await flushPromises();
 
-        expect(all.defaultPrevented).toBe(false);
+        expect(all.defaultPrevented).toBe(true);
+        expect(wrapper.props('modelValue')).toBe('');
+    });
+
+    it('leaves deleting text inside one line to the browser', async () => {
+        editor('[B]bold[/B] and plain');
+        await selectVisual(4, 14);
+        const inside = before('deleteContentBackward');
+        surface().dispatchEvent(inside);
+
+        expect(inside.defaultPrevented).toBe(false);
     });
 
     it('puts the page back when a phone keyboard makes an edit the surface refused and could not stop', async () => {
@@ -376,6 +387,8 @@ describe('what the browser would do its own way', () => {
         expect(changes()).toHaveLength(0);
         expect([...surface().querySelectorAll('td')].map((cell) => cell.textContent)).toEqual(['one', 'two']);
         expect(wrapper.get('[data-testid="template-refusal"]').text()).toContain('into another cell');
+        // The selection is back where it was, so the keyboard's next letter does not land at the start.
+        expect(wrapper.findComponent({ name: 'TemplateVisualSurface' }).vm.selection()).toEqual({ start: 16, end: 27 });
     });
 
     it('copies the template as written, so the codes survive a cut and paste', async () => {

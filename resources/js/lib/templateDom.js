@@ -267,15 +267,61 @@ function walk(root, on) {
 }
 
 /**
+ * The selection reaching the start or the end of the surface when nothing visible lies before or after it. A template
+ * that ends in a table has nothing after the table to select, so selecting everything ends in its last cell; read this
+ * way it takes the whole table, its hidden ends included.
+ */
+export function toVisibleEdges(range, root) {
+    const extended = range.cloneRange();
+    // A cursor stays where it is: only a selection is read as reaching an edge.
+    if (range.collapsed) return extended;
+    const before = document.createRange();
+    before.setStart(root, 0);
+    before.setEnd(range.startContainer, range.startOffset);
+    if (before.toString() === '') extended.setStart(root, 0);
+    const after = document.createRange();
+    after.setStart(range.endContainer, range.endOffset);
+    after.setEnd(root, root.childNodes.length);
+    if (after.toString() === '') extended.setEnd(root, root.childNodes.length);
+
+    return extended;
+}
+
+/**
  * Whether typing over or deleting a selection would break the template's structure: it reaches over one end of a
  * condition or of the trooper loop, or runs from one cell (or from outside a table) into another. The browser would take
  * the end away and leave the other, or empty two cells into one, so the editor refuses it instead. A selection inside one
- * cell or one line, across formatting and whole codes, is the browser's to delete.
+ * cell or one line, across formatting and whole codes, is the browser's to delete. Given the surface (`root`), a
+ * selection with nothing visible beyond it is read as reaching the surface's edge (`toVisibleEdges`).
  */
-export function crossesStructure(range) {
+export function crossesStructure(selected, root = null) {
+    if (selected.collapsed || !crosses(selected)) return false;
+
+    return root === null || crosses(toVisibleEdges(selected, root));
+}
+
+/**
+ * Whether a selection takes in any of a table or a condition's ends, rather than lying within one cell or line. The
+ * browser will not delete across the parts of those that cannot be edited, so the editor makes such an edit itself.
+ */
+export function touchesStructure(range, root) {
     if (range.collapsed) return false;
-    const root = range.commonAncestorContainer;
-    const scope = root.nodeType === ELEMENT ? root : root.parentElement;
+
+    return crosses(range) || [...root.querySelectorAll('table, [data-edge]')].some((node) => range.intersectsNode(node) && !node.contains(range.commonAncestorContainer));
+}
+
+/**
+ * The selection as an edit should take it: as it is, unless it takes in a table or a condition (and is not refused),
+ * when it is read as reaching the surface's edge where nothing visible lies beyond it. Selecting everything in a
+ * template that ends in a table so takes all of it.
+ */
+export function editedRange(selected, root) {
+    return touchesStructure(selected, root) && !crossesStructure(selected, root) ? toVisibleEdges(selected, root) : selected;
+}
+
+function crosses(range) {
+    const common = range.commonAncestorContainer;
+    const scope = common.nodeType === ELEMENT ? common : common.parentElement;
     // A section the selection takes one end of and not the other; taking both (a whole condition, everything) is fine.
     const pairs = new Set([...scope.querySelectorAll('[data-edge]')].map((edge) => edge.closest('[data-pair]')));
     const halfTaken = (pair) => [...pair.children].filter((child) => child.dataset.edge && range.intersectsNode(child)).length === 1;

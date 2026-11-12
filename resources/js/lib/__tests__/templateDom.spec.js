@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import cases from '../../../../tests/Fixtures/bbcode-templates.json';
 import { buildDoc } from '../templateDoc';
-import { crossesStructure, drawDoc, hasForeignMarkup, hasLoneEdge, pointAt, readDom } from '../templateDom';
+import { crossesStructure, drawDoc, hasForeignMarkup, hasLoneEdge, pointAt, readDom, toVisibleEdges } from '../templateDom';
 import { STARTER } from './templateStarter';
 
 // The visual mode is a page element the leader types into, drawn from the template and read back from what is on the
@@ -164,6 +164,21 @@ describe('reading back what the leader changed', () => {
         expect(crossesStructure(range(one, 1, two, 1))).toBe(true);
         expect(crossesStructure(range(one, 0, one, 2))).toBe(false);
         expect(crossesStructure(range(bold, 1, root.lastChild, 2))).toBe(false);
+    });
+
+    it('reads selecting everything in a template that ends in a table as taking all of it, as a browser selects it', () => {
+        const root = surface(STARTER);
+        const lastCell = [...root.querySelectorAll('td')].at(-1).lastChild;
+        const all = document.createRange();
+        all.setStart(root.firstChild.firstChild ?? root.firstChild, 0);
+        all.setEnd(lastCell, lastCell.data.length);
+
+        expect(crossesStructure(all, root)).toBe(false);
+        expect(readDom(root, [toVisibleEdges(all, root)].flatMap((range) => [{ node: range.startContainer, offset: range.startOffset }, { node: range.endContainer, offset: range.endOffset }])).offsets).toEqual([0, STARTER.length]);
+
+        const caret = document.createRange();
+        caret.setStart(lastCell, lastCell.data.length);
+        expect(toVisibleEdges(caret, root).collapsed).toBe(true);
     });
 
     it('lets a selection take a whole condition, a whole loop or everything', () => {

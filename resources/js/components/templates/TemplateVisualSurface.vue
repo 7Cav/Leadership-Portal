@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue';
 import { buildDoc } from '@/lib/templateDoc';
-import { crossesStructure, drawDoc, hasForeignMarkup, hasLoneEdge, pointAt, readDom } from '@/lib/templateDom';
+import { crossesStructure, drawDoc, hasForeignMarkup, hasLoneEdge, pointAt, readDom, editedRange, touchesStructure } from '@/lib/templateDom';
 
 // The template editor's visual mode (#704): the template drawn as formatted text a leader types into, with each code as
 // a chip that cannot be edited and the trooper loop as one block of rows (`lib/templateDom.js` draws and reads it).
@@ -41,12 +41,15 @@ watch(
 
 // An edit the surface refused that the browser made anyway (a phone keyboard's, which cannot be stopped): the next input
 // puts the page back as the template still is.
-let undoNextInput = false;
+// It holds where the selection was, to put the cursor back there.
+let undoNextInput = null;
 
 function read() {
     if (undoNextInput) {
-        undoNextInput = false;
+        const { start, end } = undoNextInput;
+        undoNextInput = null;
         draw(shown);
+        select(start, end);
 
         return;
     }
@@ -66,7 +69,7 @@ function read() {
 function selection() {
     const selected = document.getSelection();
     if (!selected?.rangeCount || !root.value?.contains(selected.anchorNode)) return null;
-    const range = selected.getRangeAt(0);
+    const range = editedRange(selected.getRangeAt(0), root.value);
     const { offsets } = readDom(root.value, [
         { node: range.startContainer, offset: range.startOffset },
         { node: range.endContainer, offset: range.endOffset },
@@ -106,10 +109,16 @@ function onBeforeinput(event) {
     const type = event.inputType ?? '';
     const selected = document.getSelection();
     const range = selected?.rangeCount ? selected.getRangeAt(0) : null;
-    if (OVER_SELECTION.test(type) && range && root.value.contains(range.commonAncestorContainer) && crossesStructure(range)) {
+    const overSelection = OVER_SELECTION.test(type) && range && !range.collapsed && root.value.contains(range.commonAncestorContainer);
+    if (overSelection && crossesStructure(range, root.value)) {
         event.preventDefault();
-        if (!event.cancelable) undoNextInput = true;
+        if (!event.cancelable) undoNextInput = selection() ?? { start: 0, end: 0 };
         emit('refused');
+    } else if (overSelection && event.cancelable && touchesStructure(range, root.value)) {
+        // A selection taking whole tables or conditions (everything, say): the browser will not delete across the parts
+        // that cannot be edited, so the editor makes the change on the template instead.
+        event.preventDefault();
+        emit('insert', type.startsWith('insert') ? (event.data ?? '') : '');
     } else if (type.startsWith('format')) {
         event.preventDefault();
     } else if (HISTORY[type]) {
@@ -137,7 +146,7 @@ function onCopy(event, cutting = false) {
     event.clipboardData.setData('text/plain', shown.slice(place.start, place.end));
     if (!cutting) return;
     const range = document.getSelection().getRangeAt(0);
-    if (crossesStructure(range)) emit('refused');
+    if (crossesStructure(range, root.value)) emit('refused');
     else emit('insert', '');
 }
 
