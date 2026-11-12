@@ -337,6 +337,21 @@ it('rolls every write back when the import fails part-way (single transaction)',
             throw new RuntimeException('disk full');
         }
 
+        public function assign(int $cavPositionId, int $unitId): UnitBilletMapping
+        {
+            throw new RuntimeException('not used by the import');
+        }
+
+        public function unassign(int $cavPositionId): ?UnitBilletMapping
+        {
+            return null;
+        }
+
+        public function lockAll(): Collection
+        {
+            return collect();
+        }
+
         public function placeFromImport(int $cavPositionId, int $unitId): void {}
     });
 

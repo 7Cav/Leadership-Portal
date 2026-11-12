@@ -279,6 +279,9 @@ class OrgStructureController extends Controller
                 ->all(),
             // The outcome of an import just run (story 2.9), flashed by `import()` for one render.
             'importResult' => $request->session()->get('org_import'),
+            // The billets each unit takes, the placed billets the Cav renamed and the new billets nothing places
+            // (2026-11-13). Admin-tier only, like the unplaced troopers above: null for everyone else.
+            'billets' => $isAdmin ? app(OrgBilletList::class)->build($tree) : null,
             // Rows shown in a second place without moving the unit: ACD and DEVCOM under
             // RDC in the staff card, DEVCOM's staff under DEVCOM in the chain of command.
             'references' => self::references($tree),

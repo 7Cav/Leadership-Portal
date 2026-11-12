@@ -8,6 +8,7 @@ use App\Authorization\ScopeResolver;
 use App\Authorization\StaffReportAccess;
 use App\Kpi\Headcount;
 use App\Repositories\AdminBilletRepository;
+use App\Repositories\CavBilletRepository;
 use App\Repositories\NotificationRepository;
 use App\Repositories\StaffReportRepository;
 use App\Repositories\UnitGuidonRepository;
@@ -45,6 +46,7 @@ class HandleInertiaRequests extends Middleware
         private readonly WeeklyReportRepository $weeklyReports,
         private readonly StaffReportRepository $sentStaffReports,
         private readonly NotificationRepository $notifications,
+        private readonly CavBilletRepository $cavBillets,
     ) {}
 
     /**
@@ -122,6 +124,9 @@ class HandleInertiaRequests extends Middleware
                 && $this->scope->activeViewAs($request->user()) === null
                 && $this->scope->isRegimentalHqStaff($request->user()),
             'adminBilletsPending' => fn () => $request->user() && $this->scope->actsAsAdmin($request->user()) ? $this->adminBillets->pendingCount() : 0,
+            // How many billets wait on Org structure, for the sidebar's count there: placed billets the Cav renamed and
+            // new billets nothing places. Only to someone acting as Admin; zero for everyone else.
+            'orgBilletsPending' => fn () => $request->user() && $this->scope->actsAsAdmin($request->user()) ? $this->cavBillets->attentionCount() : 0,
             // `actAs`: whether the banner offers to act as the preview's target, which only a real Admin may (the
             // server checks again on the start).
             'viewAs' => fn () => $request->user() && ($preview = $this->scope->activeViewAs($request->user())) !== null

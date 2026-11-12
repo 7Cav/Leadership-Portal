@@ -5,6 +5,7 @@ section: admin
 order: 1
 audience: admin
 page: /settings/org-structure
+updated: 2026-11-12
 ---
 
 > [!why] Everyone's access comes from where their billet sits in this tree. A unit in the wrong place gives the wrong people access to it, and a missing acting lead leaves a unit with nobody who can run its roll call.
@@ -24,6 +25,34 @@ The page has two cards. **Chain of command** holds the regiment, its battalions 
 
 > [!good-to-know] What this changes, and how to undo it: the import adds units and maps billets; it never deletes a unit. To undo a unit it added, delete that unit while it is still empty.
 
+## Billets
+
+Every billet places its holder in one unit. Select a unit and open **Billets** in its details to see each billet that lands there, how many troopers hold it now, and why:
+
+- **Rule**, with the rule in words, such as "line billet in A/1-7" or "staff billet of S6": the import placed it from the Cav roster.
+- **Placed by an Admin**: someone placed it by hand. This beats the rules: the import keeps it and the roster sync places the holder there.
+- **Commands this unit**: a leader's billet with no placement of its own. Its holder lands in the unit they command.
+
+1. To add a billet to the unit, choose **Add billet**, pick it from the billets the Cav lists, give a reason and choose **Add billet**.
+2. To move a billet to another unit, choose **Move** on it, pick the unit, give a reason and choose **Move billet**.
+3. To take back a placement made by hand, choose **Remove** on it and give a reason. The billet goes back to where the rules put it, or to no unit if no rule places it. A rule's placement has no **Remove**: it follows the Cav.
+
+The holders move on the next roster sync.
+
+> [!good-to-know] One billet name has one unit placed by hand. If an Admin already placed that billet, or another of the same name, in another unit, the portal asks before moving it. Choose **Move it here** to move them all, or **Keep it there**.
+
+### Billets that need an Admin
+
+A card at the top of the page lists what waits, and the sidebar shows the count beside **Org structure**:
+
+- **Renamed in the Cav**: the Cav renamed a placed billet, shown as old name → new name with its unit. The placement stays as it is. Choose **Confirm name** once it still fits, or move the billet from its unit.
+- **In two units at once**: billets of one name placed in different units, or a billet placed by hand in one unit while the rules or its command put it in another. Both units show the warning in their **Billets** list, and it says which unit the sync uses.
+- **New billets**: billets no rule places, held or vacant, such as a start-up game's. Choose **Assign** to pick a unit, or **Leave unplaced** with a reason. A billet left unplaced comes back when the Cav renames it or lists it in another group.
+
+Billets in Cav groups for troopers who no longer serve, such as Retired or Discharged, are never listed as new. A renamed billet that makes its holder an Admin is also confirmed on **Staff grants**, which decides the Admin rights. This page only decides the unit.
+
+> [!good-to-know] What this changes, and how to undo it: every assignment, move, removal, confirmation and billet left unplaced is in the audit log with its reason. Move a billet back or choose **Remove** to undo a placement.
+
 ## Add, rename or move a unit
 
 1. To add a unit, select the unit it goes under and choose the button under its details, such as "Add a platoon under Alpha Company". A separate **Add a unit** window opens with the **Echelon** and, under it, the **Parent**. With nothing selected the button adds a battalion under the regiment.
@@ -31,6 +60,7 @@ The page has two cards. **Chain of command** holds the regiment, its battalions 
 > [!good-to-know] Who can add: for now only Admins add and move units. Everyone else does not see the button. Added the wrong unit? Delete it while it is still empty.
 
 3. To rename or move a unit, select it and change it in the details panel. To move it, pick its new **Parent** and choose **Save unit**. A window lists what changes, each unit under Now and After with its name, its parent and its callsign, such as 1st Platoon, Alpha Company, 1/A/1-7 becoming 1st Platoon, Golf Company, 1/G/1-7. The units under it are listed in a section you can open, such as "Its 2 sections", each with its callsign before and after. Confirm with **Move unit**.
+4. To add a staff group, such as a department, select the regiment or the staff group it goes under and choose "Add a staff group under ...". Give it a name and choose **Add group**. It has no callsign. Add the billets it holds from its **Billets** list.
 
 > [!good-to-know] A moved unit takes its callsign from its new parent and keeps its number or letter: 1st Platoon 1/A/1-7 moved under Golf Company becomes 1/G/1-7, and its sections follow, so 1/1/A/1-7 becomes 1/1/G/1-7. A name that was the standard one, such as 1st Platoon, follows a new number; a name you chose is kept. Units without a callsign of that shape, such as groups or ACD, keep theirs.
 

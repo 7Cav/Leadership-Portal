@@ -5,6 +5,7 @@ namespace App\Repositories;
 use App\Models\Attendance;
 use App\Models\AttendanceStatus;
 use App\Models\BattalionSetting;
+use App\Models\CavBillet;
 use App\Models\ChangelogEntry;
 use App\Models\ChangelogState;
 use App\Models\CounselingRecord;
@@ -33,6 +34,7 @@ use App\Models\TrooperPlacement;
 use App\Models\Unit;
 use App\Models\UnitAccountabilitySetting;
 use App\Models\UnitActingLead;
+use App\Models\UnitBilletMapping;
 use App\Models\UnitGuidon;
 use App\Models\UnitOversight;
 use App\Models\UnitTemplateChoice;
@@ -82,6 +84,7 @@ final class AuditSubject
         UnitActingLead::class => ['unit', 'trooper'],
         UnitOversight::class => ['unit', 'trooper'],
         Loa::class => ['trooper'],
+        UnitBilletMapping::class => ['unit', 'billet'],
     ];
 
     /** The fields shown as before and after, per target class, with the name each reads as. */
@@ -106,6 +109,7 @@ final class AuditSubject
         Game::class => ['name' => 'Name'],
         GameServer::class => ['name' => 'Name'],
         User::class => ['is_admin' => 'Admin'],
+        CavBillet::class => ['confirmed_title' => 'Confirmed name', 'unplaced_at' => 'Left unplaced'],
     ];
 
     private const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -209,6 +213,9 @@ final class AuditSubject
             $target instanceof UnitOversight => 'Oversight of '.$unit($rel($target, 'unit')).': '.$trooper($rel($target, 'trooper')),
             $target instanceof Loa => 'LOA for '.$trooper($rel($target, 'trooper'))
                 .($target->starts_at !== null ? ', '.WeekLabel::date($target->starts_at).' to '.($target->ends_at !== null ? WeekLabel::date($target->ends_at) : 'open') : ''),
+            $target instanceof UnitBilletMapping => 'Billet "'.($rel($target, 'billet')?->title ?? "position {$target->cav_position_id}").'"'
+                .($target->exists ? ' in '.$unit($rel($target, 'unit')) : ''),
+            $target instanceof CavBillet => 'Billet "'.$target->title.'"'.($target->group_title !== null ? " in {$target->group_title}" : ''),
             $target instanceof Unit => trim("{$target->callsign} {$target->name}"),
             $target instanceof Trooper => $target->display_name,
             $target instanceof User => $target->username,
@@ -274,6 +281,17 @@ final class AuditSubject
                 $list($before) === $list($now) => [],
                 default => [['field' => 'Counts', 'from' => $list($before), 'to' => $list($now)]],
             };
+        }
+
+        // A billet an Admin placed or moved on Org structure: the unit before and after, read from the units the write
+        // loaded (`previousUnit` is null for a billet nothing placed before).
+        if ($model instanceof UnitBilletMapping) {
+            if (! $model->relationLoaded('previousUnit')) {
+                return [];
+            }
+            $label = fn (?Unit $unit) => $unit === null ? 'none' : ($unit->callsign ?? $unit->name);
+
+            return [['field' => 'Unit', 'from' => $label($model->getRelation('previousUnit')), 'to' => $label($model->getRelation('unit'))]];
         }
 
         // A guest a leader added or took back (#628): the entry names whose attendance changed.

@@ -6,6 +6,7 @@ use App\Integration\Cav\CavRequestException;
 use App\Models\AdminBillet;
 use App\Models\AdminBilletStatus;
 use App\Models\AuditLogEntry;
+use App\Models\CavBillet;
 use App\Models\KeptGameIdentity;
 use App\Models\PlacementSource;
 use App\Models\SyncRun;
@@ -19,6 +20,7 @@ use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\AdminBilletRepository;
+use App\Repositories\CavBilletRepository;
 use App\Repositories\KeptGameIdentityRepository;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
@@ -952,4 +954,37 @@ it('moves an identity kept on file for a Cav name onto the trooper of that name 
         ->and($identity->platform_id)->toBe('76561198000000021')
         ->and($kept->fresh())->toBeNull()
         ->and(KeptGameIdentity::query()->sole()->cav_name)->toBe('Jarvis.AB');
+});
+
+it('flags a placed billet the roster shows under a new name, and keeps its placement (2026-11-13)', function () {
+    $section = Unit::factory()->create(['type' => UnitType::Section]);
+    UnitBilletMapping::query()->create(['unit_id' => $section->id, 'imported_unit_id' => $section->id, 'cav_position_id' => 773]);
+    CavBillet::query()->create(['cav_position_id' => 773, 'title' => 'Rifleman', 'group_title' => 'A/1-7', 'confirmed_title' => 'Rifleman']);
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT', ['primary' => ['positionTitle' => 'Senior Rifleman', 'positionId' => '773']])]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    $billet = CavBillet::query()->where('cav_position_id', 773)->sole();
+    expect([$billet->title, $billet->confirmed_title, $billet->group_title])->toBe(['Senior Rifleman', 'Rifleman', 'A/1-7'])
+        ->and($billet->renamed())->toBeTrue()
+        ->and(Trooper::query()->where('cav_id', 1)->sole()->primary_section_id)->toBe($section->id)
+        ->and(app(CavBilletRepository::class)->attentionCount())->toBe(1);
+});
+
+it('records a billet a serving trooper holds that nothing places as new', function () {
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT', ['primary' => ['positionTitle' => 'Start-Up Scout', 'positionId' => '4401']])]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    $billet = CavBillet::query()->where('cav_position_id', 4401)->sole();
+    expect([$billet->title, $billet->group_title, $billet->confirmed_title])->toBe(['Start-Up Scout', null, null])
+        ->and(app(CavBilletRepository::class)->attentionCount())->toBe(1);
 });

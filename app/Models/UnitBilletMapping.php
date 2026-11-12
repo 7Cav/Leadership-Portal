@@ -26,4 +26,10 @@ class UnitBilletMapping extends Model
     {
         return $this->belongsTo(Unit::class);
     }
+
+    /** The billet as the Cav names it now, when the import or the roster sync has seen it. */
+    public function billet(): BelongsTo
+    {
+        return $this->belongsTo(CavBillet::class, 'cav_position_id', 'cav_position_id');
+    }
 }
