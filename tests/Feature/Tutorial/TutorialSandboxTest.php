@@ -111,6 +111,40 @@ it('ticks the coach card from what was done in the practice copy', function () {
         ->where('tutorialMode.steps.0.highlight', fn ($selector) => str_contains((string) $selector, 'step-1-title')));
 });
 
+it('asks for an answer for Demo.K, and ticks it only once that answer is not Unsigned', function () {
+    $leader = User::factory()->commanding($this->section)->create();
+    $this->actingAs($leader)->post('/tutorial');
+    $section = practiceSectionId($leader->id);
+    $week = WeekOf::start(CarbonImmutable::now())->toDateString();
+    $demo = inTutorial($leader->id, fn () => app(TutorialPracticeRepository::class)->trooperByUsername(PracticeWorld::DEMO)->id);
+    $step = function () use ($section) {
+        $step = null;
+        $this->get("/rollcall/{$section}")->assertInertia(function ($page) use (&$step) {
+            $step = $page->toArray()['props']['tutorialMode']['steps'][0];
+        });
+
+        return $step;
+    };
+
+    // Unsigned is already selected on the card, so the copy must not describe Demo.K's start as "not signed".
+    $before = $step();
+    expect(strtolower($before['body']))->not->toContain('not signed')
+        ->and(strtolower($before['body']))->not->toContain('unsigned')
+        ->and($before['body'])->toContain('has not answered the roll call yet')
+        ->and($before['body'])->toContain('Will attend')
+        ->and($before['checklist'][1])->toBe(['label' => 'Pick an answer for SPC Demo.K', 'done' => false]);
+
+    $sign = fn (string $answer) => $this->postJson("/rollcall/{$section}", ['week' => $week, 'marks' => [['trooper_id' => $demo, 'rollcall' => $answer]]])->assertOk();
+
+    // Any answer but Unsigned ticks it, Excused too, and going back to Unsigned opens it again.
+    $sign('will_attend');
+    expect($step()['checklist'][1]['done'])->toBeTrue();
+    $sign('unsigned');
+    expect($step()['checklist'][1]['done'])->toBeFalse();
+    $sign('excused');
+    expect($step()['checklist'][1]['done'])->toBeTrue();
+});
+
 it('points at each roll call step in turn: its tab while another step is open, then what to do on it', function () {
     $leader = User::factory()->commanding($this->section)->create();
     $this->actingAs($leader)->post('/tutorial');

@@ -84,7 +84,7 @@ final class TutorialSteps
         $steps = [
             'rollcall' => [
                 'title' => 'Run roll call',
-                'body' => 'The practice game server already marked who played. SPC Demo.K has not signed and was not seen. Set their signature and their mark, then confirm the practice and mark the roll call posted.',
+                'body' => 'The practice game server already marked who played. SPC Demo.K has not answered the roll call yet and was not on the server. Pick their answer (for example Will attend), set their practice mark, then confirm the practice and mark the roll call posted.',
                 'href' => $rollcall,
                 'note' => 'In your real section, a mark you set by hand always wins over the game server.',
                 'guide' => 'run-roll-call',
@@ -101,7 +101,7 @@ final class TutorialSteps
                 },
                 'checklist' => [
                     ['label' => 'Open the roll call of 1st Section', 'done' => $opened($rollcall)],
-                    ['label' => 'Set the signature of SPC Demo.K', 'done' => $facts['demoSigned']],
+                    ['label' => 'Pick an answer for SPC Demo.K', 'done' => $facts['demoSigned']],
                     ['label' => 'Set the practice mark of SPC Demo.K', 'done' => $facts['demoMarked']],
                     ['label' => 'Confirm the practice', 'done' => $facts['confirmed']],
                     ['label' => 'Mark the roll call posted', 'done' => $facts['posted']],
