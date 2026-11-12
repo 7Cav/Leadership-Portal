@@ -84,7 +84,15 @@ class CreateRollcallHandler
             reason: null,
             reasonRequired: false,
             mutation: function () use ($actor, $command, $weekStart) {
-                if ($this->reports->isSentFor($command->sectionId, $weekStart)) {
+                // A topic writes the report's draft: its row is locked for update first, so a report send of the same
+                // week waits for this create rather than deadlocking on an upgraded shared lock (AD-12).
+                if ($command->subject !== null) {
+                    try {
+                        $this->reports->lockForSend($command->sectionId, $weekStart);
+                    } catch (WeeklyReportAlreadySentException) {
+                        throw RollcallWeekLockedException::for($command->sectionId, $weekStart);
+                    }
+                } elseif ($this->reports->isSentFor($command->sectionId, $weekStart)) {
                     throw RollcallWeekLockedException::for($command->sectionId, $weekStart);
                 }
 

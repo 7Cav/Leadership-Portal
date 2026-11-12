@@ -62,26 +62,11 @@ class SetSectionTrainingSubjectHandler
             throw InvalidReportContentException::weekBeforeFloor($weekStart);
         }
 
-        $stored = $this->reports->find($section->id, $weekStart);
-
-        if ($this->reports->isSentFor($section->id, $weekStart)) {
-            throw WeeklyReportAlreadySentException::for($section->id, $weekStart);
-        }
-
-        $subject = trim((string) $command->subject);
-        $subject = SectionTrainingSubject::forDraft(
-            $section->id,
-            $this->topics->forSection($section, $weekStart),
-            $subject === '' ? null : $subject,
-            $stored?->training_subject,
-        );
-
         try {
-            $kpis = $this->snapshots->snapshot($section, $weekStart)->toArray();
+            $snapshot = $this->snapshots->snapshot($section, $weekStart)->toArray();
         } catch (ReportKpisUnavailableException) {
-            // The KPI copy is informational only: keep the one the draft last saved (a draft save would empty it, but
-            // only the subject changes here), and the subject still saves.
-            $kpis = $stored->kpis ?? [];
+            // The KPI copy is informational only: the draft keeps the one it last saved, and the subject still saves.
+            $snapshot = null;
         }
 
         return $this->audit->record(
@@ -89,14 +74,30 @@ class SetSectionTrainingSubjectHandler
             action: self::ACTION,
             reason: null,
             reasonRequired: false,
-            mutation: fn () => $this->reports->saveDraft(
-                $section->id,
-                $weekStart,
-                $kpis,
-                $stored?->notes,
-                $subject,
-                $stored->unaccounted ?? [],
-            ),
+            mutation: function () use ($section, $weekStart, $command, $snapshot) {
+                // The row is locked for update before the draft is read, so a report-page autosave or a send of the
+                // same week waits for this write instead of being overwritten by it, and no shared lock is upgraded
+                // (AD-12). A sent report is refused here.
+                $this->reports->lockForSend($section->id, $weekStart);
+                $stored = $this->reports->find($section->id, $weekStart);
+
+                $subject = trim((string) $command->subject);
+                $subject = SectionTrainingSubject::forDraft(
+                    $section->id,
+                    $this->topics->forSection($section, $weekStart),
+                    $subject === '' ? null : $subject,
+                    $stored?->training_subject,
+                );
+
+                return $this->reports->saveDraft(
+                    $section->id,
+                    $weekStart,
+                    $snapshot ?? $stored->kpis ?? [],
+                    $stored?->notes,
+                    $subject,
+                    $stored->unaccounted ?? [],
+                );
+            },
         );
     }
 }
