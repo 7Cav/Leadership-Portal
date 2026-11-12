@@ -353,8 +353,8 @@ it('lets an Admin import the tree and reports what was created (2.9)', function 
     $this->actingAs($admin)->post('/settings/org-structure/import')
         ->assertRedirect(route('settings.org-structure'))
         ->assertSessionHas('org_import', [
-            'unitsCreated' => 39,
-            'mappingsCreated' => 36,
+            'unitsCreated' => 57,
+            'mappingsCreated' => 37,
             'mappingsDiffering' => 0,
             'mappingsRepointed' => 0,
             'commandMappingsCreated' => 40,
@@ -363,7 +363,7 @@ it('lets an Admin import the tree and reports what was created (2.9)', function 
             'skippedTitles' => ['Section Leader 3/2/C/1-7'],
         ]);
 
-    expect(Unit::count())->toBe(39)
+    expect(Unit::count())->toBe(57)
         ->and(AuditLogEntry::query()->where('action', 'org_structure.imported')->where('actor_id', $admin->id)->count())->toBe(1);
 
     // The flashed result reaches the page as a prop for the next render.

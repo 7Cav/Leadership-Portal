@@ -144,12 +144,11 @@ it('builds Regiment → Battalion → Company → Platoon → Section from the l
         ->and($battalion->parent_id)->toBe($root->id)
         ->and($section->path)->toBe("{$root->id}/{$battalion->id}/{$company->id}/{$platoon->id}/{$section->id}/");
 
-    // 31 line units, plus the S1 department and the Chief of Staff portfolio it sits under (2026-11-10), the ELOA,
-    // Reservists and New Recruits groups, the Executive Officer and Reserve & Development Command portfolios the
-    // Reservists sit under (2026-10-25), and the Command Sergeant Major portfolio its billet names.
-    expect($result->unitsCreated)->toBe(39)
-        ->and(Unit::count())->toBe(39)
-        ->and(Unit::query()->where('type', UnitType::Group)->count())->toBe(8);
+    // 31 line units, plus the whole default staff tree (2026-11-12): its 9 portfolios and 14 departments, whether or
+    // not a billet maps there, and the ELOA, Reservists and New Recruits groups the fixture's billets fill.
+    expect($result->unitsCreated)->toBe(57)
+        ->and(Unit::count())->toBe(57)
+        ->and(Unit::query()->where('type', UnitType::Group)->count())->toBe(26);
 });
 
 it('maps every section-level billet to its section by cav_position_id (AC #3)', function () {
@@ -161,9 +160,9 @@ it('maps every section-level billet to its section by cav_position_id (AC #3)', 
         ->and($mappings[202])->toBe('1/1/A/1-7')
         ->and($mappings[203])->toBe('1/1/A/1-7')
         // 29 section billets, plus S1 1IC and 2IC, ELOA, Reservist and New Recruit placing into their groups, and the
-        // Regimental XO and CSM (portfolio officers) placed on the regiment.
-        ->and($result->mappingsCreated)->toBe(36)
-        ->and(count($mappings))->toBe(36);
+        // Regimental CO, XO and CSM (portfolio officers) placed on the regiment.
+        ->and($result->mappingsCreated)->toBe(37)
+        ->and(count($mappings))->toBe(37);
 
     // Company- and platoon-level command billets get no placement row: the sync places them by their command mapping.
     expect($mappings)->not->toHaveKey(196)  // Commander A/1-7
@@ -176,11 +175,14 @@ it('maps every section-level billet to its section by cav_position_id (AC #3)', 
 it('creates no line node for non-line groups (AC #4), only the staff and holding groups (2026-10-24)', function () {
     iosImport();
 
-    // The line-company tree (1 regiment + 5 battalions + 7 companies + 8 platoons + 10 sections) and
-    // the four groups the fixture's staff and holding billets place into.
+    // The line-company tree (1 regiment + 5 battalions + 7 companies + 8 platoons + 10 sections), the groups the
+    // fixture's staff and holding billets place into, then the rest of the default staff tree (2026-11-12).
     expect(Unit::query()->where('type', '!=', UnitType::Group)->count())->toBe(31)
-        ->and(Unit::query()->where('type', UnitType::Group)->orderBy('id')->pluck('callsign')->all())->toBe(['XO', 'CSM', 'COS', 'S1', 'NR', 'ELOA', 'RDC', 'RES'])
-        ->and(UnitBilletMapping::count())->toBe(36);
+        ->and(Unit::query()->where('type', UnitType::Group)->orderBy('id')->pluck('callsign')->all())->toBe([
+            'CO', 'XO', 'CSM', 'COS', 'S1', 'NR', 'ELOA', 'RDC', 'RES',
+            'DCOS1', 'DCOS2', 'SECOPS', 'IMO', 'S2', 'S3', 'S5', 'S6', 'S7', 'ODS', 'NCOA', 'WAG', 'MP', 'RRD', 'RTC', 'JAG', 'DEVCOM STAFF',
+        ])
+        ->and(UnitBilletMapping::count())->toBe(37);
 
     $callsigns = Unit::query()->pluck('callsign')->all();
 
@@ -276,10 +278,10 @@ it('never deletes nodes or repoints mappings that are gone or changed upstream (
     $result = iosImport();
 
     expect($result->unitsCreated)->toBe(0)
-        ->and(Unit::count())->toBe(40)
+        ->and(Unit::count())->toBe(58)
         ->and(iosUnit(UnitType::Section, '9/1/A/1-7'))->not->toBeNull()
         ->and(iosMappings()[201])->toBe('9/1/A/1-7')
-        ->and(UnitBilletMapping::count())->toBe(36);
+        ->and(UnitBilletMapping::count())->toBe(37);
 });
 
 it('makes no write when Cav is unavailable (edge case)', function () {
@@ -484,8 +486,8 @@ it('maps every leadership billet to the unit it commands (1.16)', function () {
     }
 
     // Command groups still create no nodes, and the section mapping (2.5's input) is untouched.
-    expect(Unit::count())->toBe(39)
-        ->and(UnitBilletMapping::count())->toBe(36)
+    expect(Unit::count())->toBe(57)
+        ->and(UnitBilletMapping::count())->toBe(37)
         ->and(app(UnitBilletMappingRepository::class)->sectionIdsByPositionId())->toHaveCount(29);
 });
 
