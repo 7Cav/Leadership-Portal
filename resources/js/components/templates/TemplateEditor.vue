@@ -24,9 +24,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import TemplateVisualSurface from '@/components/templates/TemplateVisualSurface.vue';
 import { parse, templateLegend } from '@/lib/bbcode';
-import { SIZES } from '@/lib/bbcodeRender';
+import { SIZES, bbcodeElement } from '@/lib/bbcodeRender';
 import { contextAt } from '@/lib/templateDoc';
-import { addColumn, insertCode, insertImage, insertLink, insertTable, removeColumn, setOption, toggleTag } from '@/lib/templateEdits';
+import { addColumn, insertCode, insertImage, insertLink, insertTable, insertText, removeColumn, setOption, toggleTag, usableAddress } from '@/lib/templateEdits';
 
 // The rollcall template editor (#704): a visual mode where a leader formats text and builds the trooper table without
 // writing BBCode or codes, and a Source tab with the template as written, for whoever prefers it. Both edit the same
@@ -41,6 +41,9 @@ const props = defineProps({
     disabled: { type: Boolean, default: false },
     // Changes when another template or version opens, so undo does not reach back into the one before.
     historyKey: { type: [String, Number], default: '' },
+    // The id of the page's message when the server refused the last save, so the field is marked invalid and described by
+    // it too, as it was before the editor checked anything itself.
+    errorId: { type: String, default: null },
 });
 const emit = defineEmits(['update:modelValue']);
 
@@ -91,19 +94,31 @@ const clamp = ({ start, end }) => {
 const past = [];
 const future = [];
 let lastChange = 0;
-let restoring = false;
+// The text an undo or redo just put back, so its own change is not recorded as a new step.
+let restored = null;
+// One watcher for both, so another template opening (its key and its text change together, or the text a moment later)
+// clears the history rather than recording the template before as a step to undo back to.
+let key = props.historyKey;
+let opening = false;
 watch(
-    () => props.historyKey,
-    () => {
-        past.length = 0;
-        future.length = 0;
-    },
-);
-watch(
-    () => props.modelValue,
-    (now, before) => {
-        if (restoring) {
-            restoring = false;
+    () => [props.historyKey, props.modelValue],
+    ([nowKey, now], [, before]) => {
+        if (nowKey !== key) {
+            key = nowKey;
+            past.length = 0;
+            future.length = 0;
+            restored = null;
+            // Text that arrives a moment after the key is the template opening, not an edit.
+            opening = true;
+            setTimeout(() => {
+                opening = false;
+            }, 0);
+
+            return;
+        }
+        if (opening) return;
+        if (now === restored) {
+            restored = null;
 
             return;
         }
@@ -124,10 +139,12 @@ function firstDifference(a, b) {
 }
 
 async function step(from, to) {
+    // A step that would change nothing (typing that was then deleted within the same second) is passed over.
+    while (from.length && from.at(-1) === props.modelValue) from.pop();
     if (!from.length) return;
     const target = from.pop();
     to.push(props.modelValue);
-    restoring = true;
+    restored = target;
     lastChange = 0;
     const caret = firstDifference(props.modelValue, target);
     emit('update:modelValue', target);
@@ -139,13 +156,20 @@ async function step(from, to) {
 const refusal = ref(null);
 const tooLong = `A template can be at most ${props.maxLength} characters.`;
 
+// The server counts a template's length in characters (`mb_strlen`), so an emoji is one, not two.
+const lengthOf = (text) => [...text].length;
+
+// The text an edit works on. The Source tab's own text, as the browser gives it: a textarea reads a Windows line end as
+// one character, so its selection is counted that way, and the edit is made on the same text.
+const editedText = () => (mode.value === 'source' && field() ? field().value : props.modelValue);
+
 // Puts an edit's result in the open mode, with its selection.
 async function put({ source, start, end }) {
     refusal.value = null;
     if (mode.value === 'source' && field()) {
         // The changed part goes in through the browser's own editing, so Ctrl+Z in the Source tab takes it back.
         const element = field();
-        const before = props.modelValue;
+        const before = element.value;
         const from = firstDifference(before, source);
         let tail = 0;
         while (tail < before.length - from && tail < source.length - from && before.at(-1 - tail) === source.at(-1 - tail)) tail++;
@@ -153,10 +177,10 @@ async function put({ source, start, end }) {
         element.setSelectionRange(from, before.length - tail);
         // `execCommand('insertText')` is deprecated, but it is still the only way to edit a textarea through the browser's
         // own editing. It fires an `input` event, which updates the template through v-model like typing does. Where it
-        // is missing or refuses (happy-dom in the tests), the text is set directly instead, which works the same except
-        // for undo.
+        // is missing, refuses (happy-dom in the tests) or leaves other text than the edit's, the text is set directly
+        // instead, which works the same except for undo.
         const native = typeof document.execCommand === 'function' && document.execCommand('insertText', false, source.slice(from, source.length - tail));
-        if (!native) emit('update:modelValue', source);
+        if (!native || element.value !== source) emit('update:modelValue', source);
         await nextTick();
         element.focus();
         element.setSelectionRange(start, end);
@@ -176,14 +200,16 @@ async function put({ source, start, end }) {
  */
 function run(edit, refused) {
     if (props.disabled) return false;
-    const { start, end } = clamp(saved.value);
-    const result = edit(props.modelValue, start, end);
+    const text = editedText();
+    const start = Math.min(saved.value.start, text.length);
+    const end = Math.min(saved.value.end, text.length);
+    const result = edit(text, start, end);
     if (!result) {
-        refusal.value = refused;
+        refusal.value = typeof refused === 'function' ? refused(text, start, end) : refused;
 
         return false;
     }
-    if (result.source.length > props.maxLength) {
+    if (lengthOf(result.source) > props.maxLength) {
         refusal.value = tooLong;
 
         return false;
@@ -220,16 +246,21 @@ const COLORS = [
 const colorOpen = ref(false);
 const customColor = ref('');
 function color(value) {
-    if (run((source, start, end) => setOption(source, start, end, 'color', value), 'That colour is not one the forum takes. Use a name such as red, or #rrggbb.')) {
+    const refused = bbcodeElement('color', String(value).trim()) ? CROSSING : 'That colour is not one the forum takes. Use a name such as red, or #rrggbb.';
+    if (run((source, start, end) => setOption(source, start, end, 'color', value), refused)) {
         colorOpen.value = false;
         customColor.value = '';
     }
 }
 
+// An address the editor will not use, or the selection, whichever is the reason an edit was refused.
+const BAD_ADDRESS = 'Use a full address starting https:// or http://, with no [ ] or {{ }} in it.';
+const CUT = 'Put the cursor in plain text, not in the middle of a code, a tag or a table.';
+
 const linkOpen = ref(false);
 const linkAddress = ref('');
 function link() {
-    if (run((source, start, end) => insertLink(source, start, end, linkAddress.value), 'A link needs a full address, starting https:// or http://.')) {
+    if (run((source, start, end) => insertLink(source, start, end, linkAddress.value), usableAddress(linkAddress.value) ? CROSSING : BAD_ADDRESS)) {
         linkOpen.value = false;
         linkAddress.value = '';
     }
@@ -238,19 +269,39 @@ function link() {
 const imageOpen = ref(false);
 const imageAddress = ref('');
 function image(address) {
-    if (run((source, start, end) => insertImage(source, start, end, address), 'An image needs a full address, starting https:// or http://.')) {
+    const isCode = /^\{\{[a-z_]+\}\}$/.test(address);
+    if (run((source, start, end) => insertImage(source, start, end, address), isCode || usableAddress(address) ? CUT : BAD_ADDRESS)) {
         imageOpen.value = false;
         imageAddress.value = '';
     }
 }
 
-const table = () => run(insertTable, 'A table cannot go inside the trooper loop. Put the cursor outside it first.');
+const table = () =>
+    run(insertTable, (source, start) => (contextAt(source, start).inRow ? 'A table cannot go inside the trooper loop. Put the cursor outside it first.' : CUT));
+
+// A menu opens without the last refusal in it: that was about another action.
+watch([colorOpen, linkOpen, imageOpen], (open) => {
+    if (open.some(Boolean)) refusal.value = null;
+});
+
+// Enter and a paste in the visual mode, made as checked edits like the toolbar's.
+const SELECTION_CUTS = 'That selection reaches over a condition\'s end or into another cell. Select inside one line or cell, or change it in Source.';
+const typed = (text) => {
+    remember();
+    run((source, start, end) => insertText(source, start, end, text), SELECTION_CUTS);
+};
+// Typing or deleting over such a selection, which the surface refused before the browser made it.
+const refuseCut = () => {
+    refusal.value = SELECTION_CUTS;
+};
+const history = (direction) => (direction === 'undo' ? step(past, future) : step(future, past));
 const NOT_IN_CELL = 'Put the cursor in a cell of a trooper table first.';
 const columnAdd = () => run((source, start) => addColumn(source, start), NOT_IN_CELL);
 const columnRemove = () => run((source, start) => removeColumn(source, start), `${NOT_IN_CELL} A table keeps at least one column.`);
 
-// The code picker offers only the codes that may go at the cursor: a trooper's own codes inside the trooper loop, the
-// loop itself outside it. A filter is written by hand in the Source tab.
+// The code picker offers only the codes that may go at the cursor: the post's own values and flags anywhere, a trooper's
+// own codes as well inside the trooper loop, and the loop itself as well outside it. A filter is written by hand in the
+// Source tab.
 const legend = templateLegend();
 const pickerOpen = ref(false);
 const pickerSearch = ref('');
@@ -301,11 +352,14 @@ function onKeydown(event) {
 
 // The template as typed, checked as the server will check it on save.
 const problem = computed(() => {
-    if (props.modelValue.length > props.maxLength) return { error: tooLong, at: props.maxLength, length: 0 };
+    if (lengthOf(props.modelValue) > props.maxLength) return { error: tooLong, at: props.modelValue.length, length: 0 };
     const result = parse(props.modelValue);
 
     return result.ok ? null : result;
 });
+const invalid = computed(() => (problem.value || props.errorId ? 'true' : undefined));
+const describedBy = computed(() => [problem.value ? 'template-problem' : null, props.errorId].filter(Boolean).join(' ') || undefined);
+
 const where = computed(() => {
     if (!problem.value) return '';
     const before = props.modelValue.slice(0, problem.value.at).split('\n');
@@ -408,6 +462,7 @@ defineExpose({ insert });
                         <Input v-model="customColor" aria-label="Another colour, by name or #rrggbb" placeholder="#rrggbb or a name" class="h-8 text-xs" data-testid="tool-color-custom" />
                         <Button type="submit" size="sm" variant="outline" class="h-8">Use</Button>
                     </form>
+                    <p v-if="refusal" class="text-[11px] text-destructive" role="status" data-testid="tool-color-refusal">{{ refusal }}</p>
                 </PopoverContent>
             </Popover>
 
@@ -431,6 +486,7 @@ defineExpose({ insert });
                             <Button type="submit" size="sm" class="h-8" data-testid="tool-link-add">Add link</Button>
                         </div>
                         <p class="text-[11px] text-muted-foreground">Links the selected text, or adds the address as a link.</p>
+                        <p v-if="refusal" class="text-[11px] text-destructive" role="status" data-testid="tool-link-refusal">{{ refusal }}</p>
                     </form>
                 </PopoverContent>
             </Popover>
@@ -456,6 +512,7 @@ defineExpose({ insert });
                             <Button type="submit" size="sm" class="h-8">Add image</Button>
                         </div>
                     </form>
+                    <p v-if="refusal" class="text-[11px] text-destructive" role="status" data-testid="tool-image-refusal">{{ refusal }}</p>
                 </PopoverContent>
             </Popover>
 
@@ -517,10 +574,13 @@ defineExpose({ insert });
                 :model-value="modelValue"
                 :disabled="disabled"
                 aria-labelledby="template-body-label"
-                :aria-describedby="problem ? 'template-problem' : undefined"
-                :aria-invalid="problem ? 'true' : undefined"
+                :aria-describedby="describedBy"
+                :aria-invalid="invalid"
                 @update:model-value="(value) => emit('update:modelValue', value)"
                 @keydown="onKeydown"
+                @insert="typed"
+                @history="history"
+                @refused="refuseCut"
             />
         </TabsContent>
         <TabsContent value="source" class="min-w-0 pt-2.5">
@@ -535,8 +595,8 @@ defineExpose({ insert });
                 :maxlength="maxLength"
                 :disabled="disabled"
                 aria-labelledby="template-body-label"
-                :aria-describedby="problem ? 'template-problem' : undefined"
-                :aria-invalid="problem ? 'true' : undefined"
+                :aria-describedby="describedBy"
+                :aria-invalid="invalid"
                 @update:model-value="(value) => emit('update:modelValue', value)"
                 @keydown="onKeydown"
                 @select="remember"

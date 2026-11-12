@@ -303,6 +303,198 @@ describe('checking the template as it is typed', () => {
     });
 });
 
+describe('what the browser would do its own way', () => {
+    const before = (inputType) => new InputEvent('beforeinput', { inputType, bubbles: true, cancelable: true });
+
+    it('refuses Enter over a selection that cuts through a condition, and says why', async () => {
+        editor('{{#rc_yes}}Yes{{/rc_yes}} done');
+        await selectVisual(12, 28);
+        surface().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+        await flushPromises();
+
+        expect(changes()).toHaveLength(0);
+        expect(wrapper.get('[data-testid="template-refusal"]').text()).toContain('reaches over a condition');
+    });
+
+    it('puts nothing in, and takes nothing out, for a paste with no text', async () => {
+        editor('a word b');
+        await selectVisual(2, 6);
+        const paste = new Event('paste', { bubbles: true, cancelable: true });
+        paste.clipboardData = { getData: () => '' };
+        surface().dispatchEvent(paste);
+        await flushPromises();
+
+        expect(changes()).toHaveLength(0);
+    });
+
+    it('takes a new line from a phone keyboard as a line end in the template', async () => {
+        editor('ab');
+        await selectVisual(1);
+        const event = before('insertParagraph');
+        surface().dispatchEvent(event);
+        await flushPromises();
+
+        expect(event.defaultPrevented).toBe(true);
+        expect(wrapper.props('modelValue')).toBe('a\nb');
+    });
+
+    it('refuses deleting a selection that runs from one cell into the next, and leaves one inside a cell to the browser', async () => {
+        editor('[TABLE][TR][TD]one[/TD][TD]two[/TD][/TR][/TABLE]');
+        await selectVisual(16, 27);
+        const across = before('deleteContentBackward');
+        surface().dispatchEvent(across);
+        await nextTick();
+
+        expect(across.defaultPrevented).toBe(true);
+        expect(wrapper.get('[data-testid="template-refusal"]').text()).toContain('into another cell');
+
+        await selectVisual(15, 17);
+        const inside = before('deleteContentBackward');
+        surface().dispatchEvent(inside);
+
+        expect(inside.defaultPrevented).toBe(false);
+    });
+
+    it('does not let the browser format text the template would not have', () => {
+        editor('ab');
+        const event = before('formatBold');
+        surface().dispatchEvent(event);
+
+        expect(event.defaultPrevented).toBe(true);
+    });
+
+    it('makes undo from a menu its own', async () => {
+        editor('a bold b');
+        await selectVisual(2, 6);
+        await wrapper.get('[data-testid="tool-bold"]').trigger('click');
+        await flushPromises();
+        const event = before('historyUndo');
+        surface().dispatchEvent(event);
+        await flushPromises();
+
+        expect(event.defaultPrevented).toBe(true);
+        expect(wrapper.props('modelValue')).toBe('a bold b');
+    });
+
+    it('reads bold the browser carried on into typing as plain text, and stops showing it', async () => {
+        editor('x');
+        const bold = document.createElement('b');
+        bold.textContent = 'typed';
+        surface().append(bold);
+        surface().dispatchEvent(new Event('input'));
+        await nextTick();
+
+        expect(changes().at(-1)).toEqual(['xtyped']);
+        expect(surface().querySelector('b')).toBeNull();
+    });
+});
+
+describe('undo', () => {
+    const undo = async () => {
+        surface().dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true, cancelable: true }));
+        await flushPromises();
+    };
+
+    it('does not reach back into the template open before, however its text arrives', async () => {
+        editor('TEMPLATE A', { historyKey: 'a' });
+        await wrapper.setProps({ historyKey: 'b', modelValue: 'TEMPLATE B' });
+        await undo();
+        expect(wrapper.props('modelValue')).toBe('TEMPLATE B');
+
+        await wrapper.setProps({ historyKey: 'c' });
+        await wrapper.setProps({ modelValue: 'TEMPLATE C' });
+        await undo();
+        expect(wrapper.props('modelValue')).toBe('TEMPLATE C');
+    });
+
+    it('passes over a step that would change nothing, and keeps recording after it', async () => {
+        editor('X');
+        await wrapper.setProps({ modelValue: 'Xa' });
+        await wrapper.setProps({ modelValue: 'X' });
+        await undo();
+        expect(wrapper.props('modelValue')).toBe('X');
+
+        await wrapper.setProps({ modelValue: 'Xb' });
+        await undo();
+        expect(wrapper.props('modelValue')).toBe('X');
+    });
+});
+
+describe('the menus', () => {
+    it('links the selection, and says what is wrong with an address it will not use, in the open menu', async () => {
+        editor('see here');
+        await selectVisual(4, 8);
+        await wrapper.get('[data-testid="tool-link"]').trigger('click');
+        await flushPromises();
+        const address = document.querySelector('[data-testid="tool-link-address"]');
+
+        address.value = 'https://7cav.us/a]b';
+        address.dispatchEvent(new Event('input'));
+        await flushPromises();
+        document.querySelector('[data-testid="tool-link-add"]').click();
+        await flushPromises();
+        expect(changes()).toHaveLength(0);
+        expect(document.querySelector('[data-testid="tool-link-refusal"]').textContent).toContain('no [ ] or {{ }}');
+
+        address.value = 'https://7cav.us';
+        address.dispatchEvent(new Event('input'));
+        await flushPromises();
+        document.querySelector('[data-testid="tool-link-add"]').click();
+        await flushPromises();
+        expect(wrapper.props('modelValue')).toBe('see [URL=https://7cav.us]here[/URL]');
+    });
+
+    it('puts the live roll call image in', async () => {
+        editor('');
+        await wrapper.get('[data-testid="tool-image"]').trigger('click');
+        await flushPromises();
+        document.querySelector('[data-testid="tool-image-rc"]').click();
+        await flushPromises();
+
+        expect(wrapper.props('modelValue')).toBe('[IMG]{{rc_image}}[/IMG]');
+        expect(surface().querySelector('.tpl-image').textContent).toBe('Image: Signed RC image');
+    });
+
+    it('says a colour is not one the forum takes only when that is the reason', async () => {
+        editor('[TABLE][TR][TD]a[/TD][TD]b[/TD][/TR][/TABLE]');
+        await selectVisual(15, 25);
+        await wrapper.get('[data-testid="tool-color"]').trigger('click');
+        await flushPromises();
+        document.querySelector('[data-testid="tool-color-red"]').click();
+        await flushPromises();
+
+        expect(document.querySelector('[data-testid="tool-color-refusal"]').textContent).toContain('cannot cross');
+    });
+});
+
+describe('the length limit', () => {
+    it('refuses an edit that would take the template past it, in the server\'s words', async () => {
+        editor('123456789', { maxLength: 10 });
+        await selectVisual(0, 9);
+        await wrapper.get('[data-testid="tool-bold"]').trigger('click');
+        await flushPromises();
+
+        expect(changes()).toHaveLength(0);
+        expect(wrapper.get('[data-testid="template-refusal"]').text()).toBe('A template can be at most 10 characters.');
+    });
+
+    it('counts characters as the server does, so an emoji is one', () => {
+        editor('😀'.repeat(10), { maxLength: 10 });
+
+        expect(wrapper.find('[data-testid="template-problem"]').exists()).toBe(false);
+    });
+});
+
+describe('a save the server refused', () => {
+    it('marks the editor invalid and describes it by the page\'s message', () => {
+        editor('fine', { errorId: 'template-server-error' });
+
+        expect(surface().getAttribute('aria-invalid')).toBe('true');
+        expect(surface().getAttribute('aria-describedby')).toBe('template-server-error');
+        expect(source().getAttribute('aria-describedby')).toBe('template-server-error');
+    });
+});
+
 describe('while read-only', () => {
     it('cannot be typed into, and its buttons are off', () => {
         editor('x', { disabled: true });

@@ -3,10 +3,14 @@
 //
 // Every element drawn carries the template text it stands for, so reading it back needs nothing but the page:
 //   data-raw="..."                       a piece written out exactly as it stands: a code chip, a piece of raw code, an
-//                                        image, a hidden line end. It cannot be edited, so it is there whole or not at all.
+//                                        image, a hidden line end, a section's end. It cannot be edited, so it is there
+//                                        whole or not at all.
 //   data-open="..." data-close="..."     formatting, a table, a row or a cell: its open, what is inside, its close
-//   data-pair                            a section: its two ends are chips (`data-edge`); if the leader deletes either
-//                                        end, both go and what it showed stays
+//   data-pair                            a section, its two ends marked `data-edge`. In running text the ends are chips
+//                                        ("If Will attend" ... "End"), and if the leader deletes either, both go and what
+//                                        it showed stays. A block of rows (the trooper loop) opens with a label row and
+//                                        closes with a hidden row; a group of cells has both ends hidden. Neither can be
+//                                        deleted from the page.
 // Text is read as it stands. Anything else (formatting the browser added while editing) is read as its text, a line the
 // browser started is read as a line end and a line break element as nothing (see `walk`), so an edit can never put
 // markup into the template that nobody chose.
@@ -263,6 +267,40 @@ function walk(root, on) {
 }
 
 /**
+ * Whether typing over or deleting a selection would break the template's structure: it reaches over one end of a
+ * condition or of the trooper loop, or runs from one cell (or from outside a table) into another. The browser would take
+ * the end away and leave the other, or empty two cells into one, so the editor refuses it instead. A selection inside one
+ * cell or one line, across formatting and whole codes, is the browser's to delete.
+ */
+export function crossesStructure(range) {
+    if (range.collapsed) return false;
+    const root = range.commonAncestorContainer;
+    const scope = root.nodeType === ELEMENT ? root : root.parentElement;
+    // An end the selection could reach is inside the element holding both its ends.
+    if ([...scope.querySelectorAll('[data-edge]')].some((edge) => range.intersectsNode(edge))) return true;
+
+    const cellOf = (node) => (node.nodeType === ELEMENT ? node : node.parentElement)?.closest('td, th') ?? null;
+
+    return cellOf(range.startContainer) !== cellOf(range.endContainer);
+}
+
+/**
+ * Whether the browser has put markup of its own on the surface: bold or a colour it carried on while the leader typed, a
+ * new line or a formatting command. It is read as plain text, so the surface is drawn again to show what the template
+ * now holds.
+ */
+export function hasForeignMarkup(root) {
+    return [...root.querySelectorAll('*')].some(
+        (element) =>
+            element.nodeName !== 'BR' &&
+            element.dataset.raw === undefined &&
+            element.dataset.open === undefined &&
+            element.dataset.pair === undefined &&
+            !element.parentElement?.closest('[data-raw]'),
+    );
+}
+
+/**
  * Whether a section on the surface has lost one of its two ends, which the leader deleted. The template no longer has
  * the section, so the surface is drawn again to stop showing the end that is left.
  */
@@ -272,9 +310,10 @@ export function hasLoneEdge(root) {
 
 /**
  * Read the surface back into the template, and where in it each of `points` (`{node, offset}`, as a selection gives
- * them) falls. A point inside a chip counts as just before the chip.
+ * them) falls. A point inside a chip counts as just before the chip; a point the reading never reached (inside the end
+ * of a section that is no longer read) is null, so the caller keeps what it knew rather than guess.
  *
- * @returns {{source: string, offsets: number[]}}
+ * @returns {{source: string, offsets: (number|null)[]}}
  */
 export function readDom(root, points = []) {
     const offsets = points.map(() => null);
@@ -294,36 +333,44 @@ export function readDom(root, points = []) {
         boundary: (element, index, at) => settle((point) => point.node === element && point.offset === index, at),
     });
 
-    return { source, offsets: offsets.map((offset) => offset ?? source.length) };
+    return { source, offsets };
+}
+
+// Where a cursor may go: not inside a piece that cannot be edited, and not between the rows or cells of a table, where
+// what is typed would land outside every cell.
+function cursorMayGo(element) {
+    if (element.closest('[data-raw]') || element.getAttribute('contenteditable') === 'false') return false;
+    if (['TABLE', 'TBODY', 'THEAD', 'TR'].includes(element.nodeName)) return false;
+
+    return !element.closest('tr') || element.closest('td, th') !== null;
 }
 
 /**
- * The point on the surface for a place in the template: inside the text it falls in where there is one, otherwise
- * between elements. A place inside a tag or a code is moved to its nearer edge.
+ * The point on the surface for a place in the template: inside the text it falls in where there is one, otherwise the
+ * nearest place a cursor may go (`cursorMayGo`), text before a gap between elements when two are as near. A place inside
+ * a tag or a code is so moved to the nearest edge a leader could type at.
  *
  * @returns {{node: Node, offset: number}}
  */
 export function pointAt(root, place) {
     let found = null;
-    let between = null;
-    let snapped = null;
+    let best = null;
+    const consider = (point, at, text) => {
+        const distance = Math.abs(at - place);
+        if (!best || distance < best.distance || (distance === best.distance && text && !best.text)) best = { point, distance, text };
+    };
 
     walk(root, {
         text: (node, at) => {
-            if (!found && place >= at && place <= at + node.data.length) found = { node, offset: place - at };
+            const end = at + node.data.length;
+            if (!found && place >= at && place <= end) found = { node, offset: place - at };
+            consider({ node, offset: place < at ? 0 : node.data.length }, place < at ? at : end, true);
         },
-        raw: (_element, at, raw) => {
-            if (snapped === null && place > at && place < at + raw.length) snapped = place - at <= at + raw.length - place ? at : at + raw.length;
-        },
+        raw: () => {},
         boundary: (element, index, at) => {
-            const editable = !element.closest?.('[data-raw]') && element.getAttribute?.('contenteditable') !== 'false';
-            if (!between && editable && at === place) between = { node: element, offset: index };
+            if (cursorMayGo(element)) consider({ node: element, offset: index }, at, false);
         },
     });
 
-    if (found) return found;
-    if (between) return between;
-    if (snapped !== null && snapped !== place) return pointAt(root, snapped);
-
-    return { node: root, offset: root.childNodes.length };
+    return found ?? best?.point ?? { node: root, offset: root.childNodes.length };
 }

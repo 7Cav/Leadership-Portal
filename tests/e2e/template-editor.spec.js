@@ -139,3 +139,68 @@ test('deleting one end of a condition takes the condition away whole and keeps w
     await page.getByTestId('template-mode-source').click();
     await expect(page.getByTestId('template-body')).toHaveValue('a x');
 });
+
+test('typing over a selection that runs from text into the trooper loop is refused, and the template stays whole', async ({ page }) => {
+    const template = 'Intro text\n[TABLE][TR][TH]Name[/TH][/TR]\n{{#troopers}}[TR][TD]{{name}} here[/TD][/TR]\n{{/troopers}}[/TABLE]';
+    await open(page);
+    await write(page, template);
+
+    await page.getByTestId('template-visual').evaluate((root) => {
+        root.focus();
+        const cell = [...root.querySelectorAll('td')].find((td) => td.textContent.includes('here'));
+        const range = document.createRange();
+        range.setStart(root.firstChild, 2);
+        range.setEnd(cell.lastChild, 3);
+        document.getSelection().removeAllRanges();
+        document.getSelection().addRange(range);
+    });
+    await page.keyboard.type('x');
+    await expect(page.getByTestId('template-refusal')).toContainText('into another cell');
+    await page.keyboard.press('Delete');
+
+    await page.getByTestId('template-mode-source').click();
+    await expect(page.getByTestId('template-body')).toHaveValue(template);
+});
+
+test('a leader formats text with the keyboard alone, through the toolbar and its menu', async ({ page }) => {
+    await open(page);
+    await write(page, 'Roll call');
+    await selectText(page, 'Roll');
+
+    // From the surface back to the toolbar's size button, by Shift+Tab alone.
+    for (let presses = 0; presses < 20; presses++) {
+        if ((await page.evaluate(() => document.activeElement?.dataset.testid)) === 'tool-size') break;
+        await page.keyboard.press('Shift+Tab');
+    }
+    await expect(page.getByTestId('tool-size')).toBeFocused();
+    await page.keyboard.press('Enter');
+    for (let presses = 0; presses < 10; presses++) {
+        if ((await page.evaluate(() => document.activeElement?.dataset.testid)) === 'tool-size-5') break;
+        await page.keyboard.press('Tab');
+    }
+    await expect(page.getByTestId('tool-size-5')).toBeFocused();
+    await page.keyboard.press('Enter');
+
+    await expect(page.getByTestId('template-visual').locator('[data-open="[SIZE=5]"]')).toHaveText('Roll');
+    await page.getByTestId('template-mode-source').click();
+    await expect(page.getByTestId('template-body')).toHaveValue('[SIZE=5]Roll[/SIZE] call');
+});
+
+test('in the Source tab the toolbar edits through the browser, so Ctrl+Z takes it back', async ({ page }) => {
+    await open(page);
+    await page.getByTestId('template-mode-source').click();
+    const body = page.getByTestId('template-body');
+    await body.fill('aa bb aa\nsecond line');
+    await body.evaluate((field) => {
+        field.focus();
+        field.setSelectionRange(6, 8);
+        field.dispatchEvent(new Event('select'));
+    });
+
+    await page.getByTestId('tool-bold').click();
+    await expect(body).toHaveValue('aa bb [B]aa[/B]\nsecond line');
+    await expect(body).toBeFocused();
+
+    await page.keyboard.press('ControlOrMeta+z');
+    await expect(body).toHaveValue('aa bb aa\nsecond line');
+});

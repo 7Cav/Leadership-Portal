@@ -179,6 +179,26 @@ describe('Settings/Templates', () => {
         expect(post).toHaveBeenCalledWith('/settings/templates', expect.objectContaining({ preserveScroll: true }));
     });
 
+    it('saves a template opened and not touched exactly as it was, Windows line ends and all (#704)', async () => {
+        const body = '[CENTER]\r\n[B]{{unit}}[/B]\r\n[/CENTER]\r\n{{#troopers}}[TR][TD]{{name}}[/TD][/TR]\n{{/troopers}}';
+        const wrapper = page({ active: { ...VERSION_2, body } });
+        await flushPromises();
+
+        await wrapper.get('[data-testid="template-form"]').trigger('submit');
+
+        expect(formState.body).toBe(body);
+    });
+
+    it('marks the editor invalid when the server refused the template, and points it at the reason (#704)', async () => {
+        const wrapper = page();
+        formState.errors.body = 'Unknown name "nme".';
+        await nextTick();
+
+        expect(wrapper.get('[data-testid="error-body"]').attributes('id')).toBe('template-server-error');
+        expect(wrapper.get('[data-testid="template-visual"]').attributes('aria-describedby')).toBe('template-server-error');
+        expect(wrapper.get('[data-testid="template-visual"]').attributes('aria-invalid')).toBe('true');
+    });
+
     it('says why a save was refused or failed instead of showing the raw error page', async () => {
         const wrapper = page();
 
@@ -617,8 +637,12 @@ describe('Settings/Templates', () => {
             it('inserts through the browser\'s own editing where it can, so Ctrl+Z undoes it, and does not insert twice', async () => {
                 const wrapper = page({ active: { ...VERSION_2, body: 'a[TR]row[/TR]b' } });
                 let selection = null;
-                document.execCommand = vi.fn(() => {
-                    selection = [editor(wrapper).selectionStart, editor(wrapper).selectionEnd, document.activeElement === editor(wrapper)];
+                // As a browser does: the text goes in at the selection and an `input` event follows.
+                document.execCommand = vi.fn((_command, _ui, text) => {
+                    const field = editor(wrapper);
+                    selection = [field.selectionStart, field.selectionEnd, document.activeElement === field];
+                    field.setRangeText(text, field.selectionStart, field.selectionEnd, 'end');
+                    field.dispatchEvent(new Event('input'));
 
                     return true;
                 });
@@ -632,7 +656,7 @@ describe('Settings/Templates', () => {
                     expect(document.execCommand).toHaveBeenCalledWith('insertText', false, '{{#troopers}}[TR]row[/TR]{{/troopers}}');
                     expect(selection).toEqual([1, 13, true]);
                     // The browser's own `input` event updates the form; the page does not write the text a second time.
-                    expect(formState.body).toBe('a[TR]row[/TR]b');
+                    expect(formState.body).toBe('a{{#troopers}}[TR]row[/TR]{{/troopers}}b');
                 } finally {
                     delete document.execCommand;
                 }
@@ -730,6 +754,21 @@ describe('Settings/Templates', () => {
             await nextTick();
 
             expect(wrapper.get('[data-testid="template-preview-post"] em').text()).toBe('1st Section');
+        });
+
+        it('follows typing in the visual mode too (#704)', async () => {
+            vi.useFakeTimers();
+            const wrapper = page({ active: { ...VERSION_2, body: '[I]x[/I]' } });
+            const surface = wrapper.get('[data-testid="template-visual"]').element;
+
+            surface.querySelector('em').firstChild.data = 'typed';
+            surface.dispatchEvent(new Event('input'));
+            await nextTick();
+            vi.advanceTimersByTime(300);
+            await nextTick();
+
+            expect(formState.body).toBe('[I]typed[/I]');
+            expect(wrapper.get('[data-testid="template-preview-post"] em').text()).toBe('typed');
         });
 
         it('says why there is no preview while the codes do not parse', async () => {

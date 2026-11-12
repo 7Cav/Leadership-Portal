@@ -1,6 +1,6 @@
 // A copy of the server's starter template (`TemplateSyntax::STARTER`), for the browser tests: the renderer must render it
-// and the visual editor must give it back unchanged. `bbcodeStarter.spec.js` holds the copy to the grammar, so if the two
-// ever drift, one of them fails.
+// and the visual editor must give it back unchanged. `tests/Unit/Rollcall/TemplateSyntaxTest.php` holds it to the
+// server's word for word, so a change to one that is not made to the other fails there.
 export const STARTER = `[CENTER]
 [B]{{unit}} ROLL CALL | {{week|upper}}[/B]
 [/CENTER]

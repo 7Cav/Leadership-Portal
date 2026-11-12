@@ -48,6 +48,14 @@ it('ships a starter template that follows its own grammar and uses every status'
         ->and(TemplateSyntax::STARTER)->not->toContain('sp_attached');
 });
 
+it('ships the same starter the browser tests render and edit, word for word', function () {
+    // The browser's tests keep a copy (resources/js/lib/__tests__/templateStarter.js) to render and to open in the
+    // template editor; this holds it to the starter the server ships, so the two cannot drift.
+    $copy = file_get_contents(__DIR__.'/../../../resources/js/lib/__tests__/templateStarter.js');
+
+    expect($copy)->toContain('export const STARTER = `'.TemplateSyntax::STARTER.'`;');
+});
+
 it('still accepts a template saved with the retired sp_attached flag, so it keeps rendering', function () {
     expect(TemplateSyntax::check('{{#troopers}}{{#sp_attached}}ATT{{/sp_attached}}{{/troopers}}'))->toBeNull();
 });

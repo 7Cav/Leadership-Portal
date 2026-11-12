@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import cases from '../../../../tests/Fixtures/bbcode-templates.json';
 import { buildDoc } from '../templateDoc';
-import { drawDoc, hasLoneEdge, pointAt, readDom } from '../templateDom';
+import { crossesStructure, drawDoc, hasForeignMarkup, hasLoneEdge, pointAt, readDom } from '../templateDom';
 import { STARTER } from './templateStarter';
 
 // The visual mode is a page element the leader types into, drawn from the template and read back from what is on the
@@ -148,6 +148,34 @@ describe('reading back what the leader changed', () => {
         expect(readDom(root).source).toBe('[CENTER][/CENTER]');
     });
 
+    it('knows a selection that reaches over a condition\'s end or from one cell into another, which typing would break', () => {
+        const root = surface('a {{#rank_icon}}x{{/rank_icon}} b [TABLE][TR][TD]one[/TD][TD]two[/TD][/TR][/TABLE] [B]bold[/B] c');
+        const range = (startNode, startOffset, endNode, endOffset) => {
+            const made = document.createRange();
+            made.setStart(startNode, startOffset);
+            made.setEnd(endNode, endOffset);
+
+            return made;
+        };
+        const [one, two] = [...root.querySelectorAll('td')].map((cell) => cell.firstChild);
+        const bold = root.querySelector('strong').firstChild;
+
+        expect(crossesStructure(range(root.firstChild, 0, root.querySelector('[data-pair]').childNodes[1], 1))).toBe(true);
+        expect(crossesStructure(range(one, 1, two, 1))).toBe(true);
+        expect(crossesStructure(range(one, 0, one, 2))).toBe(false);
+        expect(crossesStructure(range(bold, 1, root.lastChild, 2))).toBe(false);
+    });
+
+    it('knows when the browser has added formatting of its own, which the template does not have', () => {
+        const root = surface('[B]a[/B] {{unit}} [TABLE][TR][TD]x[/TD][/TR][/TABLE] {{#troopers}}y{{/troopers}}');
+        expect(hasForeignMarkup(root)).toBe(false);
+        const bold = document.createElement('b');
+        bold.textContent = 'typed';
+        root.append(bold);
+
+        expect(hasForeignMarkup(root)).toBe(true);
+    });
+
     it('knows when a section has lost one of its ends, so the surface can be drawn again without the other', () => {
         const root = surface('a {{#rank_icon}}x{{/rank_icon}} b');
         expect(hasLoneEdge(root)).toBe(false);
@@ -168,6 +196,23 @@ describe('the cursor', () => {
         expect(readDom(root, [{ node: root, offset: 1 }]).offsets).toEqual([9]);
         // A point inside a chip is just before it.
         expect(readDom(root, [{ node: root.querySelector('[data-raw]').firstChild, offset: 3 }]).offsets).toEqual([9]);
+    });
+
+    it('says it cannot place a point it never reached, rather than guess the end', () => {
+        const root = surface('a {{#rank_icon}}x{{/rank_icon}}');
+        const open = root.querySelector('[data-edge="open"]');
+        root.querySelector('[data-edge="close"]').remove();
+
+        expect(readDom(root, [{ node: open, offset: 0 }]).offsets).toEqual([null]);
+    });
+
+    it('never puts the cursor between the rows or cells of a table, where typing would leave the table', () => {
+        const source = '[TABLE][TR][TD]a[/TD][TD][/TD][/TR][/TABLE]';
+        const root = surface(source);
+        const point = pointAt(root, source.indexOf('[TD][/TD]'));
+
+        expect(['TABLE', 'TBODY', 'TR']).not.toContain(point.node.nodeName);
+        expect(readDom(root, [point]).offsets[0]).not.toBeNull();
     });
 
     it('finds the point on the page for a place in the template, inside the text it falls in', () => {

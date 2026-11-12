@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addColumn, insertCode, insertImage, insertLink, insertTable, removeColumn, setOption, toggleTag } from '../templateEdits';
+import { addColumn, insertCode, insertImage, insertLink, insertTable, insertText, removeColumn, setOption, toggleTag, usableAddress } from '../templateEdits';
 import { parse } from '../bbcode';
 import { STARTER } from './templateStarter';
 
@@ -54,6 +54,16 @@ describe('links and images', () => {
     it('refuses an address that is not a full http or https one', () => {
         expect(insertLink('x', 0, 1, 'javascript:alert(1)')).toBeNull();
         expect(insertLink('x', 0, 1, '7cav.us')).toBeNull();
+        expect(usableAddress('https://7cav.us/a')).toBe(true);
+        expect(usableAddress('7cav.us')).toBe(false);
+    });
+
+    it('refuses an address holding a bracket or a code mark, which would end the tag early or break the codes', () => {
+        for (const address of ['https://7cav.us/a]b', 'https://7cav.us/[b', 'https://7cav.us/{{x', 'https://7cav.us/x}}']) {
+            expect(usableAddress(address), address).toBe(false);
+            expect(insertLink('', 0, 0, address), address).toBeNull();
+            expect(insertImage('', 0, 0, address), address).toBeNull();
+        }
     });
 
     it('puts an image in at the cursor, from an address or a live result image code', () => {
@@ -75,6 +85,19 @@ describe('the code picker', () => {
     it('puts a section around the selection, or opens one with the cursor inside', () => {
         expect(insertCode('a ok b', 2, 4, section)).toEqual({ source: 'a {{#rc_yes}}ok{{/rc_yes}} b', start: 26, end: 26 });
         expect(insertCode('ab', 1, 1, section)).toEqual({ source: 'a{{#rc_yes}}{{/rc_yes}}b', start: 12, end: 12 });
+    });
+});
+
+describe('typing and pasting over a selection', () => {
+    it('puts text in place of the selection, the cursor after it', () => {
+        expect(insertText('ab', 1, 1, '\n')).toEqual({ source: 'a\nb', start: 2, end: 2 });
+        expect(insertText('a xx b', 2, 4, 'yy')).toEqual({ source: 'a yy b', start: 4, end: 4 });
+    });
+
+    it('refuses a selection that cuts through a section, a tag or a table, rather than leave half of it', () => {
+        expect(insertText('{{#rc_yes}}Yes{{/rc_yes}} done', 12, 28, '\n')).toBeNull();
+        expect(insertText('[B]bold[/B] after', 4, 14, 'x')).toBeNull();
+        expect(insertText('[TABLE][TR][TD]a[/TD][TD]b[/TD][/TR][/TABLE]', 15, 25, 'x')).toBeNull();
     });
 });
 

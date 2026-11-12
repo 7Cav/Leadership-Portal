@@ -3,7 +3,7 @@ import { parse, render } from '../bbcode';
 import { STARTER } from './templateStarter';
 
 // The server ships a starter template for a company that has none (`TemplateSyntax::STARTER`). The browser must be able to
-// render it, so a copy (`templateStarter.js`) is checked against the same grammar: if the two ever drift, one of them fails.
+// render it, so a copy (`templateStarter.js`, held to the server's by `TemplateSyntaxTest.php`) is checked here.
 
 const flags = (name) => ({ sp_present: false, sp_missed: false, sp_makeup: false, sp_attached: false, sp_loa: false, sp_unmarked: false, [name]: true });
 const CONTEXT = {

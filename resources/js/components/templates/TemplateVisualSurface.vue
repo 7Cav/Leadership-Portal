@@ -1,21 +1,26 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue';
 import { buildDoc } from '@/lib/templateDoc';
-import { drawDoc, hasLoneEdge, pointAt, readDom } from '@/lib/templateDom';
+import { crossesStructure, drawDoc, hasForeignMarkup, hasLoneEdge, pointAt, readDom } from '@/lib/templateDom';
 
 // The template editor's visual mode (#704): the template drawn as formatted text a leader types into, with each code as
 // a chip that cannot be edited and the trooper loop as one block of rows (`lib/templateDom.js` draws and reads it).
 //
-// It is drawn from the template only when the template changes from outside (the Source tab, the toolbar, the code
-// picker, another version opening), never while the leader types into it: what is on the page is read back after each
-// input, and drawing it again would move the cursor. Enter and paste are handled here, as plain text, so the browser
-// never adds a line or a paste as markup of its own.
+// It is drawn from the template when the template changes from outside (the Source tab, the toolbar, the code picker,
+// another version opening), not while the leader types into it: what is on the page is read back after each input, and
+// drawing it again would move the cursor. It is drawn again on input, with the cursor put back, only when the page holds
+// what the template no longer does: one end of a section whose other end was deleted, or formatting the browser added
+// of its own (bold carried on into new typing, a formatting command).
+//
+// What the browser would otherwise do its own way is asked of the editor instead (`insert`, `history`), which makes it
+// the same checked edit as the toolbar's: Enter and a paste go in as plain text, refused when the selection cuts through
+// a section, a tag or a table, and undo and redo from a menu are the editor's own.
 
 const props = defineProps({
     modelValue: { type: String, required: true },
     disabled: { type: Boolean, default: false },
 });
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits(['update:modelValue', 'insert', 'history', 'refused']);
 
 const root = ref(null);
 // The template the surface shows now, so a change that came from the surface itself is not drawn again.
@@ -36,18 +41,18 @@ watch(
 
 function read() {
     const { source } = readDom(root.value);
-    if (source === shown) return;
-    // A section whose other end was deleted is gone from the template; drawn again, its last end goes too.
-    if (hasLoneEdge(root.value)) {
+    const changed = source !== shown;
+    if (hasLoneEdge(root.value) || hasForeignMarkup(root.value)) {
         const place = selection();
         draw(source);
         if (place) select(place.start, place.end);
     }
+    if (!changed) return;
     shown = source;
     emit('update:modelValue', source);
 }
 
-/** The selection as offsets in the template, or null when it is not in the surface. */
+/** The selection as offsets in the template, or null when it is not in the surface or cannot be placed in it. */
 function selection() {
     const selected = document.getSelection();
     if (!selected?.rangeCount || !root.value?.contains(selected.anchorNode)) return null;
@@ -56,6 +61,7 @@ function selection() {
         { node: range.startContainer, offset: range.startOffset },
         { node: range.endContainer, offset: range.endOffset },
     ]);
+    if (offsets.includes(null)) return null;
 
     return { start: Math.min(...offsets), end: Math.max(...offsets) };
 }
@@ -74,26 +80,41 @@ function select(start, end = start) {
     selected.addRange(range);
 }
 
-// Puts plain text in place of the selection by changing the template, then puts the cursor after it.
-function replaceSelection(text) {
-    const place = selection();
-    if (!place) return;
-    const source = shown.slice(0, place.start) + text + shown.slice(place.end);
-    draw(source);
-    emit('update:modelValue', source);
-    select(place.start + text.length);
-}
-
 function onKeydown(event) {
     if (event.key === 'Enter' && !event.isComposing) {
         event.preventDefault();
-        replaceSelection('\n');
+        emit('insert', '\n');
+    }
+}
+
+// What reaches the browser's editing without a key the page sees: Enter from a phone keyboard, undo from a menu, bold
+// from a touch bar. Formatting is the toolbar's to do, so the template has it too.
+const HISTORY = { historyUndo: 'undo', historyRedo: 'redo' };
+// Typing or deleting over a selection is the browser's, unless the selection would break the structure (`crossesStructure`).
+const OVER_SELECTION = /^(insertText|insertReplacementText|insertCompositionText|delete)/;
+function onBeforeinput(event) {
+    const type = event.inputType ?? '';
+    const selected = document.getSelection();
+    const range = selected?.rangeCount ? selected.getRangeAt(0) : null;
+    if (OVER_SELECTION.test(type) && range && root.value.contains(range.commonAncestorContainer) && crossesStructure(range)) {
+        event.preventDefault();
+        emit('refused');
+    } else if (type.startsWith('format')) {
+        event.preventDefault();
+    } else if (HISTORY[type]) {
+        event.preventDefault();
+        emit('history', HISTORY[type]);
+    } else if (type === 'insertParagraph' || type === 'insertLineBreak') {
+        event.preventDefault();
+        emit('insert', '\n');
     }
 }
 
 function onPaste(event) {
     event.preventDefault();
-    replaceSelection(event.clipboardData?.getData('text/plain') ?? '');
+    // A paste with no text (an image, say) puts nothing in and takes nothing out.
+    const text = event.clipboardData?.getData('text/plain') ?? '';
+    if (text !== '') emit('insert', text);
 }
 
 function onDrop(event) {
@@ -116,6 +137,7 @@ defineExpose({ selection, select, focus: () => root.value?.focus() });
         data-testid="template-visual"
         @input="read"
         @keydown="onKeydown"
+        @beforeinput="onBeforeinput"
         @paste="onPaste"
         @drop="onDrop"
     />
@@ -213,7 +235,6 @@ defineExpose({ selection, select, focus: () => root.value?.focus() });
     width: 100%;
     margin: 4px 0;
     border-collapse: collapse;
-    white-space: normal;
 }
 
 .template-visual .tpl-table th,

@@ -503,11 +503,12 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                                 :max-length="maxBodyLength"
                                 :disabled="readOnlyPreview"
                                 :history-key="`${template}-${active?.id ?? ''}`"
+                                :error-id="form.errors.body ? 'template-server-error' : null"
                             />
                             <Button v-if="!readOnlyPreview" type="button" variant="outline" size="sm" class="justify-self-start" data-testid="use-starter" @click="useStarter">
                                 Start from the default
                             </Button>
-                            <p v-if="form.errors.body" class="text-xs text-destructive" data-testid="error-body">{{ form.errors.body }}</p>
+                            <p v-if="form.errors.body" id="template-server-error" class="text-xs text-destructive" data-testid="error-body">{{ form.errors.body }}</p>
                             <p v-if="form.errors.template_id" class="text-xs text-destructive" data-testid="error-template_id">{{ form.errors.template_id }}</p>
                         </div>
 

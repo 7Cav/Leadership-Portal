@@ -61,8 +61,21 @@ function wrap(source, start, end, open, close, caretAfter = false) {
     return { source: result, start: start + open.length, end: end + open.length };
 }
 
+// Whether [start, end) takes one end of a pair (a tag, a section, a table's row or cell) and leaves the other: removing
+// "[/TD][TD]" would merge two cells into one, which is a valid template but not what anyone selected text to do.
+function cutsPair(nodes, start, end) {
+    return nodes.some((node) => {
+        if (!node.children) return false;
+        const openTaken = start <= node.start && node.openEnd <= end;
+        const closeTaken = start <= node.closeStart && node.end <= end;
+
+        return openTaken !== closeTaken || cutsPair(node.children, start, end);
+    });
+}
+
 function replace(source, start, end, text) {
     if (insideToken(source, start) || insideToken(source, end)) return null;
+    if (start !== end && cutsPair(buildDoc(source), start, end)) return null;
     const result = source.slice(0, start) + text + source.slice(end);
     if (!keepsWhole(source, result)) return null;
 
@@ -128,14 +141,33 @@ export function setOption(source, start, end, name, value) {
 }
 
 /**
- * Links the selection to an address, or writes the address as its own link text when nothing is selected. Only a full
- * http or https address.
+ * Whether an address can go in a link or an image: a full http or https one, with no bracket (which would end the tag
+ * early) and no code mark (which would break the codes around it).
+ */
+export function usableAddress(address) {
+    const written = String(address ?? '').trim();
+
+    return safeLink(written) !== null && !/[[\]]|\{\{|\}\}/.test(written);
+}
+
+/**
+ * Text typed or pasted over the selection, the cursor after it. Refused when the selection cuts through a section, a tag
+ * or a table, which would leave half of it behind.
+ *
+ * @returns {Edited | null}
+ */
+export function insertText(source, start, end, text) {
+    return replace(source, start, end, text);
+}
+
+/**
+ * Links the selection to an address, or writes the address as its own link text when nothing is selected. Only a usable
+ * address (`usableAddress`).
  *
  * @returns {Edited | null}
  */
 export function insertLink(source, start, end, address) {
-    const href = safeLink(address);
-    if (href === null) return null;
+    if (!usableAddress(address)) return null;
     const written = String(address).trim();
     if (start === end) return replace(source, start, end, `[URL=${written}]${written}[/URL]`);
 
@@ -151,7 +183,7 @@ const ONE_CODE = /^\{\{[a-z_]+\}\}$/;
  */
 export function insertImage(source, start, end, address) {
     const written = String(address).trim();
-    if (!ONE_CODE.test(written) && safeLink(written) === null) return null;
+    if (!ONE_CODE.test(written) && !usableAddress(written)) return null;
 
     return replace(source, start, end, `[IMG]${written}[/IMG]`);
 }
@@ -215,8 +247,8 @@ function column(source, place) {
 }
 
 /**
- * A column after the cursor's, in every row of the table as wide as the cursor's row: a header cell named "Column" in a
- * row of header cells, an empty cell elsewhere. The cursor goes into the new cell in its own row.
+ * A column after the cursor's, in every row of the table as wide as the cursor's row: a header cell named "Column" after
+ * a header cell, an empty cell after any other. The cursor goes into the new cell in its own row.
  *
  * @returns {Edited | null}
  */
