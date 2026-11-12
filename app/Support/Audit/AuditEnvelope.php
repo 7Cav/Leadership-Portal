@@ -39,6 +39,21 @@ class AuditEnvelope
     }
 
     /**
+     * Something that happened to `$target` without changing it (a sign-in, a sign-out), recorded like any other entry.
+     * `$notes` are shown under its subject ({@see AuditLogRepository::recordWithMutation()}). `$target` is the Eloquent
+     * row it is about: typed loosely, since this layer may not name the database (Deptrac), and refused by the
+     * Repository when it is anything else.
+     *
+     * @param  list<string>  $notes
+     */
+    public function recordEvent(int $actorId, string $action, object $target, array $notes = []): void
+    {
+        [$actorId, $onBehalfOf, $onBehalfOfUnit] = $this->acting->attribute($actorId);
+
+        $this->auditLog->recordWithMutation($actorId, $action, null, fn () => $target, $onBehalfOf, $onBehalfOfUnit, $notes);
+    }
+
+    /**
      * {@see record()} for one action that writes many rows: `$mutation` returns an
      * {@see AuditedBatch} and the whole batch commits — or rolls back — with a single log entry
      * (delegated to {@see AuditLogRepository::recordBatchWithMutation()}).

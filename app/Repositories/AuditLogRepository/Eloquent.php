@@ -94,9 +94,9 @@ class Eloquent implements AuditLogRepository
         'UnitOversight' => [UnitOversight::class, []],
     ];
 
-    public function recordWithMutation(int $actorId, string $action, ?string $reason, Closure $mutation, ?int $onBehalfOf = null, ?int $onBehalfOfUnit = null): mixed
+    public function recordWithMutation(int $actorId, string $action, ?string $reason, Closure $mutation, ?int $onBehalfOf = null, ?int $onBehalfOfUnit = null, array $notes = []): mixed
     {
-        return DB::transaction(function () use ($actorId, $action, $reason, $mutation, $onBehalfOf, $onBehalfOfUnit) {
+        return DB::transaction(function () use ($actorId, $action, $reason, $mutation, $onBehalfOf, $onBehalfOfUnit, $notes) {
             $result = $mutation();
 
             if (! $result instanceof Model) {
@@ -107,7 +107,15 @@ class Eloquent implements AuditLogRepository
                 ));
             }
 
-            $this->append($actorId, $action, $reason, $result, $this->sortedAttributes($result), $onBehalfOf, $onBehalfOfUnit, AuditSubject::details($result));
+            $details = AuditSubject::details($result);
+            if ($notes !== []) {
+                $details = [
+                    'subject' => $details['subject'] ?? AuditSubject::describe($result),
+                    'changes' => [...$details['changes'] ?? [], ...array_map(fn (string $note) => ['field' => $note, 'from' => null, 'to' => null], $notes)],
+                ];
+            }
+
+            $this->append($actorId, $action, $reason, $result, $this->sortedAttributes($result), $onBehalfOf, $onBehalfOfUnit, $details);
 
             return $result;
         });
