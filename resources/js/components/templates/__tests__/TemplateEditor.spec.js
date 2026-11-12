@@ -403,6 +403,18 @@ describe('what the browser would do its own way', () => {
         expect(stored['text/plain']).toBe('{{#rc_yes}}Y{{/rc_yes}} {{name}}');
     });
 
+    it('refuses pasting half a condition, and says it was the pasted text', async () => {
+        editor('a b');
+        await selectVisual(2);
+        const paste = new Event('paste', { bubbles: true, cancelable: true });
+        paste.clipboardData = { getData: () => 'x {{#rc_yes}}Y' };
+        surface().dispatchEvent(paste);
+        await flushPromises();
+
+        expect(changes()).toHaveLength(0);
+        expect(wrapper.get('[data-testid="template-refusal"]').text()).toContain('was not pasted');
+    });
+
     it('cuts the selection out as the template has it', async () => {
         editor('a {{name}} b');
         await selectVisual(2, 10);

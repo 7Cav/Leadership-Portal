@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addColumn, insertCode, insertImage, insertLink, insertTable, insertText, removeColumn, setOption, toFieldOffset, toSourceOffset, toggleTag, usableAddress } from '../templateEdits';
+import { addColumn, insertCode, insertImage, insertLink, insertTable, insertText, removeColumn, setOption, toFieldOffset, toSourceOffset, toggleTag, usableAddress, whyNotInserted } from '../templateEdits';
 import { parse } from '../bbcode';
 import { STARTER } from './templateStarter';
 
@@ -94,8 +94,18 @@ describe('typing and pasting over a selection', () => {
         expect(insertText('a xx b', 2, 4, 'yy')).toEqual({ source: 'a yy b', start: 4, end: 4 });
     });
 
-    it('puts pasted text in as it is, even a code or tag with no partner', () => {
+    it('puts pasted text in as it is, even formatting with no partner', () => {
         expect(insertText('ab', 1, 1, 'Use [b] for bold')).toEqual({ source: 'aUse [b] for boldb', start: 17, end: 17 });
+        expect(whyNotInserted('ab', 1, 1, 'Use [b] for bold')).toBeNull();
+    });
+
+    it('refuses pasting half a condition or half a table, and says it was the text', () => {
+        expect(insertText('a b', 2, 2, 'x {{#rc_yes}}Y')).toBeNull();
+        expect(whyNotInserted('a b', 2, 2, 'x {{#rc_yes}}Y')).toBe('text');
+        expect(insertText('[TABLE][TR][TD]a[/TD][/TR][/TABLE]', 16, 16, ' [TD]x')).toBeNull();
+        // A whole condition, or one that closes what the text before it opened, is fine.
+        expect(insertText('a b', 2, 2, '{{#rc_yes}}Y{{/rc_yes}}')).not.toBeNull();
+        expect(whyNotInserted('{{#rc_yes}}Y{{/rc_yes}} done', 12, 28, '\n')).toBe('selection');
     });
 
     it('counts a place the way the Source tab does, where a Windows line end is one character, and back', () => {

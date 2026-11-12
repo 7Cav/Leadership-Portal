@@ -158,19 +158,48 @@ export function usableAddress(address) {
     return safeLink(written) !== null && !/[[\]]|\{\{|\}\}/.test(written);
 }
 
+// The pieces of conditions and table parts left without their partner: a section's open or close, a table, row or cell
+// tag shown as raw code.
+function halves(source) {
+    const count = (nodes) =>
+        nodes.reduce((total, node) => {
+            const half = node.type === 'raw' && (/^\{\{\s*[#^/]/.test(node.raw) || /^\[\/?(table|tr|td|th)\b/i.test(node.raw));
+
+            return total + (half ? 1 : 0) + (node.children ? count(node.children) : 0);
+        }, 0);
+
+    return count(buildDoc(source));
+}
+
+/**
+ * Why `insertText` would refuse: 'selection' when the selection cuts a condition or a table in two, 'text' when what
+ * goes in would leave half a condition or table part (a copy that took one end and not the other), or null.
+ *
+ * @returns {'selection'|'text'|null}
+ */
+export function whyNotInserted(source, start, end, text) {
+    if (insideToken(source, start) || insideToken(source, end)) return 'selection';
+    const cut = cutPairs(buildDoc(source), start, end);
+    if (cut.some((node) => node.type === 'section' || TABLE_PARTS.has(node.name))) return 'selection';
+
+    return halves(withText(source, start, end, text, cut).source) > halves(source) ? 'text' : null;
+}
+
 /**
  * Text typed or pasted over the selection, the cursor after it, as typing over it in the browser does: the ends of
- * formatting the selection cuts in two stay, so bold that ran into the selection still ends. Refused when it cuts a
- * condition or a table in two, which would leave half of it behind. What is pasted goes in as it is, so a pasted "[b]"
- * shows as the code it is, as it would in the Source tab.
+ * formatting the selection cuts in two stay, so bold that ran into the selection still ends. Refused (`whyNotInserted`)
+ * when the selection cuts a condition or a table in two, or the text would leave half of one. Loose formatting in the
+ * text goes in as it is, so a pasted "[b]" shows as the code it is, as it would in the Source tab.
  *
  * @returns {Edited | null}
  */
 export function insertText(source, start, end, text) {
-    if (insideToken(source, start) || insideToken(source, end)) return null;
-    const cut = cutPairs(buildDoc(source), start, end);
-    if (cut.some((node) => node.type === 'section' || TABLE_PARTS.has(node.name))) return null;
+    if (whyNotInserted(source, start, end, text) !== null) return null;
 
+    return withText(source, start, end, text, cutPairs(buildDoc(source), start, end));
+}
+
+function withText(source, start, end, text, cut) {
     const kept = cut
         .flatMap((node) => [
             [node.start, node.openEnd],

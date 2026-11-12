@@ -26,7 +26,7 @@ import TemplateVisualSurface from '@/components/templates/TemplateVisualSurface.
 import { parse, templateLegend } from '@/lib/bbcode';
 import { SIZES, bbcodeElement } from '@/lib/bbcodeRender';
 import { contextAt } from '@/lib/templateDoc';
-import { addColumn, insertCode, insertImage, insertLink, insertTable, insertText, removeColumn, setOption, toFieldOffset, toSourceOffset, toggleTag, usableAddress } from '@/lib/templateEdits';
+import { addColumn, insertCode, insertImage, insertLink, insertTable, insertText, removeColumn, setOption, toFieldOffset, toSourceOffset, toggleTag, usableAddress, whyNotInserted } from '@/lib/templateEdits';
 
 // The rollcall template editor (#704): a visual mode where a leader formats text and builds the trooper table without
 // writing BBCode or codes, and a Source tab with the template as written, for whoever prefers it. Both edit the same
@@ -304,8 +304,10 @@ const typed = (text) => {
         return;
     }
     saved.value = place;
-    run((source, start, end) => insertText(source, start, end, text), SELECTION_CUTS);
+    const refused = (source, start, end) => (whyNotInserted(source, start, end, text) === 'text' ? HALF_PASTED : SELECTION_CUTS);
+    run((source, start, end) => insertText(source, start, end, text), refused);
 };
+const HALF_PASTED = 'That text holds one end of a condition or a table part without the other, so it was not pasted. Copy the whole condition or table.';
 // Typing or deleting over such a selection, which the surface refused before the browser made it.
 const refuseCut = () => {
     refusal.value = SELECTION_CUTS;
