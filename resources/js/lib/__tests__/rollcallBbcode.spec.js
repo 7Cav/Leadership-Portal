@@ -22,6 +22,14 @@ describe('rollcallContext (3.11)', () => {
         expect(context).toMatchObject({ unit: '2/1/A/1-7', unit_name: '2nd Section', week: '03Oct26 – 09Oct26', week_start: '03Oct26', week_end: '09Oct26' });
     });
 
+    it('prints the training date in the post date form and the topic as set, empty when the week has neither (#703)', () => {
+        const training = rollcallContext({ ...input(), training: { date: '2026-10-07T23:00:00Z', topic: 'Land navigation: map and compass' } });
+
+        expect(training).toMatchObject({ training_date: 'Wed 07Oct26 2300Z', training_topic: 'Land navigation: map and compass' });
+        expect(context).toMatchObject({ training_date: '', training_topic: '' });
+        expect(rollcallContext({ ...input(), training: { date: null, topic: '  ' } })).toMatchObject({ training_date: '', training_topic: '' });
+    });
+
     it('numbers the troopers by rank, senior first, then name, and takes names from the synced username', () => {
         expect(context.troopers.map((row) => [row.n, row.name])).toEqual([['1', 'Vasquez.R'], ['2', 'Kowalczyk.P'], ['3', 'Okafor.T'], ['4', 'Tanaka.H'], ['5', 'Doyle.A'], ['6', 'Reyes.M']]);
         expect(context.troopers[0]).toMatchObject({ rank: 'Long Rank Title', rank_short: 'SGT', display_name: 'SGT Vasquez.R' });
@@ -62,6 +70,15 @@ describe('rollcallContext (3.11)', () => {
         expect(rollcallContext(input(troopers)).attended).toBe('1');
         // Same rank, so by last name: Adams before Vasquez.
         expect(out.text).toBe('Adams.P LOA\nVasquez.R ✓\nattended 1');
+    });
+
+    it('renders the training date and topic in the copied post, and a section over either shows only when it is set (#703)', () => {
+        const body = '[B]{{unit}} ROLL CALL[/B]\nTraining: {{training_date}} · Topic: {{training_topic}}{{^training_topic}}\nNo topic yet{{/training_topic}}';
+        const set = rollcallPost(resolved(body), { ...input(), training: { date: '2026-10-07T23:00:00Z', topic: 'Land navigation' } });
+        const unset = rollcallPost(resolved(body), input());
+
+        expect(set.text).toBe('[B]2/1/A/1-7 ROLL CALL[/B]\nTraining: Wed 07Oct26 2300Z · Topic: Land navigation');
+        expect(unset.text).toBe('[B]2/1/A/1-7 ROLL CALL[/B]\nTraining:  · Topic: \nNo topic yet');
     });
 
     it('turns each signature into its flag and word', () => {
