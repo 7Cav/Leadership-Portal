@@ -9,6 +9,7 @@ use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Models\WeeklyReport;
 use Carbon\CarbonImmutable;
 use Inertia\Testing\AssertableInertia;
 
@@ -91,4 +92,25 @@ it('gives the section report the roll call summary: the practice start and the f
 
     $this->actingAs(User::factory()->admin()->create())->get("/reports/{$this->platoon->id}/{$this->week}")
         ->assertInertia(fn (AssertableInertia $page) => $page->where('rollcall', null));
+});
+
+it('records where a send started, for counting reports sent from the roll call (#703)', function () {
+    confirmPracticeHeld($this->section, $this->week);
+
+    $this->actingAs($this->leader)->post("/reports/{$this->section->id}/{$this->week}/send", ['reason' => 'Weekly report', 'from' => 'rollcall'])
+        ->assertSessionHasNoErrors();
+    expect(WeeklyReport::query()->sole()->sent_from)->toBe('rollcall');
+
+    $this->actingAs($this->leader)->post("/reports/{$this->section->id}/{$this->week}/send", ['reason' => 'Weekly report', 'from' => 'somewhere'])
+        ->assertSessionHasErrors('from');
+});
+
+it('gives a sent report\'s summary the marks it was sent with, which the page has no other copy of (#703)', function () {
+    rclMark()->assertOk();
+    rclSend();
+
+    $this->actingAs($this->leader)->get("/reports/{$this->section->id}/{$this->week}")
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('troopers', null)
+            ->where('rollcall.troopers', [['id' => $this->trooper->id, 'rollcall' => 'unsigned', 'status' => 'present']]));
 });

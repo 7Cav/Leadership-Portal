@@ -653,6 +653,23 @@ describe('Reports/Show opened to send from the roll call (#703)', () => {
         expect(dialogOpen(wrapper)).toBe(true);
     });
 
+    it('records a send that came from the roll call as such', async () => {
+        window.history.replaceState(null, '', '/reports/5/2026-10-03?send=1');
+        const wrapper = mountShow({ practice: { confirmed: true, held: true } });
+        await flushPromises();
+        wrapper.findComponent({ name: 'SendDialog' }).vm.$emit('confirm', 'Weekly report', []);
+
+        expect(post.mock.calls.at(-1)[1].from).toBe('rollcall');
+    });
+
+    it('records a send made on the report page as the page\'s', async () => {
+        window.history.replaceState(null, '', '/reports/5/2026-10-03');
+        const wrapper = mountShow({ practice: { confirmed: true, held: true } });
+        wrapper.findComponent({ name: 'SendDialog' }).vm.$emit('confirm', 'Weekly report', []);
+
+        expect(post.mock.calls.at(-1)[1].from).toBe('report');
+    });
+
     it('says why when it arrives to send a report that cannot go yet', async () => {
         const { toast } = await import('vue-sonner');
         toast.warning.mockClear();

@@ -9,12 +9,13 @@ import { countsOf } from '@/lib/rollcall';
 // forum thread it was posted in, and how the week signed and attended, so Platoon Staff read the week in one place.
 // Read-only; the review itself works as before.
 const props = defineProps({
-    // `{ trainingStart, threadUrl, href }`: the week's practice start (ISO, null with none), the forum thread, and the roll call.
+    // `{ trainingStart, threadUrl, href, troopers }`: the week's practice start (ISO, null with none), the forum thread, the
+    // roll call, and its troopers' marks.
     rollcall: { type: Object, required: true },
     // The report's training subject, and whether the platoon enforced it.
     subject: { type: String, default: null },
     enforced: { type: Boolean, default: false },
-    // The section's troopers with their marks.
+    // The section's troopers with their marks: `{ id, rollcall, status }`.
     troopers: { type: Array, default: () => [] },
     // `[{ trooper_id, reason }]` with each trooper's name and the reason's label.
     unaccounted: { type: Array, default: () => [] },

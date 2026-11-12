@@ -317,6 +317,9 @@ function openSend() {
     dialogOpen.value = true;
 }
 
+// Where this send started, for counting how many reports are sent from the roll call (#703, the issue's success check).
+const sentFrom = new URLSearchParams(window.location.search).get('send') === '1' ? 'rollcall' : 'report';
+
 // "Send for review" on the roll call (#703) lands here with `?send=1`: the send dialog opens at once, as "Send anyway"
 // would open it, so the leader sees exactly what freezes and answers the make-up checks. A report the send bar would
 // not open (sent, read-only, practice not confirmed, KPIs unavailable) stays as it is.
@@ -340,7 +343,7 @@ function confirmSend(reason, makeupChecks = []) {
     timer = null;
     sending.value = true;
     const again = editing.value;
-    router.post(`${baseUrl.value}/send`, { ...payload(), reason, makeup_checks: makeupChecks }, {
+    router.post(`${baseUrl.value}/send`, { ...payload(), reason, makeup_checks: makeupChecks, from: sentFrom }, {
         preserveScroll: true,
         onSuccess: () => {
             dialogOpen.value = false;
@@ -535,7 +538,7 @@ function useSuggestion() {
             :rollcall="rollcall"
             :subject="sent ? report.trainingSubject : content.trainingSubject || null"
             :enforced="Boolean(topic?.enforced)"
-            :troopers="troopers ?? []"
+            :troopers="rollcall.troopers ?? troopers ?? []"
             :unaccounted="sent ? (report.unaccounted ?? []) : chosen.unaccounted"
             :names="names"
             :reason-labels="reasonLabels"
