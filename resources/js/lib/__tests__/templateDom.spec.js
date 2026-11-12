@@ -1,0 +1,182 @@
+import { describe, expect, it } from 'vitest';
+import cases from '../../../../tests/Fixtures/bbcode-templates.json';
+import { buildDoc } from '../templateDoc';
+import { drawDoc, pointAt, readDom } from '../templateDom';
+import { STARTER } from './templateStarter';
+
+// The visual mode is a page element the leader types into, drawn from the template and read back from what is on the
+// page (#704). Visual → Source → Visual may only be safe if drawing a template and reading it back, untouched, gives the
+// same template byte for byte, for every shape a template can take.
+
+function surface(template) {
+    const root = document.createElement('div');
+    root.setAttribute('contenteditable', 'true');
+    root.append(drawDoc(buildDoc(template), document));
+    document.body.replaceChildren(root);
+
+    return root;
+}
+
+const EVERY = [
+    ...cases.valid.map((c) => [c.name, c.template]),
+    ...cases.invalid.map((c) => [c.name, c.template]),
+    ['the starter', STARTER],
+    ['a section and a tag that cross', '{{#unit}}[B]x{{/unit}} y[/B]'],
+    ['a table holding loose text', '[TABLE]hello[TR][TD]a[/TD][/TR][/TABLE]'],
+    ['an unsafe colour', '[COLOR=javascript:alert(1)]x[/COLOR]'],
+    ['Windows line ends', '[CENTER]\r\n[B]x[/B]\r\n[/CENTER]\r\n'],
+    ['a list', '[LIST]\n[*]one\n[*]two\n[/LIST]'],
+    ['a link and a size', '[URL=https://7cav.us]home[/URL] [SIZE=5]big[/SIZE] [COLOR=#ff0000]red[/COLOR]'],
+    ['an empty template', ''],
+    ['spaces and tabs', '  a\t b  \n  '],
+];
+
+describe('the visual surface', () => {
+    it.each(EVERY)('reads back exactly the template it was drawn from: %s', (_name, template) => {
+        expect(readDom(surface(template)).source).toBe(template);
+    });
+
+    it('draws formatting as formatting, not as code', () => {
+        const root = surface('[B]bold[/B] [I]it[/I] [U]u[/U] [COLOR=red]c[/COLOR] [CENTER]mid[/CENTER]');
+
+        expect(root.querySelector('strong').textContent).toBe('bold');
+        expect(root.querySelector('em').textContent).toBe('it');
+        expect(root.querySelector('u').textContent).toBe('u');
+        expect(root.querySelector('span[data-open="[COLOR=red]"]').style.color).toBe('red');
+        expect(root.querySelector('div[data-open="[CENTER]"]').style.textAlign).toBe('center');
+        expect(root.textContent).not.toContain('[B]');
+    });
+
+    it('draws a code as a chip that cannot be edited, named for what it prints, with an accessible name', () => {
+        const chip = surface('{{#troopers}}{{name}}{{/troopers}}').querySelector('[data-raw="{{name}}"]');
+
+        expect(chip.getAttribute('contenteditable')).toBe('false');
+        expect(chip.textContent).toBe('Trooper name');
+        expect(chip.getAttribute('role')).toBe('img');
+        expect(chip.getAttribute('aria-label')).toBe('Trooper name, template code {{name}}');
+    });
+
+    it('names a filtered code for what it prints', () => {
+        expect(surface('{{week|upper}}').querySelector('[data-raw]').textContent).toBe('Week in capitals');
+    });
+
+    it('draws the trooper loop in a table as one block of rows, labelled as repeating', () => {
+        const root = surface(STARTER);
+        const loop = root.querySelector('tbody[data-section="troopers"]');
+
+        expect(loop).not.toBeNull();
+        expect(loop.querySelector('[data-edge="open"]').textContent).toContain('Repeats for each trooper');
+        expect(loop.querySelectorAll('tr[data-open="[TR]"]')).toHaveLength(1);
+        expect(root.querySelector('tbody[data-section="troopers"][data-inverted]').querySelector('[data-edge="open"]').textContent).toContain('When the section has no troopers');
+    });
+
+    it('marks cells shown only under a condition with that condition', () => {
+        const root = surface(STARTER);
+
+        expect(root.querySelector('th[data-condition]').getAttribute('data-condition')).toBe('Only if Fireteams shown');
+    });
+
+    it('draws a section inside text as a chip at each end around what it shows', () => {
+        const root = surface('a {{#rank_icon}}x{{/rank_icon}} b');
+        const [open, close] = root.querySelectorAll('[data-edge]');
+
+        expect(open.textContent).toBe('If Rank insignia');
+        expect(close.textContent).toBe('End');
+        expect(close.getAttribute('aria-label')).toBe('End of If Rank insignia, template code {{/rank_icon}}');
+    });
+
+    it('draws what does not nest cleanly as code chips', () => {
+        const root = surface('{{#unit}}[B]x{{/unit}} y[/B]');
+
+        expect([...root.querySelectorAll('.tpl-raw')].map((chip) => chip.textContent)).toEqual(['[B]', '[/B]']);
+    });
+});
+
+describe('reading back what the leader changed', () => {
+    it('reads typed text into the template, codes and tags around it untouched', () => {
+        const root = surface('[B]Roll call[/B] {{unit}}');
+        root.querySelector('strong').firstChild.data = 'Roll call accountability';
+
+        expect(readDom(root).source).toBe('[B]Roll call accountability[/B] {{unit}}');
+    });
+
+    it('drops a deleted chip whole, so a code is never half there', () => {
+        const root = surface('a {{unit}} b');
+        root.querySelector('[data-raw]').remove();
+
+        expect(readDom(root).source).toBe('a  b');
+    });
+
+    it('drops both ends of a section when either end is deleted, and keeps what it showed', () => {
+        const root = surface('a {{#rank_icon}}x{{/rank_icon}} b');
+        root.querySelector('[data-edge="open"]').remove();
+
+        expect(readDom(root).source).toBe('a x b');
+    });
+
+    it('keeps the text of formatting the browser added and drops its markup', () => {
+        const root = surface('ab');
+        const bold = document.createElement('b');
+        bold.textContent = 'cd';
+        root.append(bold);
+
+        expect(readDom(root).source).toBe('abcd');
+    });
+
+    it('reads a line break or a new line the browser added as a line end', () => {
+        const root = surface('ab');
+        root.append(document.createElement('br'), document.createTextNode('cd'));
+        const line = document.createElement('div');
+        line.textContent = 'ef';
+        root.append(line);
+
+        expect(readDom(root).source).toBe('ab\ncd\nef');
+    });
+
+    it('ignores the empty line break a browser leaves as a placeholder', () => {
+        const root = surface('');
+        root.append(document.createElement('br'));
+
+        expect(readDom(root).source).toBe('');
+    });
+});
+
+describe('the cursor', () => {
+    it('gives the place in the template of a point on the page', () => {
+        const root = surface('[B]ab[/B]{{unit}}cd');
+        const bold = root.querySelector('strong').firstChild;
+        const tail = root.lastChild;
+
+        expect(readDom(root, [{ node: bold, offset: 1 }]).offsets).toEqual([4]);
+        expect(readDom(root, [{ node: tail, offset: 2 }]).offsets).toEqual([19]);
+        expect(readDom(root, [{ node: root, offset: 1 }]).offsets).toEqual([9]);
+        // A point inside a chip is just before it.
+        expect(readDom(root, [{ node: root.querySelector('[data-raw]').firstChild, offset: 3 }]).offsets).toEqual([9]);
+    });
+
+    it('finds the point on the page for a place in the template, inside the text it falls in', () => {
+        const root = surface('[B]ab[/B]{{unit}}cd');
+
+        expect(pointAt(root, 4)).toEqual({ node: root.querySelector('strong').firstChild, offset: 1 });
+        expect(pointAt(root, 18)).toEqual({ node: root.lastChild, offset: 1 });
+    });
+
+    it('puts a place inside a tag or a code at the nearest edge of it', () => {
+        const root = surface('[B]ab[/B]{{unit}}cd');
+
+        expect(pointAt(root, 1)).toEqual({ node: root, offset: 0 });
+        expect(pointAt(root, 12)).toEqual({ node: root, offset: 1 });
+        expect(pointAt(root, 15)).toEqual({ node: root.lastChild, offset: 0 });
+    });
+
+    it('gives back every place it is given, in the same order', () => {
+        const source = '[B]ab[/B]{{unit}}cd x {{#troopers}}{{name}}{{/troopers}}';
+        const root = surface(source);
+        const places = [0, 3, 4, 5, 9, 17, 18, 19, 22, 35, 43, source.length];
+
+        for (const place of places) {
+            const point = pointAt(root, place);
+            expect(readDom(root, [point]).offsets[0], `place ${place}`).toBe(place);
+        }
+    });
+});

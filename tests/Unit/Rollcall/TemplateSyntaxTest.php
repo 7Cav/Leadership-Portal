@@ -22,7 +22,9 @@ it('refuses every malformed template in the shared cases, saying what is wrong',
         $error = TemplateSyntax::check($case['template']);
 
         expect($error)->not->toBeNull("refused: {$case['name']}")
-            ->and(str_contains($error, $case['error']))->toBeTrue("message for: {$case['name']} was: {$error}");
+            ->and(str_contains($error, $case['error']))->toBeTrue("message for: {$case['name']} was: {$error}")
+            // Word for word: the template editor shows the browser's message before a save, so it must be this one.
+            ->and($error)->toBe($case['message'], "full message for: {$case['name']}");
     }
 });
 

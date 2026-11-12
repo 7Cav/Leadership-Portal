@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import cases from '../../../../tests/Fixtures/bbcode-templates.json';
-import { DESCRIBED, FILTERS, LISTS, ROW_FLAGS, ROW_STRINGS, TOP_FLAGS, TOP_STRINGS, inert, parse, render, sampleContext, templateLegend } from '../bbcode';
+import { DESCRIBED, FILTERS, LABELLED, codeLabel, LISTS, ROW_FLAGS, ROW_STRINGS, TOP_FLAGS, TOP_STRINGS, inert, parse, render, sampleContext, templateLegend } from '../bbcode';
 
 // Story 3.10. The grammar cases are shared with the server's TemplateSyntax (tests/Fixtures/bbcode-templates.json), so the
 // browser and the server accept and refuse the same templates with the same messages.
@@ -46,6 +46,14 @@ const context = (overrides = {}) => ({
 describe('the legend of template codes', () => {
     it('describes every name the parser accepts and nothing else, so the legend cannot drift', () => {
         expect([...DESCRIBED].sort()).toEqual([...TOP_STRINGS, ...TOP_FLAGS, ...LISTS, ...ROW_STRINGS, ...ROW_FLAGS, ...FILTERS].sort());
+    });
+
+    it('gives every name a short label for the visual editor, and no name more than one', () => {
+        expect([...LABELLED].sort()).toEqual([...DESCRIBED].sort());
+        expect(codeLabel('name')).toBe('Trooper name');
+        expect(codeLabel('rc')).toBe('Roll call mark');
+        expect(codeLabel('constructor')).toBe('constructor');
+        for (const entry of templateLegend().flatMap((group) => group.entries)) expect(entry.label, entry.name).toBe(codeLabel(entry.name));
     });
 
     it('groups the codes as the parser reads them, each with a meaning and an example', () => {
@@ -141,11 +149,23 @@ describe('the grammar, against the cases shared with the server', () => {
         expect(parse(template)).toMatchObject({ ok: true });
     });
 
-    it.each(cases.invalid.map((c) => [c.name, c.template, c.error]))('refuses: %s', (_name, template, error) => {
+    it.each(cases.invalid.map((c) => [c.name, c.template, c.error, c.message]))('refuses: %s', (_name, template, error, message) => {
         const result = parse(template);
 
         expect(result.ok).toBe(false);
         expect(result.error).toContain(error);
+        // Word for word what the server says when it refuses the save, so the editor can say it before the save.
+        expect(result.error).toBe(message);
+    });
+
+    it('says where in the template the problem is, as an offset and a length', () => {
+        expect(parse('ok {{colour}} x')).toMatchObject({ ok: false, at: 3, length: 10 });
+        expect(parse('[B]{{unit[/B]')).toMatchObject({ ok: false, at: 3, length: 2 });
+        expect(parse('ok {{')).toMatchObject({ ok: false, at: 3, length: 2 });
+        expect(parse('x{{/troopers}}')).toMatchObject({ ok: false, at: 1, length: 13 });
+        // An unclosed section points at where it opens.
+        expect(parse('a {{#troopers}}{{name}}')).toMatchObject({ ok: false, at: 2, length: 13 });
+        expect(parse('{{#troopers}}{{#sp_present}}x{{/troopers}}{{/sp_present}}')).toMatchObject({ ok: false, at: 29, length: 13 });
     });
 
     it('lists the same names as the server, one per case, so the two lists cannot drift', () => {
@@ -246,7 +266,7 @@ describe('render', () => {
     });
 
     it('reports a malformed template instead of emitting broken BBCode', () => {
-        expect(render('{{#troopers}}{{name}}', context())).toEqual({ ok: false, error: 'The section "{{#troopers}}" is never closed.' });
+        expect(render('{{#troopers}}{{name}}', context())).toEqual({ ok: false, error: 'The section "{{#troopers}}" is never closed.', at: 0, length: 13 });
     });
 
     it('treats a section on an empty string or false as not set, and on a non-empty string as set', () => {
@@ -284,7 +304,7 @@ describe('an adversarial template', () => {
     });
 
     it('treats a name that merely looks like an object property as unknown', () => {
-        expect(parse('{{__proto__}}')).toEqual({ ok: false, error: 'Unknown name "__proto__".' });
+        expect(parse('{{__proto__}}')).toEqual({ ok: false, error: 'Unknown name "__proto__".', at: 0, length: 13 });
         expect(parse('{{#troopers}}{{constructor}}{{/troopers}}').ok).toBe(false);
     });
 
