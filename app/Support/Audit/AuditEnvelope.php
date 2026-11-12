@@ -5,7 +5,6 @@ namespace App\Support\Audit;
 use App\Repositories\AuditedBatch;
 use App\Repositories\AuditLogRepository;
 use Closure;
-use Illuminate\Database\Eloquent\Model;
 
 /**
  * The one path every state-changing Command routes through (AD-16): records actor, action,
@@ -41,11 +40,13 @@ class AuditEnvelope
 
     /**
      * Something that happened to `$target` without changing it (a sign-in, a sign-out), recorded like any other entry.
-     * `$notes` are shown under its subject ({@see AuditLogRepository::recordWithMutation()}).
+     * `$notes` are shown under its subject ({@see AuditLogRepository::recordWithMutation()}). `$target` is the Eloquent
+     * row it is about: typed loosely, since this layer may not name the database (Deptrac), and refused by the
+     * Repository when it is anything else.
      *
      * @param  list<string>  $notes
      */
-    public function recordEvent(int $actorId, string $action, Model $target, array $notes = []): void
+    public function recordEvent(int $actorId, string $action, object $target, array $notes = []): void
     {
         [$actorId, $onBehalfOf, $onBehalfOfUnit] = $this->acting->attribute($actorId);
 
