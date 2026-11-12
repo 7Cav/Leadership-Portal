@@ -94,3 +94,8 @@ export function zuluTime(value, options = {}) {
 export function forumDateTime(value, options = {}) {
     return `${forumDate(value)} ${clockOf(value, options)}`;
 }
+
+// `24OCT26 23 59Z`: a date and its Zulu time, for a table column headed Zulu, such as the audit and activity logs.
+export function forumZulu(value, options = {}) {
+    return `${forumDateTime(value, options)}Z`;
+}
