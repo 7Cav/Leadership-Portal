@@ -6,14 +6,17 @@ use App\Commands\WeeklyReports\SectionTrainingSubject;
 use App\Models\Unit;
 use App\Models\WeeklyReportStatus;
 use App\Repositories\PlatoonTrainingTopicRepository;
+use App\Repositories\RollcallFlow;
+use App\Repositories\SectionPracticeRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 
 /**
- * The roll call's weekly cycle (#703): the `training` prop, the week's training topic as the weekly report holds it.
- * The roll call page reads it on load and the topic write answers with it, so both show the same value.
+ * The roll call's weekly cycle (#703): the `flow` prop, which flow the week follows and whether its roll call was
+ * created, and the `training` prop, the week's training topic as the weekly report holds it. The roll call page reads
+ * both on load and its cycle writes answer with them, so the page and the server show the same state.
  */
 final class RollcallCycleProps
 {
@@ -21,7 +24,27 @@ final class RollcallCycleProps
         private readonly WeeklyReportRepository $reports,
         private readonly PlatoonTrainingTopicRepository $topics,
         private readonly UnitRepository $units,
+        private readonly SectionPracticeRepository $practices,
     ) {}
+
+    /**
+     * `version` is {@see RollcallFlow::V1} or {@see RollcallFlow::V2}; `created` says when and by whom a flow 2 roll call
+     * was created, null until it is (and always for flow 1, which has no create step).
+     *
+     * @return array{version: int, created: array{at: string, by: ?string}|null}
+     */
+    public function flow(Unit $section, CarbonImmutable $weekStart): array
+    {
+        $practice = $this->practices->find($section->id, $weekStart);
+
+        return [
+            'version' => RollcallFlow::of($practice, $weekStart),
+            'created' => $practice?->rollcall_created_at === null ? null : [
+                'at' => $practice->rollcall_created_at->toIso8601String(),
+                'by' => $practice->rollcallCreatedBy?->username,
+            ],
+        ];
+    }
 
     /**
      * `subject` is the topic the report shows: the platoon's when it enforces one, else the section's own, else the

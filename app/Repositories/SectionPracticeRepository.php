@@ -35,10 +35,13 @@ interface SectionPracticeRepository
      * Practices are per section (AD-14) — a practice keyed to a platoon or company would split a
      * trooper-week's count across two echelons — so a unit of any other type is refused.
      *
+     * A practice made here takes the roll call flow of its week ({@see RollcallFlow::forWeek()}, #703), or `$flowVersion`
+     * when given; a practice found keeps the flow it has.
+     *
      * @throws InvalidArgumentException when `$sectionId` is not a `units` row of type section,
      *                                  or `$weekStart` is not a Saturday 00:00 UTC.
      */
-    public function findOrCreate(int $sectionId, CarbonInterface $weekStart, bool $keepDemo = false): SectionPractice;
+    public function findOrCreate(int $sectionId, CarbonInterface $weekStart, bool $keepDemo = false, ?int $flowVersion = null): SectionPractice;
 
     /**
      * The section's practice row for the week, or null when none has been recorded — a read that
@@ -125,6 +128,12 @@ interface SectionPracticeRepository
      * The caller routes it through the audit envelope.
      */
     public function changeWeek(SectionPractice $practice, ?\DateTimeInterface $movedTo, bool $cancelled): SectionPractice;
+
+    /**
+     * Record that `$userId` created the week's roll call (#703, flow 2): `rollcall_created_at` = now. Creating again
+     * keeps the first stamp. The caller routes it through the audit envelope.
+     */
+    public function markCreated(SectionPractice $practice, int $userId): SectionPractice;
 
     /**
      * Whether any practice, demo or real, has been recorded for `$unit` —

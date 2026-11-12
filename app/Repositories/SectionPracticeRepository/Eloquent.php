@@ -7,6 +7,7 @@ use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Repositories\PracticeWeekStatus;
+use App\Repositories\RollcallFlow;
 use App\Repositories\SectionPracticeRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
@@ -17,7 +18,7 @@ use InvalidArgumentException;
 
 class Eloquent implements SectionPracticeRepository
 {
-    public function findOrCreate(int $sectionId, CarbonInterface $weekStart, bool $keepDemo = false): SectionPractice
+    public function findOrCreate(int $sectionId, CarbonInterface $weekStart, bool $keepDemo = false, ?int $flowVersion = null): SectionPractice
     {
         $weekStart = WeekOf::requireStart($weekStart);
 
@@ -28,7 +29,8 @@ class Eloquent implements SectionPracticeRepository
         $key = ['section_id' => $sectionId, 'week_start' => $weekStart];
 
         try {
-            $practice = SectionPractice::query()->createOrFirst($key);
+            // A new week takes the roll call flow it starts under (#703); a found one keeps its own.
+            $practice = SectionPractice::query()->createOrFirst($key, ['flow_version' => $flowVersion ?? RollcallFlow::forWeek($weekStart)]);
         } catch (UniqueConstraintViolationException $e) {
             // createOrFirst's own re-read is a plain (snapshot) read: inside a MySQL REPEATABLE
             // READ transaction that has already read, it cannot see a row a racing submit committed
@@ -166,6 +168,15 @@ class Eloquent implements SectionPracticeRepository
             'slot_moved_to' => $cancelled ? null : $movedTo,
             'slot_cancelled' => $cancelled,
         ])->save();
+
+        return $practice;
+    }
+
+    public function markCreated(SectionPractice $practice, int $userId): SectionPractice
+    {
+        if ($practice->rollcall_created_at === null) {
+            $practice->forceFill(['rollcall_created_at' => CarbonImmutable::now(), 'rollcall_created_by' => $userId])->save();
+        }
 
         return $practice;
     }
