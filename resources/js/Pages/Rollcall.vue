@@ -160,6 +160,8 @@ const props = defineProps({
     resultImages: { type: Object, default: null },
     // The week's training topic (#703): `{ subject, enforced, platoon, canEdit }`, the weekly report's training subject.
     training: { type: Object, default: null },
+    // The section's chain of command up to its battalion, which a template prints as `{{coc}}`. Empty for the picker.
+    chainOfCommand: { type: Array, default: () => [] },
     // Which roll call flow the week follows (#703): `{ version, created: { at, by } | null }`. Null for the picker.
     flow: { type: Object, default: null },
     // The section's report draft for the close step (#703): `{ notes, unaccounted, reasons }`. Null for the picker.
@@ -574,6 +576,7 @@ const post = computed(() =>
               troopers: rows.value,
               fireteams: fireteams.value ?? {},
               resultImages: props.resultImages ?? {},
+              chainOfCommand: props.chainOfCommand,
               training: { date: trainingStart.value, topic: training.value?.subject ?? null },
           })
         : null,

@@ -16,7 +16,7 @@
 import { insigniaWidth } from './rankInsignia';
 
 /** Names printable anywhere in a template. */
-export const TOP_STRINGS = ['unit', 'unit_name', 'week', 'week_start', 'week_end', 'training_date', 'training_topic', 'count', 'signed', 'attended', 'rc_image', 'sp_image'];
+export const TOP_STRINGS = ['unit', 'unit_name', 'week', 'week_start', 'week_end', 'training_date', 'training_topic', 'coc', 'count', 'signed', 'attended', 'rc_image', 'sp_image'];
 /** Yes-or-no names about the whole post, usable only as sections, anywhere in a template. */
 export const TOP_FLAGS = ['fireteams_shown'];
 /** The one list a template may repeat over. */
@@ -41,6 +41,7 @@ const MEANINGS = {
     week_end: ['The Friday the week ends', '22May26'],
     training_date: ["When this week's practice starts: the section's slot, or this week's own time when it was moved. Empty when there is no practice this week", 'Wed 20May26 2300Z'],
     training_topic: ["This week's training topic: the platoon's, or the section's own. The weekly report shows the same one. Empty until one is set", 'Land navigation: map and compass'],
+    coc: ["The section's chain of command up to its battalion, one line per billet from the Assistant Section Leader up to the Battalion Commanding Officer. Each holder links to their milpac; an empty billet reads Vacant, an acting lead ends in (acting)", 'Section Leader: [url=…]Sergeant Jay.JH[/url]'],
     count: ['How many troopers are in the section', '8'],
     signed: ['How many signed the roll call as will attend', '6'],
     attended: ['How many attended practice or completed a make-up', '5'],
@@ -90,6 +91,7 @@ const LABELS = {
     week_end: 'Week end',
     training_date: 'Practice time',
     training_topic: 'Training topic',
+    coc: 'Chain of command',
     count: 'Trooper count',
     signed: 'Signed count',
     attended: 'Attended count',
@@ -163,6 +165,21 @@ export function templateLegend() {
     ];
 }
 
+// The sample section's chain of command. Its milpac links only show where a link goes; a real section's are the server's.
+const sampleHolder = (rank, name, id) => [{ rank, name, url: `https://example.com/milpac/${id}` }];
+const SAMPLE_CHAIN = [
+    { role: 'Assistant Section Leader', holders: [], acting: false },
+    { role: 'Section Leader', holders: sampleHolder('Sergeant', 'Jay.JH', 1), acting: false },
+    { role: 'Platoon Sergeant', holders: sampleHolder('Staff Sergeant', 'Randolph.R', 2), acting: false },
+    { role: 'Platoon Leader', holders: sampleHolder('First Lieutenant', 'Laui.M', 3), acting: true },
+    { role: 'Company First Sergeant', holders: sampleHolder('First Sergeant', 'Stover.C', 4), acting: false },
+    { role: 'Company Executive Officer', holders: [], acting: false },
+    { role: 'Company Commanding Officer', holders: sampleHolder('Captain', 'Adams.P', 5), acting: false },
+    { role: 'Battalion Sergeant Major', holders: sampleHolder('Sergeant Major', 'Preacher.A', 6), acting: false },
+    { role: 'Battalion Executive Officer', holders: sampleHolder('Major', 'Korfias.F', 7), acting: false },
+    { role: 'Battalion Commanding Officer', holders: sampleHolder('Lieutenant Colonel', 'Dallas.E', 8), acting: false },
+];
+
 // The forum's own rank insignia, for the sample section's rows.
 const SAMPLE_ICON = (file) => `https://7cav.us/data/roster_ranks/0/${file}`;
 
@@ -217,6 +234,7 @@ export function sampleContext() {
         week_end: example('week_end'),
         training_date: example('training_date'),
         training_topic: example('training_topic'),
+        coc: SAMPLE_CHAIN,
         count: String(troopers.length),
         signed: String(troopers.filter((trooper) => trooper.rc_yes).length),
         attended: String(troopers.filter((trooper) => trooper.sp_present || trooper.sp_makeup).length),
@@ -312,17 +330,47 @@ export function inert(value) {
     return String(value).replaceAll('[', '[\u200B').replaceAll(']', '\uFF3D');
 }
 
-// The counts reach a template as text ("0"), so a zero count is not set either.
+// The counts reach a template as text ("0"), so a zero count is not set either. A list (the chain of command) is set
+// when it has a line.
 function truthy(value) {
-    return value === true || (typeof value === 'string' && value !== '' && value !== '0') || (typeof value === 'number' && value !== 0);
+    return (Array.isArray(value) && value.length > 0) || value === true || (typeof value === 'string' && value !== '' && value !== '0') || (typeof value === 'number' && value !== 0);
+}
+
+function cased(text, filter) {
+    if (filter === 'upper') return text.toUpperCase();
+    if (filter === 'lower') return text.toLowerCase();
+
+    return text;
 }
 
 function print(value, filter) {
-    let out = inert(value ?? '');
-    if (filter === 'upper') out = out.toUpperCase();
-    if (filter === 'lower') out = out.toLowerCase();
+    if (Array.isArray(value)) return chainText(value, filter);
 
-    return out;
+    return cased(inert(value ?? ''), filter);
+}
+
+// A milpac link the post may carry: an https address with nothing in it that could end the [url=...] option or the line.
+const LINK = /^https:\/\/[^\s[\]"]+$/;
+
+/**
+ * The chain of command as `{{coc}}` prints it (`ChainOfCommand::lines()` on the server): one line per billet,
+ * `Role: [url=milpac]Rank Name[/url]`, or `Role: Vacant` when nobody holds it, an acting lead followed by "(acting)".
+ * The words are inert like every other value and take the filter; the address is the server's and is left as it is.
+ */
+export function chainText(lines, filter) {
+    const text = (words) => cased(inert(words), filter);
+
+    return lines
+        .map(({ role, holders = [], acting = false }) => {
+            const names = holders.map(({ rank, name, url }) => {
+                const who = text([rank, name].filter(Boolean).join(' '));
+
+                return typeof url === 'string' && LINK.test(url) ? `[url=${url}]${who}[/url]` : who;
+            });
+
+            return `${text(role)}: ${names.length === 0 ? text('Vacant') : names.join(', ')}${acting && names.length > 0 ? text(' (acting)') : ''}`;
+        })
+        .join('\n');
 }
 
 function renderNodes(nodes, scopes) {
