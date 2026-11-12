@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * or denies it. Approving sets `unlocked_until` (the coming Saturday 2359Z) here and on the report. Written only by
  * the audited report edit request Commands.
  */
-#[Fillable(['unit_id', 'trooper_id', 'week_start', 'requested_by', 'reason'])]
+#[Fillable(['unit_id', 'trooper_id', 'week_start', 'requested_by', 'real_requested_by', 'reason'])]
 class ReportEditRequest extends Model
 {
     public const PENDING = 'pending';

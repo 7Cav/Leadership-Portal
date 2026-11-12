@@ -1,5 +1,9 @@
 <?php
 
+use App\Authorization\RealActor;
+use App\Commands\Attendance\AttendanceMark;
+use App\Commands\Attendance\MarkAttendance;
+use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Commands\ReportEdits\DecideReportEdit;
 use App\Commands\ReportEdits\DecideReportEditHandler;
 use App\Commands\ReportEdits\ReportEditForbiddenException;
@@ -9,11 +13,15 @@ use App\Commands\ReportEdits\RequestReportEditHandler;
 use App\Commands\StaffReports\SendStaffReport;
 use App\Commands\StaffReports\SendStaffReportHandler;
 use App\Commands\StaffReports\StaffReportRefusedException;
+use App\Commands\Units\DeleteUnit;
+use App\Commands\Units\UnitHasDependentsException;
 use App\Commands\WeeklyReports\ReopenWeeklyReport;
 use App\Commands\WeeklyReports\ReopenWeeklyReportHandler;
 use App\Commands\WeeklyReports\SendWeeklyReport;
 use App\Commands\WeeklyReports\SendWeeklyReportHandler;
 use App\Commands\WeeklyReports\WeeklyReportLockedException;
+use App\Models\Attendance;
+use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
 use App\Models\ReportEditRequest;
 use App\Models\StaffReport;
@@ -234,4 +242,51 @@ it('shows a staff report\'s request on its page', function () {
         ->where('editRequest.canRequest', true));
     $this->actingAs($this->users['psg'])->post("{$url}/edit-request", ['reason' => 'Forgot the FTX'])->assertRedirect();
     $this->actingAs($this->users['co'])->get($url)->assertInertia(fn (AssertableInertia $p) => $p->where('editRequest.canDecide', true));
+});
+
+it('opens the section\'s roll call again once an approved unlock is reopened, so marks can be fixed', function () {
+    $trooper = Trooper::query()->where('primary_section_id', $this->section->id)->first();
+
+    $request = askEdit($this->users['sl'], RequestReportEdit::weekly($this->section->id, $this->week, 'Wrong marks'));
+    decideEdit($this->users['pl'], $request, true);
+    app(ReopenWeeklyReportHandler::class)->handle($this->users['sl'], new ReopenWeeklyReport($this->section->id, $this->week, 'Fixing the marks'));
+
+    app(MarkAttendanceHandler::class)->handle($this->users['sl'], new MarkAttendance($this->section->id, $this->week, new AttendanceMark($trooper->id, AttendanceStatus::Present)));
+
+    expect(Attendance::query()->where('trooper_id', $trooper->id)->value('status'))->toBe(AttendanceStatus::Present);
+});
+
+it('never lets the person who asked decide, whoever they act as or acted as when asking', function () {
+    $real = app(RealActor::class);
+
+    // Asked as themselves, then acting as someone above who could decide: refused.
+    $request = askEdit($this->users['sl'], RequestReportEdit::weekly($this->section->id, $this->week, 'Wrong week'));
+    $real->set($this->users['sl']);
+    expect(fn () => decideEdit($this->users['pl'], $request, true))->toThrow(ReportEditForbiddenException::class);
+    $real->clear();
+    decideEdit($this->users['admin'], $request, false);
+
+    // Asked while acting as the section leader: the person behind it may not decide as themselves either.
+    $real->set($this->users['co']);
+    $second = askEdit($this->users['sl'], RequestReportEdit::weekly($this->section->id, $this->week, 'Again'));
+    $real->clear();
+
+    expect($second->real_requested_by)->toBe($this->users['co']->id)
+        ->and(fn () => decideEdit($this->users['co'], $second, true))->toThrow(ReportEditForbiddenException::class)
+        ->and(decideEdit($this->users['pl'], $second, true)->status)->toBe(ReportEditRequest::APPROVED);
+});
+
+it('keeps an Admin on the unit\'s own command team from deciding its request, as anyone on that team', function () {
+    $adminLeader = User::factory()->admin()->commanding($this->section)->create();
+    $request = askEdit($this->users['sl'], RequestReportEdit::weekly($this->section->id, $this->week, 'Wrong week'));
+
+    expect(fn () => decideEdit($adminLeader, $request, true))->toThrow(ReportEditForbiddenException::class)
+        ->and(decideEdit($this->users['admin'], $request, true)->status)->toBe(ReportEditRequest::APPROVED);
+});
+
+it('keeps a unit an edit request names, as its reports do', function () {
+    $empty = app(UnitRepository::class)->create(UnitType::Platoon, '3rd Platoon', '3/A/1-7', $this->tree['units']['company']->id);
+    ReportEditRequest::query()->create(['unit_id' => $empty->id, 'week_start' => '2026-10-03', 'requested_by' => $this->users['sl']->id, 'reason' => 'Old']);
+
+    expect(fn () => app(DeleteUnit::class)->handle($this->users['admin'], $empty))->toThrow(UnitHasDependentsException::class, 'requests to edit');
 });

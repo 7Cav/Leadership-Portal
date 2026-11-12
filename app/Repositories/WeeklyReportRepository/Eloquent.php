@@ -40,7 +40,7 @@ class Eloquent implements WeeklyReportRepository
             ->where('unit_id', $unitId)
             ->where('week_start', $this->assertWeekStart($weekStart))
             ->sharedLock()
-            ->first(['id', 'week_start', 'status', 'reopened_at', 'is_demo']);
+            ->first(['id', 'week_start', 'status', 'reopened_at', 'unlocked_until', 'is_demo']);
 
         // Reopened inside its edit window, the week is the leader's to fix again until they send.
         return ReportEditWindow::isFrozen($report) && ! $report->is_demo;

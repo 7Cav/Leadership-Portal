@@ -2,6 +2,7 @@
 
 namespace App\Commands\ReportEdits;
 
+use App\Authorization\RealActor;
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffReportAccess;
 use App\Commands\WeeklyReports\ReopenWeeklyReportHandler;
@@ -48,6 +49,7 @@ class RequestReportEditHandler
         private readonly ReportEditRequestRepository $requests,
         private readonly ReportEditRecipients $recipients,
         private readonly AuditEnvelope $audit,
+        private readonly RealActor $real,
     ) {}
 
     /**
@@ -116,7 +118,8 @@ class RequestReportEditHandler
             reason: $reason,
             reasonRequired: true,
             mutation: function () use ($unit, $staff, $command, $weekStart, $actor, $reason, $report, &$request) {
-                $request = $this->requests->create($unit->id, $staff ? $command->trooperId : null, $weekStart, $actor->id, $reason);
+                $request = $this->requests->create($unit->id, $staff ? $command->trooperId : null, $weekStart, $actor->id, $this->real->get()?->id, $reason)
+                    ?? throw ReportEditRefusedException::pending();
 
                 return new AuditedBatch($report, $request);
             },

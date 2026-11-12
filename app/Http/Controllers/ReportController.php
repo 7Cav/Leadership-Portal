@@ -178,7 +178,7 @@ class ReportController extends Controller
                 'beforeFloor' => WeekOf::isBeforeFloor($weekStart),
                 // The week before, while its report is still owed and this one is not sent: a late report sent from here
                 // would land in this week, so the page points at that one first.
-                'owed' => $this->owedPreviousWeek($unit, $weekStart, $sent, $canWrite),
+                'owed' => $this->owedPreviousWeek($unit, $weekStart, $report?->status === WeeklyReportStatus::Sent, $canWrite),
             ],
             'report' => [
                 ...$this->reportProps($report, $senders),

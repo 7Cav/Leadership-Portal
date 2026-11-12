@@ -19,8 +19,15 @@ interface ReportEditRequestRepository
     /** Whether the report has a request still waiting on a decision. */
     public function hasPending(int $unitId, ?int $trooperId, CarbonInterface $weekStart): bool;
 
-    /** Store a new pending request. Call inside the audited transaction. */
-    public function create(int $unitId, ?int $trooperId, CarbonInterface $weekStart, int $requestedBy, string $reason): ReportEditRequest;
+    /**
+     * Store a new pending request, `$realRequestedBy` the signed-in user behind an act as (else null). Null when the
+     * report already has one pending: checked under a lock on the report's row, so two at once store one. Call inside
+     * the audited transaction.
+     */
+    public function create(int $unitId, ?int $trooperId, CarbonInterface $weekStart, int $requestedBy, ?int $realRequestedBy, string $reason): ?ReportEditRequest;
+
+    /** Whether any request names `$unitId` (a weekly report's unit, or a staff member's HQ): it keeps the unit. */
+    public function hasForUnit(int $unitId): bool;
 
     /**
      * Decide a pending request under a row lock: `approved` with the time the report stays unlocked until, or
