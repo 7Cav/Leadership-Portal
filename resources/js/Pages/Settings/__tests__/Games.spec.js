@@ -197,6 +197,13 @@ describe('Settings/Games', () => {
         expect(post.mock.lastCall[2].abbreviation).toBe('SQ44');
     });
 
+    it('says the abbreviation shows on the highest line unit in an AO, not only a battalion', () => {
+        const help = factory().get('#game-abbreviation-help').text();
+
+        expect(help).toContain('Org structure shows it on the highest line unit in an AO that plays the game, usually a battalion.');
+        expect(help).not.toContain("battalion's row");
+    });
+
     it('is in the Settings navigation', () => {
         expect(locate('/settings/games').item.label).toBe('Games');
         expect(locate('/settings/games').group.id).toBe('settings');

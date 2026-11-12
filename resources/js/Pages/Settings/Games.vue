@@ -204,7 +204,7 @@ const applyAccountLinks = (game) => act('post', `/settings/games/${game.id}/acco
                             @update:model-value="(value) => (form.abbreviation = String(value).toUpperCase())"
                         />
                         <p id="game-abbreviation-help" class="text-xs text-muted-foreground">
-                            2 to 6 letters or digits, shown on a battalion's row in Org structure.<template v-if="!editing"> Left blank, it is made from the name.</template>
+                            2 to 6 letters or digits. Org structure shows it on the highest line unit in an AO that plays the game, usually a battalion.<template v-if="!editing"> Left blank, it is made from the name.</template>
                         </p>
                         <p v-if="form.errors.abbreviation" class="text-xs text-destructive" data-testid="error-abbreviation">{{ form.errors.abbreviation }}</p>
                     </div>
