@@ -47,6 +47,7 @@ import WeekHeading from '@/components/week/WeekHeading.vue';
 import ForumPost from '@/components/rollcall/ForumPost.vue';
 import TemplatePick from '@/components/rollcall/TemplatePick.vue';
 import PracticeSlot from '@/components/rollcall/PracticeSlot.vue';
+import TrainingCard from '@/components/rollcall/TrainingCard.vue';
 import WarningBanner from '@/components/WarningBanner.vue';
 import { copyText } from '@/lib/clipboard';
 import { messageFor, unreachable, useRollcallAutosave, whenLeft } from '@/composables/useRollcallAutosave';
@@ -149,6 +150,8 @@ const props = defineProps({
     fireteams: { type: Object, default: null },
     // The live Signed RC and Attended SP image addresses a template prints as `{{rc_image}}` and `{{sp_image}}` (#641).
     resultImages: { type: Object, default: null },
+    // The week's training topic (#703): `{ subject, enforced, platoon, canEdit }`, the weekly report's training subject.
+    training: { type: Object, default: null },
 });
 
 const page = usePage();
@@ -539,11 +542,45 @@ async function pickTemplate(id) {
     }
 }
 
+// The week's training (#703): the topic the server answered with after a save replaces the prop until the next load.
+// When practice starts this week: the slot or this week's own time, none when cancelled or without a slot.
+const training = ref(props.training);
+watch(
+    () => props.training,
+    (value) => (training.value = value),
+);
+const trainingStart = computed(() => (currentSlot.value?.week?.cancelled ? null : (currentSlot.value?.week?.start ?? null)));
+
 // The forum post (3.10, 3.11): the section's template filled with the current marks, generated client-side and copied
 // by the leader. The portal makes no outbound call on copy or on marking posted (AD-20).
 const post = computed(() =>
-    props.section ? rollcallPost(currentTemplate.value, { section: props.section, week: props.week, troopers: rows.value, fireteams: fireteams.value ?? {}, resultImages: props.resultImages ?? {} }) : null,
+    props.section
+        ? rollcallPost(currentTemplate.value, {
+              section: props.section,
+              week: props.week,
+              troopers: rows.value,
+              fireteams: fireteams.value ?? {},
+              resultImages: props.resultImages ?? {},
+              training: { date: trainingStart.value, topic: training.value?.subject ?? null },
+          })
+        : null,
 );
+
+// A post on the forum printed the old date or topic, so it needs reposting when the BBCode changed.
+function onTraining(value) {
+    const before = bbcode.value;
+    training.value = value;
+    nextTick(() => {
+        if (posted.value && bbcode.value !== before) editedSincePost.value = true;
+    });
+}
+function onSlot(slot) {
+    const before = bbcode.value;
+    slotOverride.value = slot;
+    nextTick(() => {
+        if (posted.value && bbcode.value !== before) editedSincePost.value = true;
+    });
+}
 const bbcode = computed(() => (post.value?.state === 'ready' ? post.value.text : ''));
 // The BBCode as the leader last copied it. "Copied" holds only while the post on screen is still that text: a mark or a
 // fireteam changed since means what they paste, or already pasted, is out of date (`copyStale`).
@@ -816,7 +853,7 @@ onMounted(() => {
 // screen that was just left has sent what it still held, and keep the opening marks as this visit's "before". It is a
 // partial reload of what changes as the week is worked, so a mark set meanwhile neither trips the leave guard nor is
 // overwritten (the rows keep a mark not saved yet).
-const LIVE_PROPS = ['troopers', 'practice', 'atRisk', 'makeupOwed', 'weekStatus', 'fireteams', 'unmatched', 'dismissed', 'departed', 'capture', 'telemetry', 'locked', 'report'];
+const LIVE_PROPS = ['troopers', 'practice', 'atRisk', 'makeupOwed', 'weekStatus', 'fireteams', 'unmatched', 'dismissed', 'departed', 'capture', 'telemetry', 'locked', 'report', 'training'];
 // A save that never answers must not keep the marks stale for good: past a few seconds, read them anyway.
 const LEFT_WAIT_MS = 3000;
 onMounted(() => {
@@ -1032,7 +1069,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                     :week-locked-reason="lockedReason"
                     :changes-from="practiceSlotChangesFrom"
                     :current-week="week.current"
-                    @updated="(slot) => (slotOverride = slot)"
+                    @updated="onSlot"
                 />
                 <span role="status" aria-live="polite" class="inline-flex items-center gap-1.5 text-foreground" data-testid="save-state">
                     <template v-if="saveLabel">
@@ -1049,6 +1086,20 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
         </div>
 
         <ReportDeadlineBanner v-if="report" class="mt-3" :due="report.due" :overdue-until="report.overdueUntil" :sent="report.sent" :href="report.href" :read-only="!editable" />
+
+        <TrainingCard
+            v-if="training"
+            class="mt-3"
+            :section-id="section.id"
+            :week="week.date"
+            :training="training"
+            :start="trainingStart"
+            :editable="editable"
+            :disabled-reason="readOnlyReason"
+            :can-change-date="canWrite && Boolean(currentSlot)"
+            @updated="onTraining"
+            @change-date="slotEditor?.startEditing()"
+        />
 
         <div
             v-if="autosave?.state.value === 'error'"

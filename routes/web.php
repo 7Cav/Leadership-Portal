@@ -17,6 +17,7 @@ use App\Http\Controllers\RollcallGuestController;
 use App\Http\Controllers\RollcallPracticeSlotController;
 use App\Http\Controllers\RollcallResultImageController;
 use App\Http\Controllers\RollcallTemplateController;
+use App\Http\Controllers\RollcallTrainingController;
 use App\Http\Controllers\RosterAccountabilityController;
 use App\Http\Controllers\RosterController;
 use App\Http\Controllers\RosterPresenceMinimumController;
@@ -234,6 +235,8 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // The section's practice slot and one week's move or cancellation (#392): audited Commands gated by write scope.
     Route::post('/rollcall/{unit}/slot', [RollcallPracticeSlotController::class, 'slot'])->middleware('throttle:audited-writes')->name('rollcall.slot');
     Route::post('/rollcall/{unit}/slot/week', [RollcallPracticeSlotController::class, 'week'])->middleware('throttle:audited-writes')->name('rollcall.slot.week');
+    // The week's training topic on the roll call (#703): the weekly report's training subject, one value.
+    Route::post('/rollcall/{unit}/training-topic', [RollcallTrainingController::class, 'topic'])->middleware('throttle:audited-writes')->name('rollcall.training-topic');
     Route::post('/rollcall/{unit}/template', RollcallTemplateController::class)->middleware('throttle:audited-writes')->name('rollcall.template.pick');
 
     // Game identities (Story 7.2): link troopers in scope to their in-game identity, one per

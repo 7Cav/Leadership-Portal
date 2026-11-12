@@ -162,6 +162,7 @@ class RollcallController extends Controller
         private readonly UnitGuidonRepository $guidons,
         private readonly MissingGameIdentities $missingIdentities,
         private readonly AutomaticAttendance $automatic,
+        private readonly RollcallCycleProps $cycle,
     ) {}
 
     /**
@@ -249,6 +250,8 @@ class RollcallController extends Controller
             // from the marks as they are when a fetch reaches the portal (a cache may reuse one for a minute). The unit's secret in the URL is what lets the forum load them.
             'resultImages' => ResultImageUrls::for($section, $weekStart),
             'report' => $this->reportProps($section, $weekStart),
+            // The week's training topic (#703): the weekly report's training subject, which the post prints.
+            'training' => $this->cycle->training($section, $weekStart, $this->scope->writeScope($user)->contains($section->id)),
             ...$this->rosterProps($section, $weekStart, $currentWeek),
             'fireteams' => $this->fireteamProps($user, $section),
         ]);

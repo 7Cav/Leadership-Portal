@@ -2207,3 +2207,52 @@ describe('Rollcall step 2 rank avatars', () => {
         wrapper.unmount();
     });
 });
+
+describe('Rollcall page: the week\'s training (#703)', () => {
+    const TRAINING_TEMPLATE = { ...TEMPLATE, body: 'Training: {{training_date}} · {{training_topic}}' };
+    const SLOT = { weekday: 3, startMinute: 1380, effectiveFrom: null, week: { start: '2026-10-07T23:00:00Z', end: '2026-10-08T00:00:00Z', cancelled: false, moved: false, captured: false } };
+    const TRAINING = { subject: 'Land navigation', enforced: false, platoon: '1st Platoon', canEdit: true };
+
+    beforeEach(() => {
+        page.url = '/rollcall/12?step=3';
+        page.props.viewAs = null;
+        post.mockReset();
+        document.body.innerHTML = '';
+    });
+
+    const copied = async (props) => {
+        const writeText = vi.fn().mockResolvedValue();
+        Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+        const wrapper = factory({ template: TRAINING_TEMPLATE, practiceSlot: SLOT, training: TRAINING, ...props });
+        await wrapper.find('[data-testid="copy-bbcode"]').trigger('click');
+        await vi.waitFor(() => expect(writeText).toHaveBeenCalled());
+
+        return writeText.mock.calls[0][0];
+    };
+
+    it('copies the post with the week\'s practice start and training topic', async () => {
+        expect(await copied()).toBe('Training: Wed 07Oct26 2300Z · Land navigation');
+    });
+
+    it('prints no date for a week whose practice is cancelled', async () => {
+        expect(await copied({ practiceSlot: { ...SLOT, week: { ...SLOT.week, start: null, cancelled: true } } })).toBe('Training:  · Land navigation');
+    });
+
+    it('follows a topic saved on the card, and calls a post already on the forum out of date', async () => {
+        post.mockResolvedValue({ ok: true, status: 200, data: { training: { ...TRAINING, subject: 'Radio procedure' } } });
+        const wrapper = factory({
+            template: TRAINING_TEMPLATE,
+            practiceSlot: SLOT,
+            training: TRAINING,
+            practice: { lastMarkedAt: null, posted: { at: '2026-10-08T10:00:00+00:00', by: 'Vasquez.R' } },
+        });
+
+        expect(wrapper.find('[data-testid="posted-state"]').text()).not.toContain('Repost');
+        await wrapper.find('[data-testid="training-topic-input"]').setValue('Radio procedure');
+        await wrapper.find('[data-testid="training-card"] form').trigger('submit');
+        await flushPromises();
+
+        expect(post).toHaveBeenCalledWith('/rollcall/12/training-topic', { week: '2026-10-03', subject: 'Radio procedure' });
+        expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Repost the updated BBCode');
+    });
+});
