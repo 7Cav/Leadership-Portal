@@ -22,8 +22,10 @@ use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Repositories\AuditLogRepository;
+use App\Repositories\PracticeHeldState;
 use App\Repositories\ReportEditWindow;
 use App\Repositories\ReportRevisionTrail;
+use App\Repositories\SectionPracticeRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitGame;
 use App\Repositories\UnitRepository;
@@ -39,8 +41,8 @@ use Inertia\Response;
 /**
  * The weekly staff report: a platoon, company or battalion HQ staff member says whether they attended a
  * section practice or an FTX that week, and which, with the other events they attended and their notes. One page per
- * staff member and week. `/staff-report` opens the viewer's own for the last week to have ended, the one whose report
- * is due: a week is sent only once it is over. The running week reads as not sendable yet. Orchestration only: the send
+ * staff member and week. `/staff-report` opens the viewer's own for the running week, which can be sent before it ends;
+ * a report for the week before that is still owed is pointed at from there ({@see StaffReportOwed}). Orchestration only: the send
  * is one audited Command whose handler decides who may ({@see StaffReportAccess}: the staff member alone) and which
  * week; a view-as preview is refused before it gets here (`ReadOnlyWhileViewingAs`).
  *
@@ -59,26 +61,24 @@ class StaffReportController extends Controller
         private readonly PushStaffReportToSheetHandler $sheet,
         private readonly StaffHqHealth $health,
         private readonly AccountabilityRules $accountability,
+        private readonly SectionPracticeRepository $practices,
     ) {}
 
-    /** The viewer's own staff report: the week that ended while it is owed, else the running week. */
+    /**
+     * The viewer's own staff report, always for the running week: a report still owed for the week before is warned
+     * about there, with a link to it.
+     */
     public function own(Request $request): RedirectResponse
     {
         $trooper = $this->access->ownTrooper($request->user()) ?? abort(404);
 
-        $now = CarbonImmutable::now();
-        $lastEnded = WeekOf::lastEnded($now);
-        // The week that ended while its report is owed, even past its deadline; otherwise the running week, which
-        // can be sent before it ends.
-        $owed = $this->access->owes($trooper, $lastEnded) !== null && $this->week->report($trooper, $lastEnded) === null;
-
         return redirect()->route('staff-report.show', [
             'trooper' => $trooper->id,
-            'week' => ($owed ? $lastEnded : WeekOf::start($now))->toDateString(),
+            'week' => WeekOf::start(CarbonImmutable::now())->toDateString(),
         ]);
     }
 
-    public function show(Request $request, AuditLogRepository $audit, ReportEditProps $editProps, int $trooper, string $week): Response
+    public function show(Request $request, AuditLogRepository $audit, ReportEditProps $editProps, StaffReportOwed $owed, int $trooper, string $week): Response
     {
         $trooper = $this->troopers->find($trooper) ?? abort(404);
         $weekStart = $this->weekStart($week);
@@ -115,6 +115,9 @@ class StaffReportController extends Controller
                 'previous' => $weekStart->subWeek()->toDateString(),
                 'next' => $weekStart->addWeek()->lessThanOrEqualTo($current) ? $weekStart->addWeek()->toDateString() : null,
                 'beforeFloor' => $beforeFloor,
+                // The week before, while the staff member still owes its report (not on leave that week): the page
+                // warns and links to it. Their own page only.
+                'owed' => $self ? $owed->previousWeek($trooper, $weekStart) : null,
             ],
             'report' => $report === null ? null : [
                 ...$this->withOwn($report, $hq),
@@ -132,7 +135,7 @@ class StaffReportController extends Controller
             // practices the game server saw them at (a hint, never ticked for them).
             'entries' => $report === null ? $this->week->entries($trooper, $weekStart) : [],
             'seen' => $canSend || $canEdit ? $this->week->seenSectionIds($trooper, $weekStart) : [],
-            'sections' => $canSend || $canEdit ? $this->sections($hq) : [],
+            'sections' => $canSend || $canEdit ? $this->sections($hq, $weekStart) : [],
             // What the HQ reports under its accountability options, and how far the picker reaches.
             'accountability' => ($canSend || $canEdit) && $hq !== null ? array_diff_key($this->accountability->staff($hq), ['counts' => true]) : null,
             'maxPractices' => SendStaffReportHandler::MAX_PRACTICES,
@@ -225,9 +228,12 @@ class StaffReportController extends Controller
      * down the tree): an HLL HQ sees HLL sections. When the HQ or a section has no game on its chain, that section is kept, since nothing says it plays
      * another game.
      *
-     * @return list<array{id: int, label: string, own: bool, group: ?string, platoon: ?string}>
+     * `held` says whether the section's practice that week can be ticked ({@see PracticeHeldState}): `held`, or why not
+     * (`upcoming`, `unmarked`, `not_held`, `no_slot`). The send refuses a section practice that was not held.
+     *
+     * @return list<array{id: int, label: string, own: bool, group: ?string, platoon: ?string, held: string}>
      */
-    private function sections(?Unit $hq): array
+    private function sections(?Unit $hq, CarbonImmutable $weekStart): array
     {
         $tree = $this->units->tree();
         $byId = $tree->keyBy('id');
@@ -242,9 +248,11 @@ class StaffReportController extends Controller
         }
 
         $counts = $this->accountability->staff($hq)['counts'];
+        $offered = $this->headcount->withoutEmptyLineUnits($tree->filter(fn (Unit $unit) => $unit->type === UnitType::Section && $counts($unit)));
+        $held = $this->practices->heldStates($offered->pluck('id')->map(fn ($id) => (int) $id)->values()->all(), $weekStart);
 
-        return $this->headcount->withoutEmptyLineUnits($tree->filter(fn (Unit $unit) => $unit->type === UnitType::Section && $counts($unit)))
-            ->map(function (Unit $unit, int $order) use ($hq, $ancestors, $byId) {
+        return $offered
+            ->map(function (Unit $unit, int $order) use ($hq, $ancestors, $byId, $held) {
                 $rank = count($ancestors);
                 $group = null;
                 foreach ($ancestors as $i => $ancestor) {
@@ -260,6 +268,7 @@ class StaffReportController extends Controller
                     'own' => $hq !== null && str_starts_with($unit->path, $hq->path),
                     'group' => $group,
                     'platoon' => ($parent = $byId->get($unit->parent_id)) === null ? null : ($parent->callsign ?? $parent->name),
+                    'held' => $held[$unit->id] ?? PracticeHeldState::NOT_HELD,
                     'rank' => $rank,
                     'order' => $order,
                     'battle' => self::battleKey($unit->callsign),

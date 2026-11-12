@@ -3,6 +3,7 @@
 namespace App\Commands\StaffReports;
 
 use App\Commands\Units\AccountabilityRules;
+use App\Repositories\PracticeHeldState;
 use App\Support\Time\WeekLabel;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonInterface;
@@ -19,6 +20,7 @@ use RuntimeException;
  * - `no_practice`: "Yes" with no practice picked, or "No" with practices picked;
  * - `not_a_section`: a pick that is not a section;
  * - `not_in_unit`: a section outside the staff member's own platoon, company or battalion;
+ * - `not_held`: a section practice picked that was not held that week;
  * - `practice_type`: a practice type the HQ does not report (SP or FTX on a platoon or company HQ; SP, operation,
  *   class or event on a battalion HQ), a named type or its fields with "No", or sections with an operation, class or event;
  * - `ftx`: a named type (FTX, operation, class, event) without a name or with a date outside the week, or its fields on an SP;
@@ -126,6 +128,17 @@ class StaffReportRefusedException extends RuntimeException
     public static function ftxFieldsWithSp(): self
     {
         return new self('A section practice takes no name or date. Clear them.', 'ftx', 'ftx_name');
+    }
+
+    /** A section practice picked that was not held that week; `$state` is a {@see PracticeHeldState} constant. */
+    public static function practiceNotHeld(string $section, string $state): self
+    {
+        return new self(match ($state) {
+            PracticeHeldState::UPCOMING => "The practice of {$section} has not happened yet. You can tick it once it is held.",
+            PracticeHeldState::UNMARKED => "No SP held at {$section} yet. You can tick it once it is held.",
+            PracticeHeldState::NO_SLOT => "{$section} has no practice time set, so there is no practice to tick.",
+            default => "No SP was held at {$section} this week, so it cannot be ticked.",
+        }, 'not_held', 'section_ids');
     }
 
     public static function notInUnit(bool $battalion = false): self
