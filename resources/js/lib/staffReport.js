@@ -101,6 +101,19 @@ export function presenceText(presence, name = null) {
     return '';
 }
 
+/**
+ * The game server check frozen on a sent report when it agreed: the minutes found for a public server hour ("75 minutes
+ * of server data"), else that the source saw them ("Seen on CRCON"). Empty for any other check.
+ */
+export function confirmedText(presence) {
+    if (presence?.check !== 'confirmed') return '';
+    if (presence.minutes !== null && presence.minutes !== undefined) {
+        return `${presence.minutes} ${presence.minutes === 1 ? 'minute' : 'minutes'} of server data`;
+    }
+
+    return `Seen on ${presence.source || 'the game server'}`;
+}
+
 // More platoons than this in the practice picker and it spans a battalion: every platoon but the staff member's own
 // starts collapsed.
 export const PICKER_COLLAPSE_OVER = 4;

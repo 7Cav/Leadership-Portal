@@ -94,7 +94,7 @@ final class TrooperMilpac
             'tig' => $trooper->tig?->toDateString(),
             'tigMonths' => $departed ? null : $this->monthsSince($trooper->tig?->toDateString(), $today),
             'section' => $section === null ? null : ['id' => $section->id, 'name' => $section->name, 'callsign' => $section->callsign, 'type' => $section->type->value],
-            'milpacUrl' => Trooper::MILPAC_PROFILE_URL.$trooper->cav_id,
+            'milpacUrl' => $trooper->milpacUrl(),
         ];
     }
 

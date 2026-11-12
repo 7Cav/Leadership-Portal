@@ -33,7 +33,8 @@ describe('what the coach points at, and where it sits', () => {
         const css = targetCss('[data-trooper="9"], #report-notes');
 
         expect(css).toContain(':is([data-trooper="9"], #report-notes) { outline: 2px solid var(--changelog) !important;');
-        expect(css).toContain('button:is([data-trooper="9"], #report-notes) { background-color: var(--changelog) !important;');
+        expect(css).toContain(':is(button, [data-slot="button"]):is([data-trooper="9"], #report-notes):not([role="tab"], [data-step]) { background-color: var(--changelog) !important;');
+        expect(css).toContain(':is([role="tab"], [data-step]):is([data-trooper="9"], #report-notes) { background-color: color-mix(');
         expect(targetCss(null)).toBe('');
     });
 

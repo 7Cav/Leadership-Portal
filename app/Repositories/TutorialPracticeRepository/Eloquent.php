@@ -199,6 +199,7 @@ class Eloquent implements TutorialPracticeRepository
         $demo = $practice === null || $demoTrooperId === null ? null
             : Attendance::query()->where('section_practice_id', $practice->id)->where('trooper_id', $demoTrooperId)->first();
         $report = $reportUnitId === null ? null : WeeklyReport::query()->where('unit_id', $reportUnitId)->where('week_start', $week)->first();
+        $sent = $report?->status === WeeklyReportStatus::Sent;
 
         return [
             'visits' => PageVisit::query()->where('user_id', $userId)->pluck('url')->map(fn ($url) => (string) $url)->unique()->values()->all(),
@@ -206,10 +207,12 @@ class Eloquent implements TutorialPracticeRepository
             'demoMarked' => $demo?->status !== null,
             'confirmed' => $practice?->confirmed_at !== null,
             'posted' => $practice?->rollcall_posted_at !== null,
-            // A platoon writes its subject as the training topic for its sections, which is saved on its own.
-            'draft' => ($report !== null && ($report->status === WeeklyReportStatus::Sent || filled($report->notes) || filled($report->training_subject)))
+            // A platoon writes its subject as the training topic for its sections, which is saved on its own. A sent
+            // report ticks both, so a reader who sent without a note is not held on the step.
+            'subject' => $sent || filled($report?->training_subject)
                 || ($reportUnitId !== null && PlatoonTrainingTopic::query()->where('unit_id', $reportUnitId)->where('week_start', $week)->exists()),
-            'sent' => $report?->status === WeeklyReportStatus::Sent,
+            'note' => $sent || filled($report?->notes),
+            'sent' => $sent,
             'staffSent' => $personaTrooperId !== null && StaffReport::query()->where('trooper_id', $personaTrooperId)->exists(),
         ];
     }

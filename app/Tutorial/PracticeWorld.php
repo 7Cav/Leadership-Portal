@@ -25,6 +25,7 @@ use LogicException;
  *
  * Every name is made up and obviously so, except two: Laui.M and Grayson.J, the portal's maintainers, who serve in
  * every practice unit as ordinary troopers (approved by the project). Nothing here is read from real troopers.
+ * Their made-up milpac ids sit in `Trooper::PRACTICE_CAV_IDS`, so "View on 7cav.us" opens a maintainer's real milpac.
  *
  * Only runs inside the sandbox: it writes to whatever the default connection is.
  */
@@ -159,6 +160,17 @@ final class PracticeWorld
                 $this->practice->capturePlayer($practice, $game, $trooper->username, 'practice-'.$trooper->cav_id, $trooper);
             }
         }
+        // HQ staff report the section practices they attended: they were seen at both sections' practices this week,
+        // so the staff report shows server data backing that up.
+        if ($persona->hqStaff !== null) {
+            $this->practice->capturePlayer($practice, $game, $persona->username, 'practice-'.$self->cav_id, $self);
+            $theirs = $this->practices->findOrCreate($other->id, $week);
+            $this->practice->captured($theirs, $start->addHour()->min($now), $start, $start->addHour());
+            foreach ([...$otherMembers, $self] as $trooper) {
+                $this->practice->capturePlayer($theirs, $game, $trooper->username, 'practice-'.$trooper->cav_id, $trooper);
+            }
+        }
+
         // No identity warnings in the tutorial: no step teaches linking, so every practice trooper is linked.
         $this->practice->linkEveryone($game);
 

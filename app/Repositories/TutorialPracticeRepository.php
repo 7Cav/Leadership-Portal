@@ -54,7 +54,7 @@ interface TutorialPracticeRepository
     /**
      * What the person has done in their practice copy since it was made, for the coach card's ticks.
      *
-     * @return array{visits: list<string>, demoSigned: bool, demoMarked: bool, confirmed: bool, posted: bool, draft: bool, sent: bool, staffSent: bool}
+     * @return array{visits: list<string>, demoSigned: bool, demoMarked: bool, confirmed: bool, posted: bool, subject: bool, note: bool, sent: bool, staffSent: bool}
      */
     public function progress(int $userId, ?int $sectionId, ?int $reportUnitId, ?int $demoTrooperId, ?int $personaTrooperId, CarbonInterface $week): array;
 }

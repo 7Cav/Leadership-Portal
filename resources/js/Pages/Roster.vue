@@ -190,13 +190,16 @@ const composition = computed(() => {
     return `in ${parts.join(" and ")}`;
 });
 
-// Unit navigation: a real visit, since another unit means another subtree of data.
+// Unit navigation: a real visit, since another unit means another subtree of data. A partial reload (the tutorial
+// coach reading its checklist every few seconds) stays on this unit, so the roster is not blanked for it.
 const navigating = ref(false);
 let offStart;
 let offFinish;
 onMounted(() => {
     offStart = router.on("start", (event) => {
-        if (event.detail.visit.url.pathname.startsWith("/roster"))
+        const { visit } = event.detail;
+        const partial = (visit.only?.length ?? 0) > 0 || (visit.except?.length ?? 0) > 0;
+        if (!partial && visit.url.pathname.startsWith("/roster"))
             navigating.value = true;
     });
     offFinish = router.on("finish", () => (navigating.value = false));

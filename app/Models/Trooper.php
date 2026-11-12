@@ -44,8 +44,33 @@ class Trooper extends Model
     /** The Cav milpac page for a trooper, keyed by their milpac id (`cav_id`). The one definition every screen links through. */
     public const MILPAC_PROFILE_URL = 'https://7cav.us/rosters/profile?uniqueid=';
 
+    /**
+     * The tutorial's practice troopers have made-up milpac ids in this range (`App\Tutorial\PracticeWorld`); no real
+     * milpac id comes near it.
+     */
+    public const PRACTICE_CAV_IDS = [91_000_000, 91_999_999];
+
+    /** A practice trooper's "View on 7cav.us" opens a maintainer's real milpac (Laui.M, Grayson.J), never a made-up id. */
+    public const MAINTAINER_MILPACS = ['Laui.M' => 3099, 'Grayson.J' => 4374];
+
     /** @use HasFactory<TrooperFactory> */
     use HasFactory;
+
+    /**
+     * This trooper's page on 7cav.us. A practice trooper links to a maintainer's: their own for Laui.M and Grayson.J,
+     * the two in turn for everyone else.
+     */
+    public function milpacUrl(): string
+    {
+        $id = (int) $this->cav_id;
+        [$from, $to] = self::PRACTICE_CAV_IDS;
+
+        if ($id >= $from && $id <= $to) {
+            $id = self::MAINTAINER_MILPACS[$this->username] ?? array_values(self::MAINTAINER_MILPACS)[$id % 2];
+        }
+
+        return self::MILPAC_PROFILE_URL.$id;
+    }
 
     protected function casts(): array
     {

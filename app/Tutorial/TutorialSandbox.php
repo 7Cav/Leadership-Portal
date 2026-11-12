@@ -2,6 +2,7 @@
 
 namespace App\Tutorial;
 
+use App\Commands\StaffReports\PublicServerHour;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Bus;
@@ -213,6 +214,8 @@ final class TutorialSandbox
             return MockResponse::make(['message' => 'Not sent: this is the tutorial.'], 503);
         }]);
         Http::preventStrayRequests();
+        // No public game server is read from the practice copy: a staff report's public server hour shows practice data.
+        $this->app->instance(PublicServerHour::class, new PracticePublicServerHour);
 
         $this->userId = $userId;
         self::$entered = true;
@@ -247,6 +250,7 @@ final class TutorialSandbox
         }
         $this->previousMock = null;
         Http::preventStrayRequests(false);
+        $this->app->forgetInstance(PublicServerHour::class);
     }
 
     /**
