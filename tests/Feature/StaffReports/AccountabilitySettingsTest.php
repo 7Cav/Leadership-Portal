@@ -26,6 +26,7 @@ require_once __DIR__.'/../StaffPractices/fixture.php';
 // battalion's set, and the staff report and a section's makeups read the set in effect. With nothing set, nothing changes.
 
 beforeEach(function () {
+    everyPracticeHeld();
     $this->tree = staffPracticeTree();
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-10 12:00:00', 'UTC'));
     $u = $this->tree['units'];

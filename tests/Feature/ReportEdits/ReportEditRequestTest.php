@@ -41,6 +41,7 @@ require_once __DIR__.'/../StaffPractices/fixture.php';
 // too, and an approval unlocks it until the coming Saturday 2359Z.
 
 beforeEach(function () {
+    everyPracticeHeld();
     $this->tree = staffPracticeTree();
     $this->week = staffPracticeWeek();
     $this->section = $this->tree['units']['host'];

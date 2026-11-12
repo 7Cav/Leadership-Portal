@@ -16,6 +16,7 @@ require_once __DIR__.'/../StaffPractices/fixture.php';
 // The staff reports overview: who opens it, whose rows each reader gets, the week it opens on and the statuses.
 
 beforeEach(function () {
+    everyPracticeHeld();
     $this->tree = staffPracticeTree();
     $this->psg = $this->tree['troopers']['psg'];
     // Saturday after the fixture's week: 03OCT26 has ended and is the last ended week.
@@ -65,10 +66,10 @@ it('answers 404 to a PL, a PSG and a section leader, who read only their own', f
     $this->actingAs($this->tree['users'][$viewer])->get('/staff-reports')->assertNotFound();
 })->with(['pl', 'psg', 'sl']);
 
-it('opens on the last ended week, with sent, not sent and the 1-practice rule', function () {
+it('reads a past week, with sent, not sent and the 1-practice rule', function () {
     app(SendStaffReportHandler::class)->handle($this->tree['users']['psg'], new SendStaffReport($this->psg->id, CarbonImmutable::parse('2026-10-03', 'UTC'), true, [$this->tree['units']['host']->id], presenceType: 'none'));
 
-    $this->actingAs($this->tree['users']['co'])->get('/staff-reports')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+    $this->actingAs($this->tree['users']['co'])->get('/staff-reports?week=2026-10-03')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
         ->component('StaffReports')
         ->where('week.date', '2026-10-03')
         ->where('week.ended', true)
@@ -95,6 +96,8 @@ it('opens on the last ended week, with sent, not sent and the 1-practice rule', 
             'metRule' => true,
             'href' => route('staff-report.show', ['trooper' => $this->psg->id, 'week' => '2026-10-03']),
             'discrepancy' => null,
+            // Only the running week marks who still owes the week before.
+            'owesPrevious' => false,
         ] && collect($rows)->firstWhere('trooperId', overviewTrooperOf($this->tree['users']['pl'])->id)['status'] === 'notSent'));
 });
 
@@ -113,7 +116,7 @@ it('puts the reader\'s own report on top with a link to send it, and not again i
     $co = overviewTrooperOf($this->tree['users']['co']);
 
     $this->actingAs($this->tree['users']['admin'])->get('/staff-reports')->assertInertia(fn (AssertableInertia $page) => $page->where('own', null));
-    $this->actingAs($this->tree['users']['co'])->get('/staff-reports')->assertInertia(fn (AssertableInertia $page) => $page
+    $this->actingAs($this->tree['users']['co'])->get('/staff-reports?week=2026-10-03')->assertInertia(fn (AssertableInertia $page) => $page
         ->where('own.trooperId', $co->id)
         ->where('own.status', 'notSent')
         ->where('own.href', route('staff-report.show', ['trooper' => $co->id, 'week' => '2026-10-03'])));

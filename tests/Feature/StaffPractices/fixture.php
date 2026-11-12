@@ -6,6 +6,9 @@ use App\Models\Unit;
 use App\Models\UnitKind;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\PracticeHeldState;
+use App\Repositories\SectionPracticeRepository;
+use App\Repositories\SectionPracticeRepository\Eloquent;
 use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
@@ -73,4 +76,17 @@ function staffPracticeTree(): array
 function staffPracticeWeek(): CarbonImmutable
 {
     return CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');
+}
+
+/**
+ * Reads every section's practice as held, for tests about the rest of the staff report: only a held practice can be
+ * claimed on one, and that rule has its own tests (`StaffReportHeldPracticeTest`) with the real repository.
+ */
+function everyPracticeHeld(): void
+{
+    $repository = Mockery::mock(Eloquent::class)->makePartial();
+    $repository->shouldReceive('heldStates')->andReturnUsing(
+        fn (array $sectionIds) => array_fill_keys(array_map('intval', $sectionIds), PracticeHeldState::HELD),
+    );
+    app()->instance(SectionPracticeRepository::class, $repository);
 }

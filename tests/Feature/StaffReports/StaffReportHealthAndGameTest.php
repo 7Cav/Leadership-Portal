@@ -17,6 +17,7 @@ require_once __DIR__.'/../StaffPractices/fixture.php';
 // the week beside the staff reports, in a bounded number of queries.
 
 beforeEach(function () {
+    everyPracticeHeld();
     $this->tree = staffPracticeTree();
     $this->psg = $this->tree['troopers']['psg'];
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-10 12:00:00', 'UTC'));
