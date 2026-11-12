@@ -72,7 +72,7 @@ export function targetCss(selector) {
 
     return [
         `:is(${selector}) { outline: 2px solid var(--changelog) !important; outline-offset: 1px; }`,
-        `:is(button, [data-slot="button"]):is(${selector}):not(${tab}) { background-color: var(--changelog) !important; border-color: var(--changelog) !important; color: #fff !important; }`,
+        `:is(button, [data-slot="button"]):is(${selector}):not(${tab}):not(:disabled) { background-color: var(--changelog) !important; border-color: var(--changelog) !important; color: #fff !important; }`,
         `:is(${tab}):is(${selector}) { background-color: color-mix(in oklab, var(--changelog) 14%, transparent) !important; outline-offset: -2px; border-radius: 0.375rem; }`,
     ].join('\n');
 }

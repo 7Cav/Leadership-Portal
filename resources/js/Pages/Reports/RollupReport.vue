@@ -129,7 +129,7 @@ function ratioLine(child) {
                             {{ unitLabel(child) }}
                         </button>
                         <StatusPill :status="displayStatus(child)" />
-                        <Button variant="ghost" size="xs" class="ml-auto" @click="emit('copy-reminder', child)">
+                        <Button variant="ghost" size="xs" class="ml-auto" data-testid="copy-reminder-child" :data-reminder-unit="child.id" @click="emit('copy-reminder', child)">
                             <PhCopy />Copy reminder
                         </Button>
                     </li>

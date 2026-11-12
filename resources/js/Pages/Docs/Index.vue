@@ -77,6 +77,13 @@ const inTutorial = computed(() => page.props.tutorialMode != null);
 const starting = ref(false);
 function startTutorial(track = 'basics') {
     starting.value = true;
+    // A fresh run: no step picked and nothing ticked by a click from an earlier one in this tab.
+    try {
+        sessionStorage.removeItem('portal-tutorial-clicks');
+        sessionStorage.removeItem('portal-tutorial-step');
+    } catch {
+        // Storage blocked: nothing kept to clear.
+    }
     router.post('/tutorial', { track }, { onFinish: () => (starting.value = false) });
 }
 

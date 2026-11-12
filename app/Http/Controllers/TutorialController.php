@@ -41,7 +41,9 @@ class TutorialController extends Controller
         }
 
         $persona = $personas->for($user);
-        $track = TutorialTrack::tryFrom((string) $request->input('track', TutorialTrack::Basics->value)) ?? TutorialTrack::Basics;
+        // A single value only: anything else (an array, say) starts the basics tutorial.
+        $requested = $request->input('track');
+        $track = (is_string($requested) ? TutorialTrack::tryFrom($requested) : null) ?? TutorialTrack::Basics;
 
         if (! $track->offeredTo($persona)) {
             return back()->with('notice', 'That tutorial is for troopers who lead a unit.');

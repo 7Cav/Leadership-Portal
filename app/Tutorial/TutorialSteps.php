@@ -129,7 +129,7 @@ final class TutorialSteps
                 // On the roll-up, the unit's row, then Open report beside it; on the report, the subject (a section's
                 // training subject, a platoon's topic for its sections), then the notes, then Send.
                 'highlight' => match (true) {
-                    $reportUnit !== null && ! $opened($report) => '[data-row-id="'.$reportUnit->id.'"]:not([aria-selected="true"]), [data-report-unit="'.$reportUnit->id.'"] [data-testid="open-report"]',
+                    $reportUnit !== null && ! $opened($report) => '[data-row-id="'.$reportUnit->id.'"]:not([aria-selected="true"]), [data-report-unit="'.$reportUnit->id.'"] [data-testid="open-report"], '.$this->expandTo($reportUnit),
                     $hasSubject && ! $facts['subject'] => '#training-subject, #platoon-topic',
                     ! $facts['note'] => '#report-notes',
                     ! $facts['sent'] => '[data-testid="send-button"], [data-testid="send-anyway"]',
@@ -218,6 +218,26 @@ final class TutorialSteps
      * @param  callable(string): bool  $opened
      * @return array<string, array<string, mixed>>
      */
+    /**
+     * The roll-up opens two levels deep, so for a battalion leader or an Admin the row to click sits inside a collapsed
+     * one: the caret of each collapsed practice unit above `$unit` is pointed at until the row shows.
+     */
+    private function expandTo(?Unit $unit): string
+    {
+        $above = match ($unit?->type) {
+            UnitType::Section => [PracticeWorld::REGIMENT, PracticeWorld::BATTALION, PracticeWorld::COMPANY, PracticeWorld::PLATOON],
+            UnitType::Platoon => [PracticeWorld::REGIMENT, PracticeWorld::BATTALION, PracticeWorld::COMPANY],
+            UnitType::Company => [PracticeWorld::REGIMENT, PracticeWorld::BATTALION],
+            UnitType::Battalion => [PracticeWorld::REGIMENT],
+            default => [],
+        };
+
+        return implode(', ', array_map(
+            fn (string $callsign) => '[data-row-id="'.($this->practice->unitByCallsign($callsign)?->id ?? 0).'"][aria-expanded="false"] .rt-caret',
+            $above,
+        )) ?: '[data-row-id="0"]';
+    }
+
     private function fixSteps(CarbonImmutable $week, ?Unit $section, callable $opened, string $rollcall, bool $confirmed): array
     {
         $other = $this->practice->unitByCallsign(PracticeWorld::OTHER_SECTION);
@@ -273,6 +293,7 @@ final class TutorialSteps
                     ! $facts['sectionSent'] => implode(', ', [
                         'body:has([data-step]) [data-testid="nav-Reports"]',
                         '[data-row-id="'.($section?->id ?? 0).'"]:not([aria-selected="true"])',
+                        $this->expandTo($section),
                         '[data-report-unit="'.($section?->id ?? 0).'"] [data-testid="open-report"]',
                         '[data-check="unaccounted"]:not([data-done])',
                         'body:has([data-check="unaccounted"][data-done]) :is([data-testid="send-button"], [data-testid="send-anyway"])',
@@ -300,11 +321,14 @@ final class TutorialSteps
                     // On a sent report (1st Section's, where the step before ends): back to the roll-up.
                     'body:not(:has([data-check])) nav[aria-label="Report mode"] a[href="/reports"]',
                     '[data-row-id="'.$other->id.'"]:not([aria-selected="true"])',
+                    $this->expandTo($other),
                     '[data-report-unit="'.$other->id.'"] :is([data-testid="copy-reminder"], [data-testid="open-report"])',
+                    '[data-reminder-unit="'.$other->id.'"]',
                     '[data-check="confirmed"] a',
                 ]),
                 'checklist' => [
-                    ['label' => 'Copy the reminder for 2nd Section', 'done' => false, 'click' => '[data-report-unit="'.($other?->id ?? 0).'"] [data-testid="copy-reminder"]'],
+                    // Its own panel's Copy reminder, or the one beside it on its platoon's panel.
+                    ['label' => 'Copy the reminder for 2nd Section', 'done' => false, 'click' => '[data-report-unit="'.($other?->id ?? 0).'"] [data-testid="copy-reminder"], [data-reminder-unit="'.($other?->id ?? 0).'"]'],
                     ['label' => 'Open 2nd Section\'s roll call', 'done' => $opened($otherRollcall)],
                 ],
             ],

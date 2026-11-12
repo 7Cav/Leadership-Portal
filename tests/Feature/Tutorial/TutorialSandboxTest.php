@@ -151,7 +151,9 @@ it('ticks the subject of a platoon report from its training topic, and points at
     $before = inTutorial($leader->id, $steps);
     // Not opened yet: the platoon's row on the roll-up, then Open report in its panel.
     expect($before['weekly-report']['checklist'][1]['done'])->toBeFalse()
-        ->and($before['weekly-report']['highlight'])->toBe('[data-row-id="'.$platoon.'"]:not([aria-selected="true"]), [data-report-unit="'.$platoon.'"] [data-testid="open-report"]')
+        ->and($before['weekly-report']['highlight'])->toStartWith('[data-row-id="'.$platoon.'"]:not([aria-selected="true"]), [data-report-unit="'.$platoon.'"] [data-testid="open-report"], ')
+        // The rows above it, should they be collapsed, so the row shows.
+        ->and($before['weekly-report']['highlight'])->toContain('[aria-expanded="false"] .rt-caret')
         ->and($before['weekly-report']['area'])->toBe('/reports')
         ->and($before['weekly-report']['nav'])->toBe('[data-testid="nav-Reports"]')
         ->and($before['rollcall']['nav'])->toBe('[data-testid="nav-Roll call"]');
@@ -523,7 +525,7 @@ it('walks a platoon leader through a make-up, a guest, a blocked report and a mi
 
     // The missing report: the copy is ticked in the browser, the roll call from the visit.
     $missing = $steps()['missing-report'];
-    expect($missing['checklist'][0]['click'])->toBe('[data-report-unit="'.$ids['other'].'"] [data-testid="copy-reminder"]')
+    expect($missing['checklist'][0]['click'])->toBe('[data-report-unit="'.$ids['other'].'"] [data-testid="copy-reminder"], [data-reminder-unit="'.$ids['other'].'"]')
         ->and($missing['highlight'])->toContain('[data-row-id="'.$ids['other'].'"]')
         ->and($missing['highlight'])->toContain('body:not(:has([data-check])) nav[aria-label="Report mode"] a[href="/reports"]');
     $this->get("/rollcall/{$ids['other']}")->assertOk();
@@ -531,4 +533,11 @@ it('walks a platoon leader through a make-up, a guest, a blocked report and a mi
     expect($steps()['missing-report']['checklist'][1]['done'])->toBeTrue()
         ->and($steps()['missing-report']['done'])->toBeFalse()
         ->and($steps()['missing-report']['highlight'])->toContain('[data-testid="copy-reminder"]');
+});
+
+it('ignores a track that is not a single word, starting the basics tutorial', function () {
+    $leader = User::factory()->commanding($this->section)->create();
+
+    $this->actingAs($leader)->post('/tutorial', ['track' => ['fix-problems']])->assertRedirect();
+    expect(session('tutorial')['track'] ?? null)->toBe('basics');
 });
