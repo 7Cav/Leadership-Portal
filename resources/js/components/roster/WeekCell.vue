@@ -1,22 +1,31 @@
 <script setup>
+import { computed } from 'vue';
+
 // One Cav week as a split cell (roster-s3.html `.cc`): top half the rollcall signature, bottom
 // half the section practice. Missed and unsigned carry a slash, LOA and Excused a yellow hatch (LOA's denser, with an
 // outline), and a make-up a striped fill, so the state never rests on colour alone. Section aggregate rows pass heat levels `g1`–`g4` instead. Without `rc`
 // only the SP half renders (the rollcall card's attendance strip). `pending` is the title of an SP mark recorded before
-// its practice ends (#634): the half shows the mark dimmed and dashed, as it doesn't count yet.
-defineProps({
+// its practice ends (#634): the half shows the mark dimmed and dashed, as it doesn't count yet. A line HQ staff week
+// (`staff`, from `withStaffWeek()`) is their staff report, not a roll call and an SP: one block the height of both
+// halves, solid when it met the rule, slashed when it fell short, outlined when not sent, dashed while the week runs.
+const props = defineProps({
     rc: { type: String, default: null },
     sp: { type: String, required: true },
     size: { type: String, default: 'md' },
     auto: { type: Boolean, default: false },
     pending: { type: String, default: null },
+    staff: { type: Object, default: null },
 });
+const whole = computed(() => !!props.staff && props.sp.startsWith('staff-'));
 </script>
 
 <template>
     <span class="roster-cc" :class="[`roster-cc--${size}`, { 'roster-cc--auto': auto }]">
-        <span v-if="rc" class="roster-h" :class="`roster-h--${rc}`" />
-        <span class="roster-h" :class="[`roster-h--${sp}`, { 'roster-h--waiting': pending }]" :title="pending ?? undefined" />
+        <span v-if="whole" class="roster-h roster-h--whole" :class="`roster-h--${sp}`" data-testid="staff-cell" />
+        <template v-else>
+            <span v-if="rc" class="roster-h" :class="`roster-h--${rc}`" />
+            <span class="roster-h" :class="[`roster-h--${sp}`, { 'roster-h--waiting': pending }]" :title="pending ?? undefined" />
+        </template>
     </span>
 </template>
 
@@ -91,6 +100,26 @@ defineProps({
 .roster-h--none,
 .roster-h--left {
     background: linear-gradient(var(--border), var(--border)) center / 0.5rem 1px no-repeat;
+}
+.roster-h--whole {
+    height: calc(2 * 0.8125rem + 2px);
+}
+.roster-cc--sm .roster-h--whole {
+    height: calc(2 * 0.4375rem + 1px);
+}
+.roster-h--staff-met {
+    background: var(--success);
+}
+.roster-h--staff-short {
+    background:
+        linear-gradient(to top right, transparent calc(50% - 1px), var(--card) calc(50% - 1px) calc(50% + 0.6px), transparent calc(50% + 0.6px)),
+        var(--destructive);
+}
+.roster-h--staff-notSent {
+    border: 1.5px solid var(--destructive);
+}
+.roster-h--staff-open {
+    border: 1px dashed color-mix(in oklab, var(--muted-foreground) 75%, transparent);
 }
 .roster-cc--auto::after {
     content: '';

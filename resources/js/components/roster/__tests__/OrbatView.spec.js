@@ -86,6 +86,18 @@ describe('Order of battle (roster-s2)', () => {
         expect(strip[7].classes()).toContain('is-now');
     });
 
+    it("reads a line HQ staff member's strip from their staff reports, and sums the reports among the flags", () => {
+        const at = (i) => ({ state: i === 19 ? 'open' : i === 18 ? 'met' : 'short', hq: '1/A/1-7', sent: i !== 19, report: null });
+        const staff = trooper(15, 1, { name: 'Hale.S', rank: 'SFC', role: 'PSG', kpis: null, weeks: WEEKS.map(() => null), inSection: WEEKS.map(() => false), staffWeeks: WEEKS.map((w, i) => at(i)), staffReports: { met: 1, due: 4, weeks: 4 } });
+        const row = factory({ troopers: [staff, ...roster().troopers] }).find('[data-testid="trooper-15"]');
+        const strip = row.findAll('.strip-wk');
+
+        expect(strip[6].find('[data-testid="staff-cell"]').classes()).toContain('roster-h--staff-met');
+        expect(strip[5].find('[data-testid="staff-cell"]').classes()).toContain('roster-h--staff-short');
+        expect(row.find('[role="img"]').attributes('aria-label')).toBe('Last 8 weeks: staff report met the rule 1 of 7 weeks.');
+        expect(row.find('[data-testid="flag-staff-reports"]').text()).toBe('Reports 1 of 4 met');
+    });
+
     it("labels the strip with the first and last week's start dates, apart, not two ranges run together", () => {
         const ends = factory().find('[data-testid="strip-ends"]');
 

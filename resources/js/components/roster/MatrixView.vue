@@ -28,6 +28,7 @@ import {
     weekLabel,
     weekEndTick,
 } from '@/lib/roster';
+import { staffReportsText, staffReportsTone, staffTipRows, staffWeekText, withStaffWeek } from '@/lib/staffWeeks';
 import { vStickyHead } from '@/lib/stickyHead';
 import CellLegend from './CellLegend.vue';
 import FilterChips from './FilterChips.vue';
@@ -133,7 +134,10 @@ const anyRows = computed(() => rows.value.some((row) => row.kind === 'trooper' |
 function cell(trooper, index) {
     const week = props.weeks[index];
 
-    return weekCell(trooper.weeks[index], week, { current: week === props.currentWeek, joined: trooper.joined, departedAt: trooper.departedAt, departed: trooper.departed, inSection: trooper.inSection?.[index], excused: trooper.excusedWeeks?.[week] ?? null });
+    const base = weekCell(trooper.weeks[index], week, { current: week === props.currentWeek, joined: trooper.joined, departedAt: trooper.departedAt, departed: trooper.departed, inSection: trooper.inSection?.[index], excused: trooper.excusedWeeks?.[week] ?? null });
+
+    // A line HQ staff member's week reads their staff report instead of "No section that week".
+    return withStaffWeek(base, trooper.staffWeeks?.[index]);
 }
 function aggregate(members, index) {
     const week = props.weeks[index];
@@ -143,6 +147,7 @@ function aggregate(members, index) {
 
 function cellLabel(trooper, index) {
     const c = cell(trooper, index);
+    if (c.staff) return `${weekLabel(props.weeks[index])}. ${staffWeekText(c.staff)}.`;
 
     return `${weekLabel(props.weeks[index])}. Roll call: ${RC_STATES[c.rc]}. SP: ${SP_STATES[c.sp]}${c.pending ? `, ${c.pending.toLowerCase()}` : ''}.`;
 }
@@ -165,6 +170,7 @@ function resolveTip(key) {
         const trooper = byId.value.get(Number(id));
         const mark = trooper.weeks[index];
         const c = cell(trooper, index);
+        if (c.staff) return { title: `${trooper.displayName}, week ${weekLabel(week)}${current ? ' (this week)' : ''}`, rows: staffTipRows(c.staff) };
 
         return {
             title: `${trooper.displayName}, week ${weekLabel(week)}${current ? ' (this week)' : ''}`,
@@ -446,6 +452,14 @@ function clearAll() {
                             <td class="sum sum-risk">
                                 <Badge v-if="row.trooper.kpis?.onLoa" variant="outline"><PhLockSimple />LOA</Badge>
                                 <Badge v-else-if="row.trooper.kpis?.atRisk" variant="warning" :title="`Missed ${row.trooper.kpis.missed} of the last 4 section practices`" data-testid="matrix-at-risk"><PhWarning />At-risk</Badge>
+                                <span
+                                    v-else-if="staffReportsText(row.trooper.staffReports)"
+                                    class="block text-[11px] leading-tight font-medium"
+                                    :class="toneClass[staffReportsTone(row.trooper.staffReports)]"
+                                    :title="`Staff reports for the last ${row.trooper.staffReports.weeks} finished Cav weeks, in place of RC and SP 30d`"
+                                    data-testid="matrix-staff-reports"
+                                    >Reports<br />{{ row.trooper.staffReports.met }} of {{ row.trooper.staffReports.due }} met</span
+                                >
                                 <span v-else class="text-muted-foreground">None</span>
                             </td>
                         </tr>

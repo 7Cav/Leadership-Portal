@@ -141,6 +141,22 @@ describe('Trooper sheet', () => {
         expect(document.body.querySelector('[data-testid="sheet-staff-practices"]')).toBeNull();
     });
 
+    it("shows a line HQ staff member's weeks and reports summary from their staff reports", async () => {
+        const report = { attended: true, practiceType: 'sp', presenceType: 'public_server', practices: ['1/1/A/1-7'] };
+        const at = (i) => (i === 18 ? { state: 'met', hq: '1/A/1-7', sent: true, report } : { state: 'notSent', hq: '1/A/1-7', sent: false, report: null });
+        respond(200, detail({ kpis: null, weeks: WEEKS.map(() => null), inSection: WEEKS.map(() => false), staffWeeks: WEEKS.map((w, i) => at(i)), staffReports: { met: 1, due: 4, weeks: 4 }, section: { id: 1, type: 'platoon', name: '1st Platoon', callsign: '1/A/1-7' } }));
+        factory();
+        await flushPromises();
+
+        expect(document.body.querySelector('[data-testid="sheet-staff-reports"]').textContent).toContain('1 of 4 met');
+        const rows = document.body.querySelectorAll('[data-testid="sheet-staff-week"]');
+        expect(rows).toHaveLength(8);
+        expect(rows[1].textContent).toContain('Report met the rule');
+        expect(rows[1].textContent).toContain('Practices: Yes: 1/1/A/1-7');
+        expect(rows[1].textContent).toContain('Presence: Public server hour');
+        expect(rows[0].textContent).toContain('Report not sent');
+    });
+
     it('links to the section rollcall and to milpac in a new tab', async () => {
         respond(200, detail());
         factory();

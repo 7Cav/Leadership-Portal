@@ -22,6 +22,13 @@ const SP = [
     ['open', 'Not marked yet'],
     ['nil', 'No SP held'],
 ];
+// Line HQ staff are on no section's roll call: a week they were on the HQ is one block, their staff report.
+const STAFF = [
+    ['staff-met', 'Met the rule'],
+    ['staff-short', 'Fell short'],
+    ['staff-notSent', 'Not sent'],
+    ['staff-open', 'This week, not sent yet'],
+];
 </script>
 
 <template>
@@ -40,6 +47,12 @@ const SP = [
             <div class="flex flex-wrap gap-x-4 gap-y-1.5">
                 <span class="w-full font-medium text-foreground sm:w-20">SP</span>
                 <span v-for="[state, label] in SP" :key="state" class="inline-flex items-center gap-1.5">
+                    <span class="roster-h inline-block w-[1.125rem]" :class="`roster-h--${state}`" aria-hidden="true" />{{ label }}
+                </span>
+            </div>
+            <div class="flex flex-wrap gap-x-4 gap-y-1.5" data-testid="legend-staff">
+                <span class="w-full font-medium text-foreground sm:w-20">HQ staff</span>
+                <span v-for="[state, label] in STAFF" :key="state" class="inline-flex items-center gap-1.5">
                     <span class="roster-h inline-block w-[1.125rem]" :class="`roster-h--${state}`" aria-hidden="true" />{{ label }}
                 </span>
             </div>
