@@ -524,7 +524,10 @@ class ImportOrgStructure
         $index = [];
         $rootRegiment = null;
 
-        foreach ($this->units->tree()->sortBy('id') as $unit) {
+        // Inactive units too: one an Admin deactivated is found here and left as it is, never made again or reactivated.
+        // Billets Cav still maps into it keep their mapping, so whoever the roster sync places there shows on Org
+        // structure's list of people in inactive units.
+        foreach ($this->units->treeWithInactive()->sortBy('id') as $unit) {
             if ($unit->type === UnitType::Regiment && $unit->parent_id === null) {
                 $rootRegiment ??= $unit;
             }

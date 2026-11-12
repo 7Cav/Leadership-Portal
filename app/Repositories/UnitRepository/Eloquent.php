@@ -12,6 +12,7 @@ use App\Repositories\UnitGame;
 use App\Repositories\UnitPath;
 use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
+use DateTimeInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as ScalarCollection;
 use Illuminate\Support\Facades\DB;
@@ -106,12 +107,39 @@ class Eloquent implements UnitRepository
         // "1/145/" before "1/2/" and shuffle siblings once ids pass a digit boundary. Comparing the
         // segments as numbers keeps every unit after its parent and siblings in id order, which is
         // creation order, and the org import creates units in Cav's display order.
+        return Unit::query()->active()->get()->sort(fn (Unit $a, Unit $b) => UnitPath::compare($a->path, $b->path))->values();
+    }
+
+    public function treeWithInactive(): Collection
+    {
         return Unit::query()->get()->sort(fn (Unit $a, Unit $b) => UnitPath::compare($a->path, $b->path))->values();
+    }
+
+    public function inactiveIds(): ScalarCollection
+    {
+        $roots = Unit::query()->whereNotNull('deactivated_at')->pluck('path');
+
+        return $roots->isEmpty() ? collect() : Unit::query()
+            ->where(fn ($query) => $roots->each(fn (string $path) => $query->orWhere('path', 'like', "{$path}%")))
+            ->orderBy('id')
+            ->pluck('id');
+    }
+
+    public function setDeactivated(Unit $unit, ?DateTimeInterface $at, ?int $by): Unit
+    {
+        $unit->forceFill(['deactivated_at' => $at, 'deactivated_by' => $by])->save();
+
+        return $unit;
     }
 
     public function find(int $id): ?Unit
     {
         return Unit::find($id);
+    }
+
+    public function findActive(int $id): ?Unit
+    {
+        return Unit::query()->active()->whereKey($id)->first();
     }
 
     public function findByRollcallImageToken(string $token): ?Unit
@@ -121,22 +149,22 @@ class Eloquent implements UnitRepository
 
     public function allIds(): ScalarCollection
     {
-        return Unit::query()->pluck('id');
+        return Unit::query()->active()->pluck('id');
     }
 
     public function subtreeIds(Unit $unit): ScalarCollection
     {
-        return Unit::query()->where('path', 'like', "{$unit->path}%")->pluck('id');
+        return Unit::query()->active()->where('path', 'like', "{$unit->path}%")->pluck('id');
     }
 
     public function subtree(Unit $unit): Collection
     {
-        return Unit::query()->where('path', 'like', "{$unit->path}%")->orderBy('id')->get();
+        return Unit::query()->active()->where('path', 'like', "{$unit->path}%")->orderBy('id')->get();
     }
 
     public function lineSubtree(Unit $unit): Collection
     {
-        return Unit::query()->where('path', 'like', "{$unit->path}%")->where('kind', UnitKind::Line->value)->orderBy('id')->get();
+        return Unit::query()->active()->where('path', 'like', "{$unit->path}%")->where('kind', UnitKind::Line->value)->orderBy('id')->get();
     }
 
     public function owningCompany(Unit $unit): ?Unit
@@ -218,17 +246,17 @@ class Eloquent implements UnitRepository
 
     public function children(Unit $unit): Collection
     {
-        return Unit::query()->where('parent_id', $unit->id)->orderBy('id')->get();
+        return Unit::query()->active()->where('parent_id', $unit->id)->orderBy('id')->get();
     }
 
     public function lineChildren(Unit $unit): Collection
     {
-        return Unit::query()->where('parent_id', $unit->id)->where('kind', UnitKind::Line->value)->orderBy('id')->get();
+        return Unit::query()->active()->where('parent_id', $unit->id)->where('kind', UnitKind::Line->value)->orderBy('id')->get();
     }
 
     public function hasLineChildren(Unit $unit): bool
     {
-        return Unit::query()->where('parent_id', $unit->id)->where('kind', UnitKind::Line->value)->exists();
+        return Unit::query()->active()->where('parent_id', $unit->id)->where('kind', UnitKind::Line->value)->exists();
     }
 
     public function sectionsAmong(iterable $unitIds): Collection
@@ -238,6 +266,7 @@ class Eloquent implements UnitRepository
         // Sorted in PHP for the same reason as tree(): a text `orderBy('path')` puts "1/145/"
         // before "1/2/".
         return Unit::query()
+            ->active()
             ->with('parent')
             ->where('type', UnitType::Section->value)
             ->whereIn('id', $ids)

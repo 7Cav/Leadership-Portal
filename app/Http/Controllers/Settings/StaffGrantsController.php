@@ -66,9 +66,10 @@ class StaffGrantsController extends Controller
     public function index(Request $request, ScopeResolver $scope): Response
     {
         $isAdmin = $scope->actsAsAdmin($request->user());
-        $all = $this->grants->all();
         $tree = $this->units->tree();
         $byId = $tree->keyBy('id');
+        // A grant on an inactive unit gives no scope and is left out until the unit is reactivated, when it is back.
+        $all = $this->grants->all()->filter(fn (PortalRoleGrant $grant) => $byId->has($grant->unit_id))->values();
 
         // A grant only counts in scope while its holder serves (ScopeResolver). One that has lapsed
         // stays listed and flagged rather than hidden: the row still exists, and an Admin needs to

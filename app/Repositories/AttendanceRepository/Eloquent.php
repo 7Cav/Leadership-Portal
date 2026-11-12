@@ -178,7 +178,7 @@ class Eloquent implements AttendanceRepository
     public function countingWindow(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): CountingWindow
     {
         $population = $includeDeparted
-            ? Trooper::query()->whereIn('troopers.primary_section_id', Unit::query()->select('id')->where('path', 'like', "{$unit->path}%"))
+            ? Trooper::query()->whereIn('troopers.primary_section_id', Unit::query()->active()->select('id')->where('path', 'like', "{$unit->path}%"))
             : Trooper::query()->assignedWithin($unit);
 
         return $this->countingMarksFor($population, $firstWeek, $lastWeek);
