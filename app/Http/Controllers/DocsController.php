@@ -32,7 +32,7 @@ class DocsController extends Controller
 
     public function index(Request $request): Response
     {
-        abort_unless((bool) config('portal.docs'), 404);
+        abort_unless(DocsPages::enabled(), 404);
 
         return Inertia::render('Docs/Index', $this->pages->home($this->audience->of($request->user()), $this->facts($request->user())));
     }
@@ -45,7 +45,7 @@ class DocsController extends Controller
      */
     public function help(Request $request): RedirectResponse
     {
-        abort_unless((bool) config('portal.docs'), 404);
+        abort_unless(DocsPages::enabled(), 404);
 
         $from = (string) $request->query('from', '');
         if (! str_starts_with($from, '/') || str_starts_with($from, '//') || preg_match('/[\x00-\x1F\x7F\\\\]/', $from) === 1) {
@@ -59,7 +59,7 @@ class DocsController extends Controller
 
     public function show(Request $request, string $section, string $slug): Response
     {
-        abort_unless((bool) config('portal.docs'), 404);
+        abort_unless(DocsPages::enabled(), 404);
 
         $props = $this->pages->guide($this->audience->of($request->user()), $section, $slug, $this->facts($request->user()));
         abort_if($props === null, 404);
@@ -71,7 +71,7 @@ class DocsController extends Controller
     /** `/docs/tutorial`: the first step of the getting started tutorial, or docs home when this reader has none. */
     public function tutorial(Request $request): RedirectResponse
     {
-        abort_unless((bool) config('portal.docs'), 404);
+        abort_unless(DocsPages::enabled(), 404);
 
         return redirect($this->pages->tutorialStart($this->audience->of($request->user())) ?? '/docs');
     }

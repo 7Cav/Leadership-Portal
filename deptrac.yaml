@@ -237,7 +237,7 @@ deptrac:
       - Authorization
       - Model
     # The sidebar's bookmarks (App\Bookmarks): which pages may be bookmarked and whether the person may still open one,
-    # asked of the same ScopeResolver, StaffReportAccess and GuideLibrary calls the pages' controllers gate on. Reads
+    # asked of the one rule each page's controller enforces (Authorization\PageAccess, DocsPages). Reads
     # and prunes the person's own rows through BookmarkRepository. Controller and Middleware reach it.
     Bookmarks:
       - Authorization

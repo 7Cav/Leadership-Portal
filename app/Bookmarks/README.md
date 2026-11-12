@@ -4,8 +4,8 @@ A person keeps up to ten pages in the sidebar's Bookmarks section. A bookmark is
 (`bookmarks.route`, `bookmarks.params`), never a raw address, and only a route on the allowlist in
 `BookmarkablePages` can be one.
 
-`BookmarkablePages` answers whether someone may open a page by the rule that page's controller gates on, asked of the
-same ScopeResolver, StaffReportAccess and GuideLibrary calls. Change a rule there together with the controller it names.
+`BookmarkablePages` maps each route to the one rule its page's controller enforces (`Authorization/PageAccess`, or
+`DocsPages` for the docs), so a bookmark is shown exactly while the page would open.
 
 `SidebarBookmarks` builds the shared `bookmarks` prop. Reading it deletes every bookmark the person can no longer
 open, so a unit leaving their scope (or being deleted), a trooper leaving it, or a lost Admin page all drop out on the

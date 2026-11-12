@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Authorization\PageAccess;
 use App\Authorization\StaffReportAccess;
 use App\Commands\StaffReports\PushStaffReportToSheetHandler;
 use App\Kpi\StaffHqHealth;
@@ -36,13 +37,13 @@ class StaffReportsOverviewController extends Controller
         private readonly PushStaffReportToSheetHandler $sheet,
         private readonly StaffHqHealth $health,
         private readonly UnitGuidonRepository $guidons,
+        private readonly PageAccess $pages,
     ) {}
 
     public function index(Request $request): Response
     {
         $user = $request->user();
-        $hqs = $this->access->readableHqs($user);
-        abort_if($hqs->isEmpty(), 404);
+        $hqs = $this->pages->staffReports($user)->orAbort();
 
         $now = CarbonImmutable::now();
         $sheetConfigured = $this->sheet->sheetConfigured();

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Authorization\PageAccess;
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffPracticeAccess;
 use App\Bookmarks\BookmarkablePages;
@@ -98,6 +99,7 @@ class RosterController extends Controller
         private readonly MissingGameIdentities $missingIdentities,
         private readonly AutomaticAttendance $automatic,
         private readonly TrooperPlacementRepository $placements,
+        private readonly PageAccess $pages,
     ) {}
 
     /**
@@ -119,10 +121,10 @@ class RosterController extends Controller
         $shown = $this->headcount->withoutEmptyLineUnits($tree);
 
         // One answer for "no such unit" and "outside your scope" (AD-8), so unit ids cannot be probed.
-        $selected = $unit === null
-            ? $this->defaultUnit($user, $shown, $scope)
-            : ($scope->contains($unit) ? $tree->firstWhere('id', $unit) : null);
-        abort_if($unit !== null && $selected === null, 403, 'That unit is outside your scope.');
+        if ($unit !== null) {
+            $this->pages->roster($user, $unit, $scope)->orAbort();
+        }
+        $selected = $unit === null ? $this->defaultUnit($user, $shown, $scope) : $tree->firstWhere('id', $unit);
         // `/roster` names no unit: the bookmark button keeps the one shown.
         $request->attributes->set(BookmarkablePages::PAGE_UNIT, $selected?->id);
 

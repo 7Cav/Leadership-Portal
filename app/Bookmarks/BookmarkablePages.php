@@ -2,24 +2,21 @@
 
 namespace App\Bookmarks;
 
+use App\Authorization\PageAccess;
+use App\Authorization\PageDecision;
 use App\Authorization\ScopeResolver;
-use App\Authorization\StaffReportAccess;
-use App\Docs\GuideLibrary;
+use App\Docs\DocsPages;
 use App\Docs\ViewerAudience;
 use App\Models\Trooper;
-use App\Models\Unit;
-use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\TrooperRepository;
-use App\Repositories\UnitRepository;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 
 /**
  * The pages a person may bookmark, and whether they may still open one. A bookmark is a route name on this allowlist
- * and its parameters, never a raw address. Each page is checked by the same rule its controller gates on, through the
- * same ScopeResolver, StaffReportAccess and GuideLibrary calls, so a bookmark is shown exactly while the page would
- * open for the person. Change a rule here together with the controller it names.
+ * and its parameters, never a raw address. Each route maps to the one rule its page's controller enforces
+ * ({@see PageAccess}, or `DocsPages` for the docs), so a bookmark is shown exactly while the page would open.
  *
  * A unit's weekly report is bookmarked on the unit (`reports.index`), not on one week, so it always opens the current
  * week: a section's report, or the roll-up above one.
@@ -59,12 +56,31 @@ final class BookmarkablePages
 
     public function __construct(
         private readonly ScopeResolver $scope,
-        private readonly StaffReportAccess $staffReports,
-        private readonly UnitRepository $units,
+        private readonly PageAccess $access,
         private readonly TrooperRepository $troopers,
-        private readonly GuideLibrary $guides,
+        private readonly DocsPages $docs,
         private readonly ViewerAudience $audience,
     ) {}
+
+    /**
+     * Every route that can be bookmarked.
+     *
+     * @return list<string>
+     */
+    public function routes(): array
+    {
+        return [...array_keys(self::UNIT_PAGES), 'troopers.show', 'docs.show', ...array_keys(self::FIXED_PAGES)];
+    }
+
+    /**
+     * The routes that have a rule in {@see checks()}, to hold against {@see routes()}.
+     *
+     * @return list<string>
+     */
+    public function checkedRoutes(): array
+    {
+        return array_keys($this->checks(new User, fn () => collect()));
+    }
 
     /**
      * `$params` for `$route` as stored: only the parameters the page takes, ids as integers. Null when the route is not
@@ -139,8 +155,8 @@ final class BookmarkablePages
      * For each page, keyed as given, its label and address while `$user` may open it, else null. The scope is read
      * once for all of them.
      *
-     * @param  array<int, array{route: string, params: array<string, int|string>}>  $pages
-     * @return array<int, ?array{label: string, href: string}>
+     * @param  array<int|string, array{route: string, params: array<string, int|string>}>  $pages
+     * @return array<int|string, ?array{label: string, href: string}>
      */
     public function openable(User $user, array $pages): array
     {
@@ -148,11 +164,12 @@ final class BookmarkablePages
         $scopeOf = function () use (&$scope, $user): Collection {
             return $scope ??= $this->scope->resolve($user);
         };
-        $readsStaffReports = null;
+        $checks = $this->checks($user, $scopeOf);
 
         $answers = [];
         foreach ($pages as $key => $page) {
-            $label = $this->label($user, $page['route'], $page['params'], $scopeOf, $readsStaffReports);
+            $check = $checks[$page['route']] ?? null;
+            $label = $check === null ? null : $check($page['params']);
             $answers[$key] = $label === null ? null : ['label' => $label, 'href' => route($page['route'], $page['params'], false)];
         }
 
@@ -160,60 +177,46 @@ final class BookmarkablePages
     }
 
     /**
-     * The page's label while `$user` may open it, by the rule of the controller named; null when they may not.
+     * Each bookmarkable route's rule: the page's label while `$user` may open it, else null. Every one asks the rule
+     * the page's controller enforces and decides nothing of its own.
      *
-     * @param  array<string, int|string>  $params
      * @param  callable(): Collection<int, int>  $scopeOf
+     * @return array<string, callable(array<string, int|string>): ?string>
      */
-    private function label(User $user, string $route, array $params, callable $scopeOf, ?bool &$readsStaffReports): ?string
+    private function checks(User $user, callable $scopeOf): array
     {
-        if (isset(self::UNIT_PAGES[$route])) {
-            $unit = $this->unit($route, (int) $params['unit'], $scopeOf);
+        $unit = fn (string $route, callable $decide) => function (array $params) use ($route, $decide): ?string {
+            /** @var PageDecision $decision */
+            $decision = $decide((int) $params['unit']);
 
-            return $unit === null ? null : self::UNIT_PAGES[$route].' '.($unit->callsign ?? $unit->name);
-        }
+            return $decision->allowed() ? self::UNIT_PAGES[$route].' '.($decision->subject->callsign ?? $decision->subject->name) : null;
+        };
+        $fixed = fn (string $route, callable $decide) => fn (array $params): ?string => $decide()->allowed() ? self::FIXED_PAGES[$route] : null;
 
-        return match ($route) {
-            // TrooperDetailController::show.
-            'troopers.show' => ($trooper = $this->troopers->find((int) $params['trooper'])) !== null
-                && ($this->scope->canSee($user, $trooper, $scopeOf()) || $this->scope->isOwnTrooper($user, $trooper))
-                    ? $trooper->display_name
-                    : null,
-            // StaffReportsOverviewController::index.
-            'staff-reports.index' => ($readsStaffReports ??= $this->staffReports->readableHqs($user)->isNotEmpty()) ? self::FIXED_PAGES[$route] : null,
-            // DocsController::index and ::show.
-            'docs.index' => (bool) config('portal.docs') ? self::FIXED_PAGES[$route] : null,
-            'docs.show' => (bool) config('portal.docs')
-                ? $this->guides->find($this->audience->of($user), (string) $params['section'], (string) $params['slug'])?->title
+        return [
+            'roster.index' => $unit('roster.index', fn (int $id) => $this->access->roster($user, $id, $scopeOf())),
+            'reports.index' => $unit('reports.index', fn (int $id) => $this->access->reports($user, $id, $scopeOf())),
+            'rollcall.show' => $unit('rollcall.show', fn (int $id) => $this->access->rollcall($user, $id, $scopeOf())),
+            'readiness.matrix' => $unit('readiness.matrix', fn (int $id) => $this->access->readiness($user, $id, $scopeOf())),
+            'troopers.show' => function (array $params) use ($user, $scopeOf): ?string {
+                $trooper = $this->troopers->find((int) $params['trooper']);
+
+                return $trooper !== null && $this->access->milpac($user, $trooper, $scopeOf())->allowed() ? $trooper->display_name : null;
+            },
+            'docs.show' => fn (array $params): ?string => DocsPages::enabled()
+                ? $this->docs->readable($this->audience->of($user), (string) $params['section'], (string) $params['slug'])?->title
                 : null,
-            // Open to everyone signed in: OrgStructureController, StaffGrantsController, TemplatesController and
-            // GamesController each show a non-Admin what is theirs to see.
-            'settings.org-structure', 'settings.staff-grants', 'settings.templates', 'settings.games' => self::FIXED_PAGES[$route],
-            // ServersController, AuditLogController and ActivityLogController: Admin only.
-            'settings.servers', 'settings.audit-log', 'settings.activity-log' => $this->scope->actsAsAdmin($user) ? self::FIXED_PAGES[$route] : null,
-            // DemoDataController: Admin only, while the demo tools are on.
-            'settings.demo-data' => (bool) config('portal.demo_tools') && $this->scope->actsAsAdmin($user) ? self::FIXED_PAGES[$route] : null,
-            default => null,
-        };
-    }
-
-    /**
-     * The unit a unit page shows while the scope holds it, by its controller's rule: any unit for the roster
-     * (RosterController::index) and the readiness matrix (TrainingReadinessMatrixController), a line unit for the
-     * report (ReportRollupController::index), a section for the roll call (RollcallController::show).
-     *
-     * @param  callable(): Collection<int, int>  $scopeOf
-     */
-    private function unit(string $route, int $id, callable $scopeOf): ?Unit
-    {
-        $unit = $scopeOf()->contains($id) ? $this->units->find($id) : null;
-
-        return match (true) {
-            $unit === null => null,
-            $route === 'reports.index' => $unit->isLine() ? $unit : null,
-            $route === 'rollcall.show' => $unit->type === UnitType::Section ? $unit : null,
-            default => $unit,
-        };
+            'docs.index' => fn (array $params): ?string => DocsPages::enabled() ? self::FIXED_PAGES['docs.index'] : null,
+            'staff-reports.index' => $fixed('staff-reports.index', fn () => $this->access->staffReports($user)),
+            'settings.org-structure' => $fixed('settings.org-structure', fn () => $this->access->openSetting($user)),
+            'settings.staff-grants' => $fixed('settings.staff-grants', fn () => $this->access->openSetting($user)),
+            'settings.templates' => $fixed('settings.templates', fn () => $this->access->openSetting($user)),
+            'settings.games' => $fixed('settings.games', fn () => $this->access->openSetting($user)),
+            'settings.servers' => $fixed('settings.servers', fn () => $this->access->adminSetting($user)),
+            'settings.audit-log' => $fixed('settings.audit-log', fn () => $this->access->adminSetting($user)),
+            'settings.activity-log' => $fixed('settings.activity-log', fn () => $this->access->adminSetting($user)),
+            'settings.demo-data' => $fixed('settings.demo-data', fn () => $this->access->demoData($user)),
+        ];
     }
 
     /** A positive id of at most 18 digits (the routes' id pattern), from a number or its digits. */
