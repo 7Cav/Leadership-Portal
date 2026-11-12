@@ -99,9 +99,11 @@ class OrgStructureController extends Controller
      */
     public function index(Request $request, ScopeResolver $scope, UnitGuidonRepository $guidons, Headcount $headcount, UnitOversightRepository $oversights, GameRepository $gameRepository, UnitCommandMappingRepository $commands, AccountabilityRules $accountability): Response
     {
-        // Every unit, the inactive ones too: the page lists them greyed behind Show inactive, so an Admin can reactivate
-        // one. Nothing else below counts them.
-        $tree = $this->units->treeWithInactive();
+        // For an Admin, every unit, the inactive ones too: the page lists them greyed behind Show inactive, so they can
+        // reactivate one. Nothing else below counts them. Anyone else (an Admin previewing with view as included) gets
+        // the active tree only, and no inactive data at all.
+        $seesInactive = $scope->actsAsAdmin($request->user());
+        $tree = $seesInactive ? $this->units->treeWithInactive() : $this->units->tree();
         $inactive = $this->units->inactiveIds()->flip();
         // The game each unit plays, its own or the nearest ancestor's, worked out once over the tree.
         $games = $gameRepository->all()->keyBy('id');
@@ -209,14 +211,16 @@ class OrgStructureController extends Controller
             // The unit's saved guidon (#446), drawn next to its name; null when it has none.
             'guidon' => $guidonOf->get($unit->id)?->design(),
             'path' => $unit->path,
-            // Inactive: deactivated by an Admin (`deactivated_at`), or under a unit that is. Hidden from every other
-            // page until reactivated. `placed_count` is everyone serving placed in it or under it, holding groups and
-            // inactive units included: what the deactivate dialog warns about.
-            'inactive' => $inactive->has($unit->id),
-            'deactivated_at' => $unit->deactivated_at?->toIso8601String(),
-            'placed_count' => $tree
-                ->filter(fn (Unit $placed) => str_starts_with($placed->path, $unit->path))
-                ->sum(fn (Unit $placed) => $placedAnywhere->get($placed->id, 0)),
+            // Admin only. Inactive: deactivated by an Admin (`deactivated_at`), or under a unit that is. Hidden from
+            // every other page until reactivated. `placed_count` is everyone serving placed in it or under it, holding
+            // groups and inactive units included: what the deactivate dialog warns about.
+            ...($seesInactive ? [
+                'inactive' => $inactive->has($unit->id),
+                'deactivated_at' => $unit->deactivated_at?->toIso8601String(),
+                'placed_count' => $tree
+                    ->filter(fn (Unit $placed) => str_starts_with($placed->path, $unit->path))
+                    ->sum(fn (Unit $placed) => $placedAnywhere->get($placed->id, 0)),
+            ] : []),
             'own_count' => $byUnit->get($unit->id, 0),
             // The headcount's own rule, so this page and the roster agree: New Recruits, ELOA and the Reservists count
             // only on their own group.
@@ -266,7 +270,7 @@ class OrgStructureController extends Controller
 
         // Follows a view-as preview (Story 1.13): authoring controls hide as they would for the
         // previewed leader. The write gates below keep reading the real flag.
-        $isAdmin = $scope->actsAsAdmin($request->user());
+        $isAdmin = $seesInactive;
         $visible = $scope->resolve($request->user())->flip();
         $groupIds = $tree->filter(fn (Unit $unit) => ! $unit->isLine() && $visible->has($unit->id))->modelKeys();
 

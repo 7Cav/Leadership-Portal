@@ -153,6 +153,19 @@ it('shows inactive units on Org structure, flagged, with who is still placed the
     expect($this->get('/settings/org-structure')->viewData('page')['props']['inactivePlaced'])->toBeNull();
 });
 
+it('sends a non-Admin no inactive unit and no inactive data on Org structure', function () {
+    $this->actingAs($this->admin)->patch("/settings/org-structure/{$this->roo->id}/active", ['active' => false]);
+
+    $props = $this->actingAs(User::factory()->serving()->create())->get('/settings/org-structure')->assertOk()->viewData('page')['props'];
+    $units = collect($props['units']);
+
+    expect($units->pluck('id')->all())->not->toContain($this->roo->id, $this->rooDesk->id)
+        ->and($units->pluck('id')->all())->toContain($this->cos->id)
+        ->and($units->contains(fn (array $unit) => array_key_exists('inactive', $unit) || array_key_exists('deactivated_at', $unit) || array_key_exists('placed_count', $unit)))->toBeFalse()
+        ->and(collect($props['references'])->pluck('unit_id')->all())->not->toContain($this->roo->id)
+        ->and($props['inactivePlaced'])->toBeNull();
+});
+
 it('counts the people in a unit being deactivated, holding groups included', function () {
     $units = duUnits($this->actingAs($this->admin)->get('/settings/org-structure'));
 

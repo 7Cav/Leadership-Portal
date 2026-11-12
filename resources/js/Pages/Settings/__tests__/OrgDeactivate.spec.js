@@ -78,6 +78,21 @@ describe('Settings/OrgStructure, inactive units', () => {
         wrapper.unmount();
     });
 
+    it('shows a non-Admin no Show inactive, no Inactive tag and no Deactivate, given the active units the server sends them', async () => {
+        const active = UNITS.filter((unit) => !unit.inactive).map(({ placed_count: _placed, ...unit }) => unit);
+        const wrapper = mountPage({ units: active, isAdmin: false, inactivePlaced: null });
+
+        expect(wrapper.find('[data-testid="show-inactive"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="show-inactive-staff"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="inactive-placed-panel"]').exists()).toBe(false);
+        expect(wrapper.find('.opacity-60').exists()).toBe(false);
+
+        await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+        expect(wrapper.find('[data-testid="deactivate-unit"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="inactive-note"]').exists()).toBe(false);
+        wrapper.unmount();
+    });
+
     it('deactivates a unit after a confirm that says how many people are placed there, with an optional reason', async () => {
         const wrapper = mountPage();
 

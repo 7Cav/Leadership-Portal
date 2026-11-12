@@ -54,7 +54,7 @@ The unit and everything under it are then hidden everywhere else: the roster and
 
 > [!warning] People still placed in an inactive unit count nowhere, and their milpac page shows them as unplaced. Org structure lists them under the details panel, with the unit each one is in. Move each one, or reactivate the unit. If the roster sync places someone there, they show in that list too.
 
-> [!good-to-know] Tick **Show inactive** to see inactive units, greyed, with the one you deactivated tagged **Inactive**. To bring one back, select it and choose **Reactivate**. Everything under it comes back with it. A unit is never added or moved under an inactive one. **Import from Cav roster** does not reactivate a unit or make it again. Both changes are in the audit log.
+> [!good-to-know] Only Admins see inactive units. Tick **Show inactive** to see them, greyed, with the one you deactivated tagged **Inactive**. To bring one back, select it and choose **Reactivate**. Everything under it comes back with it. A unit is never added or moved under an inactive one. **Import from Cav roster** does not reactivate a unit or make it again. Both changes are in the audit log.
 
 ## Make someone acting lead
 
