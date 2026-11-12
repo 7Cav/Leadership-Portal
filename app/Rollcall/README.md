@@ -29,6 +29,11 @@ Read-only logic behind the weekly rollcall, so no screen re-derives it.
   rollcall page reads and its forum post is filled from. The template editor's preview of a real section reads the same
   rows, so the two cannot drift apart.
 
+- `ChainOfCommand::lines($section)`: the section's command billets and those of each unit above it up to its battalion,
+  bottom-up, with each serving holder's full rank, milpac name and milpac link (or none, which the post prints as
+  Vacant), and whether they lead as an acting lead. The template prints it as `{{coc}}`; the rollcall page and the
+  template preview of a real section both receive it as `chainOfCommand`.
+
 ## How the rollcall binds end to end (3.7 to 3.11)
 
 The page opens a section and week (3.7), pre-fills it from the roster, the leave data and the prior week, and receives the
