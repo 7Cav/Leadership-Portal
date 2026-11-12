@@ -1160,6 +1160,20 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-step="3"]').attributes('aria-label')).toBe('Step 3, Review and post, Not posted yet');
         });
 
+        it('does not ask for a repost on a locked week, and points at Request edit on the report', () => {
+            const wrapper = factory({
+                locked: true,
+                report: { due: '2026-10-10T23:59:00+00:00', overdueUntil: '2026-10-31T00:00:00+00:00', sent: true, href: '/reports/12/2026-10-03' },
+                practice: { lastMarkedAt: '2026-10-08T17:00:00+00:00', posted: { at: '2026-10-08T16:20:00+00:00', by: 'Vasquez.R' } },
+            });
+
+            const state = wrapper.find('[data-testid="posted-state"]');
+            expect(state.text()).not.toContain('Repost');
+            expect(state.text()).toContain('The weekly report is sent, so this roll call is locked. To change it, edit the report, or use Request edit there once it is past its deadline.');
+            expect(wrapper.find('[data-testid="posted-report-link"]').attributes('href')).toBe('/reports/12/2026-10-03');
+            expect(wrapper.find('[data-step="3"]').attributes('aria-label')).toBe('Step 3, Review and post, Posted');
+        });
+
         it('keeps copying the forum post on a locked week, but not marking it posted', async () => {
             const writeText = vi.fn().mockResolvedValue();
             Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });

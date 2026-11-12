@@ -115,7 +115,8 @@ If your section plays a game and has no slot, a warning sits at the top of the r
 
 1. Once the post is on the forum, choose **Mark roll call posted**. On the new roll call, paste the thread's link under **Forum thread link** if you like (the close step and the report link to it), then choose **Mark as posted, continue**, which takes you on to **Sign and mark**.
 2. If you change a mark later, the page says the copied BBCode is out of date. Repost the updated BBCode, then choose **Mark posted again**. A template that uses the live Signed RC and Attended SP images ([Roll call templates](/docs/admin/rollcall-templates) says how) shows the new marks in those images on its own, once the forum reloads them, which can take a minute; the rest of the post is still text you repost.
-3. Then [write and send your report](/docs/weekly-report/send-your-report). On a week from before the new roll call, **Send for review** at the end of **Review and post** opens the report's send window for you.
+3. Once the weekly report is sent, the roll call is locked and the page no longer asks for a repost. To change it, edit the report, or choose **Request edit** on it once it is past its deadline ([Send your report](/docs/weekly-report/send-your-report) says how).
+4. Then [write and send your report](/docs/weekly-report/send-your-report). On a week from before the new roll call, **Send for review** at the end of **Review and post** opens the report's send window for you.
 
 ## Close for review
 
