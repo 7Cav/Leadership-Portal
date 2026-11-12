@@ -5,6 +5,7 @@ namespace App\Support\Audit;
 use App\Repositories\AuditedBatch;
 use App\Repositories\AuditLogRepository;
 use Closure;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * The one path every state-changing Command routes through (AD-16): records actor, action,
@@ -36,6 +37,19 @@ class AuditEnvelope
         [$actorId, $onBehalfOf, $onBehalfOfUnit] = $this->acting->attribute($actorId);
 
         return $this->auditLog->recordWithMutation($actorId, $action, $reason, $mutation, $onBehalfOf, $onBehalfOfUnit);
+    }
+
+    /**
+     * Something that happened to `$target` without changing it (a sign-in, a sign-out), recorded like any other entry.
+     * `$notes` are shown under its subject ({@see AuditLogRepository::recordWithMutation()}).
+     *
+     * @param  list<string>  $notes
+     */
+    public function recordEvent(int $actorId, string $action, Model $target, array $notes = []): void
+    {
+        [$actorId, $onBehalfOf, $onBehalfOfUnit] = $this->acting->attribute($actorId);
+
+        $this->auditLog->recordWithMutation($actorId, $action, null, fn () => $target, $onBehalfOf, $onBehalfOfUnit, $notes);
     }
 
     /**

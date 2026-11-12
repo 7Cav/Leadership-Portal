@@ -25,3 +25,9 @@ page: /settings/audit-log
 > [!good-to-know] An entry keeps the name it had when it was written, so it still reads the same after what it is about is deleted. Entries from before this was stored are named from what they are about as it is now, without the before and after.
 
 Starting and stopping view as, and act as, are recorded too. The audit log cannot be edited or deleted from the portal.
+
+## Sign-ins and sign-outs
+
+Each sign-in is recorded as `auth.signed_in`, and each sign-out as `auth.signed_out`. A forum account that completed the sign-in but was turned away is recorded as `auth.refused`, with why, such as "Refused: not linked to a serving 7Cav milpac". A sign-in or a refusal also shows "Via" and the portal address the sign-in was started from, and "Headed to" and the page they were trying to open when they were sent to sign in, such as a link to a report, if there was one.
+
+An Admin who signs out while acting as someone is recorded as themselves. A sign-in that was cancelled, or that the forum could not complete, names nobody and is not recorded here.

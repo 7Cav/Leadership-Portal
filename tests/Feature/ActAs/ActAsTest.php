@@ -201,6 +201,17 @@ it('records acting as stopped when the Admin signs out', function () {
     $this->assertGuest();
 });
 
+it('records the sign-out as the Admin\'s own, not as done while acting', function () {
+    startActing($this);
+
+    $this->actingAs($this->admin)->post('/logout')->assertRedirect('/login');
+
+    $entry = AuditLogEntry::where('action', 'auth.signed_out')->sole();
+    expect($entry->actor_id)->toBe($this->admin->id)
+        ->and($entry->on_behalf_of_id)->toBeNull()
+        ->and($entry->target_id)->toBe((string) $this->admin->id);
+});
+
 it('shows on the audit log who acted for whom', function () {
     startActing($this);
     $this->actingAs($this->admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->section->id]);
