@@ -63,19 +63,27 @@ function wrap(source, start, end, open, close, caretAfter = false) {
 
 // Whether [start, end) takes one end of a pair (a tag, a section, a table's row or cell) and leaves the other: removing
 // "[/TD][TD]" would merge two cells into one, which is a valid template but not what anyone selected text to do.
-function cutsPair(nodes, start, end) {
-    return nodes.some((node) => {
-        if (!node.children) return false;
+function cutPairs(nodes, start, end) {
+    return nodes.flatMap((node) => {
+        if (!node.children) return [];
         const openTaken = start <= node.start && node.openEnd <= end;
         const closeTaken = start <= node.closeStart && node.end <= end;
 
-        return openTaken !== closeTaken || cutsPair(node.children, start, end);
+        return [...(openTaken !== closeTaken ? [node] : []), ...cutPairs(node.children, start, end)];
     });
 }
 
+const cutsPair = (nodes, start, end) => cutPairs(nodes, start, end).length > 0;
+
+const TABLE_PARTS = new Set(['table', 'tr', 'td', 'th']);
+
+// A selection an edit may replace: its ends not inside a tag or a code, and no pair cut in two.
+function replaceable(source, start, end) {
+    return !insideToken(source, start) && !insideToken(source, end) && (start === end || !cutsPair(buildDoc(source), start, end));
+}
+
 function replace(source, start, end, text) {
-    if (insideToken(source, start) || insideToken(source, end)) return null;
-    if (start !== end && cutsPair(buildDoc(source), start, end)) return null;
+    if (!replaceable(source, start, end)) return null;
     const result = source.slice(0, start) + text + source.slice(end);
     if (!keepsWhole(source, result)) return null;
 
@@ -151,13 +159,53 @@ export function usableAddress(address) {
 }
 
 /**
- * Text typed or pasted over the selection, the cursor after it. Refused when the selection cuts through a section, a tag
- * or a table, which would leave half of it behind.
+ * Text typed or pasted over the selection, the cursor after it, as typing over it in the browser does: the ends of
+ * formatting the selection cuts in two stay, so bold that ran into the selection still ends. Refused when it cuts a
+ * condition or a table in two, which would leave half of it behind. What is pasted goes in as it is, so a pasted "[b]"
+ * shows as the code it is, as it would in the Source tab.
  *
  * @returns {Edited | null}
  */
 export function insertText(source, start, end, text) {
-    return replace(source, start, end, text);
+    if (insideToken(source, start) || insideToken(source, end)) return null;
+    const cut = cutPairs(buildDoc(source), start, end);
+    if (cut.some((node) => node.type === 'section' || TABLE_PARTS.has(node.name))) return null;
+
+    const kept = cut
+        .flatMap((node) => [
+            [node.start, node.openEnd],
+            [node.closeStart, node.end],
+        ])
+        .filter(([from, to]) => from >= start && to <= end)
+        .sort(([a], [b]) => a - b)
+        .map(([from, to]) => source.slice(from, to))
+        .join('');
+    const caret = start + text.length;
+
+    return { source: source.slice(0, start) + text + kept + source.slice(end), start: caret, end: caret };
+}
+
+/**
+ * A place in the template as the Source tab counts it, and back. A textarea reads a Windows line end ("\r\n") as one
+ * character, so past each one the two counts differ by one.
+ */
+export function toFieldOffset(source, place) {
+    let crlf = 0;
+    for (let index = source.indexOf('\r\n'); index !== -1 && index + 1 < place; index = source.indexOf('\r\n', index + 2)) crlf++;
+
+    return place - crlf;
+}
+
+/** The inverse of {@link toFieldOffset}. */
+export function toSourceOffset(source, place) {
+    let field = 0;
+    let index = 0;
+    while (index < source.length && field < place) {
+        index += source.startsWith('\r\n', index) ? 2 : 1;
+        field++;
+    }
+
+    return index;
 }
 
 /**

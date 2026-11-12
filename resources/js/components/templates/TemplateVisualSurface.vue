@@ -39,7 +39,17 @@ watch(
     },
 );
 
+// An edit the surface refused that the browser made anyway (a phone keyboard's, which cannot be stopped): the next input
+// puts the page back as the template still is.
+let undoNextInput = false;
+
 function read() {
+    if (undoNextInput) {
+        undoNextInput = false;
+        draw(shown);
+
+        return;
+    }
     const { source } = readDom(root.value);
     const changed = source !== shown;
     if (hasLoneEdge(root.value) || hasForeignMarkup(root.value)) {
@@ -98,6 +108,7 @@ function onBeforeinput(event) {
     const range = selected?.rangeCount ? selected.getRangeAt(0) : null;
     if (OVER_SELECTION.test(type) && range && root.value.contains(range.commonAncestorContainer) && crossesStructure(range)) {
         event.preventDefault();
+        if (!event.cancelable) undoNextInput = true;
         emit('refused');
     } else if (type.startsWith('format')) {
         event.preventDefault();
@@ -115,6 +126,19 @@ function onPaste(event) {
     // A paste with no text (an image, say) puts nothing in and takes nothing out.
     const text = event.clipboardData?.getData('text/plain') ?? '';
     if (text !== '') emit('insert', text);
+}
+
+// Copy and cut carry the template as written, codes and all, so a line moved by cut and paste keeps its codes rather
+// than turning them into the chips' names. A cut that would break the structure copies but takes nothing out.
+function onCopy(event, cutting = false) {
+    const place = selection();
+    if (!place || place.start === place.end || !event.clipboardData) return;
+    event.preventDefault();
+    event.clipboardData.setData('text/plain', shown.slice(place.start, place.end));
+    if (!cutting) return;
+    const range = document.getSelection().getRangeAt(0);
+    if (crossesStructure(range)) emit('refused');
+    else emit('insert', '');
 }
 
 function onDrop(event) {
@@ -139,6 +163,8 @@ defineExpose({ selection, select, focus: () => root.value?.focus() });
         @keydown="onKeydown"
         @beforeinput="onBeforeinput"
         @paste="onPaste"
+        @copy="(event) => onCopy(event)"
+        @cut="(event) => onCopy(event, true)"
         @drop="onDrop"
     />
 </template>

@@ -355,6 +355,62 @@ describe('what the browser would do its own way', () => {
         expect(inside.defaultPrevented).toBe(false);
     });
 
+    it('leaves deleting everything to the browser, loop and conditions included', async () => {
+        editor(STARTER);
+        await selectVisual(0, STARTER.length);
+        const all = before('deleteContentBackward');
+        surface().dispatchEvent(all);
+
+        expect(all.defaultPrevented).toBe(false);
+    });
+
+    it('puts the page back when a phone keyboard makes an edit the surface refused and could not stop', async () => {
+        editor('[TABLE][TR][TD]one[/TD][TD]two[/TD][/TR][/TABLE]');
+        await selectVisual(16, 27);
+        surface().dispatchEvent(new InputEvent('beforeinput', { inputType: 'insertCompositionText', bubbles: true, cancelable: false }));
+        surface().querySelector('td').firstChild.data = 'oX';
+        surface().querySelectorAll('td')[1].firstChild.data = '';
+        surface().dispatchEvent(new Event('input'));
+        await nextTick();
+
+        expect(changes()).toHaveLength(0);
+        expect([...surface().querySelectorAll('td')].map((cell) => cell.textContent)).toEqual(['one', 'two']);
+        expect(wrapper.get('[data-testid="template-refusal"]').text()).toContain('into another cell');
+    });
+
+    it('copies the template as written, so the codes survive a cut and paste', async () => {
+        editor('a {{#rc_yes}}Y{{/rc_yes}} {{name}} b');
+        await selectVisual(2, 33);
+        const stored = {};
+        const copy = new Event('copy', { bubbles: true, cancelable: true });
+        copy.clipboardData = { setData: (type, value) => (stored[type] = value) };
+        surface().dispatchEvent(copy);
+
+        expect(copy.defaultPrevented).toBe(true);
+        expect(stored['text/plain']).toBe('{{#rc_yes}}Y{{/rc_yes}} {{name}}');
+    });
+
+    it('cuts the selection out as the template has it', async () => {
+        editor('a {{name}} b');
+        await selectVisual(2, 10);
+        const cut = new Event('cut', { bubbles: true, cancelable: true });
+        cut.clipboardData = { setData: () => {} };
+        surface().dispatchEvent(cut);
+        await flushPromises();
+
+        expect(wrapper.props('modelValue')).toBe('a  b');
+    });
+
+    it('does not put Enter in at an old place when it cannot read the cursor', async () => {
+        editor('ab');
+        document.getSelection().removeAllRanges();
+        surface().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+        await flushPromises();
+
+        expect(changes()).toHaveLength(0);
+        expect(wrapper.get('[data-testid="template-refusal"]').text()).toContain('Click where the text should go');
+    });
+
     it('does not let the browser format text the template would not have', () => {
         editor('ab');
         const event = before('formatBold');
@@ -417,6 +473,44 @@ describe('undo', () => {
         await wrapper.setProps({ modelValue: 'Xb' });
         await undo();
         expect(wrapper.props('modelValue')).toBe('X');
+    });
+});
+
+describe('Windows line ends', () => {
+    const body = 'one\r\ntwo\r\n{{#troopers}}x{{/troopers}}\r\nafter';
+
+    it('offers the codes for where the Source tab\'s cursor really is', async () => {
+        editor(body);
+        await openMode('source');
+        const place = 'one\ntwo\n{{#troopers}}x{{/troopers}}\na'.length;
+        source().focus();
+        source().setSelectionRange(place, place);
+        source().dispatchEvent(new Event('select'));
+        await wrapper.get('[data-testid="tool-code"]').trigger('click');
+        await flushPromises();
+
+        expect(document.querySelector('[data-testid="code-pick-troopers"]')).not.toBeNull();
+        expect(document.querySelector('[data-testid="code-pick-name"]')).toBeNull();
+    });
+
+    it('carries a selection from the visual mode to the same text in the Source tab', async () => {
+        editor(body);
+        await selectVisual(body.indexOf('two'), body.indexOf('two') + 3);
+        await openMode('source');
+
+        expect(source().value.slice(source().selectionStart, source().selectionEnd)).toBe('two');
+    });
+});
+
+describe('opening another template', () => {
+    it('puts the cursor at its end, not where it was in the one before', async () => {
+        editor('a long first template', { historyKey: 'a' });
+        await selectVisual(2, 6);
+        await wrapper.setProps({ historyKey: 'b', modelValue: 'b' });
+        await wrapper.get('[data-testid="tool-table"]').trigger('click');
+        await flushPromises();
+
+        expect(wrapper.props('modelValue').startsWith('b[TABLE]')).toBe(true);
     });
 });
 

@@ -276,9 +276,13 @@ export function crossesStructure(range) {
     if (range.collapsed) return false;
     const root = range.commonAncestorContainer;
     const scope = root.nodeType === ELEMENT ? root : root.parentElement;
-    // An end the selection could reach is inside the element holding both its ends.
-    if ([...scope.querySelectorAll('[data-edge]')].some((edge) => range.intersectsNode(edge))) return true;
+    // A section the selection takes one end of and not the other; taking both (a whole condition, everything) is fine.
+    const pairs = new Set([...scope.querySelectorAll('[data-edge]')].map((edge) => edge.closest('[data-pair]')));
+    const halfTaken = (pair) => [...pair.children].filter((child) => child.dataset.edge && range.intersectsNode(child)).length === 1;
+    if ([...pairs].some(halfTaken)) return true;
 
+    // From one cell into another, or between a cell and outside its table. A selection taking a whole table starts and
+    // ends outside every cell, so it is not refused.
     const cellOf = (node) => (node.nodeType === ELEMENT ? node : node.parentElement)?.closest('td, th') ?? null;
 
     return cellOf(range.startContainer) !== cellOf(range.endContainer);

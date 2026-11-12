@@ -166,6 +166,19 @@ describe('reading back what the leader changed', () => {
         expect(crossesStructure(range(bold, 1, root.lastChild, 2))).toBe(false);
     });
 
+    it('lets a selection take a whole condition, a whole loop or everything', () => {
+        const root = surface(`a {{#rank_icon}}x{{/rank_icon}} b\n${STARTER}\nend`);
+        const pair = root.querySelector('[data-pair]');
+        const whole = document.createRange();
+        whole.selectNodeContents(root);
+        const condition = document.createRange();
+        condition.setStartBefore(pair);
+        condition.setEndAfter(pair);
+
+        expect(crossesStructure(whole)).toBe(false);
+        expect(crossesStructure(condition)).toBe(false);
+    });
+
     it('knows when the browser has added formatting of its own, which the template does not have', () => {
         const root = surface('[B]a[/B] {{unit}} [TABLE][TR][TD]x[/TD][/TR][/TABLE] {{#troopers}}y{{/troopers}}');
         expect(hasForeignMarkup(root)).toBe(false);

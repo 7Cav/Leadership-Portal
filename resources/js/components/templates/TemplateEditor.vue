@@ -26,7 +26,7 @@ import TemplateVisualSurface from '@/components/templates/TemplateVisualSurface.
 import { parse, templateLegend } from '@/lib/bbcode';
 import { SIZES, bbcodeElement } from '@/lib/bbcodeRender';
 import { contextAt } from '@/lib/templateDoc';
-import { addColumn, insertCode, insertImage, insertLink, insertTable, insertText, removeColumn, setOption, toggleTag, usableAddress } from '@/lib/templateEdits';
+import { addColumn, insertCode, insertImage, insertLink, insertTable, insertText, removeColumn, setOption, toFieldOffset, toSourceOffset, toggleTag, usableAddress } from '@/lib/templateEdits';
 
 // The rollcall template editor (#704): a visual mode where a leader formats text and builds the trooper table without
 // writing BBCode or codes, and a Source tab with the template as written, for whoever prefers it. Both edit the same
@@ -70,16 +70,21 @@ const sourceField = ref(null);
 const field = () => sourceField.value?.$el ?? null;
 
 // The last selection in either mode, as offsets in the template. A toolbar button or a popover takes the focus, so the
-// selection is kept as it changes rather than read when the button is used.
+// selection is kept as it changes rather than read when the button is used. The Source tab counts a Windows line end as
+// one character (`toFieldOffset`), so its selection is turned into the template's count here, and back where it is used.
 const saved = ref({ start: props.modelValue.length, end: props.modelValue.length });
 function remember() {
     if (mode.value === 'visual') {
         const place = surface.value?.selection();
         if (place) saved.value = place;
     } else if (document.activeElement === field()) {
-        saved.value = { start: field().selectionStart, end: field().selectionEnd };
+        saved.value = { start: fromField(field().selectionStart), end: fromField(field().selectionEnd) };
     }
 }
+// Only where the Source tab's text really counts differently from the template's.
+const counted = () => field() !== null && field().value !== props.modelValue;
+const inField = (place) => (counted() ? toFieldOffset(props.modelValue, place) : place);
+const fromField = (place) => (counted() ? toSourceOffset(props.modelValue, place) : place);
 onMounted(() => document.addEventListener('selectionchange', remember));
 onBeforeUnmount(() => document.removeEventListener('selectionchange', remember));
 
@@ -103,11 +108,14 @@ let opening = false;
 watch(
     () => [props.historyKey, props.modelValue],
     ([nowKey, now], [, before]) => {
+        refusal.value = null;
         if (nowKey !== key) {
             key = nowKey;
             past.length = 0;
             future.length = 0;
             restored = null;
+            // The cursor of the template before means nothing in this one.
+            saved.value = { start: now.length, end: now.length };
             // Text that arrives a moment after the key is the template opening, not an edit.
             opening = true;
             setTimeout(() => {
@@ -201,8 +209,8 @@ async function put({ source, start, end }) {
 function run(edit, refused) {
     if (props.disabled) return false;
     const text = editedText();
-    const start = Math.min(saved.value.start, text.length);
-    const end = Math.min(saved.value.end, text.length);
+    const { start: from, end: to } = clamp(saved.value);
+    const [start, end] = text === props.modelValue ? [from, to] : [inField(from), inField(to)];
     const result = edit(text, start, end);
     if (!result) {
         refusal.value = typeof refused === 'function' ? refused(text, start, end) : refused;
@@ -260,7 +268,8 @@ const CUT = 'Put the cursor in plain text, not in the middle of a code, a tag or
 const linkOpen = ref(false);
 const linkAddress = ref('');
 function link() {
-    if (run((source, start, end) => insertLink(source, start, end, linkAddress.value), usableAddress(linkAddress.value) ? CROSSING : BAD_ADDRESS)) {
+    const refused = (_source, start, end) => (!usableAddress(linkAddress.value) ? BAD_ADDRESS : start === end ? CUT : CROSSING);
+    if (run((source, start, end) => insertLink(source, start, end, linkAddress.value), refused)) {
         linkOpen.value = false;
         linkAddress.value = '';
     }
@@ -269,7 +278,7 @@ function link() {
 const imageOpen = ref(false);
 const imageAddress = ref('');
 function image(address) {
-    const isCode = /^\{\{[a-z_]+\}\}$/.test(address);
+    const isCode = /^\{\{[a-z_]+\}\}$/.test(String(address).trim());
     if (run((source, start, end) => insertImage(source, start, end, address), isCode || usableAddress(address) ? CUT : BAD_ADDRESS)) {
         imageOpen.value = false;
         imageAddress.value = '';
@@ -287,7 +296,14 @@ watch([colorOpen, linkOpen, imageOpen], (open) => {
 // Enter and a paste in the visual mode, made as checked edits like the toolbar's.
 const SELECTION_CUTS = 'That selection reaches over a condition\'s end or into another cell. Select inside one line or cell, or change it in Source.';
 const typed = (text) => {
-    remember();
+    // Made where the cursor is now, never where it last was: with no cursor to read, nothing goes in.
+    const place = surface.value?.selection();
+    if (!place) {
+        refusal.value = 'Click where the text should go, then try again.';
+
+        return;
+    }
+    saved.value = place;
     run((source, start, end) => insertText(source, start, end, text), SELECTION_CUTS);
 };
 // Typing or deleting over such a selection, which the surface refused before the browser made it.
@@ -375,7 +391,7 @@ async function showProblem() {
     await nextTick();
     await nextTick();
     field()?.focus();
-    field()?.setSelectionRange(at, at + length);
+    field()?.setSelectionRange(inField(at), inField(at + length));
 }
 
 // Switching to the Source tab carries the selection across without taking the focus from the tabs, so a keyboard user
@@ -384,7 +400,7 @@ watch(mode, async (value) => {
     if (value !== 'source') return;
     const { start, end } = clamp(saved.value);
     await nextTick();
-    field()?.setSelectionRange(start, end);
+    field()?.setSelectionRange(inField(start), inField(end));
 });
 
 defineExpose({ insert });

@@ -204,3 +204,26 @@ test('in the Source tab the toolbar edits through the browser, so Ctrl+Z takes i
     await page.keyboard.press('ControlOrMeta+z');
     await expect(body).toHaveValue('aa bb aa\nsecond line');
 });
+
+test('a line cut and pasted in the visual mode keeps its codes', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await open(page);
+    await write(page, 'First {{unit}} line\nSecond line');
+
+    await page.getByTestId('template-visual').evaluate((root) => {
+        root.focus();
+        const range = document.createRange();
+        range.setStart(root.firstChild, 0);
+        range.setEnd(root.lastChild, root.lastChild.data.indexOf('Second'));
+        document.getSelection().removeAllRanges();
+        document.getSelection().addRange(range);
+    });
+    await page.keyboard.press('ControlOrMeta+x');
+    await caretAtEnd(page);
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('ControlOrMeta+v');
+
+    await expect(page.getByTestId('template-visual').getByRole('img', { name: 'Callsign, template code {{unit}}' })).toBeVisible();
+    await page.getByTestId('template-mode-source').click();
+    await expect(page.getByTestId('template-body')).toHaveValue('Second line\nFirst {{unit}} line\n');
+});

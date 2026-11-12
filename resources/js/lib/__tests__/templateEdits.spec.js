@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addColumn, insertCode, insertImage, insertLink, insertTable, insertText, removeColumn, setOption, toggleTag, usableAddress } from '../templateEdits';
+import { addColumn, insertCode, insertImage, insertLink, insertTable, insertText, removeColumn, setOption, toFieldOffset, toSourceOffset, toggleTag, usableAddress } from '../templateEdits';
 import { parse } from '../bbcode';
 import { STARTER } from './templateStarter';
 
@@ -94,10 +94,31 @@ describe('typing and pasting over a selection', () => {
         expect(insertText('a xx b', 2, 4, 'yy')).toEqual({ source: 'a yy b', start: 4, end: 4 });
     });
 
-    it('refuses a selection that cuts through a section, a tag or a table, rather than leave half of it', () => {
+    it('puts pasted text in as it is, even a code or tag with no partner', () => {
+        expect(insertText('ab', 1, 1, 'Use [b] for bold')).toEqual({ source: 'aUse [b] for boldb', start: 17, end: 17 });
+    });
+
+    it('counts a place the way the Source tab does, where a Windows line end is one character, and back', () => {
+        const source = 'a\r\nb\r\nc';
+
+        expect([0, 1, 3, 4, 6, 7].map((place) => toFieldOffset(source, place))).toEqual([0, 1, 2, 3, 4, 5]);
+        expect([0, 1, 2, 3, 4, 5].map((place) => toSourceOffset(source, place))).toEqual([0, 1, 3, 4, 6, 7]);
+        expect(toFieldOffset('plain', 3)).toBe(3);
+    });
+
+    it('refuses a selection that cuts through a condition or a table, rather than leave half of it', () => {
         expect(insertText('{{#rc_yes}}Yes{{/rc_yes}} done', 12, 28, '\n')).toBeNull();
-        expect(insertText('[B]bold[/B] after', 4, 14, 'x')).toBeNull();
         expect(insertText('[TABLE][TR][TD]a[/TD][TD]b[/TD][/TR][/TABLE]', 15, 25, 'x')).toBeNull();
+    });
+
+    it('keeps the ends of formatting the selection cuts in two, as typing over it in the browser does', () => {
+        expect(insertText('[B]bold[/B] after', 4, 14, 'x')).toEqual({ source: '[B]bx[/B]ter', start: 5, end: 5 });
+        expect(insertText('before [I]it[/I]', 3, 11, '')).toEqual({ source: 'bef[I]t[/I]', start: 3, end: 3 });
+    });
+
+    it('takes a whole condition or everything when the selection holds all of it', () => {
+        expect(insertText('a {{#rc_yes}}Y{{/rc_yes}} b', 2, 25, 'x')).toEqual({ source: 'a x b', start: 3, end: 3 });
+        expect(insertText(STARTER, 0, STARTER.length, '')).toEqual({ source: '', start: 0, end: 0 });
     });
 });
 
