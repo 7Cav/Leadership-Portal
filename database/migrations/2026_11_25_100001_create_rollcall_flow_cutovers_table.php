@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -24,7 +25,7 @@ return new class extends Migration
         $now = CarbonImmutable::now('UTC');
 
         DB::table('rollcall_flow_cutovers')->insert([
-            'first_week' => $now->next(CarbonImmutable::SATURDAY)->toDateString(),
+            'first_week' => WeekOf::next(WeekOf::start($now))->toDateString(),
             'created_at' => $now,
             'updated_at' => $now,
         ]);
