@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffPracticeAccess;
+use App\Authorization\StaffReportAccess;
 use App\Commands\Capture\AutomaticAttendance;
 use App\Commands\Practices\PracticeSchedule;
 use App\Commands\Practices\PresenceMinimum;
@@ -19,6 +20,7 @@ use App\Kpi\Ratio;
 use App\Kpi\StrengthTrends;
 use App\Kpi\TrooperAttendance;
 use App\Kpi\UnitKpis;
+use App\Loa\LoaCoverage;
 use App\Loa\LoaProvenance;
 use App\Loa\LoaSyncProblems;
 use App\Loa\UpcomingLeave;
@@ -26,6 +28,7 @@ use App\Milpac\BilletTags;
 use App\Milpac\PlacementHistory;
 use App\Milpac\RosterProvenance;
 use App\Milpac\StaffPracticeHistory;
+use App\Milpac\StaffReportWeeks;
 use App\Models\SyncRun;
 use App\Models\Trooper;
 use App\Models\Unit;
@@ -97,6 +100,9 @@ class RosterController extends Controller
         private readonly MissingGameIdentities $missingIdentities,
         private readonly AutomaticAttendance $automatic,
         private readonly TrooperPlacementRepository $placements,
+        private readonly StaffReportWeeks $staffReportWeeks,
+        private readonly StaffReportAccess $staffReports,
+        private readonly LoaCoverage $loaCoverage,
     ) {}
 
     /**
@@ -134,7 +140,7 @@ class RosterController extends Controller
         $accountability = $selected ? $this->accountability->props($user, $selected) : null;
         $editsAccountability = $accountability !== null && $accountability['canEdit'];
 
-        $roster = $selected ? $this->roster($selected, $week, $shown) : ['units' => [], 'troopers' => []];
+        $roster = $selected ? $this->roster($user, $selected, $week, $shown) : ['units' => [], 'troopers' => []];
         $missingSlots = $selected !== null && $this->scope->leads($user)
             ? $this->sectionsWithoutSlot->among(array_column($roster['units'], 'id'))
             : [];
@@ -231,7 +237,9 @@ class RosterController extends Controller
         $marks = $this->historyMarks($section, $week)->get($found->id, collect());
         // The unit's lead as its roster header names it, acting leads included, and the trooper's own billet tag (#443).
         $lead = $this->leads->leadsOf([$section->id])->get($section->id);
-        $row = $this->trooperRow($found, $kpis, $marks, $week, $this->billetTags->of(collect([$found]))->get($found->id), $this->excusedWeeks([$found->id], $week)[$found->id] ?? [], $this->inSectionWeeks([$found->id], $week)[$found->id] ?? null);
+        $inSection = $this->inSectionWeeks([$found->id], $week);
+        $staff = $this->staffWeeks($request->user(), collect([$found->id => $found]), $inSection, collect([$found->id => $marks]), $week);
+        $row = $this->trooperRow($found, $kpis, $marks, $week, $this->billetTags->of(collect([$found]))->get($found->id), $this->excusedWeeks([$found->id], $week)[$found->id] ?? [], $inSection[$found->id] ?? null, $staff[$found->id] ?? null);
         // Each week's section by name, for the weeks they were somewhere else (2026-10-27).
         $labels = $marks->pluck('sectionId')->filter()->unique()
             ->mapWithKeys(fn (int $id) => [$id => ($unit = $this->units->find($id)) === null ? null : ($unit->callsign ?? $unit->name)]);
@@ -320,7 +328,7 @@ class RosterController extends Controller
      * @param  Collection<int, Unit>  $shown  the tree without its empty line units (#442)
      * @return array{units: list<array<string, mixed>>, troopers: list<array<string, mixed>>}
      */
-    private function roster(Unit $unit, CarbonImmutable $week, Collection $shown): array
+    private function roster(User $user, Unit $unit, CarbonImmutable $week, Collection $shown): array
     {
         $shownIds = $shown->pluck('id')->flip();
         $subtree = $this->depthFirst(
@@ -332,6 +340,7 @@ class RosterController extends Controller
         $marks = $this->historyMarks($unit, $week);
         $excused = $this->excusedWeeks($placed->modelKeys(), $week);
         $inSection = $this->inSectionWeeks($placed->modelKeys(), $week);
+        $staff = $this->staffWeeks($user, $placed->keyBy('id'), $inSection, $marks, $week);
         // The unit headers name the unit's lead, acting leads and portfolio officers included (2026-10-25); each
         // trooper's tag is the command billet they hold in their unit, or their acting lead (#443).
         $tags = $this->billetTags->of($placed);
@@ -378,6 +387,7 @@ class RosterController extends Controller
             $tags->get($t->id),
             $excused[$t->id] ?? [],
             $inSection[$t->id] ?? null,
+            $staff[$t->id] ?? null,
         ))->values()->all();
         // The game each serving trooper has no identity linked for, so the capture cannot see them; read-only.
         $missingGame = $this->missingIdentities->forTroopers($placed);
@@ -433,9 +443,10 @@ class RosterController extends Controller
     /**
      * @param  Collection<int, CountingMark>  $marks  this trooper's marks over the history window
      * @param  array<string, string>  $excused  their automatically excused history weeks ({@see AutoExcused})
+     * @param  array{weeks: list<?array<string, mixed>>, reports: ?array<string, int>}|null  $staff  their staff report weeks ({@see staffWeeks()})
      * @return array<string, mixed>
      */
-    private function trooperRow(Trooper $t, ?TrooperAttendance $kpis, Collection $marks, CarbonImmutable $week, ?string $role, array $excused = [], ?array $inSection = null): array
+    private function trooperRow(Trooper $t, ?TrooperAttendance $kpis, Collection $marks, CarbonImmutable $week, ?string $role, array $excused = [], ?array $inSection = null, ?array $staff = null): array
     {
         $byWeek = $marks->keyBy(fn (CountingMark $m) => $m->weekStart->toDateString());
 
@@ -492,7 +503,79 @@ class RosterController extends Controller
             // Per history week, oldest first, whether they were placed in a section (#623): false on HQ staff or in a
             // group, so a week with no mark reads "No section that week" rather than unsigned. Null when unknown.
             'inSection' => $inSection,
+            // Per history week, oldest first, a line HQ staff member's staff report for a week they were on a platoon,
+            // company or battalion HQ and on no section's roll call ({@see StaffReportWeeks}), else null. Null when
+            // they had no such week.
+            'staffWeeks' => $staff['weeks'] ?? null,
+            // Their staff reports over the KPI window's finished weeks, `{met, due, weeks}`, beside RC and SP 30d.
+            'staffReports' => $staff['reports'] ?? null,
         ];
+    }
+
+    /**
+     * The staff report weeks ({@see StaffReportWeeks}) of the troopers who spent a history week out of every section
+     * (`$inSection` false) on a platoon, company or battalion HQ, the HQs that file one ({@see StaffReportAccess::filesFrom()}),
+     * leaving out a week with a roll call mark: that week they were on a section's roll call. Regiment HQ, staff
+     * departments and groups (ELOA, Reservists) file none, so their weeks stay "No section that week". What each
+     * report answered is sent only where the viewer reads it ({@see StaffReportAccess::mayRead()}: their own, the
+     * chain above the HQ, Admins); the week's state shows to anyone who sees the row. A week before they joined, and
+     * their week of leaving and after, are left out as the cell reads them. A fixed number of queries.
+     *
+     * @param  Collection<int, Trooper>  $troopers  by id
+     * @param  array<int, list<bool>>  $inSection
+     * @param  Collection<int, Collection<int, CountingMark>>  $marks
+     * @return array<int, array{weeks: list<?array<string, mixed>>, reports: ?array<string, int>}>
+     */
+    private function staffWeeks(User $user, Collection $troopers, array $inSection, Collection $marks, CarbonImmutable $week): array
+    {
+        $weeks = $this->weeks($week);
+        $ids = array_keys(array_filter($inSection, fn (array $byWeek) => in_array(false, $byWeek, true)));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $tree = $this->units->tree()->keyBy('id');
+        $hqWeeks = [];
+
+        foreach ($this->placements->unitsOfTroopersByWeek($ids, $week->subWeeks(self::HISTORY_WEEKS - 1), $week) as $trooperId => $byWeek) {
+            $marked = $marks->get($trooperId, collect())->keyBy(fn (CountingMark $m) => $m->weekStart->toDateString());
+            $trooper = $troopers->get($trooperId);
+            $joined = $trooper?->tis?->toDateString();
+            $left = $trooper === null || $trooper->status->isServing() ? null : WeekOf::start($trooper->departed_at ?? $week)->toDateString();
+
+            foreach ($byWeek as $date => $unitId) {
+                $unit = $tree->get($unitId);
+                $i = array_search($date, $weeks, true);
+                $served = ($joined === null || CarbonImmutable::parse($date, 'UTC')->addDays(6)->toDateString() >= $joined) && ($left === null || $date < $left);
+
+                if ($unit !== null && StaffReportAccess::filesFrom($unit) && $i !== false && $served && ($inSection[$trooperId][$i] ?? true) === false && ! $marked->has($date)) {
+                    $hqWeeks[$trooperId][$date] = $unitId;
+                }
+            }
+        }
+
+        if ($hqWeeks === []) {
+            return [];
+        }
+
+        $onLeave = array_map(
+            fn (array $covers) => array_map(fn ($cover) => $cover->isCovered(), $covers),
+            $this->loaCoverage->forTroopersOverWeeks(array_keys($hqWeeks), $week->subWeeks(self::HISTORY_WEEKS - 1), self::HISTORY_WEEKS),
+        );
+        $labels = $tree->toBase()->only(array_unique(array_merge(...array_map('array_values', array_values($hqWeeks)))))
+            ->map(fn (Unit $unit) => $unit->callsign ?? $unit->name)->all();
+        $readable = $this->staffReports->readableHqs($user)->pluck('id')->flip();
+        $own = $this->staffReports->ownTrooper($user)?->id;
+
+        return $this->staffReportWeeks->forWeeks(
+            $hqWeeks,
+            $onLeave,
+            $weeks,
+            $labels,
+            fn (int $trooperId, int $hqId) => $trooperId === $own || $readable->has($hqId),
+            KpiService::WINDOW_WEEKS,
+        );
     }
 
     /**

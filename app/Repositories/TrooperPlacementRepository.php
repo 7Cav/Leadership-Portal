@@ -164,6 +164,19 @@ interface TrooperPlacementRepository
     public function unitOfEachTrooperByWeek(CarbonInterface $firstWeek, CarbonInterface $lastWeek): array;
 
     /**
+     * {@see unitOfEachTrooperByWeek()} for the troopers `$trooperIds` only, by trooper: where each ended each Cav week
+     * from `$firstWeek` to `$lastWeek`, the section they ended it in or else the last other unit (HQ staff, a group)
+     * they were in during it. A week they were placed nowhere is absent, and so is a trooper placed nowhere now. Read
+     * as {@see sectionsByWeek()} reads the history, so the two agree. One query, however many troopers and weeks.
+     *
+     * @param  list<int>  $trooperIds
+     * @return array<int, array<string, int>> trooper id => week start (Y-m-d) => unit id
+     *
+     * @throws InvalidArgumentException when either bound is not a Saturday 00:00 UTC.
+     */
+    public function unitsOfTroopersByWeek(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek): array;
+
+    /**
      * Which of `$trooperIds` moved out of `$unitId` from `$from` up to (not including) `$until`, and were not back in
      * it by `$until`: their last placement row there closed in that span. One who left and came back inside the span,
      * or is still placed there, is not among them. One query. Read for the weekly report's suggested reason ("moved
