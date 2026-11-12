@@ -135,17 +135,17 @@ it('asks for an answer for Demo.K, and ticks it only once that answer is not Uns
         ->and(strtolower($before['body']))->not->toContain('unsigned')
         ->and($before['body'])->toContain('has not answered the roll call yet')
         ->and($before['body'])->toContain('Will attend')
-        ->and($before['checklist'][1])->toBe(['label' => 'Pick an answer for SPC Demo.K', 'done' => false]);
+        ->and($before['checklist'][3])->toBe(['label' => 'Pick an answer for SPC Demo.K', 'done' => false]);
 
     $sign = fn (string $answer) => $this->postJson("/rollcall/{$section}", ['week' => $week, 'marks' => [['trooper_id' => $demo, 'rollcall' => $answer]]])->assertOk();
 
     // Any answer but Unsigned ticks it, Excused too, and going back to Unsigned opens it again.
     $sign('will_attend');
-    expect($step()['checklist'][1]['done'])->toBeTrue();
+    expect($step()['checklist'][3]['done'])->toBeTrue();
     $sign('unsigned');
-    expect($step()['checklist'][1]['done'])->toBeFalse();
+    expect($step()['checklist'][3]['done'])->toBeFalse();
     $sign('excused');
-    expect($step()['checklist'][1]['done'])->toBeTrue();
+    expect($step()['checklist'][3]['done'])->toBeTrue();
 });
 
 it('points at each roll call step in turn: its tab while another step is open, then what to do on it', function () {
