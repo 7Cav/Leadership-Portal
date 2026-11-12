@@ -2,6 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Commands\Attendance\CreateRollcall;
+use App\Commands\Attendance\CreateRollcallForbiddenException;
+use App\Commands\Attendance\CreateRollcallHandler;
+use App\Commands\Attendance\CreateRollcallRefusedException;
+use App\Commands\Attendance\InvalidAttendanceMarkException;
+use App\Commands\Attendance\RollcallWeekLockedException;
+use App\Commands\Practices\InvalidPracticeSlotException;
+use App\Commands\Practices\PracticeSchedule;
 use App\Commands\WeeklyReports\InvalidReportContentException;
 use App\Commands\WeeklyReports\SendWeeklyReportForbiddenException;
 use App\Commands\WeeklyReports\SetSectionTrainingSubject;
@@ -17,17 +25,74 @@ use Illuminate\Support\Facades\Validator;
 use Throwable;
 
 /**
- * The week's training on a section's roll call (#703): its topic, which is the weekly report's training subject. Each
- * write is an audited Command gated by the section's write scope (AD-8); a view-as preview is refused before it gets
- * here (`ReadOnlyWhileViewingAs`). Answers JSON with the `training` prop as it now stands, so the page takes the
- * server's word: 403 outside scope, 422 for a value that cannot be saved, 409 with `locked` for a sent week (AD-12).
+ * The roll call's weekly cycle (#703): creating a week's roll call with its training date and topic, and the topic on
+ * its own, which is the weekly report's training subject. Each write is an audited Command gated by the section's
+ * write scope (AD-8); a view-as preview is refused before it gets here (`ReadOnlyWhileViewingAs`). Answers JSON with
+ * the props it changed as they now stand, so the page takes the server's word: 403 outside scope, 422 for a value that
+ * cannot be saved, 409 with `locked` for a sent week (AD-12).
  */
 class RollcallTrainingController extends Controller
 {
     public function __construct(
         private readonly RollcallCycleProps $cycle,
         private readonly UnitRepository $units,
+        private readonly PracticeSchedule $schedule,
     ) {}
+
+    /**
+     * Create the week's roll call (flow 2). Answers the `flow`, `training` and `practiceSlot` props as they now stand.
+     */
+    public function create(Request $request, int $unit, CreateRollcallHandler $handler): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'week' => ['required', 'date_format:Y-m-d'],
+            // An ISO 8601 instant in the week; the page sends it in Zulu. Null keeps the slot's time.
+            'moved_to' => ['nullable', 'date'],
+            'cancelled' => ['sometimes', 'boolean'],
+            // Null leaves the topic as it is (the platoon enforces it, or nothing was typed).
+            'subject' => ['nullable', 'string', 'max:255'],
+        ], ['subject.max' => 'Keep the training topic to :max characters.']);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => $validator->errors()->first()], 422);
+        }
+
+        $weekStart = WeekOf::start(CarbonImmutable::createFromFormat('!Y-m-d', $request->input('week'), 'UTC'));
+
+        if ($weekStart->greaterThan(WeekOf::start(CarbonImmutable::now()))) {
+            return response()->json(['message' => 'A future week cannot be created yet.'], 422);
+        }
+
+        try {
+            $handler->handle($request->user(), new CreateRollcall(
+                $unit,
+                $weekStart->toDateTimeImmutable(),
+                $request->filled('moved_to') ? CarbonImmutable::parse($request->input('moved_to'))->utc()->toDateTimeImmutable() : null,
+                $request->boolean('cancelled'),
+                $request->has('subject') ? (string) $request->input('subject') : null,
+            ));
+        } catch (CreateRollcallForbiddenException $e) {
+            return response()->json(['message' => $e->getMessage()], 403);
+        } catch (InvalidAttendanceMarkException|CreateRollcallRefusedException|InvalidPracticeSlotException|InvalidReportContentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (TrainingSubjectEnforcedException) {
+            return response()->json(['message' => "Your platoon set this week's training topic and locked it, so it cannot be changed here. Reload the page to see it."], 422);
+        } catch (RollcallWeekLockedException|WeeklyReportAlreadySentException) {
+            return response()->json(['message' => 'The report for this week has been sent, so its roll call is locked.', 'locked' => true], 409);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'The portal hit an error creating the roll call. Try again in a moment.'], 500);
+        }
+
+        $section = $this->units->find($unit);
+
+        return response()->json([
+            'flow' => $this->cycle->flow($section, $weekStart),
+            'training' => $this->cycle->training($section, $weekStart, true),
+            'practiceSlot' => $this->schedule->props($unit, $weekStart, null),
+        ]);
+    }
 
     public function topic(Request $request, int $unit, SetSectionTrainingSubjectHandler $handler): JsonResponse
     {

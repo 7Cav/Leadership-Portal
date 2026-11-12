@@ -235,7 +235,9 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // The section's practice slot and one week's move or cancellation (#392): audited Commands gated by write scope.
     Route::post('/rollcall/{unit}/slot', [RollcallPracticeSlotController::class, 'slot'])->middleware('throttle:audited-writes')->name('rollcall.slot');
     Route::post('/rollcall/{unit}/slot/week', [RollcallPracticeSlotController::class, 'week'])->middleware('throttle:audited-writes')->name('rollcall.slot.week');
-    // The week's training topic on the roll call (#703): the weekly report's training subject, one value.
+    // The roll call's weekly cycle (#703): create a week's roll call with its training date and topic (flow 2), and the
+    // topic on its own, which is the weekly report's training subject, one value.
+    Route::post('/rollcall/{unit}/create', [RollcallTrainingController::class, 'create'])->middleware('throttle:audited-writes')->name('rollcall.create');
     Route::post('/rollcall/{unit}/training-topic', [RollcallTrainingController::class, 'topic'])->middleware('throttle:audited-writes')->name('rollcall.training-topic');
     Route::post('/rollcall/{unit}/template', RollcallTemplateController::class)->middleware('throttle:audited-writes')->name('rollcall.template.pick');
 
