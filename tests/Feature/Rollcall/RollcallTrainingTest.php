@@ -170,3 +170,12 @@ it('refuses a reason for a trooper not on the roll call, a sent week, and a sect
     rtrNotes($this->leader, 'Changed')->assertStatus(409)->assertJson(['locked' => true]);
     expect(WeeklyReport::query()->sole()->notes)->toBe('Frozen');
 });
+
+it('keeps the topic as stored when the notes save, whatever subject the request might carry (#703)', function () {
+    rtrSet($this->leader, 'Saved first')->assertOk();
+    rtrNotes($this->leader, 'Notes.')->assertOk();
+    rtrSet($this->leader, 'Saved second')->assertOk();
+    rtrNotes($this->leader, 'More notes.')->assertOk();
+
+    expect(WeeklyReport::query()->sole())->training_subject->toBe('Saved second')->notes->toBe('More notes.');
+});

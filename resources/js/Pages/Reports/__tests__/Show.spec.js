@@ -662,6 +662,20 @@ describe('Reports/Show opened to send from the roll call (#703)', () => {
         expect(post.mock.calls.at(-1)[1].from).toBe('rollcall');
     });
 
+    it('counts a send as the page\'s once the dialog the roll call opened was closed, and handles ?send=1 once', async () => {
+        window.history.replaceState(null, '', '/reports/5/2026-10-03?send=1');
+        const wrapper = mountShow({ practice: { confirmed: true, held: true } });
+        await flushPromises();
+        expect(window.location.search).toBe('');
+
+        const dialog = wrapper.findComponent({ name: 'SendDialog' });
+        dialog.vm.$emit('update:open', false);
+        await flushPromises();
+        dialog.vm.$emit('confirm', 'Weekly report', []);
+
+        expect(post.mock.calls.at(-1)[1].from).toBe('report');
+    });
+
     it('records a send made on the report page as the page\'s', async () => {
         window.history.replaceState(null, '', '/reports/5/2026-10-03');
         const wrapper = mountShow({ practice: { confirmed: true, held: true } });

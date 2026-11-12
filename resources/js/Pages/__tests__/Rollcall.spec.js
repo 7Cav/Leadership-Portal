@@ -2435,8 +2435,74 @@ describe('Rollcall page: a week on each flow (#703)', () => {
         await vi.advanceTimersByTimeAsync(1000);
         await flushPromises();
 
-        expect(post).toHaveBeenCalledWith('/rollcall/12/report-notes', { week: '2026-10-03', notes: 'Good session.', unaccounted: [{ trooper_id: 2, reason: 'no_notice' }] });
+        expect(post).toHaveBeenCalledWith(
+            '/rollcall/12/report-notes',
+            { week: '2026-10-03', notes: 'Good session.', unaccounted: [{ trooper_id: 2, reason: 'no_notice' }] },
+            { keepalive: false },
+        );
         expect(visit).toHaveBeenCalledWith('/reports/12/2026-10-03?send=1');
+    });
+
+    describe('the close step\'s notes autosave', () => {
+        const DRAFT = { notes: null, unaccounted: [], reasons: [] };
+        const notesCalls = () => post.mock.calls.filter(([url]) => url === '/rollcall/12/report-notes');
+        const close = () => {
+            page.url = '/rollcall/12?step=4';
+
+            return cycle({ flow: CREATED, practice: { ...POSTED, confirmation: { at: '2026-10-08T10:00:00+00:00', by: 'Vasquez.R', held: true } }, reportDraft: DRAFT });
+        };
+
+        it('sends one save at a time, in order, the later one with the latest text', async () => {
+            vi.useFakeTimers();
+            let answer;
+            post.mockImplementation((url) => (url === '/rollcall/12/report-notes' ? new Promise((resolve) => (answer = resolve)) : Promise.resolve({ ok: true, status: 200, data: {} })));
+            const wrapper = close();
+
+            await wrapper.get('[data-testid="close-notes"]').setValue('First');
+            await vi.advanceTimersByTimeAsync(900);
+            expect(notesCalls()).toHaveLength(1);
+
+            // Typed again while the first save is on its way: the second waits for it, then sends what is on screen.
+            await wrapper.get('[data-testid="close-notes"]').setValue('Second, longer');
+            await vi.advanceTimersByTimeAsync(900);
+            expect(notesCalls()).toHaveLength(1);
+
+            answer({ ok: true, status: 200, data: { reportDraft: DRAFT } });
+            await flushPromises();
+            expect(notesCalls()).toHaveLength(2);
+            expect(notesCalls()[1][1].notes).toBe('Second, longer');
+        });
+
+        it('sends a change still waiting to save when the page is left', async () => {
+            vi.useFakeTimers();
+            post.mockResolvedValue({ ok: true, status: 200, data: { reportDraft: DRAFT } });
+            const wrapper = close();
+
+            await wrapper.get('[data-testid="close-notes"]').setValue('Typed just before leaving');
+            wrapper.unmount();
+            await flushPromises();
+
+            expect(notesCalls()).toHaveLength(1);
+            expect(notesCalls()[0][1].notes).toBe('Typed just before leaving');
+            expect(notesCalls()[0][2]).toEqual({ keepalive: true });
+        });
+
+        it('waits for a save already on its way before sending for review', async () => {
+            vi.useFakeTimers();
+            let answer;
+            post.mockImplementation((url) => (url === '/rollcall/12/report-notes' ? new Promise((resolve) => (answer = resolve)) : Promise.resolve({ ok: true, status: 200, data: {} })));
+            const wrapper = close();
+
+            await wrapper.get('[data-testid="close-notes"]').setValue('On its way');
+            await vi.advanceTimersByTimeAsync(900);
+            await wrapper.get('[data-testid="close-send"]').trigger('click');
+            await flushPromises();
+            expect(visit).not.toHaveBeenCalled();
+
+            answer({ ok: true, status: 200, data: { reportDraft: DRAFT } });
+            await flushPromises();
+            expect(visit).toHaveBeenCalledWith('/reports/12/2026-10-03?send=1');
+        });
     });
 
     it('opens a sent week on its closed last step, locked', () => {

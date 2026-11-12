@@ -674,35 +674,54 @@ const sendingForReview = ref(false);
 // A topic typed on the training card and not saved yet (#703): the send would freeze the old one.
 const trainingDirty = ref(false);
 
-// The report's notes and unaccounted reasons, written on the close step (#703): saved a moment after each change, and
-// before closing, as the report's own draft. A reload keeps what is still waiting to save.
+// The report's notes and unaccounted reasons, written on the close step (#703): saved a moment after each change, one
+// save at a time and in order (each sends what is on screen when it goes), on leaving the page, and before closing, as
+// the report's own draft. A reload never puts older text back over what is not saved yet.
 const reportDraft = ref(props.reportDraft ?? { notes: null, unaccounted: [], reasons: [] });
 let notesTimer = null;
+let notesDirty = false;
+let notesInFlight = null;
+const notesBusy = () => notesTimer !== null || notesDirty || notesInFlight !== null;
 watch(
     () => props.reportDraft,
     (value) => {
-        if (value && notesTimer === null) reportDraft.value = value;
+        if (value && !notesBusy()) reportDraft.value = value;
     },
 );
-onBeforeUnmount(() => clearTimeout(notesTimer));
+onBeforeUnmount(() => {
+    if (notesTimer !== null || notesDirty) saveNotes({ keepalive: true });
+});
 function onDraft(value) {
     reportDraft.value = value;
+    notesDirty = true;
     clearTimeout(notesTimer);
-    notesTimer = setTimeout(saveNotes, 800);
+    notesTimer = setTimeout(() => saveNotes(), 800);
 }
-async function saveNotes() {
+// Resolves whether everything typed so far is saved: waits for a save already on its way, then sends the latest.
+function saveNotes({ keepalive = false } = {}) {
     clearTimeout(notesTimer);
     notesTimer = null;
-    const { notes, unaccounted } = reportDraft.value;
-    const result = await postJson(`/rollcall/${props.section.id}/report-notes`, { week: props.week.date, notes: notes || null, unaccounted }).catch(unreachable);
-    if (!result.ok) {
+    const send = async (previous) => {
+        if (!notesDirty) return previous;
+        notesDirty = false;
+        const { notes, unaccounted } = reportDraft.value;
+        const result = await postJson(`/rollcall/${props.section.id}/report-notes`, { week: props.week.date, notes: notes || null, unaccounted }, { keepalive }).catch(
+            unreachable,
+        );
+        if (result.ok) return true;
+        notesDirty = true;
         toast.error('Could not save the notes', { description: messageFor(result) });
         if (result.status === 409 && result.data?.locked) router.reload();
 
         return false;
-    }
+    };
+    const run = (notesInFlight ?? Promise.resolve(true)).then(send);
+    notesInFlight = run;
+    run.finally(() => {
+        if (notesInFlight === run) notesInFlight = null;
+    });
 
-    return true;
+    return run;
 }
 
 async function sendForReview() {
@@ -713,8 +732,8 @@ async function sendForReview() {
     }
     sendingForReview.value = true;
     try {
-        // Notes still waiting to save go first: the send dialog shows what the report holds.
-        if (notesTimer !== null && !(await saveNotes())) return;
+        // Notes still waiting to save, or on their way, go first: the send dialog shows what the report holds.
+        if (notesBusy() && !(await saveNotes())) return;
         if (!(await commitHeld())) {
             toast.error('Changes are not saved yet', { description: autosave.error.value ?? autosave.lockedMessage.value });
 

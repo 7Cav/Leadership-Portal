@@ -317,15 +317,28 @@ function openSend() {
     dialogOpen.value = true;
 }
 
-// Where this send started, for counting how many reports are sent from the roll call (#703, the issue's success check).
-const sentFrom = new URLSearchParams(window.location.search).get('send') === '1' ? 'rollcall' : 'report';
+// Where this send started, for counting how many reports are sent from the roll call (#703, the issue's success check):
+// the dialog the roll call opened (`?send=1`) while it stays open, the report page otherwise. Closing that dialog makes
+// a later send the page's.
+const openedFromRollcall = ref(false);
+watch(dialogOpen, (open) => {
+    if (!open) openedFromRollcall.value = false;
+});
 
 // "Send for review" on the roll call (#703) lands here with `?send=1`: the send dialog opens at once, as "Send anyway"
 // would open it, so the leader sees exactly what freezes and answers the make-up checks. A report the send bar would
 // not open (sent, read-only, practice not confirmed, KPIs unavailable) stays as it is.
 onMounted(() => {
-    if (new URLSearchParams(window.location.search).get('send') !== '1') return;
-    if (!blocked.value && !readOnly.value && !props.kpiError) return openSend();
+    const query = new URLSearchParams(window.location.search);
+    if (query.get('send') !== '1') return;
+    // Handled once: a reload or Back does not open it again, or count as the roll call's.
+    query.delete('send');
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${query.size ? `?${query}` : ''}${window.location.hash}`);
+    if (!blocked.value && !readOnly.value && !props.kpiError) {
+        openedFromRollcall.value = true;
+
+        return openSend();
+    }
     // Arrived to send, but the report cannot go yet: say why instead of opening nothing.
     if (sent.value) return;
     toast.warning('This report cannot be sent yet', {
@@ -343,7 +356,7 @@ function confirmSend(reason, makeupChecks = []) {
     timer = null;
     sending.value = true;
     const again = editing.value;
-    router.post(`${baseUrl.value}/send`, { ...payload(), reason, makeup_checks: makeupChecks, from: sentFrom }, {
+    router.post(`${baseUrl.value}/send`, { ...payload(), reason, makeup_checks: makeupChecks, from: openedFromRollcall.value ? 'rollcall' : 'report' }, {
         preserveScroll: true,
         onSuccess: () => {
             dialogOpen.value = false;
