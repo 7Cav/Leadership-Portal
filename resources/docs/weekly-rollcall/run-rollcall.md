@@ -113,7 +113,7 @@ If your section plays a game and has no slot, a warning sits at the top of the r
 
 ## Mark it posted
 
-1. Once the post is on the forum, choose **Mark roll call posted**. On the new roll call, choose **Mark as posted, continue**, which takes you on to **Sign and mark**.
+1. Once the post is on the forum, choose **Mark roll call posted**. On the new roll call, paste the thread's link under **Forum thread link** if you like (the close step and the report link to it), then choose **Mark as posted, continue**, which takes you on to **Sign and mark**.
 2. If you change a mark later, the page says the copied BBCode is out of date. Repost the updated BBCode, then choose **Mark posted again**. A template that uses the live Signed RC and Attended SP images ([Roll call templates](/docs/admin/rollcall-templates) says how) shows the new marks in those images on its own, once the forum reloads them, which can take a minute; the rest of the post is still text you repost.
 3. Then [write and send your report](/docs/weekly-report/send-your-report). On a week from before the new roll call, **Send for review** at the end of **Review and post** opens the report's send window for you.
 
@@ -122,9 +122,9 @@ If your section plays a game and has no slot, a warning sits at the top of the r
 On the new roll call, closing the week is sending its weekly report.
 
 1. When everyone is signed and marked, confirm the practice, then choose **Continue to close** (or step 4, **Close for review**).
-2. Under **A. Update your forum post**, choose **Copy updated BBCode**, edit your roll call post on the forum with it, then tick **I edited the forum post**.
-3. Check **B. Weekly report for Platoon Staff**: the training and the attendance it will report.
-4. Under **Before you close**, check **Practice confirmed**, **Every trooper has a mark** and **Forum post edited**. **Close and send for review** opens once the practice is confirmed.
-5. Choose **Close and send for review**. The report opens with its send window: add your notes, a reason for anyone unaccounted for, and answer any make-up still owed, then send it. See [Write and send your report](/docs/weekly-report/send-your-report).
+2. Under **A. Update your forum post**, choose **Copy updated BBCode**, edit your roll call post on the forum with it (**Open your forum post** takes you there when you gave its link), then tick **I edited the forum post**.
+3. Under **B. Weekly report for Platoon Staff**, check the training and the attendance it will report, write your **Notes to send with this report**, and choose a reason for each trooper who missed practice. They save as you type and are the report's own notes and reasons.
+4. Under **Before you close**, check **Practice confirmed**, **Every trooper has a mark**, **Forum post edited** and a reason for each trooper who missed. **Close and send for review** opens once the practice is confirmed.
+5. Choose **Close and send for review**. The report opens with its send window: answer any make-up still owed, then send it. See [Write and send your report](/docs/weekly-report/send-your-report).
 
 > [!good-to-know] Once your section's report is sent, that week's roll call is locked: marks, the training topic, the practice confirmation and guests can no longer change. Choosing **Edit report** on the report before it is due opens the roll call again until you send the report again or the deadline passes. On the new roll call you then close it again from **Close for review**. A week too far back is read only too.
