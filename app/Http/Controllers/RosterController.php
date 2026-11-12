@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffPracticeAccess;
+use App\Bookmarks\BookmarkablePages;
 use App\Commands\Capture\AutomaticAttendance;
 use App\Commands\Practices\PracticeSchedule;
 use App\Commands\Practices\PresenceMinimum;
@@ -122,6 +123,8 @@ class RosterController extends Controller
             ? $this->defaultUnit($user, $shown, $scope)
             : ($scope->contains($unit) ? $tree->firstWhere('id', $unit) : null);
         abort_if($unit !== null && $selected === null, 403, 'That unit is outside your scope.');
+        // `/roster` names no unit: the bookmark button keeps the one shown.
+        $request->attributes->set(BookmarkablePages::PAGE_UNIT, $selected?->id);
 
         $week = WeekOf::start(CarbonImmutable::now());
         // The unit sync is a write, and a view-as preview changes nothing (1.13), so a preview never offers it.
