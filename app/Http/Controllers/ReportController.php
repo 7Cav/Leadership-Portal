@@ -32,6 +32,7 @@ use App\Kpi\TrooperAttendance;
 use App\Kpi\UnaccountedSuggestions;
 use App\Kpi\UnitKpis;
 use App\Kpi\WeeklyReportKpis;
+use App\Loa\LoaCoverage;
 use App\Loa\LoaProvenance;
 use App\Milpac\RosterProvenance;
 use App\Milpac\StaffReportWeek;
@@ -108,6 +109,7 @@ class ReportController extends Controller
         private readonly SectionPracticeRepository $practices,
         private readonly PracticeSchedule $schedule,
         private readonly RollcallRoster $rollcallRoster,
+        private readonly LoaCoverage $loaCoverage,
     ) {}
 
     public function show(Request $request, UnaccountedSuggestions $suggestions, AuditLogRepository $audit, ReportEditProps $editProps, int $unit, string $week): Response
@@ -531,20 +533,32 @@ class ReportController extends Controller
      * The week's practice start (null when there was none: no slot, or cancelled), the forum thread its roll call was
      * posted in (null when the leader gave none), the roll call's address, and each of its troopers' signature and
      * practice mark (`[{id, rollcall, status}]`), which a sent report's page has no other copy of. A sent week is locked
-     * (AD-12), so these are the marks it was sent with.
+     * (AD-12), so these are the marks it was sent with. `loa` is the leave that covers the week (the roll call screen's
+     * shape, null with none) and `excused` why the week is excused automatically, so the summary names those troopers
+     * apart rather than as unsigned.
      *
-     * @return array{trainingStart: ?string, threadUrl: ?string, href: string, troopers: list<array{id: int, rollcall: string, status: ?string}>}
+     * @return array{trainingStart: ?string, threadUrl: ?string, href: string, troopers: list<array{id: int, rollcall: string, status: ?string, loa: ?array<string, mixed>, excused: ?string}>}
      */
     private function rollcallProps(Unit $section, CarbonImmutable $weekStart): array
     {
         $practice = $this->practices->find($section->id, $weekStart);
         $week = $this->schedule->props($section->id, $weekStart, $practice)['week'] ?? null;
+        $rows = $this->rollcallRoster->forWeek($section, $weekStart)->troopers;
+        $ids = array_column($rows, 'id');
+        $covers = $this->loaCoverage->forTroopers($ids, $weekStart);
+        $excused = $this->autoExcused->forTroopers($ids, $weekStart);
 
         return [
             'trainingStart' => ($week['cancelled'] ?? false) ? null : ($week['start'] ?? null),
             'threadUrl' => $practice?->rollcall_thread_url,
             'href' => route('rollcall.show', ['unit' => $section->id, 'week' => $weekStart->toDateString()]),
-            'troopers' => array_map(fn (array $row) => ['id' => $row['id'], 'rollcall' => $row['rollcall'], 'status' => $row['status']], $this->rollcallRoster->forWeek($section, $weekStart)->troopers),
+            'troopers' => array_map(fn (array $row) => [
+                'id' => $row['id'],
+                'rollcall' => $row['rollcall'],
+                'status' => $row['status'],
+                'loa' => isset($covers[$row['id']]) && $covers[$row['id']]->isCovered() ? $covers[$row['id']]->toArray() : null,
+                'excused' => $excused[$row['id']] ?? null,
+            ], $rows),
         ];
     }
 
