@@ -65,7 +65,7 @@ describe('RollcallCreate (#703)', () => {
 
         await wrapper.get('form').trigger('submit');
         await flushPromises();
-        expect(postJson.mock.calls[0][1].subject).toBeNull();
+        expect(postJson.mock.calls[0][1]).not.toHaveProperty('subject');
     });
 
     it('leaves the topic empty and editable with no platoon topic, and says so', () => {

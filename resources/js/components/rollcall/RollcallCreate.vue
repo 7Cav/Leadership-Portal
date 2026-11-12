@@ -83,8 +83,8 @@ async function create(notHeld = false) {
             week: props.week,
             moved_to: movedTo,
             cancelled: notHeld,
-            // A locked topic is left as it is (null); an empty one clears the section's own.
-            subject: topicLocked.value ? null : topic.value.trim(),
+            // A locked topic is left as it is, so none is sent; an empty one clears the section's own.
+            ...(topicLocked.value ? {} : { subject: topic.value.trim() }),
         }).catch(unreachable);
         if (result.ok && result.data?.flow) {
             emit('created', result.data);

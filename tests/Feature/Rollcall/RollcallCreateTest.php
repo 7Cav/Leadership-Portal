@@ -96,7 +96,7 @@ it('keeps a topic the platoon enforces, and refuses a different one with nothing
     rcCreate(['subject' => 'Something else'])->assertStatus(422);
     expect(SectionPractice::query()->whereNotNull('rollcall_created_at')->exists())->toBeFalse();
 
-    rcCreate(['subject' => null])->assertOk()->assertJsonPath('training.subject', 'Land navigation')->assertJsonPath('training.enforced', true);
+    rcCreate()->assertOk()->assertJsonPath('training.subject', 'Land navigation')->assertJsonPath('training.enforced', true);
 });
 
 it('refuses a week on the three-step flow, which has no create step', function () {
@@ -140,8 +140,16 @@ it('creates the roll call of a section with no practice slot, and refuses a date
     rcCreate(['moved_to' => null])->assertOk()->assertJsonPath('flow.created.by', 'Practice.L')->assertJsonPath('practiceSlot', null);
 });
 
+it('clears the section\'s own topic when the field was emptied', function () {
+    rcCreate(['subject' => 'Old topic'])->assertOk();
+
+    rcCreate(['subject' => ''])->assertOk()->assertJsonPath('training.subject', null);
+
+    expect(WeeklyReport::query()->sole()->training_subject)->toBeNull();
+});
+
 it('leaves the topic and the report alone when the page sends no topic', function () {
-    rcCreate(['subject' => null])->assertOk();
+    rcCreate()->assertOk();
 
     expect(WeeklyReport::query()->exists())->toBeFalse()
         ->and(AuditLogEntry::query()->where('action', 'weekly_report.training_subject_set')->exists())->toBeFalse();

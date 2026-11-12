@@ -49,8 +49,8 @@ class RollcallTrainingController extends Controller
             // An ISO 8601 instant in the week; the page sends it in Zulu. Null leaves this week's date as it is.
             'moved_to' => ['nullable', 'date'],
             'cancelled' => ['sometimes', 'boolean'],
-            // Null (or no key) leaves the topic as it is, as for a topic the platoon enforces; an empty one clears the
-            // section's own entry.
+            // No key leaves the topic as it is (the page sends none for a locked topic). An empty one, which arrives as
+            // null (`ConvertEmptyStringsToNull`), clears the section's own entry.
             'subject' => ['nullable', 'string', 'max:255'],
         ], ['subject.max' => 'Keep the training topic to :max characters.']);
 
@@ -70,7 +70,7 @@ class RollcallTrainingController extends Controller
                 $weekStart->toDateTimeImmutable(),
                 $request->filled('moved_to') ? CarbonImmutable::parse($request->input('moved_to'))->utc()->toDateTimeImmutable() : null,
                 $request->boolean('cancelled'),
-                is_string($request->input('subject')) ? $request->input('subject') : null,
+                $request->has('subject') ? (string) $request->input('subject') : null,
             ));
         } catch (CreateRollcallForbiddenException $e) {
             return response()->json(['message' => $e->getMessage()], 403);
