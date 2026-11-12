@@ -2234,6 +2234,15 @@ describe('Rollcall page: the week\'s training (#703)', () => {
         expect(await copied()).toBe('Training: Wed 07Oct26 2300Z · Land navigation');
     });
 
+    it('copies the section\'s chain of command where the template puts {{coc}}', async () => {
+        const chainOfCommand = [
+            { role: 'Section Leader', holders: [{ rank: 'Sergeant', name: 'Vasquez.R', url: 'https://7cav.us/rosters/profile?uniqueid=1001' }], acting: false },
+            { role: 'Platoon Leader', holders: [], acting: false },
+        ];
+
+        expect(await copied({ template: { ...TEMPLATE, body: '{{coc}}' }, chainOfCommand })).toBe('Section Leader: [url=https://7cav.us/rosters/profile?uniqueid=1001]Sergeant Vasquez.R[/url]\nPlatoon Leader: Vacant');
+    });
+
     it('prints no date for a week whose practice is cancelled', async () => {
         expect(await copied({ practiceSlot: { ...SLOT, week: { ...SLOT.week, start: null, cancelled: true } } })).toBe('Training:  · Land navigation');
     });
