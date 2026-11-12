@@ -28,6 +28,7 @@ import { useIdentity } from '@/composables/useIdentity';
 import { currentUnitId, scopeLabel, unitHref } from '@/lib/scopeSwitch';
 import { isActive, visibleGroups } from '../navigation';
 import UserMenu from './UserMenu.vue';
+import SidebarBookmarks from './SidebarBookmarks.vue';
 
 const page = usePage();
 const { isAdmin } = useIdentity();
@@ -136,66 +137,70 @@ function closeOnMobile() {
         <SidebarContent class="py-2">
             <!-- The primary-navigation landmark (the sidebar itself renders plain divs). -->
             <nav aria-label="Primary" class="flex flex-col gap-2">
-                <SidebarGroup v-for="group in visibleGroups(isAdmin, page.props.features, page.props)" :key="group.id" :data-testid="`nav-group-${group.id}`" class="py-0">
-                    <SidebarGroupLabel class="h-7 text-xs font-normal text-muted-foreground">{{ group.label }}</SidebarGroupLabel>
-                    <SidebarMenu class="gap-0.5">
-                        <SidebarMenuItem v-for="item in group.items" :key="item.label">
-                            <SidebarMenuButton
-                                v-if="item.href"
-                                as-child
-                                :is-active="isActive(page.url, item.href)"
-                                :tooltip="item.label"
-                            >
-                                <Link
-                                    :href="item.href"
-                                    :aria-current="isActive(page.url, item.href) ? 'page' : undefined"
-                                    :data-testid="`nav-${item.label}`"
-                                    @click="closeOnMobile"
+                <template v-for="group in visibleGroups(isAdmin, page.props.features, page.props)" :key="group.id">
+                    <SidebarGroup :data-testid="`nav-group-${group.id}`" class="py-0">
+                        <SidebarGroupLabel class="h-7 text-xs font-normal text-muted-foreground">{{ group.label }}</SidebarGroupLabel>
+                        <SidebarMenu class="gap-0.5">
+                            <SidebarMenuItem v-for="item in group.items" :key="item.label">
+                                <SidebarMenuButton
+                                    v-if="item.href"
+                                    as-child
+                                    :is-active="isActive(page.url, item.href)"
+                                    :tooltip="item.label"
                                 >
-                                    <component :is="item.icon" />
-                                    <span>{{ item.label }}</span>
-                                    <!-- Something new on that screen since the viewer last opened it (the changelog). -->
-                                    <span
-                                        v-if="item.dot && page.props[item.dot] === true"
-                                        class="ml-auto size-2 shrink-0 rounded-full bg-info group-data-[collapsible=icon]:hidden"
-                                        :data-testid="`nav-dot-${item.label}`"
-                                    ><span class="sr-only">New entries</span></span>
-                                    <!-- Something on that screen waits for an Admin (the Admin billets to confirm). -->
-                                    <Badge
-                                        v-if="item.count && page.props[item.count] > 0"
-                                        variant="warning"
-                                        class="ml-auto group-data-[collapsible=icon]:hidden"
-                                        :data-testid="`nav-count-${item.label}`"
-                                    >
-                                        {{ page.props[item.count] }}<span class="sr-only"> waiting for an Admin</span>
-                                    </Badge>
-                                </Link>
-                            </SidebarMenuButton>
-
-                            <!--
-                              No screen yet: a disabled control, not a dead link. It stays focusable
-                              (aria-disabled, not `disabled`) so keyboard users reach the tooltip, and
-                              carries a visible "Soon" for touch, where tooltips never open.
-                            -->
-                            <Tooltip v-else>
-                                <TooltipTrigger as-child>
-                                    <SidebarMenuButton
-                                        type="button"
-                                        aria-disabled="true"
+                                    <Link
+                                        :href="item.href"
+                                        :aria-current="isActive(page.url, item.href) ? 'page' : undefined"
                                         :data-testid="`nav-${item.label}`"
-                                        class="cursor-not-allowed aria-disabled:pointer-events-auto hover:bg-transparent"
-                                        @click.prevent
+                                        @click="closeOnMobile"
                                     >
                                         <component :is="item.icon" />
-                                        <span class="flex-1">{{ item.label }}</span>
-                                        <Badge variant="outline" class="group-data-[collapsible=icon]:hidden">Soon</Badge>
-                                    </SidebarMenuButton>
-                                </TooltipTrigger>
-                                <TooltipContent side="right">{{ item.label }}: coming soon</TooltipContent>
-                            </Tooltip>
-                        </SidebarMenuItem>
-                    </SidebarMenu>
-                </SidebarGroup>
+                                        <span>{{ item.label }}</span>
+                                        <!-- Something new on that screen since the viewer last opened it (the changelog). -->
+                                        <span
+                                            v-if="item.dot && page.props[item.dot] === true"
+                                            class="ml-auto size-2 shrink-0 rounded-full bg-info group-data-[collapsible=icon]:hidden"
+                                            :data-testid="`nav-dot-${item.label}`"
+                                        ><span class="sr-only">New entries</span></span>
+                                        <!-- Something on that screen waits for an Admin (the Admin billets to confirm). -->
+                                        <Badge
+                                            v-if="item.count && page.props[item.count] > 0"
+                                            variant="warning"
+                                            class="ml-auto group-data-[collapsible=icon]:hidden"
+                                            :data-testid="`nav-count-${item.label}`"
+                                        >
+                                            {{ page.props[item.count] }}<span class="sr-only"> waiting for an Admin</span>
+                                        </Badge>
+                                    </Link>
+                                </SidebarMenuButton>
+
+                                <!--
+                                  No screen yet: a disabled control, not a dead link. It stays focusable
+                                  (aria-disabled, not `disabled`) so keyboard users reach the tooltip, and
+                                  carries a visible "Soon" for touch, where tooltips never open.
+                                -->
+                                <Tooltip v-else>
+                                    <TooltipTrigger as-child>
+                                        <SidebarMenuButton
+                                            type="button"
+                                            aria-disabled="true"
+                                            :data-testid="`nav-${item.label}`"
+                                            class="cursor-not-allowed aria-disabled:pointer-events-auto hover:bg-transparent"
+                                            @click.prevent
+                                        >
+                                            <component :is="item.icon" />
+                                            <span class="flex-1">{{ item.label }}</span>
+                                            <Badge variant="outline" class="group-data-[collapsible=icon]:hidden">Soon</Badge>
+                                        </SidebarMenuButton>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right">{{ item.label }}: coming soon</TooltipContent>
+                                </Tooltip>
+                            </SidebarMenuItem>
+                        </SidebarMenu>
+                    </SidebarGroup>
+                    <!-- The person's bookmarks, right after Leadership. -->
+                    <SidebarBookmarks v-if="group.id === 'leadership'" @navigate="closeOnMobile" />
+                </template>
             </nav>
         </SidebarContent>
 
