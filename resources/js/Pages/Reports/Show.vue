@@ -318,7 +318,13 @@ function openSend() {
 // would open it, so the leader sees exactly what freezes and answers the make-up checks. A report the send bar would
 // not open (sent, read-only, practice not confirmed, KPIs unavailable) stays as it is.
 onMounted(() => {
-    if (new URLSearchParams(window.location.search).get('send') === '1' && !blocked.value) openSend();
+    if (new URLSearchParams(window.location.search).get('send') !== '1') return;
+    if (!blocked.value && !readOnly.value && !props.kpiError) return openSend();
+    // Arrived to send, but the report cannot go yet: say why instead of opening nothing.
+    if (sent.value) return;
+    toast.warning('This report cannot be sent yet', {
+        description: blocked.value ? 'Confirm the practice in roll call first.' : (props.kpiError ?? readOnlyNote.value ?? 'It is read-only here.'),
+    });
 });
 
 // The send cleared the pending autosave; when it fails, keep the edits saving as a draft.

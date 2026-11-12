@@ -70,6 +70,19 @@ describe('TrainingCard (#703)', () => {
         expect(wrapper.emitted('updated')).toBeUndefined();
     });
 
+    it('asks the page to reload when the week was sent meanwhile, and says when a typed topic is not saved', async () => {
+        postJson.mockResolvedValue({ ok: false, status: 409, data: { locked: true, message: 'Locked' } });
+        const wrapper = factory();
+
+        wrapper.findComponent(Input).vm.$emit('update:modelValue', 'Late');
+        await flushPromises();
+        expect(wrapper.emitted('dirty').at(-1)).toEqual([true]);
+        await wrapper.get('form').trigger('submit');
+        await flushPromises();
+
+        expect(wrapper.emitted('locked')).toHaveLength(1);
+    });
+
     it('shows the topic read-only on a week that cannot change', () => {
         const wrapper = factory({ training: { ...TRAINING, subject: 'Frozen' }, editable: false, disabledReason: 'Locked' });
 

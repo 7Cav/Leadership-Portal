@@ -2372,13 +2372,34 @@ describe('Rollcall page: a week on each flow (#703)', () => {
 
     it('closes for review through the weekly report\'s send dialog', async () => {
         page.url = '/rollcall/12?step=4';
-        const wrapper = cycle({ flow: CREATED, practice: POSTED });
+        const wrapper = cycle({ flow: CREATED, practice: { ...POSTED, confirmation: { at: '2026-10-08T10:00:00+00:00', by: 'Vasquez.R', held: true } } });
 
         expect(wrapper.find('[data-testid="rollcall-close"]').exists()).toBe(true);
         await wrapper.get('[data-testid="close-send"]').trigger('click');
         await flushPromises();
 
         expect(visit).toHaveBeenCalledWith('/reports/12/2026-10-03?send=1');
+    });
+
+    it('opens a reopened week again: the report is still sent, but the week is not locked, so it can be closed again', () => {
+        page.url = '/rollcall/12?step=4';
+        const wrapper = cycle({ flow: CREATED, practice: POSTED, report: { ...REPORT, sent: true }, locked: false });
+
+        expect(wrapper.get('[data-testid="cycle-state"]').text()).not.toBe('Closed · sent for review');
+        expect(wrapper.find('[data-testid="close-sent"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="close-send"]').exists()).toBe(true);
+    });
+
+    it('holds the close while a typed training topic is not saved', async () => {
+        page.url = '/rollcall/12?step=4';
+        const wrapper = cycle({ flow: CREATED, practice: { ...POSTED, confirmation: { at: '2026-10-08T10:00:00+00:00', by: 'Vasquez.R', held: true } } });
+
+        await wrapper.find('[data-testid="training-topic-input"]').setValue('Not saved yet');
+        await wrapper.get('[data-testid="close-send"]').trigger('click');
+        await flushPromises();
+
+        expect(visit).not.toHaveBeenCalled();
+        expect(toastWarning).toHaveBeenCalledWith('Save the training topic first', expect.anything());
     });
 
     it('opens a sent week on its closed last step, locked', () => {

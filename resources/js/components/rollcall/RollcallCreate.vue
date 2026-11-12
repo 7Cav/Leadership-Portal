@@ -15,8 +15,10 @@ import { localLabel, minuteToTime, slotLabel, startInWeek, timeToMinute, WEEKDAY
 
 // Step 1 of a week on the new flow (#703, mockup 703-1-create): create this week's roll call with its training date
 // and topic. The date is this week's practice, prefilled from the section's slot; a different one moves this week's
-// practice only. The topic is the weekly report's training subject, prefilled from the platoon and locked when the
-// platoon enforces it. "Practice will not take place" cancels this week's practice and creates the roll call.
+// practice only. The topic is the weekly report's training subject as it stands (the section's own, else the
+// platoon's), locked when the platoon enforces it or the viewer may not change it. "Practice will not take place"
+// cancels this week's practice and creates the roll call. A week with no practice to move (no slot, or one that only
+// starts later) is created without a date.
 const props = defineProps({
     sectionId: { type: Number, required: true },
     // The roll call's week, `YYYY-MM-DD` (its Saturday).
@@ -30,7 +32,7 @@ const props = defineProps({
     disabledReason: { type: String, default: null },
 });
 
-const emit = defineEmits(['created', 'set-slot']);
+const emit = defineEmits(['created', 'set-slot', 'locked']);
 
 const DAY_MS = 86_400_000;
 // The seven days of the Cav week, Saturday to Friday, each with its date: the practice moves within the week only.
@@ -65,7 +67,7 @@ const disabled = computed(() => !props.editable || creating.value);
 
 async function create(notHeld = false) {
     let movedTo = null;
-    if (props.slot && !notHeld && !cancelled.value) {
+    if (start.value && !notHeld) {
         const minute = timeToMinute(time.value);
         if (minute === null) {
             toast.error('Could not create the roll call', { description: 'Enter a start time in Zulu, 0000 to 2359.' });
@@ -81,7 +83,7 @@ async function create(notHeld = false) {
             week: props.week,
             moved_to: movedTo,
             cancelled: notHeld,
-            // A topic the platoon enforces is the platoon's: nothing is sent for it.
+            // A locked topic is left as it is (null); an empty one clears the section's own.
             subject: topicLocked.value ? null : topic.value.trim(),
         }).catch(unreachable);
         if (result.ok && result.data?.flow) {
@@ -89,6 +91,8 @@ async function create(notHeld = false) {
             toast.success(notHeld ? 'Roll call created, practice cancelled this week' : 'Roll call created', { description: 'Next: copy the post to the forum.' });
         } else {
             toast.error('Could not create the roll call', { description: messageFor(result) });
+            // The report was sent since the page loaded: the page shows the week as the server now has it.
+            if (result.status === 409 && result.data?.locked) emit('locked');
         }
     } finally {
         creating.value = false;
@@ -107,7 +111,7 @@ async function create(notHeld = false) {
             <form class="mt-5 grid gap-5" @submit.prevent="create(false)">
                 <div class="grid gap-1.5">
                     <Label for="create-day">Training date</Label>
-                    <template v-if="slot && !cancelled">
+                    <template v-if="start">
                         <div class="grid grid-cols-[minmax(0,1fr)_8rem] gap-2">
                             <NativeSelect id="create-day" v-model="day" :disabled="disabled" data-testid="create-day">
                                 <option v-for="d in days" :key="d.weekday" :value="String(d.weekday)">{{ d.label }}</option>
@@ -117,6 +121,9 @@ async function create(notHeld = false) {
                         <p class="text-xs text-muted-foreground">From your section's practice slot ({{ slotHint }}). Changing it affects this week only.</p>
                     </template>
                     <p v-else-if="cancelled" class="text-[13px]" data-testid="create-cancelled">Practice is cancelled this week.</p>
+                    <p v-else-if="slot" class="text-[13px] text-muted-foreground" data-testid="create-slot-later">
+                        No practice this week: the section's slot starts in a later week.
+                    </p>
                     <div v-else class="flex flex-wrap items-center gap-2 text-[13px]" data-testid="create-no-slot">
                         <span class="text-muted-foreground">This section has no practice slot, so the post has no date.</span>
                         <Button type="button" variant="outline" size="sm" :disabled="disabled" @click="emit('set-slot')">Set the practice slot</Button>
@@ -157,7 +164,7 @@ async function create(notHeld = false) {
                 <div class="flex flex-wrap gap-2 border-t border-border pt-5">
                     <Button type="submit" class="h-11 sm:h-9" :disabled="disabled" :title="disabledReason ?? undefined" data-testid="create-rollcall">Create roll call</Button>
                     <Button
-                        v-if="slot && !cancelled"
+                        v-if="start"
                         type="button"
                         variant="outline"
                         class="h-11 sm:h-9"

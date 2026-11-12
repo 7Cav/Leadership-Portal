@@ -32,7 +32,7 @@ const closeAsks = () => {
 
 vi.mock('vue-sonner', async (importOriginal) => ({
     ...(await importOriginal()),
-    toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
+    toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), warning: vi.fn() }),
 }));
 
 const KPIS = { strength: 2, rc: { numerator: 7, denominator: 8 }, sp: { numerator: 3, denominator: 4 }, atRisk: 0, onLoa: 0, makeups: 0 };
@@ -651,6 +651,16 @@ describe('Reports/Show opened to send from the roll call (#703)', () => {
         await flushPromises();
 
         expect(dialogOpen(wrapper)).toBe(true);
+    });
+
+    it('says why when it arrives to send a report that cannot go yet', async () => {
+        const { toast } = await import('vue-sonner');
+        toast.warning.mockClear();
+        window.history.replaceState(null, '', '/reports/5/2026-10-03?send=1');
+        mountShow({ practice: { confirmed: false, held: null } });
+        await flushPromises();
+
+        expect(toast.warning).toHaveBeenCalledWith('This report cannot be sent yet', { description: 'Confirm the practice in roll call first.' });
     });
 
     it('stays closed without it, and for a report the send bar would not open', async () => {

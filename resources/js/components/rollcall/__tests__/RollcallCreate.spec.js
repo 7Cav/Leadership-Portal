@@ -109,6 +109,28 @@ describe('RollcallCreate (#703)', () => {
         expect(wrapper.emitted('created')).toBeUndefined();
     });
 
+    it('asks the page to reload when the week was sent meanwhile', async () => {
+        postJson.mockResolvedValue({ ok: false, status: 409, data: { locked: true, message: 'Locked' } });
+        const wrapper = factory();
+
+        await wrapper.get('form').trigger('submit');
+        await flushPromises();
+
+        expect(wrapper.emitted('locked')).toHaveLength(1);
+    });
+
+    it('creates the week without a date when the slot only starts in a later week', async () => {
+        const wrapper = factory({ slot: { ...SLOT, effectiveFrom: '2026-11-21', week: { ...SLOT.week, start: null, end: null } } });
+
+        expect(wrapper.find('[data-testid="create-day"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="create-not-held"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="create-slot-later"]').exists()).toBe(true);
+        await wrapper.get('form').trigger('submit');
+        await flushPromises();
+
+        expect(postJson.mock.calls[0][1]).toMatchObject({ moved_to: null, cancelled: false });
+    });
+
     it('creates nothing on a read-only screen', () => {
         expect(factory({ editable: false }).get('[data-testid="create-rollcall"]').attributes('disabled')).toBeDefined();
     });

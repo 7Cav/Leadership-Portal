@@ -120,3 +120,51 @@ it('refuses a sent week as locked, a future week, and a section outside the lead
 
     expect(SectionPractice::query()->whereNotNull('rollcall_created_at')->exists())->toBeFalse();
 });
+
+it('rolls a moved date back when the topic is refused, so a refused create leaves nothing written', function () {
+    app(PlatoonTrainingTopicRepository::class)->set($this->platoon->id, CarbonImmutable::parse($this->week, 'UTC'), 'Land navigation', true, $this->platoonLeader->id);
+
+    rcCreate(['moved_to' => '2026-11-26T20:00:00Z', 'subject' => 'Something else'])->assertStatus(422);
+
+    expect(SectionPractice::query()->first()?->slot_moved_to)->toBeNull()
+        ->and(AuditLogEntry::query()->where('action', 'practice_week.changed')->exists())->toBeFalse()
+        ->and(AuditLogEntry::query()->where('action', CreateRollcallHandler::ACTION)->exists())->toBeFalse();
+});
+
+it('creates the roll call of a section with no practice slot, and refuses a date for it', function () {
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/slot", ['weekday' => null, 'start_minute' => null, 'week' => $this->week])->assertOk();
+
+    rcCreate(['moved_to' => '2026-11-26T20:00:00Z'])->assertStatus(422);
+    expect(SectionPractice::query()->whereNotNull('rollcall_created_at')->exists())->toBeFalse();
+
+    rcCreate(['moved_to' => null])->assertOk()->assertJsonPath('flow.created.by', 'Practice.L')->assertJsonPath('practiceSlot', null);
+});
+
+it('leaves the topic and the report alone when the page sends no topic', function () {
+    rcCreate(['subject' => null])->assertOk();
+
+    expect(WeeklyReport::query()->exists())->toBeFalse()
+        ->and(AuditLogEntry::query()->where('action', 'weekly_report.training_subject_set')->exists())->toBeFalse();
+});
+
+it('keeps the first creation stamp when created again, and still applies a new topic', function () {
+    rcCreate(['subject' => 'First'])->assertOk();
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-11-25 18:00:00', 'UTC'));
+
+    rcCreate(['subject' => 'Second'], $this->platoonLeader)->assertOk()->assertJsonPath('flow.created.by', 'Practice.L');
+
+    expect(SectionPractice::query()->sole()->rollcall_created_at->toIso8601String())->toBe('2026-11-25T16:20:00+00:00')
+        ->and(WeeklyReport::query()->sole()->training_subject)->toBe('Second');
+});
+
+it('keeps an accepted platoon topic shared rather than copied, so a later platoon change still shows', function () {
+    $topics = app(PlatoonTrainingTopicRepository::class);
+    $topics->set($this->platoon->id, CarbonImmutable::parse($this->week, 'UTC'), 'Room clearing', false, $this->platoonLeader->id);
+
+    rcCreate(['subject' => 'Room clearing'])->assertOk()->assertJsonPath('training.subject', 'Room clearing');
+    expect(WeeklyReport::query()->sole()->training_subject)->toBeNull();
+
+    $topics->set($this->platoon->id, CarbonImmutable::parse($this->week, 'UTC'), 'Radio procedure', false, $this->platoonLeader->id);
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}?week={$this->week}")
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('training.subject', 'Radio procedure'));
+});

@@ -6,6 +6,7 @@ use App\Authorization\ScopeResolver;
 use App\Commands\Practices\ChangePracticeWeek;
 use App\Commands\Practices\InvalidPracticeSlotException;
 use App\Commands\Practices\PracticeSchedule;
+use App\Commands\WeeklyReports\InvalidReportContentException;
 use App\Commands\WeeklyReports\SetSectionTrainingSubject;
 use App\Commands\WeeklyReports\SetSectionTrainingSubjectHandler;
 use App\Commands\WeeklyReports\TrainingSubjectEnforcedException;
@@ -15,6 +16,7 @@ use App\Models\User;
 use App\Repositories\RollcallFlow;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\UnitRepository;
+use App\Repositories\WeeklyReportAlreadySentException;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\Audit\AuditEnvelope;
 use App\Support\Time\WeekOf;
@@ -54,6 +56,7 @@ class CreateRollcallHandler
      * @throws RollcallWeekLockedException when the section's report for the week has been sent.
      * @throws InvalidPracticeSlotException when the date cannot be changed: no slot, already captured, or outside the week.
      * @throws TrainingSubjectEnforcedException when the platoon enforces a different topic.
+     * @throws InvalidReportContentException|WeeklyReportAlreadySentException from the topic write, as {@see SetSectionTrainingSubjectHandler}.
      */
     public function handle(User $actor, CreateRollcall $command): SectionPractice
     {
@@ -97,8 +100,9 @@ class CreateRollcallHandler
     }
 
     /**
-     * Cancel this week's practice, or move it when the date differs from the one the page offered (the slot, or this
-     * week's own time). A date left as offered changes nothing, so a week without a slot can still be created.
+     * Cancel this week's practice, or move it when the date differs from this week's start (the slot's, or this
+     * week's own time). A date left as it is, or none, changes nothing, so a week without a practice can still be
+     * created.
      */
     private function applyDate(User $actor, CreateRollcall $command, CarbonImmutable $weekStart): void
     {

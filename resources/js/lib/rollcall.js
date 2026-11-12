@@ -252,8 +252,8 @@ export function stepsOf(troopers, postedAt = null, unlinked = 0) {
 
 // The four steps of a week on the new flow (#703): create the roll call with its date and topic, post it, sign and
 // mark, then close it for review, which sends the weekly report. `cycle` is what the page knows of the week:
-// `{ created, postedAt, confirmed, sent, unlinked }`. Sign and mark is done once everyone is marked, nobody seen on
-// the server is left unaccounted for, and the practice is confirmed.
+// `{ created, postedAt, confirmed, sent, unlinked }`. Sign and mark is done once everyone has signed and is marked,
+// nobody seen on the server is left unaccounted for, and the practice is confirmed; an unsigned trooper keeps it open.
 export function cycleStepsOf(troopers, { created = false, postedAt = null, confirmed = false, sent = false, unlinked = 0 } = {}) {
     const c = countsOf(troopers);
     const empty = c.total === 0;

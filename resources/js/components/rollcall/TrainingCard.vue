@@ -23,7 +23,8 @@ const props = defineProps({
     training: { type: Object, required: true },
     // When this week's practice starts (ISO), or null with no practice: no slot, or cancelled this week.
     start: { type: String, default: null },
-    // Whether the screen may write at all (not a preview, a sent week or a read-only section).
+    // Whether the screen may write at all (not a preview, a week too far back or a sent week). Whether this viewer may
+    // write the section's topic is `training.canEdit`.
     editable: { type: Boolean, default: false },
     // Why nothing here can be changed, or null.
     disabledReason: { type: String, default: null },
@@ -31,7 +32,7 @@ const props = defineProps({
     canChangeDate: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['updated', 'change-date']);
+const emit = defineEmits(['updated', 'change-date', 'dirty', 'locked']);
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const dateLabel = computed(() => (props.start ? `${WEEKDAYS[new Date(props.start).getUTCDay()]} ${forumDateTime(props.start)}Z` : 'No practice this week'));
@@ -43,6 +44,8 @@ watch(
 );
 const topicEditable = computed(() => props.editable && props.training.canEdit);
 const changed = computed(() => topic.value.trim() !== (props.training.subject ?? ''));
+// The page holds the close until a typed topic is saved.
+watch(changed, (value) => emit('dirty', value));
 const saving = ref(false);
 
 async function save() {
@@ -55,6 +58,8 @@ async function save() {
             toast.success('Training topic saved', { description: 'The weekly report shows the same topic.' });
         } else {
             toast.error('Could not save the training topic', { description: messageFor(result) });
+            // The report was sent since the page loaded: the page shows the week as the server now has it.
+            if (result.status === 409 && result.data?.locked) emit('locked');
         }
     } finally {
         saving.value = false;

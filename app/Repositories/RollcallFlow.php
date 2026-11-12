@@ -10,9 +10,10 @@ use Carbon\CarbonInterface;
 /**
  * Which roll call flow a section-week follows (#703). `V1` is the three steps the roll call always had; `V2` the explicit
  * weekly cycle: create the roll call with its date and topic, post it, sign and mark, then close it, which sends the
- * weekly report. A week takes `V2` when it starts on or after `portal.rollcall_flow_v2_from` (a Saturday, AD-11), and the
- * flow is kept on its practice row once one exists, so a week never changes flow while it runs: rows from before the
- * cutover keep `V1`. Null for the setting keeps every week on `V1`.
+ * weekly report. A week takes `V2` when it starts on or after `portal.rollcall_flow_v2_from` (a Saturday, AD-11). The
+ * flow is fixed on the week's practice row when the row is made, and read from there after: rows from before the
+ * cutover keep `V1`, and a later change of the setting moves only weeks with no row yet. Null for the setting puts
+ * those weeks on `V1`.
  */
 final class RollcallFlow
 {

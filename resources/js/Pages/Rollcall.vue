@@ -556,7 +556,7 @@ async function pickTemplate(id) {
 const training = ref(props.training);
 watch(
     () => props.training,
-    (value) => (training.value = value),
+    (value) => onTraining(value),
 );
 const trainingStart = computed(() => (currentSlot.value?.week?.cancelled ? null : (currentSlot.value?.week?.start ?? null)));
 
@@ -665,7 +665,14 @@ async function markPostedAndContinue() {
 // unaccounted reasons and the make-up checks are asked exactly as there. The marks on screen are saved first, since the
 // send freezes what the server holds; a save that fails keeps the leader here.
 const sendingForReview = ref(false);
+// A topic typed on the training card and not saved yet (#703): the send would freeze the old one.
+const trainingDirty = ref(false);
 async function sendForReview() {
+    if (trainingDirty.value) {
+        toast.warning('Save the training topic first', { description: 'The topic you typed is not saved, so the report would go without it.' });
+
+        return;
+    }
     sendingForReview.value = true;
     try {
         if (!(await commitHeld())) {
@@ -866,7 +873,8 @@ watch(
 // The weekly cycle of the new flow; the three steps otherwise.
 const cycle = computed(() => flowState.value?.version === 2);
 const created = computed(() => Boolean(flowState.value?.created));
-const reportSent = computed(() => Boolean(props.report?.sent) || weekLocked.value);
+// Closed for review: the week's lock (AD-12), not the report's status, which stays sent while an edit reopens it.
+const reportSent = computed(() => weekLocked.value);
 const steps = computed(() =>
     cycle.value
         ? cycleStepsOf(rows.value, {
@@ -1194,6 +1202,8 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
             :disabled-reason="readOnlyReason"
             :can-change-date="canWrite && Boolean(currentSlot)"
             @updated="onTraining"
+            @dirty="(value) => (trainingDirty = value)"
+            @locked="router.reload()"
             @change-date="slotEditor?.startEditing()"
         />
 
@@ -1352,6 +1362,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                 :editable="editable"
                 :disabled-reason="readOnlyReason"
                 @created="onCreated"
+                @locked="router.reload()"
                 @set-slot="slotEditor?.startEditing()"
             />
             <Card v-else class="mt-4 gap-2 p-5 text-[13px]" data-testid="rollcall-created">

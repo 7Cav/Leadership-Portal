@@ -16,9 +16,10 @@ use App\Support\Audit\AuditEnvelope;
 use App\Support\Time\WeekOf;
 
 /**
- * Saves only the training subject of a section's draft report (#703), from the roll call: the draft's notes and
- * unaccounted reasons stay as they were, so setting the topic on the roll call never undoes work on the report page.
- * Audited through the envelope without a reason, as a draft save is ({@see SaveReportDraftHandler}).
+ * Changes the training subject of a section's draft report (#703), from the roll call, making the draft if there is
+ * none: the draft's notes and unaccounted reasons stay as they were, so setting the topic on the roll call never undoes
+ * work on the report page, and its KPI copy is refreshed as a draft save refreshes it. Audited through the envelope
+ * without a reason, as a draft save is ({@see SaveReportDraftHandler}).
  *
  * Refused before anything is written: a unit outside the actor's write scope (AD-8) or not a section, a week before
  * `WeekOf::floor()`, a subject other than the one the platoon enforces ({@see SectionTrainingSubject::forDraft()}), and
@@ -78,7 +79,8 @@ class SetSectionTrainingSubjectHandler
         try {
             $kpis = $this->snapshots->snapshot($section, $weekStart)->toArray();
         } catch (ReportKpisUnavailableException) {
-            // Only the draft's last saved copy, as on a draft save: the subject still saves.
+            // The KPI copy is informational only: keep the one the draft last saved (a draft save would empty it, but
+            // only the subject changes here), and the subject still saves.
             $kpis = $stored->kpis ?? [];
         }
 

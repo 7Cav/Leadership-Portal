@@ -94,9 +94,10 @@ return [
     |
     | The first Cav week (its Saturday, `Y-m-d`) whose roll call follows the explicit cycle (#703): create it with its
     | training date and topic, post it, sign and mark, then close it, which sends the weekly report. Weeks before it
-    | keep the three steps, and a week already started keeps the flow it started with (`Repositories\RollcallFlow`).
-    | Set it to the first Saturday after the release that brings the new flow. Null keeps every week on the three
-    | steps: so for the browser tests, whose specs walk the three steps on the real clock.
+    | keep the three steps. A week's flow is fixed when its practice row is made (its first mark, post or create), so
+    | a week with a row keeps its flow whatever this says later (`Repositories\RollcallFlow`). Set it to the first
+    | Saturday after the release that brings the new flow. Null puts every week without a row on the three steps: so
+    | for the browser tests, whose specs walk the three steps on the real clock.
     |
     */
 

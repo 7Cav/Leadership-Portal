@@ -65,6 +65,10 @@ describe('RollcallClose (#703)', () => {
         await wrapper.get('[data-testid="close-send"]').trigger('click');
         expect(wrapper.emitted('send')).toHaveLength(1);
         expect(factory({ disabledReason: 'Read-only' }).get('[data-testid="close-send"]').attributes('disabled')).toBeDefined();
+        // The report's send needs the practice confirmed (#634), so the close waits for it and says so.
+        const unconfirmed = factory({ confirmed: false }).get('[data-testid="close-send"]');
+        expect(unconfirmed.attributes('disabled')).toBeDefined();
+        expect(unconfirmed.attributes('title')).toBe('Confirm the practice took place first');
     });
 
     it('says a sent week is closed and locked, and points to the report', () => {

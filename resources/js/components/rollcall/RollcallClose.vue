@@ -130,8 +130,8 @@ function onEdited(value) {
                 <Button
                     v-if="!report.sent"
                     class="h-11 w-full sm:h-9"
-                    :disabled="Boolean(disabledReason) || sending"
-                    :title="disabledReason ?? undefined"
+                    :disabled="Boolean(disabledReason) || sending || !confirmed"
+                    :title="disabledReason ?? (confirmed ? undefined : 'Confirm the practice took place first')"
                     data-testid="close-send"
                     @click="emit('send')"
                 >

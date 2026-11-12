@@ -26,7 +26,7 @@ beforeEach(function () {
     $this->section = $units->create(UnitType::Section, '1st Section', '1/1/A/1-7', $this->platoon->id);
     $this->leader = User::factory()->commanding($this->section)->create(['username' => 'Vasquez.R']);
     $this->platoonLeader = User::factory()->commanding($this->platoon)->create(['username' => 'Hale.J']);
-    Trooper::factory()->create(['primary_section_id' => $this->section->id]);
+    $this->trooper = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
 });
 
 afterEach(fn () => CarbonImmutable::setTestNow());
@@ -70,13 +70,15 @@ it('prefills the platoon\'s topic, editable while it is not enforced, and locks 
 });
 
 it('saves the topic as the weekly report\'s training subject, keeping the draft\'s notes and reasons', function () {
-    app(WeeklyReportRepository::class)->saveDraft($this->section->id, $this->weekStart, [], 'Good week.', 'Old subject');
+    $reasons = [['trooper_id' => $this->trooper->id, 'reason' => 'no_notice']];
+    app(WeeklyReportRepository::class)->saveDraft($this->section->id, $this->weekStart, [], 'Good week.', 'Old subject', $reasons);
 
     rtrSet($this->leader, '  Land navigation  ')->assertOk()->assertJsonPath('training.subject', 'Land navigation');
 
     $report = WeeklyReport::query()->sole();
     expect($report->training_subject)->toBe('Land navigation')
         ->and($report->notes)->toBe('Good week.')
+        ->and($report->unaccounted)->toBe($reasons)
         ->and(AuditLogEntry::query()->where('action', SetSectionTrainingSubjectHandler::ACTION)->count())->toBe(1);
 
     // The same value on the report page: one subject, not a copy.
