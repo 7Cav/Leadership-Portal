@@ -3,6 +3,7 @@ title: Read your staff's reports
 summary: See which platoon, company and battalion HQ staff under you sent their staff report and attended a section practice.
 section: weekly-report
 order: 5
+updated: 2026-11-12
 audience: everyone
 page: /staff-reports
 weekly: true
@@ -13,9 +14,10 @@ minutes: 2
 
 ## Open it
 
-1. Choose **Staff reports** in the sidebar. It opens the week that just ended, the one whose reports are due.
+1. Choose **Staff reports** in the sidebar. It opens the running Cav week.
 2. Use the arrows beside the week to go back a week or forward again.
 3. If you send a staff report yourself, it sits at the top. Choose **Send your staff report** while it is not sent yet.
+4. On the running week, staff who have not sent last week's report are marked **Last week not sent**, and a note above the list says how many, with a link to last week. Staff whose LOA covered last week are not marked.
 
 ## Read the unit health
 
