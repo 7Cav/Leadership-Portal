@@ -17,8 +17,8 @@ use App\Models\UnitType;
  *    `Sergeant Major`);
  *  - the `Regimental HQ` group: `Regimental Commanding Officer` / `Executive Officer` /
  *    `Command Sergeant Major` → the regiment;
- *  - a regimental staff officer's billet that commands nothing above ({@see StaffBillet::PORTFOLIOS}: SecOps,
- *    Recruiting Oversight, IMO, RDC Commander) → their portfolio node, so they see what is under it; the
+ *  - a regimental staff officer's billet that commands nothing above ({@see StaffBillet::PORTFOLIOS}: Chief of Staff,
+ *    SecOps, IMO, RDC Commander) → their portfolio node, so they see what is under it; the
  *    import maps these, this class does not.
  *
  *  - `DEVCOM 1IC` / `DEVCOM 2IC` → the DEVCOM battalion, as its commander and executive officer (#377), in whichever
@@ -75,8 +75,8 @@ final class CommandBillet
     /**
      * The HQ node a non-line group's staff belong to (2026-10-24): the regiment for `Regimental HQ`, the battalion for a
      * `<bn> Command` group, null for any other group. The import places a non-command billet of such a group there
-     * (`Regimental Chief of Staff`, `Aide to the SecOps`), unless {@see StaffBillet::groupFor()} names its group (the reserve's
-     * command team, listed in `ACD Command`, sits with the Reservists), so the whole HQ is counted in its
+     * (`Regimental Chief of Staff`, `Regimental Finance Officer`), unless {@see StaffBillet::groupFor()} names its group
+     * (the reserve's command team, listed in `ACD Command`, sits with the Reservists), so the whole HQ is counted in its
      * unit's strength; a command billet is already placed by its command mapping. Placed on the regiment, Regimental HQ
      * staff read the whole regiment (`ScopeResolver::realScope()`).
      */
