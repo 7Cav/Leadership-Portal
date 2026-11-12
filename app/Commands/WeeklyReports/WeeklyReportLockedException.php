@@ -25,6 +25,6 @@ class WeeklyReportLockedException extends RuntimeException
     /** The date and Zulu time the way the UI writes them: "…locked at its deadline, 10OCT26 23 59Z, …". */
     public static function lockedAt(CarbonInterface $due): string
     {
-        return 'This report locked at its deadline, '.WeekLabel::date($due).' '.WeekLabel::zulu($due).', and can no longer be edited.';
+        return 'This report locked at its deadline, '.WeekLabel::date($due).' '.WeekLabel::zulu($due).'. Request an edit and a leader above you can unlock it.';
     }
 }

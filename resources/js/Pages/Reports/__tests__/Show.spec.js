@@ -388,6 +388,37 @@ describe('Reports/Show', () => {
         expect(wrapper.find('[data-testid="edit-report"]').exists()).toBe(true);
     });
 
+    it('points at last week while its report is owed, and names the week this page sends', () => {
+        const base = props().week;
+        expect(mountShow().find('[data-testid="owed-week"]').exists()).toBe(false);
+
+        const wrapper = mountShow({ week: { ...base, owed: '2026-09-26' } });
+        const banner = wrapper.get('[data-testid="owed-week"]');
+
+        expect(banner.text().replace(/\s+/g, ' ')).toContain('The report for 26SEP26 to 02OCT26 is not sent. This page sends the report for 03OCT26 to 09OCT26.');
+        expect(wrapper.get('[data-testid="owed-week-link"]').attributes('href')).toBe('/reports/5/2026-09-26');
+    });
+
+    it('names the unlocked time on Edit report, and shows the request panel on a locked report', () => {
+        const sent = { status: 'sent', notes: '', trainingSubject: '', unaccounted: [], savedAt: null, sentAt: '2026-10-08T16:24:00+00:00', sentBy: null };
+        const unlocked = mountShow({
+            troopers: null,
+            report: {
+                ...sent,
+                canEdit: true,
+                editRequest: { locked: false, editableUntil: '2026-10-17T23:59:00+00:00', canRequest: false, canDecide: false, latest: { id: 1, status: 'approved', decidedBy: 'CPT Hale.S' } },
+            },
+        });
+        expect(unlocked.get('[data-testid="sent-panel"]').text()).toContain('Open until Sat 17OCT26');
+
+        const locked = mountShow({
+            troopers: null,
+            report: { ...sent, canEdit: false, editRequest: { locked: true, editableUntil: '2026-10-10T23:59:00+00:00', canRequest: true, canDecide: false, latest: null } },
+        });
+        expect(locked.find('[data-testid="edit-report"]').exists()).toBe(false);
+        expect(locked.find('[data-testid="edit-request-open"]').exists()).toBe(true);
+    });
+
     it('shows a rate with nothing eligible as a bare dash in the sent panel, not "—%"', () => {
         const wrapper = mountShow({
             report: { status: 'sent', notes: '', trainingSubject: '', unaccounted: [], savedAt: null, sentAt: '2026-10-08T16:24:00+00:00', sentBy: null },

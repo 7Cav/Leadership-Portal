@@ -9,6 +9,7 @@ use App\Http\Controllers\GameIdentityController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ReportEditRequestController;
 use App\Http\Controllers\ReportRollupController;
 use App\Http\Controllers\RollcallController;
 use App\Http\Controllers\RollcallFireteamController;
@@ -65,7 +66,7 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
 // route taking one of these ids cannot forget the constraint (RouteIdConstraintTest walks the
 // routes and fails on an id-like parameter missing from this list). Don't add `whereNumber()` or
 // `where()` for these on a route: it replaces the global pattern rather than adding to it.
-foreach (['unit', 'grant', 'trooper', 'version', 'game', 'server', 'counseling', 'template', 'billet', 'entry'] as $id) {
+foreach (['unit', 'grant', 'trooper', 'version', 'game', 'server', 'counseling', 'template', 'billet', 'entry', 'editRequest'] as $id) {
     Route::pattern($id, '[0-9]{1,18}');
 }
 
@@ -122,6 +123,16 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // "Edit report": reopens a sent report until its deadline, with a reason. Throttled with the sends.
     Route::post('/reports/{unit}/{week}/edit', [ReportController::class, 'edit'])
         ->where('week', '\d{4}-\d{2}-\d{2}')->middleware('throttle:report-sends')->name('reports.edit');
+    // A report that locked at its deadline: ask a leader above to unlock it. Approve and Deny
+    // are theirs; the Commands decide who may.
+    Route::post('/reports/{unit}/{week}/edit-request', [ReportEditRequestController::class, 'requestWeekly'])
+        ->where('week', '\d{4}-\d{2}-\d{2}')->middleware('throttle:audited-writes')->name('reports.edit-request');
+    Route::post('/staff-report/{trooper}/{week}/edit-request', [ReportEditRequestController::class, 'requestStaff'])
+        ->where('week', '\d{4}-\d{2}-\d{2}')->middleware('throttle:audited-writes')->name('staff-report.edit-request');
+    Route::post('/report-edit-requests/{editRequest}/approve', [ReportEditRequestController::class, 'approve'])
+        ->middleware('throttle:audited-writes')->name('report-edit-requests.approve');
+    Route::post('/report-edit-requests/{editRequest}/deny', [ReportEditRequestController::class, 'deny'])
+        ->middleware('throttle:audited-writes')->name('report-edit-requests.deny');
     // The training topic a platoon sets for its sections this week. Who may set it (the platoon's
     // chain of command, or an Admin) is checked in the Command's handler. No `whereNumber('unit')`:
     // it would replace the 18-digit global pattern above.

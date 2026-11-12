@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Models\ReportEditRequest;
 use App\Models\Unit;
 use App\Models\WeeklyReport;
 use Carbon\CarbonInterface;
@@ -174,6 +175,12 @@ interface WeeklyReportRepository
      * @throws LogicException when the unit-week has no sent report.
      */
     public function reopen(int $unitId, CarbonInterface $weekStart, int $reopenedBy): WeeklyReport;
+
+    /**
+     * Let the sent report be edited after its deadline until `$until` (an approved {@see ReportEditRequest}),
+     * under a row lock. Null when the unit-week has no sent report. Call inside the audited transaction.
+     */
+    public function unlock(int $unitId, CarbonInterface $weekStart, CarbonInterface $until): ?WeeklyReport;
 
     /**
      * Whether `$unit` has any report, draft or sent, in any week — `weekly_reports.unit_id`

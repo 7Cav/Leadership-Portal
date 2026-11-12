@@ -15,6 +15,7 @@ import {
     PhPencilSimpleLine,
     PhSealCheck,
     PhStack,
+    PhWarning,
 } from '@phosphor-icons/vue';
 import { toast } from 'vue-sonner';
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +32,7 @@ import ReadinessChecklist from '@/components/reports/ReadinessChecklist.vue';
 import ReportDeadlineBanner from '@/components/reports/ReportDeadlineBanner.vue';
 import ReportPreview from '@/components/reports/ReportPreview.vue';
 import EditReportDialog from '@/components/reports/EditReportDialog.vue';
+import ReportEditRequestPanel from '@/components/reports/ReportEditRequestPanel.vue';
 import SendDialog from '@/components/reports/SendDialog.vue';
 import StaffReportsPanel from '@/components/reports/StaffReportsPanel.vue';
 import TimeAgo from '@/components/TimeAgo.vue';
@@ -354,7 +356,7 @@ function confirmSend(reason, makeupChecks = []) {
     });
 }
 
-// ---- Edit report: reopen a sent report until its deadline ----
+// ---- Edit report: reopen a sent report until its deadline, or until an approved request unlocked it to ----
 const editOpen = ref(false);
 const reopening = ref(false);
 const editError = ref(null);
@@ -409,6 +411,8 @@ const countdown = computed(() => {
 
     return `${d}d ${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m left`;
 });
+// Until when a sent report can be edited: its deadline, or the later time an approved request to edit it unlocked it to.
+const editUntil = computed(() => props.report.editRequest?.editableUntil ?? props.week.due);
 
 const saveLabel = computed(
     () =>
@@ -509,6 +513,21 @@ function useSuggestion() {
 
         <ReportDeadlineBanner :due="week.due" :overdue-until="week.overdueUntil" :sent="sent" />
 
+        <div
+            v-if="week.owed"
+            class="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg border border-warning/35 bg-warning/8 px-3.5 py-2 text-[13px]"
+            data-testid="owed-week"
+        >
+            <PhWarning class="size-4 shrink-0 text-warning" aria-hidden="true" />
+            <p class="min-w-0 flex-1">
+                <span class="font-semibold">The report for {{ weekLabel(week.owed) }} is not sent.</span>
+                <span class="text-muted-foreground"> This page sends the report for {{ weekLabel(week.start) }}.</span>
+            </p>
+            <Link :href="weekUrl(week.owed)" class="font-medium underline underline-offset-2 hover:text-foreground" data-testid="owed-week-link">
+                Open {{ weekLabel(week.owed) }}
+            </Link>
+        </div>
+
         <!-- The shared mode switch (5.3 AC): this screen creates and sends; the roll-up navigates. -->
         <nav aria-label="Report mode" class="inline-flex w-fit gap-0.5 rounded-md bg-muted p-0.5 text-xs font-medium">
             <span aria-current="page" class="inline-flex h-[1.625rem] items-center gap-1.5 rounded-sm bg-card px-2.5 text-foreground shadow-sm">
@@ -558,7 +577,7 @@ function useSuggestion() {
                     <PhPencilSimpleLine class="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
                     <p>
                         You are editing the report sent {{ stamp(report.sentAt) }}. Until you send it again, the sent version stays the
-                        record and your changes are kept on this page only. It locks at {{ stamp(week.due) }}.
+                        record and your changes are kept on this page only. It locks at {{ stamp(editUntil) }}.
                     </p>
                 </div>
 
@@ -610,11 +629,12 @@ function useSuggestion() {
                                 <Button variant="outline" size="sm" data-testid="edit-report" @click="openEdit">
                                     <PhPencilSimpleLine aria-hidden="true" />Edit report
                                 </Button>
-                                <p class="text-xs text-muted-foreground">Open until {{ stamp(week.due) }}.</p>
+                                <p class="text-xs text-muted-foreground">Open until {{ stamp(editUntil) }}.</p>
                             </div>
                             <p v-else class="mt-4 text-xs text-muted-foreground">
                                 The snapshot never changes. Later roll call edits stay out of it.
                             </p>
+                            <ReportEditRequestPanel v-if="report.editRequest" :edit-request="report.editRequest" :request-url="`${baseUrl}/edit-request`" />
                         </section>
 
                         <ReadinessChecklist
@@ -773,7 +793,7 @@ function useSuggestion() {
                                     Next:
                                     <button type="button" class="underline underline-offset-2 hover:text-foreground" @click="jumpToNext">{{ openChecks[0].next }}</button>
                                 </template>
-                                <template v-else>Goes to {{ parentLabel ?? 'command' }}. You can edit it until {{ stamp(week.due) }}.</template>
+                                <template v-else>Goes to {{ parentLabel ?? 'command' }}. You can edit it until {{ stamp(editUntil) }}.</template>
                             </p>
                         </div>
                     </div>
@@ -818,12 +838,12 @@ function useSuggestion() {
             :missing-units="missingUnits"
             :makeup-owed="makeupOwed"
             :default-reason="defaultSendReason(openItems, missingUnits)"
-            :due="week.due"
+            :due="editUntil"
             :again="editing"
             :processing="sending"
             :error="sendError"
             @confirm="confirmSend"
         />
-        <EditReportDialog v-model:open="editOpen" :due="week.due" :processing="reopening" :error="editError" @confirm="confirmEdit" />
+        <EditReportDialog v-model:open="editOpen" :due="editUntil" :processing="reopening" :error="editError" @confirm="confirmEdit" />
     </div>
 </template>

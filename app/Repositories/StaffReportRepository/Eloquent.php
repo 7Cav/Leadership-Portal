@@ -74,6 +74,14 @@ class Eloquent implements StaffReportRepository
             ->first();
     }
 
+    public function unlock(int $trooperId, CarbonInterface $weekStart, CarbonInterface $until): ?StaffReport
+    {
+        $row = $this->lockSent($trooperId, $weekStart);
+        $row?->forceFill(['unlocked_until' => $until])->save();
+
+        return $row;
+    }
+
     public function edit(int $trooperId, ?int $unitId, CarbonInterface $weekStart, bool $attended, array $practices, int $sentBy, array $fields = []): ?StaffReport
     {
         return DB::transaction(function () use ($trooperId, $unitId, $weekStart, $attended, $practices, $sentBy, $fields) {

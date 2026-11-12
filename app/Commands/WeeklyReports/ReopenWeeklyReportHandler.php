@@ -64,11 +64,14 @@ class ReopenWeeklyReportHandler
             throw InvalidReportContentException::weekBeforeFloor($weekStart);
         }
 
-        if ($this->reports->find($unit->id, $weekStart)?->status !== WeeklyReportStatus::Sent) {
+        $report = $this->reports->find($unit->id, $weekStart);
+
+        if ($report?->status !== WeeklyReportStatus::Sent) {
             throw WeeklyReportLockedException::notSent();
         }
 
-        if (! ReportEditWindow::isOpen($weekStart)) {
+        // Past its deadline only while an approved request to edit it holds ({@see ReportEditWindow::mayEdit()}).
+        if (! ReportEditWindow::mayEdit($weekStart, $report->unlocked_until)) {
             throw WeeklyReportLockedException::deadlinePassed(WeekOf::reportDue($weekStart));
         }
 
