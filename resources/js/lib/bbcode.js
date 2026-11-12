@@ -88,6 +88,8 @@ const LABELS = {
     week: 'Week',
     week_start: 'Week start',
     week_end: 'Week end',
+    training_date: 'Practice time',
+    training_topic: 'Training topic',
     count: 'Trooper count',
     signed: 'Signed count',
     attended: 'Attended count',
