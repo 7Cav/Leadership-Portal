@@ -12,6 +12,7 @@ use App\Commands\Auth\CavEnrichmentException;
 use App\Commands\Auth\CompleteForumLogin;
 use App\Commands\Auth\EnrichCavProfile;
 use App\Commands\Auth\ForumLoginException;
+use App\Commands\Auth\RecordSignIn;
 use App\Commands\ViewAs\ExitViewAs;
 use App\Http\Controllers\Controller;
 use App\Models\User;
@@ -33,6 +34,12 @@ class ForumAuthController extends Controller
 {
     /** The session key holding the single-use OAuth CSRF `state` nonce. */
     private const STATE_KEY = 'forum_oauth_state';
+
+    /** The session key holding the address the sign-in was started from, for its audit entry. */
+    private const VIA_KEY = 'forum_oauth_via';
+
+    /** How much of the page someone was headed to goes into the audit entry. */
+    private const HEADED_TO_LIMIT = 300;
 
     /** The session key holding this login's Cav roster snapshot (Story 1.6). */
     private const CAV_PROFILE_KEY = 'cav_profile';
@@ -71,6 +78,7 @@ class ForumAuthController extends Controller
         $result = $command->handle();
 
         $request->session()->put(self::STATE_KEY, $result->state);
+        $request->session()->put(self::VIA_KEY, $request->getSchemeAndHttpHost());
 
         return redirect()->away($result->authorizeUrl);
     }
@@ -84,9 +92,15 @@ class ForumAuthController extends Controller
      * session starts only for an Admin or a user linked to a serving trooper
      * ({@see AdmitServingMember}); everyone else goes back to the login screen with the reason.
      */
-    public function callback(Request $request, CompleteForumLogin $command, EnrichCavProfile $enrich, AdmitServingMember $admit, ServingSession $serving): RedirectResponse
+    public function callback(Request $request, CompleteForumLogin $command, EnrichCavProfile $enrich, AdmitServingMember $admit, ServingSession $serving, RecordSignIn $record): RedirectResponse
     {
         $expectedState = $request->session()->pull(self::STATE_KEY);
+        // Where the sign-in started, for the audit entry: the callback's own address when the session lost it.
+        $via = $request->session()->pull(self::VIA_KEY);
+        $via = is_string($via) ? $via : $request->getSchemeAndHttpHost();
+        // The page they were sent to sign in from, which `intended()` below still reads.
+        $headedTo = $request->session()->get('url.intended');
+        $headedTo = is_string($headedTo) ? mb_strimwidth($headedTo, 0, self::HEADED_TO_LIMIT, '...') : null;
         $providedState = $request->query('state');
 
         $stateOk = is_string($expectedState)
@@ -137,6 +151,10 @@ class ForumAuthController extends Controller
                 'admission' => $admission->name,
             ]);
 
+            $record->refused($user, $admission === Admission::Unverifiable
+                ? 'Refused: the Cav roster could not be reached'
+                : 'Refused: not linked to a serving 7Cav milpac', $via, $headedTo);
+
             return $this->backToLogin($admission === Admission::Unverifiable
                 ? 'Could not reach the Cav roster to confirm your membership. Try again in a few minutes.'
                 : 'Your forum account is not linked to a serving 7Cav milpac.');
@@ -144,6 +162,8 @@ class ForumAuthController extends Controller
 
         Auth::login($user);
         $request->session()->regenerate();
+
+        $record->signedIn($user, $via, $headedTo);
 
         $this->attachCavProfile($request, $cav);
 
@@ -268,9 +288,10 @@ class ForumAuthController extends Controller
      * discard and the plaintext pages repaint. It runs last because the flag lives in the
      * new session.
      *
-     * A view-as preview still on is recorded as stopped first (AD-16), while the user is still known.
+     * A view-as preview still on is recorded as stopped first (AD-16), while the user is still known, and the sign-out
+     * itself last, as the real user's.
      */
-    public function logout(Request $request, ExitViewAs $exitViewAs, StopActingAs $stopActingAs): RedirectResponse
+    public function logout(Request $request, ExitViewAs $exitViewAs, StopActingAs $stopActingAs, RecordSignIn $record): RedirectResponse
     {
         // Acting as someone (#379) ends with the session, recorded as stopped like any other stop.
         $admin = $request->attributes->get(ActAs::ADMIN_ATTRIBUTE);
@@ -280,6 +301,11 @@ class ForumAuthController extends Controller
 
         if ($request->user() !== null) {
             $exitViewAs->handle($request->user());
+        }
+
+        $signedIn = $admin ?? $request->user();
+        if ($signedIn !== null) {
+            $record->signedOut($signedIn);
         }
 
         Auth::logout();

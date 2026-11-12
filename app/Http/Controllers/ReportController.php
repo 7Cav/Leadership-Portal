@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffReportAccess;
 use App\Commands\Attendance\InvalidAttendanceMarkException;
+use App\Commands\Practices\PracticeSchedule;
 use App\Commands\WeeklyReports\InvalidPlatoonTrainingTopicException;
 use App\Commands\WeeklyReports\InvalidReportContentException;
 use App\Commands\WeeklyReports\MakeupChecksIncompleteException;
@@ -56,6 +57,7 @@ use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
 use App\Repositories\WeeklyReportAlreadySentException;
 use App\Repositories\WeeklyReportRepository;
+use App\Rollcall\RollcallRoster;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use ErrorException;
@@ -104,9 +106,11 @@ class ReportController extends Controller
         private readonly AutoExcused $autoExcused,
         private readonly UnitGuidonRepository $guidons,
         private readonly SectionPracticeRepository $practices,
+        private readonly PracticeSchedule $schedule,
+        private readonly RollcallRoster $rollcallRoster,
     ) {}
 
-    public function show(Request $request, UnaccountedSuggestions $suggestions, AuditLogRepository $audit, int $unit, string $week): Response
+    public function show(Request $request, UnaccountedSuggestions $suggestions, AuditLogRepository $audit, ReportEditProps $editProps, int $unit, string $week): Response
     {
         $unit = $this->unitInScope($request, $unit);
         $weekStart = $this->weekStart($week);
@@ -176,13 +180,21 @@ class ReportController extends Controller
                 'next' => $weekStart->addWeek()->lessThanOrEqualTo($this->currentWeek()) ? $weekStart->addWeek()->toDateString() : null,
                 // Older than the week floor: shown read-only, a draft or send for it is a 404.
                 'beforeFloor' => WeekOf::isBeforeFloor($weekStart),
+                // The week before, while its report is still owed and this one is not sent: a late report sent from here
+                // would land in this week, so the page points at that one first.
+                'owed' => $this->owedPreviousWeek($unit, $weekStart, $report?->status === WeeklyReportStatus::Sent, $canWrite),
             ],
             'report' => [
                 ...$this->reportProps($report, $senders),
                 'editing' => $editing,
-                // "Edit report": whoever could send it now, until its deadline. A view-as preview changes nothing.
-                'canEdit' => $sent && $canWrite && ReportEditWindow::isOpen($weekStart) && ! WeekOf::isBeforeFloor($weekStart)
+                // "Edit report": whoever could send it now, until its deadline or the time an approved request unlocked it
+                // to. A view-as preview changes nothing.
+                'canEdit' => $sent && $canWrite && ReportEditWindow::mayEdit($weekStart, $report->unlocked_until) && ! WeekOf::isBeforeFloor($weekStart)
                     && $this->scope->activeViewAs($request->user()) === null,
+                // Locked: asking a leader above to unlock it, and their decision ({@see ReportEditProps}).
+                'editRequest' => $report?->status === WeeklyReportStatus::Sent && ! WeekOf::isBeforeFloor($weekStart)
+                    ? $editProps->for($request->user(), $unit->id, null, $weekStart, $report->unlocked_until, $canWrite, $this->scope->activeViewAs($request->user()) !== null)
+                    : null,
                 // The children sent again since this roll-up froze: its numbers still hold their earlier reports.
                 'changedChildren' => $sent && ! $isLeaf ? $this->changedChildren($report, $children) : [],
                 // The versions an edit replaced, newest first, for the History tab.
@@ -213,6 +225,8 @@ class ReportController extends Controller
             // A section's draft with troopers on its roll call: whether the week's practice is confirmed as held or not
             // held (#634), which the send needs. Null when nothing needs confirming.
             'practice' => $isLeaf && ! $sent && $roster->isNotEmpty() ? $this->practiceProps($unit, $weekStart) : null,
+            // The section's roll call for the summary at the top (#703): when it trained, and the forum thread it was posted in.
+            'rollcall' => $isLeaf ? $this->rollcallProps($unit, $weekStart) : null,
             // An object even when empty: `[]` fails the page's Object prop check.
             'names' => (object) $roster->mapWithKeys(fn (Trooper $t) => [$t->id => $this->trooperLabel($t)])->all(),
             'children' => match (true) {
@@ -313,6 +327,8 @@ class ReportController extends Controller
             'makeup_checks' => ['nullable', 'array', 'max:200'],
             'makeup_checks.*.trooper_id' => ['required', 'integer'],
             'makeup_checks.*.done' => ['required', 'boolean'],
+            // Where the send started (#703), for counting how many are sent from the roll call.
+            'from' => ['nullable', 'string', 'in:rollcall,report'],
         ], [
             ...self::CONTENT_MESSAGES,
             'reason.required' => 'Give a reason for the record before you send the report.',
@@ -327,6 +343,7 @@ class ReportController extends Controller
             $data['training_subject'] ?? null,
             $data['unaccounted'] ?? [],
             array_map(fn (array $check) => ['trooper_id' => (int) $check['trooper_id'], 'done' => (bool) $check['done']], $data['makeup_checks'] ?? []),
+            $data['from'] ?? null,
         )));
 
         // Already frozen (an earlier or concurrent send): the snapshot stands as it was, so the
@@ -474,6 +491,21 @@ class ReportController extends Controller
         return $unit;
     }
 
+    /**
+     * `YYYY-MM-DD` of the week before `$weekStart` when its report is not sent and the viewer could send it, while this
+     * week's is not sent either; otherwise null. Nothing before the week floor is owed.
+     */
+    private function owedPreviousWeek(Unit $unit, CarbonImmutable $weekStart, bool $sent, bool $canWrite): ?string
+    {
+        $previous = $weekStart->subWeek();
+
+        if ($sent || ! $canWrite || WeekOf::isBeforeFloor($previous)) {
+            return null;
+        }
+
+        return $this->reports->find($unit->id, $previous)?->status === WeeklyReportStatus::Sent ? null : $previous->toDateString();
+    }
+
     /** `YYYY-MM-DD` of a Saturday that opens a Cav week no later than the current one (AD-11). */
     private function weekStart(string $week): CarbonImmutable
     {
@@ -493,6 +525,27 @@ class ReportController extends Controller
         abort_if(WeekOf::isBeforeFloor($weekStart), 404);
 
         return $weekStart;
+    }
+
+    /**
+     * The week's practice start (null when there was none: no slot, or cancelled), the forum thread its roll call was
+     * posted in (null when the leader gave none), the roll call's address, and each of its troopers' signature and
+     * practice mark (`[{id, rollcall, status}]`), which a sent report's page has no other copy of. A sent week is locked
+     * (AD-12), so these are the marks it was sent with.
+     *
+     * @return array{trainingStart: ?string, threadUrl: ?string, href: string, troopers: list<array{id: int, rollcall: string, status: ?string}>}
+     */
+    private function rollcallProps(Unit $section, CarbonImmutable $weekStart): array
+    {
+        $practice = $this->practices->find($section->id, $weekStart);
+        $week = $this->schedule->props($section->id, $weekStart, $practice)['week'] ?? null;
+
+        return [
+            'trainingStart' => ($week['cancelled'] ?? false) ? null : ($week['start'] ?? null),
+            'threadUrl' => $practice?->rollcall_thread_url,
+            'href' => route('rollcall.show', ['unit' => $section->id, 'week' => $weekStart->toDateString()]),
+            'troopers' => array_map(fn (array $row) => ['id' => $row['id'], 'rollcall' => $row['rollcall'], 'status' => $row['status']], $this->rollcallRoster->forWeek($section, $weekStart)->troopers),
+        ];
     }
 
     private function currentWeek(): CarbonImmutable

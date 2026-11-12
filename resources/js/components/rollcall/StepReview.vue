@@ -13,6 +13,8 @@ const props = defineProps({
     atRisk: { type: Array, default: () => [] },
     // `[{ trooper, weeks }]` (`makeupOwedList`): who asked for a make-up and has none recorded yet, weeks oldest first.
     makeupOwed: { type: Array, default: () => [] },
+    // The step the marks are set on: 2 on the three-step flow, 3 (sign and mark) on the new one (#703).
+    fixStep: { type: Number, default: 2 },
 });
 
 const emit = defineEmits(['go']);
@@ -72,7 +74,7 @@ const weeksText = (weeks) => `${weeks.length === 1 ? 'the week' : 'the weeks'} $
         <div class="flex-1 space-y-1">
             <p v-for="blocker in blockers" :key="blocker">{{ blocker }}</p>
         </div>
-        <Button v-if="counts.unmarked" variant="outline" size="sm" @click="emit('go', 2)">Fix in step 2</Button>
+        <Button v-if="counts.unmarked" variant="outline" size="sm" @click="emit('go', fixStep)">Fix in step {{ fixStep }}</Button>
     </div>
 
     <div class="mt-4 grid gap-4 xl:grid-cols-2">

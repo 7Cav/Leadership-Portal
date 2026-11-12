@@ -71,6 +71,13 @@ class UnitHasDependentsException extends RuntimeException
         );
     }
 
+    public static function hasEditRequests(string $unitName): self
+    {
+        return new self(
+            "Cannot delete \"{$unitName}\": it has requests to edit its reports, and that report history must be kept.",
+        );
+    }
+
     public static function hasTrainingTopics(string $unitName): self
     {
         return new self(

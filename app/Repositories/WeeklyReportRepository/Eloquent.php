@@ -40,7 +40,7 @@ class Eloquent implements WeeklyReportRepository
             ->where('unit_id', $unitId)
             ->where('week_start', $this->assertWeekStart($weekStart))
             ->sharedLock()
-            ->first(['id', 'week_start', 'status', 'reopened_at', 'is_demo']);
+            ->first(['id', 'week_start', 'status', 'reopened_at', 'unlocked_until', 'is_demo']);
 
         // Reopened inside its edit window, the week is the leader's to fix again until they send.
         return ReportEditWindow::isFrozen($report) && ! $report->is_demo;
@@ -124,6 +124,7 @@ class Eloquent implements WeeklyReportRepository
         ?int $sentByAdmin = null,
         ?int $sentAsUnit = null,
         ?array $makeupChecks = null,
+        ?string $sentFrom = null,
     ): WeeklyReport {
         if (! User::query()->whereKey($sentBy)->exists()) {
             throw new InvalidArgumentException("User {$sentBy} does not exist; a sent report records its sender.");
@@ -146,6 +147,7 @@ class Eloquent implements WeeklyReportRepository
             'makeup_checks' => $makeupChecks,
             'sent_at' => CarbonImmutable::now('UTC'),
             'sent_by' => $sentBy,
+            'sent_from' => $sentFrom,
             'sent_by_admin' => $sentByAdmin,
             'sent_as_unit' => $sentAsUnit,
             'content_digest' => $contentDigest,
@@ -168,6 +170,23 @@ class Eloquent implements WeeklyReportRepository
         $this->lockUnsent($unitId, $this->assertWeekStart($weekStart), allowEditing: true);
     }
 
+    public function unlock(int $unitId, CarbonInterface $weekStart, CarbonInterface $until): ?WeeklyReport
+    {
+        $report = WeeklyReport::query()
+            ->where('unit_id', $unitId)
+            ->where('week_start', $this->assertWeekStart($weekStart))
+            ->lockForUpdate()
+            ->first();
+
+        if ($report === null || $report->status !== WeeklyReportStatus::Sent) {
+            return null;
+        }
+
+        $report->forceFill(['unlocked_until' => $until])->save();
+
+        return $report;
+    }
+
     public function reopen(int $unitId, CarbonInterface $weekStart, int $reopenedBy): WeeklyReport
     {
         $weekStart = $this->assertWeekStart($weekStart);
@@ -183,11 +202,12 @@ class Eloquent implements WeeklyReportRepository
                 throw new LogicException("The weekly report for unit {$unitId}, week of {$weekStart->toDateString()}, is not sent, so there is nothing to reopen.");
             }
 
-            if (! ReportEditWindow::isOpen($weekStart)) {
+            if (! ReportEditWindow::mayEdit($weekStart, $report->unlocked_until)) {
                 throw WeeklyReportAlreadySentException::for($unitId, $weekStart);
             }
 
-            // Reopened already: the first reopen stands.
+            // Open already: the first reopen stands. One that locked at its deadline unsent is open again once
+            // unlocked, so it keeps its reopen too.
             if ($report->reopened_at === null) {
                 $report->forceFill(['reopened_at' => CarbonImmutable::now('UTC'), 'reopened_by' => $reopenedBy])->save();
             }

@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Models\ReportEditRequest;
 use App\Models\StaffReport;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -48,6 +49,12 @@ interface StaffReportRepository
      * was sent: what an edit holds while it sets the week's entries again.
      */
     public function lockSent(int $trooperId, CarbonInterface $weekStart): ?StaffReport;
+
+    /**
+     * Let the sent report be edited after its deadline until `$until` (an approved {@see ReportEditRequest}),
+     * under a row lock. Null when the trooper sent none that week. Call inside the audited transaction.
+     */
+    public function unlock(int $trooperId, CarbonInterface $weekStart, CarbonInterface $until): ?StaffReport;
 
     /**
      * Rewrite the sent report in place with what was sent again before its deadline: the same arguments as

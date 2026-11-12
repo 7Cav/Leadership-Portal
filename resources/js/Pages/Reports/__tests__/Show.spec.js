@@ -32,7 +32,7 @@ const closeAsks = () => {
 
 vi.mock('vue-sonner', async (importOriginal) => ({
     ...(await importOriginal()),
-    toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
+    toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), warning: vi.fn() }),
 }));
 
 const KPIS = { strength: 2, rc: { numerator: 7, denominator: 8 }, sp: { numerator: 3, denominator: 4 }, atRisk: 0, onLoa: 0, makeups: 0 };
@@ -388,6 +388,37 @@ describe('Reports/Show', () => {
         expect(wrapper.find('[data-testid="edit-report"]').exists()).toBe(true);
     });
 
+    it('points at last week while its report is owed, and names the week this page sends', () => {
+        const base = props().week;
+        expect(mountShow().find('[data-testid="owed-week"]').exists()).toBe(false);
+
+        const wrapper = mountShow({ week: { ...base, owed: '2026-09-26' } });
+        const banner = wrapper.get('[data-testid="owed-week"]');
+
+        expect(banner.text().replace(/\s+/g, ' ')).toContain('The report for 26SEP26 to 02OCT26 is not sent. This page sends the report for 03OCT26 to 09OCT26.');
+        expect(wrapper.get('[data-testid="owed-week-link"]').attributes('href')).toBe('/reports/5/2026-09-26');
+    });
+
+    it('names the unlocked time on Edit report, and shows the request panel on a locked report', () => {
+        const sent = { status: 'sent', notes: '', trainingSubject: '', unaccounted: [], savedAt: null, sentAt: '2026-10-08T16:24:00+00:00', sentBy: null };
+        const unlocked = mountShow({
+            troopers: null,
+            report: {
+                ...sent,
+                canEdit: true,
+                editRequest: { locked: false, editableUntil: '2026-10-17T23:59:00+00:00', canRequest: false, canDecide: false, latest: { id: 1, status: 'approved', decidedBy: 'CPT Hale.S' } },
+            },
+        });
+        expect(unlocked.get('[data-testid="sent-panel"]').text()).toContain('Open until Sat 17OCT26');
+
+        const locked = mountShow({
+            troopers: null,
+            report: { ...sent, canEdit: false, editRequest: { locked: true, editableUntil: '2026-10-10T23:59:00+00:00', canRequest: true, canDecide: false, latest: null } },
+        });
+        expect(locked.find('[data-testid="edit-report"]').exists()).toBe(false);
+        expect(locked.find('[data-testid="edit-request-open"]').exists()).toBe(true);
+    });
+
     it('shows a rate with nothing eligible as a bare dash in the sent panel, not "—%"', () => {
         const wrapper = mountShow({
             report: { status: 'sent', notes: '', trainingSubject: '', unaccounted: [], savedAt: null, sentAt: '2026-10-08T16:24:00+00:00', sentBy: null },
@@ -606,6 +637,71 @@ describe('Reports/Show', () => {
 
         expect(wrapper.get('[data-testid="send-anyway"]').attributes('disabled')).toBeDefined();
         expect(wrapper.get('[role="alert"]').text()).toContain("Last week's sent report cannot be read.");
+    });
+});
+
+describe('Reports/Show opened to send from the roll call (#703)', () => {
+    const dialogOpen = (wrapper) => wrapper.findComponent({ name: 'SendDialog' }).props('open');
+
+    afterEach(() => window.history.replaceState(null, '', '/'));
+
+    it('opens the send dialog at once with ?send=1', async () => {
+        window.history.replaceState(null, '', '/reports/5/2026-10-03?send=1');
+        const wrapper = mountShow({ practice: { confirmed: true, held: true } });
+        await flushPromises();
+
+        expect(dialogOpen(wrapper)).toBe(true);
+    });
+
+    it('records a send that came from the roll call as such', async () => {
+        window.history.replaceState(null, '', '/reports/5/2026-10-03?send=1');
+        const wrapper = mountShow({ practice: { confirmed: true, held: true } });
+        await flushPromises();
+        wrapper.findComponent({ name: 'SendDialog' }).vm.$emit('confirm', 'Weekly report', []);
+
+        expect(post.mock.calls.at(-1)[1].from).toBe('rollcall');
+    });
+
+    it('counts a send as the page\'s once the dialog the roll call opened was closed, and handles ?send=1 once', async () => {
+        window.history.replaceState(null, '', '/reports/5/2026-10-03?send=1');
+        const wrapper = mountShow({ practice: { confirmed: true, held: true } });
+        await flushPromises();
+        expect(window.location.search).toBe('');
+
+        const dialog = wrapper.findComponent({ name: 'SendDialog' });
+        dialog.vm.$emit('update:open', false);
+        await flushPromises();
+        dialog.vm.$emit('confirm', 'Weekly report', []);
+
+        expect(post.mock.calls.at(-1)[1].from).toBe('report');
+    });
+
+    it('records a send made on the report page as the page\'s', async () => {
+        window.history.replaceState(null, '', '/reports/5/2026-10-03');
+        const wrapper = mountShow({ practice: { confirmed: true, held: true } });
+        wrapper.findComponent({ name: 'SendDialog' }).vm.$emit('confirm', 'Weekly report', []);
+
+        expect(post.mock.calls.at(-1)[1].from).toBe('report');
+    });
+
+    it('says why when it arrives to send a report that cannot go yet', async () => {
+        const { toast } = await import('vue-sonner');
+        toast.warning.mockClear();
+        window.history.replaceState(null, '', '/reports/5/2026-10-03?send=1');
+        mountShow({ practice: { confirmed: false, held: null } });
+        await flushPromises();
+
+        expect(toast.warning).toHaveBeenCalledWith('This report cannot be sent yet', { description: 'Confirm the practice in roll call first.' });
+    });
+
+    it('stays closed without it, and for a report the send bar would not open', async () => {
+        window.history.replaceState(null, '', '/reports/5/2026-10-03');
+        expect(dialogOpen(mountShow())).toBe(false);
+
+        window.history.replaceState(null, '', '/reports/5/2026-10-03?send=1');
+        expect(dialogOpen(mountShow({ practice: { confirmed: false, held: null } }))).toBe(false);
+        expect(dialogOpen(mountShow({ report: { ...props().report, status: 'sent', sentAt: '2026-10-09T10:00:00+00:00' } }))).toBe(false);
+        expect(dialogOpen(mountShow({ canWrite: false }))).toBe(false);
     });
 });
 

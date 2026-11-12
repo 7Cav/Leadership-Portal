@@ -63,8 +63,8 @@ class SaveReportDraftHandler
             throw InvalidReportContentException::weekBeforeFloor($weekStart);
         }
 
-        $content = ReportContent::checked($unit, $weekStart, $command->notes, $command->trainingSubject, $command->unaccounted, $this->troopers);
-        $trainingSubject = SectionTrainingSubject::forDraft(
+        $content = ReportContent::checked($unit, $weekStart, $command->notes, $command->keepSubject ? null : $command->trainingSubject, $command->unaccounted, $this->troopers);
+        $trainingSubject = $command->keepSubject ? null : SectionTrainingSubject::forDraft(
             $unit->id,
             $this->topics->forSection($unit, $weekStart),
             $content->trainingSubject,
@@ -83,14 +83,16 @@ class SaveReportDraftHandler
             action: self::ACTION,
             reason: null,
             reasonRequired: false,
-            mutation: fn () => $this->reports->saveDraft(
-                $unit->id,
-                $weekStart,
-                $kpis,
-                $content->notes,
-                $trainingSubject,
-                $content->unaccounted,
-            ),
+            mutation: function () use ($unit, $weekStart, $kpis, $content, $trainingSubject, $command) {
+                if ($command->keepSubject) {
+                    // The row is locked for update before its subject is read, so a topic write of the same week
+                    // waits for this save, or this one for it, and neither undoes the other (AD-12).
+                    $this->reports->lockForSend($unit->id, $weekStart);
+                    $trainingSubject = $this->reports->find($unit->id, $weekStart)?->training_subject;
+                }
+
+                return $this->reports->saveDraft($unit->id, $weekStart, $kpis, $content->notes, $trainingSubject, $content->unaccounted);
+            },
         );
     }
 }

@@ -12,6 +12,7 @@ test('an Admin edits the company template and the section\'s rollcall post follo
     await admin.goto('/__e2e/login/Pike.S?to=/settings/templates');
     await expect(admin.getByTestId('active-version')).toBeVisible();
 
+    await admin.getByTestId('template-mode-source').click();
     const body = admin.getByTestId('template-body');
     await body.fill(`${await body.inputValue()}\n${MARKER} {{unit}}`);
     await admin.getByTestId('template-reason').fill('The standard changed once');
@@ -31,7 +32,10 @@ test('an Admin edits the company template and the section\'s rollcall post follo
 
 test('an Admin is refused a template with a typo, so it never reaches a section', async ({ page }) => {
     await page.goto('/__e2e/login/Pike.S?to=/settings/templates');
+    await page.getByTestId('template-mode-source').click();
     await page.getByTestId('template-body').fill('{{#troopers}}{{nme}}{{/troopers}}');
+    // Said as it is typed, before the save, in the words the server refuses it with (#704).
+    await expect(page.getByTestId('template-problem-message')).toHaveText('Unknown name "nme".');
     await page.getByTestId('template-reason').fill('A typo');
     await page.getByTestId('save-template').click();
 

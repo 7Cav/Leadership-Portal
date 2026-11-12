@@ -21,9 +21,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * Repository layer for the audited `MarkRollcallPosted` Command, so not mass-assignable either.
  * `confirmed_at`/`_by` record the leader confirming the practice's marks as reviewed (7.8), likewise
  * written only for the audited `ConfirmSectionPractice` Command, as is `not_held`, which says the leader confirmed the
- * practice did not take place (#634).
+ * practice did not take place (#634), and `rollcall_thread_url`, the forum thread it was posted in (#703). `flow_version` is the roll call flow the week follows (#703, `RollcallFlow`),
+ * given once when the Repository layer makes the row; `rollcall_created_at`/`_by` record a flow 2 roll call being
+ * created, written only for the audited `CreateRollcall` Command.
  */
-#[Fillable(['section_id', 'week_start'])]
+#[Fillable(['section_id', 'week_start', 'flow_version'])]
 class SectionPractice extends Model
 {
     /** @use HasFactory<SectionPracticeFactory> */
@@ -38,6 +40,8 @@ class SectionPractice extends Model
             'is_demo' => 'boolean',
             'rollcall_posted_at' => 'immutable_datetime',
             'confirmed_at' => 'immutable_datetime',
+            'flow_version' => 'integer',
+            'rollcall_created_at' => 'immutable_datetime',
             // What the confirmation says (#634): held, or not held. Read only while `confirmed_at` is set.
             'not_held' => 'boolean',
             // The window a capture read (#392), and a one-off move or cancellation of this week's slot: written only by
@@ -57,6 +61,11 @@ class SectionPractice extends Model
     public function rollcallPostedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'rollcall_posted_by');
+    }
+
+    public function rollcallCreatedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rollcall_created_by');
     }
 
     public function confirmedBy(): BelongsTo

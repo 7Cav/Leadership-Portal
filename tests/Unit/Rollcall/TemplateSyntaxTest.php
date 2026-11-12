@@ -22,7 +22,9 @@ it('refuses every malformed template in the shared cases, saying what is wrong',
         $error = TemplateSyntax::check($case['template']);
 
         expect($error)->not->toBeNull("refused: {$case['name']}")
-            ->and(str_contains($error, $case['error']))->toBeTrue("message for: {$case['name']} was: {$error}");
+            ->and(str_contains($error, $case['error']))->toBeTrue("message for: {$case['name']} was: {$error}")
+            // Word for word: the template editor shows the browser's message before a save, so it must be this one.
+            ->and($error)->toBe($case['message'], "full message for: {$case['name']}");
     }
 });
 
@@ -44,6 +46,14 @@ it('ships a starter template that follows its own grammar and uses every status'
     // Attached merged into Make-up complete (2026-10-30): the starter no longer prints it.
     expect(TemplateSyntax::STARTER)->toContain('{{^troopers}}')
         ->and(TemplateSyntax::STARTER)->not->toContain('sp_attached');
+});
+
+it('ships the same starter the browser tests render and edit, word for word', function () {
+    // The browser's tests keep a copy (resources/js/lib/__tests__/templateStarter.js) to render and to open in the
+    // template editor; this holds it to the starter the server ships, so the two cannot drift.
+    $copy = file_get_contents(__DIR__.'/../../../resources/js/lib/__tests__/templateStarter.js');
+
+    expect($copy)->toContain('export const STARTER = `'.TemplateSyntax::STARTER.'`;');
 });
 
 it('still accepts a template saved with the retired sp_attached flag, so it keeps rendering', function () {

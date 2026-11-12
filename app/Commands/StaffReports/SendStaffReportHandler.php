@@ -5,6 +5,7 @@ namespace App\Commands\StaffReports;
 use App\Authorization\StaffReportAccess;
 use App\Commands\Units\AccountabilityRules;
 use App\Models\CrossSectionSighting;
+use App\Models\ReportEditRequest;
 use App\Models\StaffReport;
 use App\Models\TelemetryInterface;
 use App\Models\Unit;
@@ -32,7 +33,8 @@ use Carbon\CarbonImmutable;
  * ({@see StaffReportAccess::maySend()}); nobody fills it in for them, Admins included. There is no draft. Until it locks
  * at its deadline ({@see ReportEditWindow}, as a unit's weekly report does) they may send it again with a reason: the
  * row is rewritten in place, the version it replaces kept in `revisions`, and the week's entries set again as below,
- * audited as `staff_report.edited` (reason required). After the deadline a sent report is final.
+ * audited as `staff_report.edited` (reason required). After the deadline a sent report is final, unless a leader above
+ * approved a request to edit it ({@see ReportEditRequest}): then until the time it was unlocked to.
  *
  * The practices picked are stored as the staff member's staff practice entries (`cross_section_sightings`, source
  * `staff`), the same store the milpac uses, so the host section's rollcall lists them and the milpac shows them. The
@@ -115,11 +117,12 @@ class SendStaffReportHandler
         $fields = $this->fields($command, $weekStart, $hq, $staff['types']);
         $sections = $this->pickedSections($command, $fields['practice_type'], $hq, $staff);
 
-        // Sent already: an edit until the deadline, with a reason; after it, locked.
-        $editing = $this->reports->find($trooper->id, $weekStart) !== null;
+        // Sent already: an edit until the deadline (or an approved unlock), with a reason; after it, locked.
+        $sent = $this->reports->find($trooper->id, $weekStart);
+        $editing = $sent !== null;
 
-        if ($editing && ! ReportEditWindow::isOpen($weekStart)) {
-            throw StaffReportRefusedException::locked($weekStart);
+        if ($editing && ! ReportEditWindow::mayEdit($weekStart, $sent->unlocked_until)) {
+            throw StaffReportRefusedException::locked($weekStart, ReportEditWindow::editableUntil($weekStart, $sent->unlocked_until));
         }
 
         if ($editing && blank($command->reason)) {
@@ -144,12 +147,14 @@ class SendStaffReportHandler
             reasonRequired: $editing,
             mutation: function () use ($actor, $trooper, $weekStart, $hq, $sections, $fields, $command, $editing, &$report) {
                 // The edit locks the sent row before it touches the week's entries; a first send must find none.
-                if ($editing ? $this->reports->lockSent($trooper->id, $weekStart) === null : $this->reports->isSent($trooper->id, $weekStart)) {
+                $locked = $editing ? $this->reports->lockSent($trooper->id, $weekStart) : null;
+
+                if ($editing ? $locked === null : $this->reports->isSent($trooper->id, $weekStart)) {
                     throw StaffReportRefusedException::alreadySent($weekStart);
                 }
 
-                if ($editing && ! ReportEditWindow::isOpen($weekStart)) {
-                    throw StaffReportRefusedException::locked($weekStart);
+                if ($editing && ! ReportEditWindow::mayEdit($weekStart, $locked->unlocked_until)) {
+                    throw StaffReportRefusedException::locked($weekStart, ReportEditWindow::editableUntil($weekStart, $locked->unlocked_until));
                 }
 
                 $entries = [];

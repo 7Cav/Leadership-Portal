@@ -19,7 +19,7 @@ class InvalidActingLeadException extends DomainException
 
     public static function notLeadable(string $unit): self
     {
-        return new self("{$unit} cannot take an acting lead: only a line unit below the regiment can.");
+        return new self("{$unit} cannot take an acting lead: only a line unit below the regiment or a staff portfolio can.");
     }
 
     public static function noSuchTrooper(int $trooperId): self

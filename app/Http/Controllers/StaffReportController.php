@@ -78,7 +78,7 @@ class StaffReportController extends Controller
         ]);
     }
 
-    public function show(Request $request, AuditLogRepository $audit, int $trooper, string $week): Response
+    public function show(Request $request, AuditLogRepository $audit, ReportEditProps $editProps, int $trooper, string $week): Response
     {
         $trooper = $this->troopers->find($trooper) ?? abort(404);
         $weekStart = $this->weekStart($week);
@@ -94,9 +94,12 @@ class StaffReportController extends Controller
         $beforeFloor = WeekOf::isBeforeFloor($weekStart);
         $canSend = $self && $report === null && $hq !== null && $trooper->status->isServing() && ! $beforeFloor
             && $this->access->maySend($user, $trooper);
-        // Sent: the staff member may send it again, with a reason, until it locks at its deadline.
-        $canEdit = $self && $report !== null && $hq !== null && $trooper->status->isServing() && ! $beforeFloor
-            && ReportEditWindow::isOpen($weekStart) && $this->access->maySend($user, $trooper);
+        // Sent: the staff member may send it again, with a reason, until it locks at its deadline, or until the time an
+        // approved request to edit it unlocked it to.
+        $sentRow = $report === null ? null : $this->week->find($trooper, $weekStart);
+        $unlockedUntil = $sentRow?->unlocked_until;
+        $mayAsk = $self && $hq !== null && $trooper->status->isServing() && $this->access->maySend($user, $trooper);
+        $canEdit = $mayAsk && $report !== null && ! $beforeFloor && ReportEditWindow::mayEdit($weekStart, $unlockedUntil);
         $current = WeekOf::start(CarbonImmutable::now());
 
         return Inertia::render('StaffReport', [
@@ -122,6 +125,9 @@ class StaffReportController extends Controller
             'sheetConfigured' => $this->sheet->sheetConfigured(),
             'canSend' => $canSend,
             'canEdit' => $canEdit,
+            // Locked: asking a leader above to unlock it, and their decision ({@see ReportEditProps}).
+            'editRequest' => $sentRow === null || $beforeFloor || ($sentRow->unit_id ?? $hq?->id) === null ? null
+                : $editProps->for($user, $sentRow->unit_id ?? $hq->id, $trooper->id, $weekStart, $unlockedUntil, $mayAsk, $this->scope->activeViewAs($user) !== null),
             // What the picker starts from: the week's staff practice entries (ticked, with who entered each) and the
             // practices the game server saw them at (a hint, never ticked for them).
             'entries' => $report === null ? $this->week->entries($trooper, $weekStart) : [],

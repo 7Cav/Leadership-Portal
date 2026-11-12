@@ -6,6 +6,7 @@ use App\Authorization\RealActor;
 use App\Authorization\ScopeResolver;
 use App\Models\Unit;
 use App\Models\UnitActingLead;
+use App\Models\UnitKind;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\AuditedBatch;
@@ -23,8 +24,8 @@ use App\Support\Audit\ReasonRequiredException;
  * starter platoons as their Platoon Leader; the roster does not say which, so an Admin says so here. ScopeResolver
  * then gives them exactly a Platoon Leader's command over the unit, and only while they serve.
  *
- * Admin only, checked against `ScopeResolver::isAdmin()` (AD-6). The unit must be a line unit below the regiment that
- * the roster names no lead for: one whose commanding billet a serving trooper holds is refused ({@see UnitLead}). One
+ * Admin only, checked against `ScopeResolver::isAdmin()` (AD-6). The unit must be a line unit below the regiment, or a
+ * regimental staff portfolio ({@see takesActingLead()}), that the roster names no lead for: one whose commanding billet a serving trooper holds is refused ({@see UnitLead}). One
  * acting lead per unit, so a unit that has one is refused until it is removed; a trooper may lead several units. An
  * Admin never assigns themselves (nor, acting as someone, the person really signed in): the command would outlast
  * their Admin, which an approved billet can lose with a rename, so another Admin decides it. A personnel
@@ -43,9 +44,18 @@ class AssignActingLeadHandler
         private readonly RealActor $real,
     ) {}
 
-    /** Whether `$unit` can take an acting lead at all: a line unit below the regiment. */
+    /**
+     * Whether `$unit` can take an acting lead at all: a line unit below the regiment, or a regimental staff portfolio
+     * ({@see StaffBillet::PORTFOLIOS}). A portfolio is where a deputy whose billet names no group is made lead of theirs
+     * (the two Deputy Chiefs of Staff, 2026-11-10), or where someone covers a vacant officer. A department or holding
+     * group never is: its people are led through the portfolio above it.
+     */
     public static function takesActingLead(Unit $unit): bool
     {
+        if ($unit->type === UnitType::Group) {
+            return $unit->kind === UnitKind::Staff && array_key_exists((string) $unit->callsign, StaffBillet::PORTFOLIOS);
+        }
+
         return $unit->isLine() && $unit->type !== UnitType::Regiment;
     }
 

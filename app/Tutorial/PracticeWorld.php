@@ -12,6 +12,7 @@ use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\AttendanceRepository;
+use App\Repositories\RollcallFlow;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\TutorialPracticeRepository;
 use App\Support\Time\WeekOf;
@@ -159,9 +160,11 @@ final class PracticeWorld
             $this->history($other, $otherMembers, $past, $otherLead, self::SUBJECTS[(self::HISTORY_WEEKS - $back)], $back + 1);
         }
 
-        // This week: seen on the practice server, not confirmed, not posted, and Demo.K neither signed nor seen. When
-        // fixing problems, Demo.K played, Sample.R was not seen, and Trial.B asked for a make-up and missed.
-        $practice = $this->practices->findOrCreate($section->id, $week);
+        // This week: seen on the practice server, not created, not confirmed, not posted, and Demo.K neither signed nor
+        // seen. When fixing problems, Demo.K played, Sample.R was not seen, and Trial.B asked for a make-up and missed.
+        // The tutorial teaches the new roll call (#703), so this week is on it whatever the cutover says; the weeks of
+        // history before it are sent and stay on the three steps.
+        $practice = $this->practices->findOrCreate($section->id, $week, flowVersion: RollcallFlow::V2);
         $this->practice->captured($practice, $start->addHour()->min($now), $start, $start->addHour());
         foreach ($sectionMembers as $trooper) {
             if ($trooper->username === self::DEMO && ! $fixing) {
@@ -181,12 +184,17 @@ final class PracticeWorld
                 $this->practice->capturePlayer($practice, $game, $trooper->username, 'practice-'.$trooper->cav_id, $trooper);
             }
         }
+        // Fixing problems starts after the practice: both roll calls were created and posted on the new flow, so the
+        // reader goes straight to Sign and mark.
+        if ($fixing) {
+            $this->practices->markRollcallPosted($this->practices->markCreated($practice, $me->id), $me->id);
+        }
 
         // 2nd Section's practice this week, seen on the server: for HQ staff, who were there too (their staff report then
         // shows server data backing that up), and when fixing problems, where Model.G was not seen as they played at
         // 1st Section's. Its report is not sent.
         if ($fixing || $persona->hqStaff !== null) {
-            $theirs = $this->practices->findOrCreate($other->id, $week);
+            $theirs = $this->practices->findOrCreate($other->id, $week, flowVersion: RollcallFlow::V2);
             $this->practice->captured($theirs, $start->addHour()->min($now), $start, $start->addHour());
             foreach ($otherMembers as $trooper) {
                 if ($fixing) {
@@ -199,6 +207,9 @@ final class PracticeWorld
                     $this->attendance->markPracticeAuto($theirs, $trooper->id);
                 }
                 $this->practice->capturePlayer($theirs, $game, $trooper->username, 'practice-'.$trooper->cav_id, $trooper);
+            }
+            if ($fixing) {
+                $this->practices->markRollcallPosted($this->practices->markCreated($theirs, $me->id), $me->id);
             }
             if ($persona->hqStaff !== null) {
                 $this->practice->capturePlayer($practice, $game, $persona->username, 'practice-'.$self->cav_id, $self);
@@ -218,7 +229,7 @@ final class PracticeWorld
     /** @param  list<Trooper>  $members */
     private function history(Unit $section, array $members, CarbonImmutable $week, User $lead, string $subject, int $seed): void
     {
-        $practice = $this->practices->findOrCreate($section->id, $week);
+        $practice = $this->practices->findOrCreate($section->id, $week, flowVersion: RollcallFlow::V1);
         foreach ($members as $i => $trooper) {
             $this->attendance->signRollcall($practice, $trooper->id, RollcallSignature::WillAttend);
             $missed = ($i + $seed) % 5 === 0;

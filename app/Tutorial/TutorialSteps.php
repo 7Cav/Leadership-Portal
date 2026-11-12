@@ -94,27 +94,30 @@ final class TutorialSteps
         $steps = [
             'rollcall' => [
                 'title' => 'Run roll call',
-                'body' => 'The practice game server already marked who played. SPC Demo.K has not signed and was not seen. Set their signature and their mark, then confirm the practice and mark the roll call posted.',
+                'body' => 'Create this week\'s roll call, then mark it posted. The practice game server already marked who played; SPC Demo.K has not answered the roll call yet and was not on the server. Pick their answer (for example Will attend) and set their practice mark, then confirm the practice.',
                 'href' => $rollcall,
                 'note' => 'In your real section, a mark you set by hand always wins over the game server.',
                 'guide' => 'run-roll-call',
                 'nav' => self::nav('Roll call'),
-                // The next thing to do is shown in the tutorial blue, each on its own roll call step: Demo.K's card on
-                // Signatures, then the Section practice step and Demo.K's card there, then Confirm practice took place,
-                // then the Review and post step and Mark posted. A step's tab is blue only while another step is open.
+                // The next thing to do is shown in the tutorial blue, each on its own step of the new roll call (#703):
+                // Create roll call, then Mark as posted on Post, then Demo.K's signature and mark on Sign and mark, then
+                // Confirm practice took place. Closing it is the weekly report step's. A step's tab is blue only while
+                // another step is open.
                 'highlight' => match (true) {
-                    $demo !== null && ! $facts['demoSigned'] => self::onRollcallStep(1, '[data-trooper="'.$demo->id.'"]'),
-                    $demo !== null && ! $facts['demoMarked'] => self::onRollcallStep(2, '[data-trooper="'.$demo->id.'"]'),
+                    ! $facts['created'] => self::onRollcallStep(1, '[data-testid="create-rollcall"]'),
+                    ! $facts['posted'] => self::onRollcallStep(2, '[data-testid="mark-posted"]'),
+                    $demo !== null && ! $facts['demoSigned'] => self::onRollcallStep(3, '[data-kind="signature"] [data-trooper="'.$demo->id.'"]'),
+                    $demo !== null && ! $facts['demoMarked'] => self::onRollcallStep(3, '[data-kind="practice"] [data-trooper="'.$demo->id.'"]'),
                     ! $facts['confirmed'] => '[data-testid="confirm-practice"]',
-                    ! $facts['posted'] => self::onRollcallStep(3, '[data-testid="mark-posted"]'),
                     default => null,
                 },
                 'checklist' => [
                     ['label' => 'Open the roll call of 1st Section', 'done' => $opened($rollcall)],
-                    ['label' => 'Set the signature of SPC Demo.K', 'done' => $facts['demoSigned']],
+                    ['label' => 'Create the roll call', 'done' => $facts['created']],
+                    ['label' => 'Mark the roll call posted', 'done' => $facts['posted']],
+                    ['label' => 'Pick an answer for SPC Demo.K', 'done' => $facts['demoSigned']],
                     ['label' => 'Set the practice mark of SPC Demo.K', 'done' => $facts['demoMarked']],
                     ['label' => 'Confirm the practice', 'done' => $facts['confirmed']],
-                    ['label' => 'Mark the roll call posted', 'done' => $facts['posted']],
                 ],
             ],
             'weekly-report' => [
@@ -250,12 +253,12 @@ final class TutorialSteps
         return [
             'makeup' => [
                 'title' => 'Add a make-up',
-                'body' => 'CPL Sample.R missed this week\'s practice and made it up at another unit\'s practice. On the Section practice step, mark them Make-up complete.',
+                'body' => 'CPL Sample.R missed this week\'s practice and made it up at another unit\'s practice. On the Sign and mark step, mark them Make-up complete.',
                 'href' => $rollcall,
                 'note' => 'A mark you set by hand always wins over the game server.',
                 'guide' => null,
                 'nav' => self::nav('Roll call'),
-                'highlight' => $facts['madeUp'] || $madeUp === null ? null : self::onRollcallStep(2, '[data-trooper="'.$madeUp->id.'"]'),
+                'highlight' => $facts['madeUp'] || $madeUp === null ? null : self::onRollcallStep(3, '[data-kind="practice"] [data-trooper="'.$madeUp->id.'"]'),
                 'checklist' => [
                     ['label' => 'Open the roll call of 1st Section', 'done' => $opened($rollcall)],
                     ['label' => 'Mark CPL Sample.R Make-up complete', 'done' => $facts['madeUp']],
@@ -263,12 +266,12 @@ final class TutorialSteps
             ],
             'guest' => [
                 'title' => 'Add a guest',
-                'body' => 'PFC Model.G of 2nd Section played at your practice on a console, so the game server did not see them. Add them under Guests on the Section practice step.',
+                'body' => 'PFC Model.G of 2nd Section played at your practice on a console, so the game server did not see them. Add them under Guests on the Sign and mark step.',
                 'href' => $rollcall,
                 'note' => 'A guest gets a make-up on their own section\'s roll call, which their leader can change.',
                 'guide' => null,
                 'nav' => self::nav('Roll call'),
-                'highlight' => $facts['guestAdded'] ? null : self::onRollcallStep(2, implode(', ', [
+                'highlight' => $facts['guestAdded'] ? null : self::onRollcallStep(3, implode(', ', [
                     '[data-testid="guest-add"]',
                     '[data-testid="guest-search"]',
                     '[data-testid="guest-result-'.($guest?->id ?? 0).'"]',

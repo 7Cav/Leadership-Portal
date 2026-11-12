@@ -208,6 +208,8 @@ class Eloquent implements TutorialPracticeRepository
             'demoSigned' => $demo !== null && $demo->rollcall !== RollcallSignature::Unsigned,
             'demoMarked' => $demo?->status !== null,
             'confirmed' => $practice?->confirmed_at !== null,
+            // The week's roll call created, its first step on the new flow (#703).
+            'created' => $practice?->rollcall_created_at !== null,
             'posted' => $practice?->rollcall_posted_at !== null,
             // A platoon writes its subject as the training topic for its sections, which is saved on its own. A sent
             // report ticks both, so a reader who sent without a note is not held on the step.

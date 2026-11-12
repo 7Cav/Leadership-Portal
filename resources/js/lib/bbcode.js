@@ -16,7 +16,7 @@
 import { insigniaWidth } from './rankInsignia';
 
 /** Names printable anywhere in a template. */
-export const TOP_STRINGS = ['unit', 'unit_name', 'week', 'week_start', 'week_end', 'count', 'signed', 'attended', 'rc_image', 'sp_image'];
+export const TOP_STRINGS = ['unit', 'unit_name', 'week', 'week_start', 'week_end', 'training_date', 'training_topic', 'count', 'signed', 'attended', 'rc_image', 'sp_image'];
 /** Yes-or-no names about the whole post, usable only as sections, anywhere in a template. */
 export const TOP_FLAGS = ['fireteams_shown'];
 /** The one list a template may repeat over. */
@@ -39,6 +39,8 @@ const MEANINGS = {
     week: ['The Cav week, Saturday to Friday', '16May26 – 22May26'],
     week_start: ['The Saturday the week starts', '16May26'],
     week_end: ['The Friday the week ends', '22May26'],
+    training_date: ["When this week's practice starts: the section's slot, or this week's own time when it was moved. Empty when there is no practice this week", 'Wed 20May26 2300Z'],
+    training_topic: ["This week's training topic: the platoon's, or the section's own. The weekly report shows the same one. Empty until one is set", 'Land navigation: map and compass'],
     count: ['How many troopers are in the section', '8'],
     signed: ['How many signed the roll call as will attend', '6'],
     attended: ['How many attended practice or completed a make-up', '5'],
@@ -78,20 +80,72 @@ const MEANINGS = {
 /** The names the legend describes, so a test can hold them to the lists. */
 export const DESCRIBED = Object.keys(MEANINGS);
 
+// A short name for each code, for the chip the template editor's visual mode shows in its place and for the code picker.
+// A test holds it to the same lists as the meanings.
+const LABELS = {
+    unit: 'Callsign',
+    unit_name: 'Section name',
+    week: 'Week',
+    week_start: 'Week start',
+    week_end: 'Week end',
+    count: 'Trooper count',
+    signed: 'Signed count',
+    attended: 'Attended count',
+    rc_image: 'Signed RC image',
+    sp_image: 'Attended SP image',
+    fireteams_shown: 'Fireteams shown',
+    troopers: 'Each trooper',
+    n: 'Row number',
+    role: 'Role',
+    rank: 'Rank',
+    rank_short: 'Short rank',
+    rank_icon: 'Rank insignia',
+    rank_icon_width: 'Insignia width',
+    name: 'Trooper name',
+    display_name: 'Rank and name',
+    rc: 'Roll call mark',
+    sp: 'Practice mark',
+    sp_present: 'Attended practice',
+    sp_missed: 'Missed practice',
+    sp_excused: 'Excused from practice',
+    sp_makeup: 'Make-up complete',
+    sp_attached: 'Attached (retired)',
+    sp_loa: 'On LOA',
+    sp_unmarked: 'Practice not marked',
+    rc_yes: 'Will attend',
+    rc_no: 'Will not attend',
+    rc_makeup_requested: 'Make-up requested',
+    rc_excused: 'Excused from roll call',
+    rc_unsigned: 'Not signed',
+    is_sl: 'Section Leader',
+    is_asl: 'Assistant Section Leader',
+    is_ftl: 'Fireteam leader',
+    upper: 'in capitals',
+    lower: 'in lowercase',
+};
+
+/** The names that have a short label, so a test can hold them to the lists. */
+export const LABELLED = Object.keys(LABELS);
+
+/** The short name of a code, as the visual editor's chip and the code picker show it; the name itself if it has none. */
+export function codeLabel(name) {
+    return Object.hasOwn(LABELS, name) ? LABELS[name] : name;
+}
+
 /**
  * Every code the template language accepts, grouped as the parser reads them, each with a one-line meaning and an
  * example. Built from the same lists as {@link parse}. `where` says where a group's codes may be used, if anywhere
  * in particular. `open` and `close` are what the editor puts in when the code is clicked: a section's open and close
  * tags go around the selection, and any other code has an empty `close`.
  *
- * @returns {{key: string, title: string, where: string, entries: {name: string, code: string, open: string, close: string, meaning: string, example: string}[]}[]}
+ * @returns {{key: string, title: string, where: string, entries: {name: string, label: string, code: string, open: string, close: string, meaning: string, example: string}[]}[]}
  */
 export function templateLegend() {
     const group = (key, title, where, names, codeOf) => ({
         key,
         title,
         where,
-        entries: names.map((name) => ({ name, ...codeOf(name), meaning: MEANINGS[name]?.[0] ?? '', example: MEANINGS[name]?.[1] ?? '' })),
+        entries: names.map((name) => ({ name, ...codeOf(name), label: codeLabel(name), meaning: MEANINGS[name]?.[0] ?? '', example: MEANINGS[name]?.[1] ?? '' })),
     });
     const single = (code) => ({ code, open: code, close: '' });
     const tag = (name) => single(`{{${name}}}`);
@@ -159,6 +213,8 @@ export function sampleContext() {
         week: example('week'),
         week_start: example('week_start'),
         week_end: example('week_end'),
+        training_date: example('training_date'),
+        training_topic: example('training_topic'),
         count: String(troopers.length),
         signed: String(troopers.filter((trooper) => trooper.rc_yes).length),
         attended: String(troopers.filter((trooper) => trooper.sp_present || trooper.sp_makeup).length),
@@ -171,33 +227,37 @@ export function sampleContext() {
 }
 
 // One run of whitespace in each place, so a long run of spaces inside "{{ ... }}" cannot make the match slow.
-const TAG = /\{\{\s*(?:([#^/])\s*)?([a-z_]+)\s*(?:\|\s*([a-z]+)\s*)?\}\}/g;
+export const CODE_TAG = /\{\{\s*(?:([#^/])\s*)?([a-z_]+)\s*(?:\|\s*([a-z]+)\s*)?\}\}/g;
 
 /**
- * Parse a template into a tree, or say what is wrong with it.
+ * Parse a template into a tree, or say what is wrong with it. The message is word for word the server's
+ * (`TemplateSyntax::check`, held to it by the shared cases); `at` and `length` say where in the source the problem is,
+ * so the editor can point at it: the code at fault, the stray "{{", or the opening of a section never closed.
  *
- * @returns {{ok: true, tree: object[]} | {ok: false, error: string}}
+ * @returns {{ok: true, tree: object[]} | {ok: false, error: string, at: number, length: number}}
  */
 export function parse(source) {
     const root = [];
     const stack = [{ name: null, children: root }];
     let last = 0;
+    let here = { at: 0, length: 0 };
 
-    const fail = (error) => ({ ok: false, error });
+    const fail = (error, where = here) => ({ ok: false, error, ...where });
     const text = (to) => {
         const chunk = source.slice(last, to);
-        if (chunk.includes('{{')) return fail('A "{{" with no matching "}}", or a tag that is not recognised.');
+        if (chunk.includes('{{')) return fail('A "{{" with no matching "}}", or a tag that is not recognised.', { at: last + chunk.indexOf('{{'), length: 2 });
         if (chunk !== '') stack.at(-1).children.push({ type: 'text', value: chunk });
 
         return null;
     };
 
-    for (const match of source.matchAll(TAG)) {
+    for (const match of source.matchAll(CODE_TAG)) {
         const [whole, name, filter] = [match[0], match[2], match[3]];
         const mark = match[1] ?? '';
         const bad = text(match.index);
         if (bad) return bad;
         last = match.index + whole.length;
+        here = { at: match.index, length: whole.length };
 
         const inRow = stack.some((frame) => frame.name === 'troopers');
 
@@ -217,7 +277,7 @@ export function parse(source) {
 
             const node = { type: 'section', name, inverted: mark === '^', children: [] };
             stack.at(-1).children.push(node);
-            stack.push({ name, inverted: node.inverted, children: node.children });
+            stack.push({ name, inverted: node.inverted, children: node.children, where: here });
             continue;
         }
 
@@ -231,7 +291,7 @@ export function parse(source) {
 
     const tail = text(source.length);
     if (tail) return tail;
-    if (stack.length > 1) return fail(`The section "{{#${stack.at(-1).name}}}" is never closed.`);
+    if (stack.length > 1) return fail(`The section "{{#${stack.at(-1).name}}}" is never closed.`, stack.at(-1).where);
 
     return { ok: true, tree: root };
 }

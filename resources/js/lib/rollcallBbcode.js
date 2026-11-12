@@ -12,6 +12,17 @@ function postDate(value) {
     return date.slice(0, 3) + date.slice(3, 5).toLowerCase() + date.slice(5);
 }
 
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// When the week's practice starts, as the post writes a moment (`Wed 07Oct26 2300Z`, #703): empty with no practice.
+function postDateTime(value) {
+    if (!value) return '';
+    const at = new Date(value);
+    const clock = `${String(at.getUTCHours()).padStart(2, '0')}${String(at.getUTCMinutes()).padStart(2, '0')}`;
+
+    return `${WEEKDAYS[at.getUTCDay()]} ${postDate(at)} ${clock}Z`;
+}
+
 // The rollcall forum post (Stories 3.10, 3.11). The post is whatever the section's company has as its active template
 // (3.5, resolved by the server on every render, 3.6, AD-17) filled with the week's marks. There is no built-in copy to
 // fall back to: a company with no template shows what is missing instead of a post nobody wrote. The portal never
@@ -26,10 +37,10 @@ const SP_WORDS = { present: 'Yes', missed: 'No', excused: 'EX', makeup: 'MU', lo
  * ({@link orderTroopers}), so `{{n}}` numbers them in that order. Shown fireteams are named by letter
  * ({@link fireteamNames}), and `fireteams_shown` is set only when the section shows FTLs and has at least one.
  *
- * @param {{section: object, week: object, troopers: object[], fireteams?: {show: boolean, order: string, alphabet: string}, resultImages?: {rc: string, sp: string}}} input
+ * @param {{section: object, week: object, troopers: object[], fireteams?: {show: boolean, order: string, alphabet: string}, resultImages?: {rc: string, sp: string}, training?: {date: ?string, topic: ?string}}} input
  *   the props the rollcall page received, with the working marks
  */
-export function rollcallContext({ section, week, troopers, fireteams = {}, resultImages = {} }) {
+export function rollcallContext({ section, week, troopers, fireteams = {}, resultImages = {}, training = {} }) {
     const ordered = orderTroopers(troopers, fireteams);
     const names = fireteamNames(ordered, fireteams);
     const rows = ordered.map((trooper, index) => {
@@ -75,6 +86,9 @@ export function rollcallContext({ section, week, troopers, fireteams = {}, resul
         week: `${postDate(week.start)} – ${postDate(week.closes)}`,
         week_start: postDate(week.start),
         week_end: postDate(week.closes),
+        // This week's practice start and training topic (#703): the topic is the weekly report's training subject.
+        training_date: postDateTime(training.date),
+        training_topic: training.topic?.trim() ?? '',
         count: String(rows.length),
         signed: String(rows.filter((row) => row.rc_yes).length),
         attended: String(rows.filter((row) => row.sp_present || row.sp_makeup).length),

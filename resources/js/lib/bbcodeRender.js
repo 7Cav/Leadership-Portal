@@ -31,7 +31,7 @@ const TRIM_END = new Set([...BLOCK, 'li', 'td', 'th']);
 
 // One opening or closing tag. The option stops at "]" or a line end, so a broken tag cannot run on through the post. The
 // second form is XenForo's [IMG width="322px" height="auto"], the only tag here that takes named options.
-const TAG = /\[(\/?)([a-z]+|\*)(?:=([^\]\r\n]*))?\]|\[(img)(\s[^\]\r\n]*)\]/gi;
+export const TAG = /\[(\/?)([a-z]+|\*)(?:=([^\]\r\n]*))?\]|\[(img)(\s[^\]\r\n]*)\]/gi;
 
 // The largest side, in pixels, an [IMG] may be given.
 const MAX_IMG_PX = 1000;
@@ -179,6 +179,17 @@ const TAGS = {
     td: (option) => option === undefined && { tag: 'td' },
     th: (option) => option === undefined && { tag: 'th' },
 };
+
+/**
+ * What a tag becomes in the preview, given its lower-case name and its option as written after the "=" (undefined when
+ * it has none): the HTML element and the style or attributes this file checked, or null when the forum would show the
+ * tag as text. The template editor's visual mode reads it too, so it formats exactly what the preview does.
+ *
+ * @returns {{tag: string, style?: object, attrs?: object} | null}
+ */
+export function bbcodeElement(name, option) {
+    return TAGS[name]?.(option === undefined ? undefined : unquote(option.trim())) || null;
+}
 
 function linkAttrs(href) {
     return { href, rel: 'noopener noreferrer nofollow', target: '_blank' };

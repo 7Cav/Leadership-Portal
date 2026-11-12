@@ -429,6 +429,7 @@ describe('audit log', function () {
         expect($entries())->toBe([
             [$admin->id, 'view_as.started', 'Unit', (string) $tree['platoon']->id],
             [$admin->id, 'view_as.stopped', 'Unit', (string) $tree['platoon']->id],
+            [$admin->id, 'auth.signed_out', 'User', (string) $admin->id],
         ]);
     });
 

@@ -9,6 +9,7 @@ use App\Http\Controllers\GameIdentityController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ReportEditRequestController;
 use App\Http\Controllers\ReportRollupController;
 use App\Http\Controllers\RollcallController;
 use App\Http\Controllers\RollcallFireteamController;
@@ -16,6 +17,7 @@ use App\Http\Controllers\RollcallGuestController;
 use App\Http\Controllers\RollcallPracticeSlotController;
 use App\Http\Controllers\RollcallResultImageController;
 use App\Http\Controllers\RollcallTemplateController;
+use App\Http\Controllers\RollcallTrainingController;
 use App\Http\Controllers\RosterAccountabilityController;
 use App\Http\Controllers\RosterController;
 use App\Http\Controllers\RosterPresenceMinimumController;
@@ -65,7 +67,7 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
 // route taking one of these ids cannot forget the constraint (RouteIdConstraintTest walks the
 // routes and fails on an id-like parameter missing from this list). Don't add `whereNumber()` or
 // `where()` for these on a route: it replaces the global pattern rather than adding to it.
-foreach (['unit', 'grant', 'trooper', 'version', 'game', 'server', 'counseling', 'template', 'billet', 'entry'] as $id) {
+foreach (['unit', 'grant', 'trooper', 'version', 'game', 'server', 'counseling', 'template', 'billet', 'entry', 'editRequest'] as $id) {
     Route::pattern($id, '[0-9]{1,18}');
 }
 
@@ -122,6 +124,16 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // "Edit report": reopens a sent report until its deadline, with a reason. Throttled with the sends.
     Route::post('/reports/{unit}/{week}/edit', [ReportController::class, 'edit'])
         ->where('week', '\d{4}-\d{2}-\d{2}')->middleware('throttle:report-sends')->name('reports.edit');
+    // A report that locked at its deadline: ask a leader above to unlock it. Approve and Deny
+    // are theirs; the Commands decide who may.
+    Route::post('/reports/{unit}/{week}/edit-request', [ReportEditRequestController::class, 'requestWeekly'])
+        ->where('week', '\d{4}-\d{2}-\d{2}')->middleware('throttle:audited-writes')->name('reports.edit-request');
+    Route::post('/staff-report/{trooper}/{week}/edit-request', [ReportEditRequestController::class, 'requestStaff'])
+        ->where('week', '\d{4}-\d{2}-\d{2}')->middleware('throttle:audited-writes')->name('staff-report.edit-request');
+    Route::post('/report-edit-requests/{editRequest}/approve', [ReportEditRequestController::class, 'approve'])
+        ->middleware('throttle:audited-writes')->name('report-edit-requests.approve');
+    Route::post('/report-edit-requests/{editRequest}/deny', [ReportEditRequestController::class, 'deny'])
+        ->middleware('throttle:audited-writes')->name('report-edit-requests.deny');
     // The training topic a platoon sets for its sections this week. Who may set it (the platoon's
     // chain of command, or an Admin) is checked in the Command's handler. No `whereNumber('unit')`:
     // it would replace the 18-digit global pattern above.
@@ -223,6 +235,11 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // The section's practice slot and one week's move or cancellation (#392): audited Commands gated by write scope.
     Route::post('/rollcall/{unit}/slot', [RollcallPracticeSlotController::class, 'slot'])->middleware('throttle:audited-writes')->name('rollcall.slot');
     Route::post('/rollcall/{unit}/slot/week', [RollcallPracticeSlotController::class, 'week'])->middleware('throttle:audited-writes')->name('rollcall.slot.week');
+    // The roll call's weekly cycle (#703): create a week's roll call with its training date and topic (flow 2), and the
+    // topic on its own, which is the weekly report's training subject, one value.
+    Route::post('/rollcall/{unit}/create', [RollcallTrainingController::class, 'create'])->middleware('throttle:audited-writes')->name('rollcall.create');
+    Route::post('/rollcall/{unit}/report-notes', [RollcallTrainingController::class, 'notes'])->middleware('throttle:report-drafts')->name('rollcall.report-notes');
+    Route::post('/rollcall/{unit}/training-topic', [RollcallTrainingController::class, 'topic'])->middleware('throttle:audited-writes')->name('rollcall.training-topic');
     Route::post('/rollcall/{unit}/template', RollcallTemplateController::class)->middleware('throttle:audited-writes')->name('rollcall.template.pick');
 
     // Game identities (Story 7.2): link troopers in scope to their in-game identity, one per
