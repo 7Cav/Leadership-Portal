@@ -7,13 +7,14 @@
 //   data-open="..." data-close="..."     formatting, a table, a row or a cell: its open, what is inside, its close
 //   data-pair                            a section: its two ends are chips (`data-edge`); if the leader deletes either
 //                                        end, both go and what it showed stays
-// Text is read as it stands. Anything else (formatting the browser added while editing) is read as its text, and a line
-// the browser started is read as a line end, so an edit can never put markup into the template that nobody chose.
+// Text is read as it stands. Anything else (formatting the browser added while editing) is read as its text, a line the
+// browser started is read as a line end and a line break element as nothing (see `walk`), so an edit can never put
+// markup into the template that nobody chose.
 //
 // Nothing here builds HTML from a string: every element is created and every text is a text node, so nothing in a
 // template can add markup or a script to the page.
 
-import { codeLabel } from './bbcode';
+import { LABELLED, codeLabel } from './bbcode';
 import { bbcodeElement } from './bbcodeRender';
 
 const LOOP_LABELS = { troopers: 'Repeats for each trooper', notroopers: 'When the section has no troopers' };
@@ -169,8 +170,9 @@ function drawNode(doc, node, condition) {
             return node.hidden ? hidden(doc, node.value) : doc.createTextNode(node.value);
         case 'value': {
             const label = valueLabel(node.name, node.filter);
+            const known = LABELLED.includes(node.name) && (node.filter === undefined || LABELLED.includes(node.filter));
 
-            return chip(doc, node.raw, label, `${label}, template code ${node.raw}`, 'tpl-chip');
+            return chip(doc, node.raw, label, `${label}, template code ${node.raw}`, known ? 'tpl-chip' : 'tpl-chip tpl-unknown');
         }
         case 'image': {
             const label = imageLabel(node.raw);
@@ -248,13 +250,9 @@ function walk(root, on) {
 
             return;
         }
-        if (node.tagName === 'BR') {
-            // The empty line a browser keeps open at the very end is not a line the leader wrote.
-            const placeholder = node.nextSibling === null && (node.previousSibling === null || node.previousSibling.nodeName === 'BR');
-            if (!placeholder) out += '\n';
-
-            return;
-        }
+        // A line break element is only ever the browser's placeholder for a line it emptied: the editor puts Enter,
+        // Shift+Enter and a paste in as text, so a line end the leader wrote is always in a text node.
+        if (node.tagName === 'BR') return;
         if (BROWSER_LINES.has(node.tagName) && out !== '' && !out.endsWith('\n')) out += '\n';
         visitChildren(node, false);
     };
@@ -262,6 +260,14 @@ function walk(root, on) {
     visitChildren(root, false);
 
     return out;
+}
+
+/**
+ * Whether a section on the surface has lost one of its two ends, which the leader deleted. The template no longer has
+ * the section, so the surface is drawn again to stop showing the end that is left.
+ */
+export function hasLoneEdge(root) {
+    return [...root.querySelectorAll('[data-pair]')].some((pair) => [...pair.children].filter((child) => child.dataset.edge).length !== 2);
 }
 
 /**

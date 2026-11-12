@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import cases from '../../../../tests/Fixtures/bbcode-templates.json';
 import { buildDoc } from '../templateDoc';
-import { drawDoc, pointAt, readDom } from '../templateDom';
+import { drawDoc, hasLoneEdge, pointAt, readDom } from '../templateDom';
 import { STARTER } from './templateStarter';
 
 // The visual mode is a page element the leader types into, drawn from the template and read back from what is on the
@@ -54,6 +54,14 @@ describe('the visual surface', () => {
         expect(chip.textContent).toBe('Trooper name');
         expect(chip.getAttribute('role')).toBe('img');
         expect(chip.getAttribute('aria-label')).toBe('Trooper name, template code {{name}}');
+    });
+
+    it('marks a code the language does not have, and names it as written', () => {
+        const root = surface('{{#troopers}}{{nme}} {{name}}{{/troopers}}');
+
+        expect(root.querySelector('[data-raw="{{nme}}"]').classList.contains('tpl-unknown')).toBe(true);
+        expect(root.querySelector('[data-raw="{{nme}}"]').textContent).toBe('nme');
+        expect(root.querySelector('[data-raw="{{name}}"]').classList.contains('tpl-unknown')).toBe(false);
     });
 
     it('names a filtered code for what it prints', () => {
@@ -123,21 +131,29 @@ describe('reading back what the leader changed', () => {
         expect(readDom(root).source).toBe('abcd');
     });
 
-    it('reads a line break or a new line the browser added as a line end', () => {
+    it('reads a new line the browser started as a line end', () => {
         const root = surface('ab');
-        root.append(document.createElement('br'), document.createTextNode('cd'));
         const line = document.createElement('div');
         line.textContent = 'ef';
         root.append(line);
 
-        expect(readDom(root).source).toBe('ab\ncd\nef');
+        expect(readDom(root).source).toBe('ab\nef');
     });
 
-    it('ignores the empty line break a browser leaves as a placeholder', () => {
-        const root = surface('');
+    it('ignores the line break a browser leaves as a placeholder where a line was emptied, as Chromium does', () => {
+        const root = surface('[CENTER][/CENTER]');
+        root.prepend(document.createElement('br'));
         root.append(document.createElement('br'));
 
-        expect(readDom(root).source).toBe('');
+        expect(readDom(root).source).toBe('[CENTER][/CENTER]');
+    });
+
+    it('knows when a section has lost one of its ends, so the surface can be drawn again without the other', () => {
+        const root = surface('a {{#rank_icon}}x{{/rank_icon}} b');
+        expect(hasLoneEdge(root)).toBe(false);
+        root.querySelector('[data-edge="close"]').remove();
+
+        expect(hasLoneEdge(root)).toBe(true);
     });
 });
 

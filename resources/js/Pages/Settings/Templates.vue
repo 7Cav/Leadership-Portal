@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, ref, toRef, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, toRef, watch } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { refDebounced } from '@vueuse/core';
 import { PhCaretDown, PhCheck, PhCircleNotch, PhCopy, PhFileCode, PhLockSimple, PhPlus, PhWarning } from '@phosphor-icons/vue';
@@ -16,6 +16,7 @@ import { render, sampleContext, templateLegend } from '@/lib/bbcode';
 import { rollcallContext } from '@/lib/rollcallBbcode';
 import { useViewAs } from '@/composables/useViewAs';
 import BbcodePreview from '@/components/BbcodePreview.vue';
+import TemplateEditor from '@/components/templates/TemplateEditor.vue';
 import LineDiff from '@/components/LineDiff.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import SearchSelect from '@/components/SearchSelect.vue';
@@ -248,36 +249,14 @@ async function copyCode(code) {
 }
 onBeforeUnmount(() => clearTimeout(copiedTimer));
 
-// Clicking a code puts it in the editor at the cursor, in place of any selection, as typing it would: a section's open
-// and close tags go around the selection, with the cursor between them when nothing is selected. The editor keeps the
-// focus with the cursor after what went in. Only someone who may edit the template gets this; anyone else can still copy a code.
-const bodyField = ref(null);
+// Clicking a code puts it in the editor at the cursor, in whichever mode is open, in place of any selection, as the
+// editor's own code picker does (`TemplateEditor`): a section's open and close tags go around the selection, with the
+// cursor between them when nothing is selected. Only someone who may edit the template gets this; anyone else can still
+// copy a code.
+const editor = ref(null);
 const canInsert = computed(() => showEditor.value && !readOnlyPreview.value);
-async function insertCode(entry) {
-    const field = bodyField.value?.$el;
-    if (!canInsert.value || !field) return;
-
-    const start = field.selectionStart ?? form.body.length;
-    const end = field.selectionEnd ?? start;
-    const inserted = entry.close === '' ? entry.open : `${entry.open}${form.body.slice(start, end)}${entry.close}`;
-    if (form.body.length - (end - start) + inserted.length > props.maxBodyLength) return;
-
-    // A section with nothing selected leaves the cursor between its tags, ready for what goes inside.
-    const caret = entry.close !== '' && start === end ? start + entry.open.length : start + inserted.length;
-
-    // `execCommand('insertText')` is deprecated, but it is still the only way to edit a textarea through the browser's
-    // own editing, so the insert joins the native undo stack and Ctrl+Z takes it back. It fires an `input` event, which
-    // updates `form.body` through v-model like typing does. Where it is missing or refuses (happy-dom in the tests),
-    // the text is set directly instead, which works the same except for undo.
-    field.focus();
-    field.setSelectionRange(start, end);
-    const native = typeof document.execCommand === 'function' && document.execCommand('insertText', false, inserted);
-    if (!native) {
-        form.body = form.body.slice(0, start) + inserted + form.body.slice(end);
-        await nextTick();
-        field.focus();
-    }
-    field.setSelectionRange(caret, caret);
+function insertCode(entry) {
+    if (canInsert.value) editor.value?.insert(entry);
 }
 
 // The template filled with a made-up section (the legend's examples), drawn as the forum shows the post. It follows the
@@ -499,7 +478,9 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                 </p>
             </Card>
 
-            <div v-if="section === null || template !== null" class="grid items-start gap-5 lg:grid-cols-[1.2fr_0.8fr]">
+            <!-- The editor and the preview side by side (#704), so the post shows as it is typed; the versions below. -->
+            <div v-if="section === null || template !== null" class="space-y-5">
+                <div class="grid items-start gap-5 xl:grid-cols-2">
                 <Card class="min-w-0 gap-0 p-4">
                     <div class="mb-3 flex items-center justify-between gap-2">
                         <h2 class="text-[15px] font-semibold" data-testid="open-template-name">{{ openTemplate?.name ?? 'Active template' }}</h2>
@@ -514,18 +495,14 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                     </p>
 
                     <form v-if="showEditor" class="space-y-3" data-testid="template-form" @submit.prevent="save">
-                        <div class="grid gap-1.5">
-                            <Label for="template-body">Template</Label>
-                            <Textarea
-                                id="template-body"
-                                ref="bodyField"
+                        <div class="grid grid-cols-[minmax(0,1fr)] gap-1.5">
+                            <Label id="template-body-label" for="template-body" class="sr-only">Template</Label>
+                            <TemplateEditor
+                                ref="editor"
                                 v-model="form.body"
-                                data-testid="template-body"
-                                rows="16"
-                                class="font-mono text-xs"
-                                :maxlength="maxBodyLength"
+                                :max-length="maxBodyLength"
                                 :disabled="readOnlyPreview"
-                                :aria-invalid="!!form.errors.body"
+                                :history-key="`${template}-${active?.id ?? ''}`"
                             />
                             <Button v-if="!readOnlyPreview" type="button" variant="outline" size="sm" class="justify-self-start" data-testid="use-starter" @click="useStarter">
                                 Start from the default
@@ -555,10 +532,13 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                     </form>
 
                     <pre v-else-if="active" class="overflow-x-auto rounded-md border border-border bg-muted/30 p-3 font-mono text-xs whitespace-pre-wrap" data-testid="template-readonly">{{ active.body }}</pre>
+                </Card>
 
-                    <section v-if="preview" class="mt-5 border-t border-border pt-4" aria-labelledby="template-preview-title" data-testid="template-preview">
+                <Card v-if="preview || showEditor" class="min-w-0 gap-0 p-4 xl:sticky xl:top-4">
+                    <p v-if="!preview" class="text-[13px] text-muted-foreground" data-testid="template-preview-empty">The forum post shows here as you write the template.</p>
+                    <section v-else aria-labelledby="template-preview-title" data-testid="template-preview">
                         <div class="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                            <h3 id="template-preview-title" class="text-[13px] font-semibold">Preview</h3>
+                            <h2 id="template-preview-title" class="text-[15px] font-semibold">Preview</h2>
                             <p class="text-xs text-muted-foreground" data-testid="template-preview-note">
                                 <template v-if="realState === 'ready'">
                                     As the forum shows it, filled with {{ realSection.unit }}'s {{ troopersLabel(realSection.troopers.length) }} and their marks this week.
@@ -598,8 +578,8 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                             The preview shows again once the template codes are valid. {{ preview.error }}
                         </InlineNotice>
                     </section>
-
                 </Card>
+                </div>
 
                 <Card class="min-w-0 gap-0 py-0">
                     <div class="px-4 pt-3.5 pb-2">

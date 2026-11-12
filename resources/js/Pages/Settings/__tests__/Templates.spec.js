@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import { nextTick, reactive } from 'vue';
 import Templates from '../Templates.vue';
@@ -549,12 +549,22 @@ describe('Settings/Templates', () => {
             consoleError.mockRestore();
         });
 
+        // In the Source tab, where the cursor is a textarea's; the visual mode's own tests are the editor's.
         describe('inserting a code into the editor', () => {
             const editor = (wrapper) => wrapper.get('[data-testid="template-body"]').element;
-            const select = (wrapper, start, end = start) => editor(wrapper).setSelectionRange(start, end);
+            const select = (wrapper, start, end = start) => {
+                editor(wrapper).focus();
+                editor(wrapper).setSelectionRange(start, end);
+                editor(wrapper).dispatchEvent(new Event('select'));
+            };
+
+            beforeEach(() => {
+                window.localStorage.setItem('templates.editor-mode', 'source');
+            });
 
             afterEach(() => {
                 vi.useRealTimers();
+                window.localStorage.removeItem('templates.editor-mode');
             });
 
             it('puts a value code at the cursor and keeps the cursor after it, in the editor', async () => {
