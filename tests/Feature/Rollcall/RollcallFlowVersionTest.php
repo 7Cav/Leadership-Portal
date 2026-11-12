@@ -8,6 +8,7 @@ use App\Repositories\RollcallFlow;
 use App\Repositories\SectionPracticeRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia;
 
 // #703: the flow version seam. A week follows the flow it started under: weeks from the cutover Saturday on take the
@@ -27,8 +28,30 @@ it('puts a week on the new flow from the cutover Saturday, and earlier weeks on 
         ->and(RollcallFlow::forWeek(CarbonImmutable::parse('2026-11-21', 'UTC')))->toBe(RollcallFlow::V2)
         ->and(RollcallFlow::forWeek(CarbonImmutable::parse('2026-11-27 23:59', 'UTC')))->toBe(RollcallFlow::V2);
 
-    config(['portal.rollcall_flow_v2_from' => null]);
+    config(['portal.rollcall_flow_v2_from' => false]);
     expect(RollcallFlow::forWeek(CarbonImmutable::parse('2026-11-21', 'UTC')))->toBe(RollcallFlow::V1);
+});
+
+it('starts the new flow with the Saturday the release recorded, unless the setting names one', function () {
+    config(['portal.rollcall_flow_v2_from' => null]);
+    DB::table('rollcall_flow_cutovers')->update(['first_week' => '2026-11-28']);
+
+    expect(RollcallFlow::forWeek(CarbonImmutable::parse('2026-11-21', 'UTC')))->toBe(RollcallFlow::V1)
+        ->and(RollcallFlow::forWeek(CarbonImmutable::parse('2026-11-28', 'UTC')))->toBe(RollcallFlow::V2);
+
+    // With nothing recorded, no week is on the new flow.
+    DB::table('rollcall_flow_cutovers')->delete();
+    expect(RollcallFlow::forWeek(CarbonImmutable::parse('2026-12-05', 'UTC')))->toBe(RollcallFlow::V1);
+});
+
+it('records the first Saturday after the migration runs, so the running week keeps the three steps', function () {
+    // The migrations ran when this test process started: the recorded week starts after now, on a Saturday.
+    $recorded = CarbonImmutable::parse(DB::table('rollcall_flow_cutovers')->value('first_week'), 'UTC');
+    $migratedAt = CarbonImmutable::parse(DB::table('rollcall_flow_cutovers')->value('created_at'), 'UTC');
+
+    expect($recorded->isSaturday())->toBeTrue()
+        ->and($recorded->greaterThan($migratedAt))->toBeTrue()
+        ->and($recorded->diffInDays($migratedAt, true))->toBeLessThanOrEqual(7);
 });
 
 it('stamps a new practice row with its week\'s flow, and leaves a found one as it is', function () {

@@ -92,16 +92,17 @@ return [
     | Roll call flow cutover
     |--------------------------------------------------------------------------
     |
-    | The first Cav week (its Saturday, `Y-m-d`) whose roll call follows the explicit cycle (#703): create it with its
-    | training date and topic, post it, sign and mark, then close it, which sends the weekly report. Weeks before it
-    | keep the three steps. A week's flow is fixed when its practice row is made (its first mark, post or create), so
-    | a week with a row keeps its flow whatever this says later (`Repositories\RollcallFlow`). Set it to the first
-    | Saturday after the release that brings the new flow. Null puts every week without a row on the three steps: so
-    | for the browser tests, whose specs walk the three steps on the real clock.
+    | The first Cav week whose roll call follows the explicit cycle (#703): create it with its training date and topic,
+    | post it, sign and mark, then close it, which sends the weekly report. Weeks before it keep the three steps. By
+    | default (null) it is the one the release recorded: the first Saturday after its migration ran, so the week
+    | running at release finishes as it started. A Saturday (`Y-m-d`) here overrides it. False keeps every week on the
+    | three steps: so for the browser tests, whose specs walk the three steps on the real clock. A week's flow is fixed
+    | when its practice row is made (its first mark, post or create), so a week with a row keeps its flow whatever this
+    | says later (`Repositories\RollcallFlow`).
     |
     */
 
-    'rollcall_flow_v2_from' => env('APP_ENV') === 'e2e' ? null : '2026-11-21',
+    'rollcall_flow_v2_from' => env('APP_ENV') === 'e2e' ? false : null,
 
     /*
     |--------------------------------------------------------------------------
