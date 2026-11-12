@@ -583,6 +583,65 @@ describe('StaffReport page', () => {
         expect(page({ self: false, canSend: false }).find('[data-testid="staff-report-unsent"]').text()).toContain('Only PVT Brandt.L can send their staff report.');
     });
 
+    it('says it when the week before is still owed, and links to it', () => {
+        expect(page().find('[data-testid="owed-week"]').exists()).toBe(false);
+
+        const wrapper = page({ week: { ...WEEK, owed: '2026-09-26' } });
+        const notice = wrapper.get('[data-testid="owed-week"]');
+        expect(notice.text().replace(/\s+/g, ' ')).toContain('The report for 26SEP26 to 02OCT26 is not sent. This page sends the report for 03OCT26 to 09OCT26.');
+        expect(wrapper.get('[data-testid="owed-week-link"]').attributes('href')).toBe('/staff-report/7/2026-09-26');
+        // Sent already, the page sends nothing, so it only says what is owed.
+        const sent = page({ canSend: false, week: { ...WEEK, owed: '2026-09-26' }, report: { sentAt: '2026-10-05T12:00:00+00:00', attended: false, practices: [] } });
+        expect(sent.get('[data-testid="owed-week"]').text()).not.toContain('This page sends');
+    });
+
+    it('greys out a practice that was not held, says why, and does not tick it', async () => {
+        const wrapper = await toPicker({
+            sections: [
+                { ...SECTIONS[0], held: 'held' },
+                { ...SECTIONS[1], held: 'upcoming' },
+                { ...SECTIONS[2], held: 'no_slot' },
+            ],
+        });
+
+        expect(wrapper.find('[data-testid="held-4"]').exists()).toBe(false);
+        expect(wrapper.get('[data-testid="section-5"]').attributes('disabled')).toBeDefined();
+        expect(wrapper.get('[data-testid="held-5"]').text()).toContain('Not held yet');
+        expect(wrapper.get('[data-testid="section-row-5"]').attributes('title')).toBe('This practice has not happened yet. You can tick it once it is held.');
+        expect(wrapper.get('[data-testid="section-row-9"]').attributes('title')).toBe('This section has no practice time set yet, so there is no practice to pick.');
+
+        await wrapper.find('[data-testid="section-5"]').trigger('click');
+        await wrapper.find('[data-testid="section-9"]').trigger('click');
+        await wrapper.find('[data-testid="section-4"]').trigger('click');
+        expect(wrapper.find('[data-testid="send-summary"]').text()).toBe('Yes: 1/1/A/1-7');
+    });
+
+    it('lets an entry on a practice not held be unticked, and holds the send back while it is ticked', async () => {
+        const wrapper = page({
+            sections: [{ ...SECTIONS[0], held: 'held' }, { ...SECTIONS[1], held: 'not_held' }],
+            entries: [{ sectionId: 5, section: '2/1/A/1-7', enteredBy: 'Mercer.J', selfReported: false }],
+        });
+
+        expect(wrapper.get('[data-testid="section-5"]').attributes('disabled')).toBeUndefined();
+        expect(wrapper.get('[data-testid="held-5"]').text()).toContain('No SP held');
+        expect(wrapper.get('[data-testid="step-missing"]').text()).toBe('Untick 2/1/A/1-7: no SP held there this week.');
+
+        await wrapper.find('[data-testid="section-5"]').trigger('click');
+        await wrapper.find('[data-testid="section-4"]').trigger('click');
+        expect(wrapper.find('[data-testid="step-missing"]').exists()).toBe(false);
+        expect(wrapper.get('[data-testid="section-5"]').attributes('disabled')).toBeDefined();
+    });
+
+    it('does not hold back the sections of an FTX', async () => {
+        const wrapper = page({ sections: [{ ...SECTIONS[0], held: 'upcoming' }] });
+        await wrapper.find('[data-testid="attended-yes"]').trigger('click');
+        await wrapper.find('[data-testid="type-ftx"]').trigger('click');
+
+        expect(wrapper.find('[data-testid="held-4"]').exists()).toBe(false);
+        await wrapper.find('[data-testid="section-4"]').trigger('click');
+        expect(wrapper.find('[data-testid="picked-chips"]').text()).toContain('1/1/A/1-7');
+    });
+
     it('says when there is no report for the week', () => {
         expect(page({ hq: null, canSend: false }).find('[data-testid="staff-report-none"]').text()).toContain('You were not on a platoon, company or battalion HQ when this week ended');
     });

@@ -184,3 +184,26 @@ export function pickerScopeText(hqType, scope) {
 
     return `Sections ${where}${scope?.otherGames ? '' : ' that play its game'}.`;
 }
+
+/**
+ * Why a section's practice cannot be ticked on a section practice report, from the picker's `held` state
+ * (`PracticeHeldState` on the server), or null when it was held. `short` shows under the section, `long` on hover.
+ *
+ * @returns {{ short: string, long: string }|null}
+ */
+export function heldNote(state) {
+    switch (state) {
+        case undefined:
+        case null:
+        case 'held':
+            return null;
+        case 'upcoming':
+            return { short: 'Not held yet', long: 'This practice has not happened yet. You can tick it once it is held.' };
+        case 'unmarked':
+            return { short: 'Not marked held yet', long: 'No SP held here yet. You can tick it once it is held.' };
+        case 'no_slot':
+            return { short: 'No practice time set', long: 'This section has no practice time set yet, so there is no practice to pick.' };
+        default:
+            return { short: 'No SP held', long: 'No SP was held here this week, so there is nothing to tick.' };
+    }
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pickerCollapses, pickerGroups, presenceText } from '@/lib/staffReport';
+import { heldNote, pickerCollapses, pickerGroups, presenceText } from '@/lib/staffReport';
 
 const section = (id, label, platoon, group = null, own = false) => ({ id, label, platoon, group, own });
 
@@ -38,5 +38,19 @@ describe('presenceText', () => {
         expect(presenceText({ check: 'no_data', source: 'CRCON' })).toBe('No CRCON data');
         expect(presenceText({ check: 'confirmed', source: 'CRCON' })).toBe('');
         expect(presenceText(null)).toBe('');
+    });
+});
+
+describe('heldNote', () => {
+    it('says nothing for a held practice, or when the server sent no state', () => {
+        expect(heldNote('held')).toBeNull();
+        expect(heldNote(undefined)).toBeNull();
+    });
+
+    it('says why a practice cannot be ticked', () => {
+        expect(heldNote('upcoming')).toEqual({ short: 'Not held yet', long: 'This practice has not happened yet. You can tick it once it is held.' });
+        expect(heldNote('unmarked').long).toBe('No SP held here yet. You can tick it once it is held.');
+        expect(heldNote('not_held').short).toBe('No SP held');
+        expect(heldNote('no_slot').long).toBe('This section has no practice time set yet, so there is no practice to pick.');
     });
 });

@@ -42,7 +42,8 @@ import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import { onHttpException } from '@/lib/httpError';
 import { stamp } from '@/lib/report';
 import ReportEditRequestPanel from '@/components/reports/ReportEditRequestPanel.vue';
-import { NAMED_TYPES, attendedText, defaultTypes, namedSentence, pickerCollapses, pickerGroups, pickerScopeText, presenceAnswer, sheetText, typesPhrase } from '@/lib/staffReport';
+import OwedWeekNotice from '@/components/reports/OwedWeekNotice.vue';
+import { NAMED_TYPES, attendedText, defaultTypes, heldNote, namedSentence, pickerCollapses, pickerGroups, pickerScopeText, presenceAnswer, sheetText, typesPhrase } from '@/lib/staffReport';
 import { Checkbox } from '@/components/ui/checkbox';
 
 // A platoon, company or battalion HQ staff member's own weekly staff report: their accountability (platoon and company
@@ -58,7 +59,8 @@ const props = defineProps({
     self: { type: Boolean, default: false },
     // The platoon, company or battalion HQ they were on when the week ended, `{ id, label, type }`, or null: no report that week.
     hq: { type: Object, default: null },
-    // `{ date, start, due, overdueUntil, previous, next, beforeFloor }`.
+    // `{ date, start, due, overdueUntil, previous, next, beforeFloor, owed }`. `owed` is the week before, `YYYY-MM-DD`,
+    // while the staff member still owes its report (their own page only), else null.
     week: { type: Object, required: true },
     // The report as sent, `{ sentAt, attended, practiceType, ftx: { name, date }, officeHour: { date, note }, presenceType,
     // otherEvents, notes, sheetPushedAt, presence, publicServer, practices: [{ sectionId, section, own }], revisions }`, or null. `revisions` are the versions an
@@ -75,7 +77,8 @@ const props = defineProps({
     entries: { type: Array, default: () => [] },
     // Section ids whose capture saw them on the game server this week: a hint, never ticked for them.
     seen: { type: Array, default: () => [] },
-    // `[{ id, label, own, group, platoon }]`: the sections under the HQ, in order of battle.
+    // `[{ id, label, own, group, platoon, held }]`: the sections under the HQ, in order of battle. `held` says whether the
+    // section's practice that week was held (`held`), or why not (`upcoming`, `unmarked`, `not_held`, `no_slot`).
     sections: { type: Array, default: () => [] },
     // What the HQ reports under its accountability options, `{ types, own, battalion, otherGames }`; null reads as the default.
     accountability: { type: Object, default: null },
@@ -197,7 +200,14 @@ const picked = computed(() => new Set(form.section_ids));
 // Entries already there that are no longer picked: sending takes them off.
 const dropped = computed(() => props.entries.filter((entry) => type.value !== 'sp' && type.value !== 'ftx' ? true : !picked.value.has(entry.sectionId)));
 
+// A section practice report claims only practices that were held: one that was not is greyed out and cannot be ticked,
+// and says why. One ticked already (an entry, or a report sent before) can still be unticked. An FTX's sections name
+// who took part, so they are not held back.
+const heldById = computed(() => new Map(props.sections.map((section) => [section.id, section.held])));
+const blocked = (id) => (type.value === 'sp' ? heldNote(heldById.value.get(id)) : null);
+
 function toggle(id) {
+    if (!picked.value.has(id) && blocked(id)) return;
     form.section_ids = picked.value.has(id) ? form.section_ids.filter((sectionId) => sectionId !== id) : [...form.section_ids, id];
 }
 
@@ -206,6 +216,8 @@ const missingDetails = computed(() => {
     if (form.attended !== true) return null;
     if (form.section_ids.length > props.maxPractices && (type.value === 'sp' || type.value === 'ftx')) return `Pick at most ${props.maxPractices} practices.`;
     if (type.value === 'sp' && !form.section_ids.length) return 'Pick the section practice you attended.';
+    const notHeld = type.value === 'sp' ? form.section_ids.filter((id) => blocked(id)) : [];
+    if (notHeld.length) return `Untick ${notHeld.map((id) => labels.value.get(id) ?? 'a section').join(', ')}: no SP held there this week.`;
     if (named.value) {
         if (!form.ftx_name.trim()) return `Give the name of ${named.value.sentence.replace(/^an? /, 'the ')}.`;
         if (!inWeek(form.ftx_date)) return `Pick the ${named.value.short} date, ${forumDate(props.week.date)} to ${forumDate(weekEnd.value)}.`;
@@ -398,6 +410,10 @@ function entryNote(id) {
                 <p class="text-xs text-muted-foreground">{{ forumDate(week.date) }} to {{ forumDate(weekEnd) }}</p>
             </div>
         </section>
+
+        <OwedWeekNotice v-if="week.owed" :owed="week.owed" :href="weekUrl(week.owed)">
+            <template v-if="canSend && !report">This page sends the report for {{ weekLabel(week.start) }}.</template>
+        </OwedWeekNotice>
 
         <ReportDeadlineBanner v-if="canSend" :due="week.due" :overdue-until="week.overdueUntil" :sent="!!report" />
 
@@ -603,18 +619,30 @@ function entryNote(id) {
                                             <li v-for="section in platoon.rows" :key="section.id">
                                                 <label
                                                     :for="`staff-section-${section.id}`"
-                                                    class="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 transition-colors has-[button:focus-visible]:ring-2 has-[button:focus-visible]:ring-ring has-[button:focus-visible]:ring-inset"
-                                                    :class="picked.has(section.id) ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent/70'"
+                                                    class="flex min-h-11 items-center gap-2 rounded-lg border px-3 py-2 transition-colors has-[button:focus-visible]:ring-2 has-[button:focus-visible]:ring-ring has-[button:focus-visible]:ring-inset"
+                                                    :class="[
+                                                        picked.has(section.id) ? 'border-primary bg-primary/10' : 'border-border',
+                                                        blocked(section.id) && !picked.has(section.id) ? 'cursor-not-allowed bg-muted/40 text-muted-foreground' : 'cursor-pointer',
+                                                        !blocked(section.id) && !picked.has(section.id) ? 'hover:bg-accent/70' : '',
+                                                    ]"
+                                                    :title="blocked(section.id)?.long"
+                                                    :data-held="section.held ?? 'held'"
+                                                    :data-testid="`section-row-${section.id}`"
                                                 >
                                                     <Checkbox
                                                         :id="`staff-section-${section.id}`"
                                                         class="shrink-0 focus-visible:ring-0"
                                                         :model-value="picked.has(section.id)"
+                                                        :disabled="!!blocked(section.id) && !picked.has(section.id)"
+                                                        :aria-describedby="blocked(section.id) ? `held-${section.id}` : undefined"
                                                         :data-testid="`section-${section.id}`"
                                                         @update:model-value="toggle(section.id)"
                                                     />
                                                     <span class="min-w-0 flex-1">
                                                         <span class="block font-mono">{{ section.label }}</span>
+                                                        <span v-if="blocked(section.id)" :id="`held-${section.id}`" class="block text-xs" :class="picked.has(section.id) ? 'text-warning' : 'text-muted-foreground'" :data-testid="`held-${section.id}`">
+                                                            {{ blocked(section.id).short }}<span class="sr-only">. {{ blocked(section.id).long }}</span>
+                                                        </span>
                                                         <span v-if="entryNote(section.id)" class="block text-xs text-muted-foreground" :data-testid="`entered-${section.id}`">{{ entryNote(section.id) }}</span>
                                                     </span>
                                                     <Badge v-if="seenIds.has(section.id)" variant="outline" class="font-normal" :data-testid="`seen-${section.id}`">
