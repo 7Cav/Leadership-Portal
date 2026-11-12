@@ -161,6 +161,20 @@ class Eloquent implements UnitRepository
         return $companies->isEmpty() ? null : $companies->sole();
     }
 
+    public function chainOf(Unit $unit): Collection
+    {
+        $path = Unit::query()->whereKey($unit->id)->value('path');
+        $chain = array_map('intval', array_values(array_filter(explode('/', (string) $path), fn (string $id) => $id !== '')));
+
+        if ($chain === []) {
+            return new Collection;
+        }
+
+        $units = Unit::query()->whereIn('id', $chain)->get()->keyBy('id');
+
+        return new Collection(array_values(array_filter(array_map(fn (int $id) => $units->get($id), array_reverse($chain)))));
+    }
+
     public function rename(Unit $unit, string $name, ?string $callsign): Unit
     {
         $unit->update(['name' => $name, 'callsign' => $callsign]);

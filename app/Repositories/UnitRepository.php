@@ -103,6 +103,14 @@ interface UnitRepository
     public function owningCompany(Unit $unit): ?Unit;
 
     /**
+     * `$unit` and every unit above it, the unit itself first and the root last, from the stored materialized path
+     * (AD-18) in two queries however deep it sits. Empty when the unit is gone.
+     *
+     * @return Collection<int, Unit>
+     */
+    public function chainOf(Unit $unit): Collection;
+
+    /**
      * Update a unit's own attributes. `name`/`callsign` are mass-assignable (unlike
      * `parent_id`/`path`), so this never needs `forceFill`.
      */
