@@ -5,6 +5,7 @@ section: admin
 order: 1
 audience: admin
 page: /settings/org-structure
+updated: 2026-11-12
 ---
 
 > [!why] Everyone's access comes from where their billet sits in this tree. A unit in the wrong place gives the wrong people access to it, and a missing acting lead leaves a unit with nobody who can run its roll call.
@@ -41,6 +42,19 @@ The page has two cards. **Chain of command** holds the regiment, its battalions 
 > [!good-to-know] What this changes, and how to undo it: moving a unit moves everyone's access with it on the next page load. Move it back the same way. A unit with troopers, reports or anything else attached cannot be deleted.
 
 > [!good-to-know] Moving a platoon or section to another company copies the roll call templates its sections use into the new company, named like "Training (from A/1-7)", so their posts read the same. The new company owns the copies from then on; the old company's changes no longer reach them. Moving it back makes new copies the same way. A section's own templates belong to the section, so they move with it and are not copied.
+
+## Deactivate a unit
+
+Deactivate a unit or staff group that no longer exists in the real org, such as an office that was closed. Nothing is deleted, so it can come back.
+
+1. Select the unit and choose **Deactivate** in its details panel.
+2. The window says how many people are placed in it or under it. Give a reason if you like and choose **Deactivate**.
+
+The unit and everything under it are then hidden everywhere else: the roster and its unit pickers, Home, the reports and roll-ups (a roll-up no longer waits on it), staff reports, Staff grants, the unit switcher and the headcounts. Reports already sent keep what they show.
+
+> [!warning] People still placed in an inactive unit count nowhere, and their milpac page shows them as unplaced. Org structure lists them under the details panel, with the unit each one is in. Move each one, or reactivate the unit. If the roster sync places someone there, they show in that list too.
+
+> [!good-to-know] Tick **Show inactive** to see inactive units, greyed, with the one you deactivated tagged **Inactive**. To bring one back, select it and choose **Reactivate**. Everything under it comes back with it. A unit is never added or moved under an inactive one. **Import from Cav roster** does not reactivate a unit or make it again. Both changes are in the audit log.
 
 ## Make someone acting lead
 
