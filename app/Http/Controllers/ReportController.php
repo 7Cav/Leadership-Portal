@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffReportAccess;
 use App\Commands\Attendance\InvalidAttendanceMarkException;
+use App\Commands\Practices\PracticeSchedule;
 use App\Commands\WeeklyReports\InvalidPlatoonTrainingTopicException;
 use App\Commands\WeeklyReports\InvalidReportContentException;
 use App\Commands\WeeklyReports\MakeupChecksIncompleteException;
@@ -104,6 +105,7 @@ class ReportController extends Controller
         private readonly AutoExcused $autoExcused,
         private readonly UnitGuidonRepository $guidons,
         private readonly SectionPracticeRepository $practices,
+        private readonly PracticeSchedule $schedule,
     ) {}
 
     public function show(Request $request, UnaccountedSuggestions $suggestions, AuditLogRepository $audit, ReportEditProps $editProps, int $unit, string $week): Response
@@ -221,6 +223,8 @@ class ReportController extends Controller
             // A section's draft with troopers on its roll call: whether the week's practice is confirmed as held or not
             // held (#634), which the send needs. Null when nothing needs confirming.
             'practice' => $isLeaf && ! $sent && $roster->isNotEmpty() ? $this->practiceProps($unit, $weekStart) : null,
+            // The section's roll call for the summary at the top (#703): when it trained, and the forum thread it was posted in.
+            'rollcall' => $isLeaf ? $this->rollcallProps($unit, $weekStart) : null,
             // An object even when empty: `[]` fails the page's Object prop check.
             'names' => (object) $roster->mapWithKeys(fn (Trooper $t) => [$t->id => $this->trooperLabel($t)])->all(),
             'children' => match (true) {
@@ -516,6 +520,24 @@ class ReportController extends Controller
         abort_if(WeekOf::isBeforeFloor($weekStart), 404);
 
         return $weekStart;
+    }
+
+    /**
+     * The week's practice start (null when there was none: no slot, or cancelled), the forum thread its roll call was
+     * posted in (null when the leader gave none), and the roll call's address.
+     *
+     * @return array{trainingStart: ?string, threadUrl: ?string, href: string}
+     */
+    private function rollcallProps(Unit $section, CarbonImmutable $weekStart): array
+    {
+        $practice = $this->practices->find($section->id, $weekStart);
+        $week = $this->schedule->props($section->id, $weekStart, $practice)['week'] ?? null;
+
+        return [
+            'trainingStart' => ($week['cancelled'] ?? false) ? null : ($week['start'] ?? null),
+            'threadUrl' => $practice?->rollcall_thread_url,
+            'href' => route('rollcall.show', ['unit' => $section->id, 'week' => $weekStart->toDateString()]),
+        ];
     }
 
     private function currentWeek(): CarbonImmutable

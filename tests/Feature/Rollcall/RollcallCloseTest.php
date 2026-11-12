@@ -77,3 +77,18 @@ it('closes a three-step week exactly as before, with no create step', function (
     rclPage()->where('flow.version', 1)->where('locked', true);
     rclMark()->assertStatus(409);
 });
+
+it('gives the section report the roll call summary: the practice start and the forum thread (#703)', function () {
+    config(['services.sevencav.base_url' => 'https://7cav.us']);
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/slot", ['weekday' => 3, 'start_minute' => 1380, 'week' => $this->week])->assertOk();
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted", ['week' => $this->week, 'thread_url' => 'https://7cav.us/threads/roll-call.9/'])->assertOk();
+
+    $this->actingAs($this->leader)->get("/reports/{$this->section->id}/{$this->week}")
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('rollcall.trainingStart', '2026-10-07T23:00:00Z')
+            ->where('rollcall.threadUrl', 'https://7cav.us/threads/roll-call.9/')
+            ->where('rollcall.href', route('rollcall.show', ['unit' => $this->section->id, 'week' => $this->week])));
+
+    $this->actingAs(User::factory()->admin()->create())->get("/reports/{$this->platoon->id}/{$this->week}")
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('rollcall', null));
+});

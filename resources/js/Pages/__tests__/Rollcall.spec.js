@@ -2402,6 +2402,43 @@ describe('Rollcall page: a week on each flow (#703)', () => {
         expect(toastWarning).toHaveBeenCalledWith('Save the training topic first', expect.anything());
     });
 
+    it('sends the forum thread link with the post, and the close step links to it', async () => {
+        post.mockResolvedValue({ ok: true, status: 200, data: { posted: { at: '2026-10-04T11:00:00+00:00', by: 'Vasquez.R', threadUrl: 'https://7cav.us/threads/rc.1/' } } });
+        const wrapper = cycle({ flow: CREATED });
+
+        await wrapper.get('[data-testid="thread-url"]').setValue(' https://7cav.us/threads/rc.1/ ');
+        await wrapper.get('[data-testid="mark-posted"]').trigger('click');
+        await flushPromises();
+        expect(post).toHaveBeenCalledWith('/rollcall/12/posted', { week: '2026-10-03', thread_url: 'https://7cav.us/threads/rc.1/' });
+
+        page.url = '/rollcall/12?step=4';
+        await flushPromises();
+        expect(wrapper.get('[data-testid="close-thread"]').attributes('href')).toBe('https://7cav.us/threads/rc.1/');
+    });
+
+    it('writes the report\'s notes and reasons on the close step, and saves them before sending', async () => {
+        vi.useFakeTimers();
+        page.url = '/rollcall/12?step=4';
+        const DRAFT = { notes: null, unaccounted: [], reasons: [{ value: 'no_notice', label: 'No notice given' }] };
+        const wrapper = cycle({
+            flow: CREATED,
+            practice: { ...POSTED, confirmation: { at: '2026-10-08T10:00:00+00:00', by: 'Vasquez.R', held: true } },
+            troopers: [trooper(1, 'will_attend', 'present'), trooper(2, 'unsigned', 'missed')],
+            reportDraft: DRAFT,
+        });
+
+        expect(wrapper.get('[data-reason-trooper="2"]').text()).toContain('missed without signing. Why?');
+        await wrapper.get('[data-testid="close-notes"]').setValue('Good session.');
+        await wrapper.get('[data-reason-trooper="2"] select').setValue('no_notice');
+        post.mockResolvedValue({ ok: true, status: 200, data: { reportDraft: DRAFT } });
+        await wrapper.get('[data-testid="close-send"]').trigger('click');
+        await vi.advanceTimersByTimeAsync(1000);
+        await flushPromises();
+
+        expect(post).toHaveBeenCalledWith('/rollcall/12/report-notes', { week: '2026-10-03', notes: 'Good session.', unaccounted: [{ trooper_id: 2, reason: 'no_notice' }] });
+        expect(visit).toHaveBeenCalledWith('/reports/12/2026-10-03?send=1');
+    });
+
     it('opens a sent week on its closed last step, locked', () => {
         const wrapper = cycle({ flow: CREATED, practice: POSTED, report: { ...REPORT, sent: true }, locked: true });
 

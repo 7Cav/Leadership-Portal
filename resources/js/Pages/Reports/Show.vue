@@ -34,6 +34,7 @@ import ReportPreview from '@/components/reports/ReportPreview.vue';
 import EditReportDialog from '@/components/reports/EditReportDialog.vue';
 import ReportEditRequestPanel from '@/components/reports/ReportEditRequestPanel.vue';
 import SendDialog from '@/components/reports/SendDialog.vue';
+import RollcallSummary from '@/components/reports/RollcallSummary.vue';
 import StaffReportsPanel from '@/components/reports/StaffReportsPanel.vue';
 import TimeAgo from '@/components/TimeAgo.vue';
 import Guidon from '@/components/Guidon.vue';
@@ -81,6 +82,8 @@ const props = defineProps({
     // The platoon's training topic for the week: on a section's draft, its platoon's; on a
     // platoon's screen, the one it set for its sections.
     topic: { type: Object, default: null },
+    // A section's roll call for the summary at the top (#703): `{ trainingStart, threadUrl, href }`. Null above a section.
+    rollcall: { type: Object, default: null },
     canSetTopic: { type: Boolean, default: false },
     // Carry-forward: the subject of the section's last sent report, offered on an empty field.
     suggestedSubject: { type: String, default: null },
@@ -525,6 +528,18 @@ function useSuggestion() {
         </section>
 
         <ReportDeadlineBanner :due="week.due" :overdue-until="week.overdueUntil" :sent="sent" />
+
+        <!-- The section's roll call in one place (#703, mockup 703-5): the review below is unchanged. -->
+        <RollcallSummary
+            v-if="unit.isLeaf && rollcall"
+            :rollcall="rollcall"
+            :subject="sent ? report.trainingSubject : content.trainingSubject || null"
+            :enforced="Boolean(topic?.enforced)"
+            :troopers="troopers ?? []"
+            :unaccounted="sent ? (report.unaccounted ?? []) : chosen.unaccounted"
+            :names="names"
+            :reason-labels="reasonLabels"
+        />
 
         <div
             v-if="week.owed"
