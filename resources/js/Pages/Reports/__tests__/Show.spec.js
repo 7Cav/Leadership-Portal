@@ -640,6 +640,30 @@ describe('Reports/Show', () => {
     });
 });
 
+describe('Reports/Show opened to send from the roll call (#703)', () => {
+    const dialogOpen = (wrapper) => wrapper.findComponent({ name: 'SendDialog' }).props('open');
+
+    afterEach(() => window.history.replaceState(null, '', '/'));
+
+    it('opens the send dialog at once with ?send=1', async () => {
+        window.history.replaceState(null, '', '/reports/5/2026-10-03?send=1');
+        const wrapper = mountShow({ practice: { confirmed: true, held: true } });
+        await flushPromises();
+
+        expect(dialogOpen(wrapper)).toBe(true);
+    });
+
+    it('stays closed without it, and for a report the send bar would not open', async () => {
+        window.history.replaceState(null, '', '/reports/5/2026-10-03');
+        expect(dialogOpen(mountShow())).toBe(false);
+
+        window.history.replaceState(null, '', '/reports/5/2026-10-03?send=1');
+        expect(dialogOpen(mountShow({ practice: { confirmed: false, held: null } }))).toBe(false);
+        expect(dialogOpen(mountShow({ report: { ...props().report, status: 'sent', sentAt: '2026-10-09T10:00:00+00:00' } }))).toBe(false);
+        expect(dialogOpen(mountShow({ canWrite: false }))).toBe(false);
+    });
+});
+
 describe('Reports/Show training topic', () => {
     const PLATOON = { id: 2, name: '1st Platoon', callsign: '1/A/1-7', type: 'platoon' };
     const topic = (enforced, subject = 'Room clearing') => ({ subject, enforced, platoon: PLATOON, setBy: 'SFC Hale.J', setAt: '2026-10-05T12:00:00+00:00' });

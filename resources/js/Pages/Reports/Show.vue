@@ -314,6 +314,13 @@ function openSend() {
     dialogOpen.value = true;
 }
 
+// "Send for review" on the roll call (#703) lands here with `?send=1`: the send dialog opens at once, as "Send anyway"
+// would open it, so the leader sees exactly what freezes and answers the make-up checks. A report the send bar would
+// not open (sent, read-only, practice not confirmed, KPIs unavailable) stays as it is.
+onMounted(() => {
+    if (new URLSearchParams(window.location.search).get('send') === '1' && !blocked.value) openSend();
+});
+
 // The send cleared the pending autosave; when it fails, keep the edits saving as a draft.
 function rearm() {
     if (save.state === 'pending' && !timer && !editing.value) timer = setTimeout(saveDraft, 800);

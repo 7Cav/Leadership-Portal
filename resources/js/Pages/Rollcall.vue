@@ -21,6 +21,7 @@ import {
     PhClockCounterClockwise,
     PhCopy,
     PhEye,
+    PhPaperPlaneTilt,
     PhUsersThree,
     PhUserCircleDashed,
     PhWarning,
@@ -633,6 +634,24 @@ async function markPosted() {
         }
     } finally {
         posting.value = false;
+    }
+}
+
+// "Send for review" (#703): the weekly report's own send dialog, on the report page (`?send=1`), so the notes, the
+// unaccounted reasons and the make-up checks are asked exactly as there. The marks on screen are saved first, since the
+// send freezes what the server holds; a save that fails keeps the leader here.
+const sendingForReview = ref(false);
+async function sendForReview() {
+    sendingForReview.value = true;
+    try {
+        if (!(await commitHeld())) {
+            toast.error('Changes are not saved yet', { description: autosave.error.value ?? autosave.lockedMessage.value });
+
+            return;
+        }
+        router.visit(`${props.report.href}?send=1`);
+    } finally {
+        sendingForReview.value = false;
     }
 }
 
@@ -1513,6 +1532,25 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                                 @click="markPosted"
                             >
                                 <PhCheck />{{ posted ? 'Mark posted again' : 'Mark roll call posted' }}
+                            </Button>
+                        </div>
+                        <div
+                            v-if="report && !report.sent"
+                            class="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border pt-4 pb-3 text-[13px]"
+                            data-testid="send-for-review"
+                        >
+                            <p class="min-w-[14rem] flex-1 text-muted-foreground">
+                                Done with the week? Send the weekly report to Platoon Staff. Sending locks this roll call.
+                            </p>
+                            <Button
+                                variant="outline"
+                                class="h-11 w-full sm:h-9 sm:w-auto"
+                                :disabled="Boolean(readOnlyReason) || sendingForReview"
+                                :title="readOnlyReason ?? undefined"
+                                data-testid="send-for-review-open"
+                                @click="sendForReview"
+                            >
+                                <PhPaperPlaneTilt />Send for review
                             </Button>
                         </div>
                     </StepReview>

@@ -2255,4 +2255,24 @@ describe('Rollcall page: the week\'s training (#703)', () => {
         expect(post).toHaveBeenCalledWith('/rollcall/12/training-topic', { week: '2026-10-03', subject: 'Radio procedure' });
         expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Repost the updated BBCode');
     });
+
+    describe('send for review', () => {
+        const REPORT = { due: '2026-10-10T23:59:00+00:00', overdueUntil: '2026-10-31T00:00:00+00:00', sent: false, href: '/reports/12/2026-10-03' };
+
+        beforeEach(() => visit.mockClear());
+
+        it('opens the weekly report\'s send dialog from the review step', async () => {
+            const wrapper = factory({ report: REPORT });
+
+            await wrapper.find('[data-testid="send-for-review-open"]').trigger('click');
+            await flushPromises();
+
+            expect(visit).toHaveBeenCalledWith('/reports/12/2026-10-03?send=1');
+        });
+
+        it('is gone once the report is sent, and closed for a reader', () => {
+            expect(factory({ report: { ...REPORT, sent: true }, locked: true }).find('[data-testid="send-for-review"]').exists()).toBe(false);
+            expect(factory({ report: REPORT, canWrite: false }).get('[data-testid="send-for-review-open"]').attributes('disabled')).toBeDefined();
+        });
+    });
 });
