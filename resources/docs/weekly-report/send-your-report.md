@@ -3,7 +3,7 @@ title: Write and send your report
 summary: Check your numbers, fill in the subject and notes, then freeze and send the report up the chain.
 section: weekly-report
 order: 1
-updated: 2026-11-12
+updated: 2026-11-13
 audience: leader
 page: /reports
 weekly: true
@@ -22,6 +22,7 @@ minutes: 10
 
 1. The numbers are counted from your roll call and section practice marks for the week.
 2. If one is wrong, choose **Open roll call**, fix the mark, and come back. The report updates.
+3. A trooper whose leave covers the week reads LOA in both columns of the preview's **Troopers** table, whatever they signed or the game server saw, as on the roll call. The **Last 8 weeks** chart names each week by its end date; point at one to see the whole week.
 
 ## Work through Ready to send
 
