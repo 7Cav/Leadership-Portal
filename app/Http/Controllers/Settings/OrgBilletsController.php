@@ -45,9 +45,18 @@ class OrgBilletsController extends Controller
             'reason' => ['required', 'string', 'max:500'],
             // Set once the Admin confirmed moving a billet an Admin placed in another unit.
             'confirm_move' => ['sometimes', 'boolean'],
+            // Set once the Admin confirmed placing a section billet in a company or higher.
+            'confirm_section' => ['sometimes', 'boolean'],
         ], self::MESSAGES);
 
-        return $this->run(fn () => $command->handle($request->user(), $position, (int) $data['unit_id'], $data['reason'], (bool) ($data['confirm_move'] ?? false)));
+        return $this->run(fn () => $command->handle(
+            $request->user(),
+            $position,
+            (int) $data['unit_id'],
+            $data['reason'],
+            (bool) ($data['confirm_move'] ?? false),
+            (bool) ($data['confirm_section'] ?? false),
+        ));
     }
 
     public function unassign(Request $request, int $position, UnassignBillet $command): RedirectResponse
@@ -119,8 +128,9 @@ class OrgBilletsController extends Controller
         try {
             $write();
         } catch (InvalidBilletChangeException $e) {
-            // A move the Admin may confirm comes back under its own key, so the page can ask before sending it again.
-            throw ValidationException::withMessages([$e->needsConfirmation ? 'billet_move' : 'billet' => $e->getMessage()]);
+            // A step the Admin may confirm (a move, a section billet above a platoon) comes back under its own key,
+            // `billet_move` or `billet_section`, so the page can ask before sending it again.
+            throw ValidationException::withMessages([$e->confirmation !== null ? "billet_{$e->confirmation}" : 'billet' => $e->getMessage()]);
         }
 
         return redirect()->route('settings.org-structure');

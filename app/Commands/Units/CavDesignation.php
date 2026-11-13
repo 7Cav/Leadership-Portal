@@ -110,6 +110,21 @@ final readonly class CavDesignation
         };
     }
 
+    /**
+     * The section a billet title names at its end, such as `1/1/A/1-7` for `Section Leader 1/1/A/1-7` or `Trooper
+     * 1/1/A/1-7`, read as {@see fromPositionTitle()} reads it (two numbers before a company designation), but without
+     * the company the title is listed in. Null when the title names no section: a company or platoon billet, a staff
+     * billet, or a start-up's `Section Leader Star Citizen Start-Up`, whose words alone do not make it a section billet.
+     */
+    public static function sectionOfTitle(?string $title): ?string
+    {
+        if (preg_match('#\s(?<section>[1-9]\d*/[1-9]\d*/[A-Z]/[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*)$#', trim((string) $title), $m) !== 1) {
+            return null;
+        }
+
+        return $m['section'];
+    }
+
     /** The highest numbered battalion, platoon or section offered when one is added by hand. */
     public const MAX_ORDINAL = 9;
 

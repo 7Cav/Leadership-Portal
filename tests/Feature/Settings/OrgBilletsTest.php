@@ -237,6 +237,57 @@ it('asks before moving a billet an Admin placed in another unit, then moves ever
         ->and(AuditLogEntry::query()->where('action', AssignBillet::ACTION)->count())->toBe(2);
 });
 
+it('asks before placing a section billet in a company or higher, and places it once confirmed', function () {
+    obImport();
+    $admin = User::factory()->admin()->create();
+    $section = obUnit('1/1/A/1-7');
+    $company = obUnit('A/1-7');
+
+    test()->actingAs($admin)->post('/settings/org-structure/billets/203/assign', ['unit_id' => $company->id, 'reason' => 'Company runner'])
+        ->assertSessionHasErrors(['billet_section' => 'Trooper 1/1/A/1-7 is a section billet. Place it in A/1-7, a company, anyway?']);
+    test()->actingAs($admin)->post('/settings/org-structure/billets/201/assign', ['unit_id' => obUnit('1-7')->id, 'reason' => 'x'])
+        ->assertSessionHasErrors(['billet_section' => 'Section Leader 1/1/A/1-7 is a section billet. Place it in 1-7, a battalion, anyway?']);
+
+    expect(UnitBilletMapping::query()->where('cav_position_id', 203)->sole()->unit_id)->toBe($section->id)
+        ->and(AuditLogEntry::query()->where('action', AssignBillet::ACTION)->exists())->toBeFalse();
+
+    test()->actingAs($admin)->post('/settings/org-structure/billets/203/assign', ['unit_id' => $company->id, 'reason' => 'Company runner', 'confirm_section' => true])
+        ->assertSessionHasNoErrors();
+
+    expect(UnitBilletMapping::query()->where('cav_position_id', 203)->sole()->unit_id)->toBe($company->id)
+        ->and(AuditLogEntry::query()->where('action', AssignBillet::ACTION)->sole()->reason)->toBe('Company runner');
+});
+
+it('places a section billet in a section or platoon, and a billet that names no section anywhere, without asking', function () {
+    obImport();
+    $admin = User::factory()->admin()->create();
+
+    test()->actingAs($admin)->post('/settings/org-structure/billets/203/assign', ['unit_id' => obUnit('2/1/A/1-7')->id, 'reason' => 'x'])->assertSessionHasNoErrors();
+    test()->actingAs($admin)->post('/settings/org-structure/billets/201/assign', ['unit_id' => obUnit('1/A/1-7')->id, 'reason' => 'x'])->assertSessionHasNoErrors();
+    // Its words say Section Leader, but its title names no section.
+    test()->actingAs($admin)->post('/settings/org-structure/billets/780/assign', ['unit_id' => obUnit('A/1-7')->id, 'reason' => 'x'])->assertSessionHasNoErrors();
+
+    expect(AuditLogEntry::query()->where('action', AssignBillet::ACTION)->count())->toBe(3);
+});
+
+it('asks for the move and the section billet in turn, keeping what was confirmed', function () {
+    obImport();
+    $admin = User::factory()->admin()->create();
+    $platoon = obUnit('1/A/1-7');
+    $company = obUnit('B/1-7');
+
+    test()->actingAs($admin)->post('/settings/org-structure/billets/203/assign', ['unit_id' => $platoon->id, 'reason' => 'x'])->assertSessionHasNoErrors();
+    // Placed by an Admin in 1/A/1-7, so going to B/1-7 is both a move and a section billet in a company.
+    test()->actingAs($admin)->post('/settings/org-structure/billets/203/assign', ['unit_id' => $company->id, 'reason' => 'x'])
+        ->assertSessionHasErrors('billet_section');
+    test()->actingAs($admin)->post('/settings/org-structure/billets/203/assign', ['unit_id' => $company->id, 'reason' => 'x', 'confirm_section' => true])
+        ->assertSessionHasErrors(['billet_move' => 'Trooper 1/1/A/1-7 is already placed in 1/A/1-7. Move it here instead?']);
+    test()->actingAs($admin)->post('/settings/org-structure/billets/203/assign', ['unit_id' => $company->id, 'reason' => 'x', 'confirm_section' => true, 'confirm_move' => true])
+        ->assertSessionHasNoErrors();
+
+    expect(UnitBilletMapping::query()->where('cav_position_id', 203)->sole()->unit_id)->toBe($company->id);
+});
+
 it('removes an Admin\'s placement: back to the rule, or no placement for a billet no rule places', function () {
     obImport();
     $admin = User::factory()->admin()->create();
@@ -361,7 +412,7 @@ it('shows an acknowledged billet in two units again once where it sits changes',
     expect(obPending($admin))->toBe($before - 1);
 
     // One of the two moves to a third unit: not what was acknowledged.
-    test()->actingAs($admin)->post('/settings/org-structure/billets/204/assign', ['unit_id' => obUnit('B/1-7')->id, 'reason' => 'Moved'])->assertSessionHasNoErrors();
+    test()->actingAs($admin)->post('/settings/org-structure/billets/204/assign', ['unit_id' => obUnit('B/1-7')->id, 'reason' => 'Moved', 'confirm_section' => true])->assertSessionHasNoErrors();
 
     $conflict = collect(obBillets($admin)['conflicts'])->firstWhere('kind', 'title');
     expect($conflict)->not->toBeNull()

@@ -90,6 +90,46 @@ describe('UnitBillets', () => {
         expect(post).toHaveBeenLastCalledWith('/settings/org-structure/billets/780/assign', { unit_id: 10, reason: 'Star Citizen runs here', confirm_move: true }, expect.any(Object));
     });
 
+    it('asks before placing a section billet in a company, and keeps that answer when a move is asked next', async () => {
+        wrapper = mountList();
+        await wrapper.find('[data-testid="unit-billets-toggle"]').trigger('click');
+        await wrapper.find('[data-testid="unit-billet-add"]').trigger('click');
+        await chooseSearch(wrapper, 'unit-billet-add-form-pick', 780);
+        await wrapper.find('[data-testid="unit-billet-add-form-reason"]').setValue('Company runner');
+        await wrapper.find('[data-testid="unit-billet-add-form"]').trigger('submit');
+
+        const refuse = async (errors) => {
+            post.mock.calls.at(-1)[2].onError(errors);
+            post.mock.calls.at(-1)[2].onFinish();
+            await flushPromises();
+        };
+
+        await refuse({ billet_section: 'Trooper 1/1/A/1-7 is a section billet. Place it in A/1-7, a company, anyway?' });
+        const warning = wrapper.find('[data-testid="unit-billet-add-form-section"]');
+        expect(warning.text()).toContain('Place it in A/1-7, a company, anyway?');
+        expect(warning.find('[data-testid="unit-billet-add-form-section-confirm"]').text()).toBe('Place it anyway');
+        expect(wrapper.find('[data-testid="unit-billet-add-form-submit"]').exists()).toBe(false);
+
+        // Cancel drops the warning and sends nothing.
+        const sent = post.mock.calls.length;
+        await wrapper.find('[data-testid="unit-billet-add-form-section-cancel"]').trigger('click');
+        expect(wrapper.find('[data-testid="unit-billet-add-form-section"]').exists()).toBe(false);
+        expect(post.mock.calls).toHaveLength(sent);
+
+        await wrapper.find('[data-testid="unit-billet-add-form"]').trigger('submit');
+        await refuse({ billet_section: 'Trooper 1/1/A/1-7 is a section billet. Place it in A/1-7, a company, anyway?' });
+        await wrapper.find('[data-testid="unit-billet-add-form-section-confirm"]').trigger('click');
+        expect(post).toHaveBeenLastCalledWith('/settings/org-structure/billets/780/assign', { unit_id: 10, reason: 'Company runner', confirm_section: true }, expect.any(Object));
+
+        await refuse({ billet_move: 'Trooper 1/1/A/1-7 is already placed in B/1-7. Move it here instead?' });
+        await wrapper.find('[data-testid="unit-billet-add-form-move-confirm"]').trigger('click');
+        expect(post).toHaveBeenLastCalledWith(
+            '/settings/org-structure/billets/780/assign',
+            { unit_id: 10, reason: 'Company runner', confirm_move: true, confirm_section: true },
+            expect.any(Object),
+        );
+    });
+
     it('warns about a billet in two units, naming them and the unit the sync uses', async () => {
         wrapper = mountList({
             conflicts: [

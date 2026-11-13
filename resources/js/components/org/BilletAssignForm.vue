@@ -8,7 +8,8 @@ import { postBillet } from '@/lib/billets';
 
 // Place a billet in a unit: pick the unit for a fixed billet (`positionId`), or the billet for a fixed unit (`unitId`,
 // a unit's Add billet). A reason is required. When the server says the billet is placed in another unit by an Admin,
-// the form asks before sending it again as a move.
+// the form asks before sending it again as a move; when it says a section billet is going to a company or higher, the
+// form asks before placing it there anyway. Each step confirmed is sent again with the next try, so both can be asked.
 const props = defineProps({
     positionId: { type: Number, default: null },
     unitId: { type: Number, default: null },
@@ -24,27 +25,34 @@ const emit = defineEmits(['done', 'cancel']);
 const picked = ref(null);
 const reason = ref('');
 const error = ref(null);
-const move = ref(null);
+// The step the server asks to confirm, `{ kind: 'move' | 'section', message }`, and the steps already confirmed.
+const ask = ref(null);
+const confirmed = ref({ move: false, section: false });
 const sending = ref(false);
 
 const target = computed(() => (props.positionId === null ? { position: picked.value, unit: props.unitId } : { position: props.positionId, unit: picked.value }));
 const ready = computed(() => !sending.value && target.value.position !== null && target.value.unit !== null && reason.value.trim() !== '');
 
-function send(confirmMove = false) {
+function send() {
     if (!ready.value) return;
     error.value = null;
     sending.value = true;
     postBillet(
         `/settings/org-structure/billets/${target.value.position}/assign`,
-        { unit_id: target.value.unit, reason: reason.value.trim(), ...(confirmMove ? { confirm_move: true } : {}) },
+        {
+            unit_id: target.value.unit,
+            reason: reason.value.trim(),
+            ...(confirmed.value.move ? { confirm_move: true } : {}),
+            ...(confirmed.value.section ? { confirm_section: true } : {}),
+        },
         {
             failed: 'The billet was not placed',
             onDone: () => {
-                move.value = null;
+                ask.value = null;
                 emit('done');
             },
-            onError: (message, needsMove) => {
-                if (needsMove) move.value = message;
+            onError: (message, step) => {
+                if (step) ask.value = { kind: step, message };
                 else error.value = message;
             },
             onFinish: () => {
@@ -54,14 +62,21 @@ function send(confirmMove = false) {
     );
 }
 
+function confirm() {
+    confirmed.value = { ...confirmed.value, [ask.value.kind]: true };
+    ask.value = null;
+    send();
+}
+
 function pick(value) {
     picked.value = value;
-    move.value = null;
+    ask.value = null;
+    confirmed.value = { move: false, section: false };
 }
 </script>
 
 <template>
-    <form :data-testid="testid" class="mt-2 space-y-2.5 border-t border-border pt-2.5" @submit.prevent="send(false)">
+    <form :data-testid="testid" class="mt-2 space-y-2.5 border-t border-border pt-2.5" @submit.prevent="send">
         <div class="grid gap-1">
             <Label :for="`${testid}-pick`">{{ pickLabel }}</Label>
             <SearchSelect
@@ -81,11 +96,13 @@ function pick(value) {
             <Input :id="`${testid}-reason`" v-model="reason" :data-testid="`${testid}-reason`" type="text" maxlength="500" placeholder="Why this unit, such as who confirmed it" />
         </div>
         <p v-if="error" :data-testid="`${testid}-error`" role="alert" class="text-xs text-destructive">{{ error }}</p>
-        <div v-if="move" :data-testid="`${testid}-move`" role="alert" class="rounded-md border border-warning/40 bg-warning/8 px-2.5 py-2 text-xs">
-            <p>{{ move }}</p>
+        <div v-if="ask" :data-testid="`${testid}-${ask.kind}`" role="alert" class="rounded-md border border-warning/40 bg-warning/8 px-2.5 py-2 text-xs">
+            <p>{{ ask.message }}</p>
             <div class="mt-2 flex justify-end gap-2">
-                <Button type="button" variant="ghost" size="sm" @click="move = null">Keep it there</Button>
-                <Button type="button" size="sm" :data-testid="`${testid}-move-confirm`" :disabled="sending" @click="send(true)">Move it here</Button>
+                <Button type="button" variant="ghost" size="sm" :data-testid="`${testid}-${ask.kind}-cancel`" @click="ask = null">{{ ask.kind === 'move' ? 'Keep it there' : 'Cancel' }}</Button>
+                <Button type="button" size="sm" :data-testid="`${testid}-${ask.kind}-confirm`" :disabled="sending" @click="confirm">
+                    {{ ask.kind === 'move' ? 'Move it here' : 'Place it anyway' }}
+                </Button>
             </div>
         </div>
         <div v-else class="flex items-center justify-end gap-2">

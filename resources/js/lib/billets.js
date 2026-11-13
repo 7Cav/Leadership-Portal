@@ -22,17 +22,19 @@ export function conflictUnitLabel(at) {
     return `${at.label} (${why})`;
 }
 
-// POST a billet write. `onDone` runs on success; `onError(message, needsMove)` gets the server's refusal, with
-// `needsMove` true when the billet is placed elsewhere and the Admin may confirm moving it here.
+// POST a billet write. `onDone` runs on success; `onError(message, confirm)` gets the server's refusal, with `confirm`
+// naming what the Admin may confirm to go ahead: 'move' for a billet placed elsewhere, 'section' for a section billet
+// placed in a company or higher. Null for any other refusal.
 export function postBillet(path, data, { failed, onDone, onError, onFinish }) {
     router.post(path, data, {
         preserveScroll: true,
         onSuccess: () => onDone?.(),
         onError: (errors) => {
-            if (errors.billet_move) onError?.(errors.billet_move, true);
-            else onError?.(errors.billet ?? errors.unit_id ?? errors.reason ?? Object.values(errors)[0] ?? `${failed}. Try again.`, false);
+            if (errors.billet_move) onError?.(errors.billet_move, 'move');
+            else if (errors.billet_section) onError?.(errors.billet_section, 'section');
+            else onError?.(errors.billet ?? errors.unit_id ?? errors.reason ?? Object.values(errors)[0] ?? `${failed}. Try again.`, null);
         },
-        onHttpException: onHttpException(failed, (message) => onError?.(message, false)),
+        onHttpException: onHttpException(failed, (message) => onError?.(message, null)),
         onFinish: () => onFinish?.(),
     });
 }

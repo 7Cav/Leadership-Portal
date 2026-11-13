@@ -6,15 +6,19 @@ use DomainException;
 
 /**
  * A billet change on Org structure the domain rules refuse: a billet the import has not recorded, one already in the
- * unit picked, one an Admin placed elsewhere (until the move is confirmed), a rename with nothing to confirm, a placed
+ * unit picked, one an Admin placed elsewhere (until the move is confirmed), a section billet placed in a company or
+ * higher (until that is confirmed), a rename with nothing to confirm, a placed
  * billet left unplaced, a billet with no placement to undo, or an acknowledgement of a billet in two units that does not
  * fit what is placed now.
  * Domain rules, not request shape, so the controller turns this into a form error.
  */
 class InvalidBilletChangeException extends DomainException
 {
-    /** Whether the Admin may go ahead by confirming, as for a move of a billet placed elsewhere. */
-    public bool $needsConfirmation = false;
+    /**
+     * What the Admin may confirm to go ahead, or null when confirming does not help: `move` for a billet placed
+     * elsewhere, `section` for a section billet placed in a company or higher.
+     */
+    public ?string $confirmation = null;
 
     public static function unknown(): self
     {
@@ -39,7 +43,19 @@ class InvalidBilletChangeException extends DomainException
     public static function placedElsewhere(string $title, array $units): self
     {
         $e = new self(sprintf('%s is already placed in %s. Move it here instead?', $title, implode(' and ', $units)));
-        $e->needsConfirmation = true;
+        $e->confirmation = 'move';
+
+        return $e;
+    }
+
+    /**
+     * A section billet (one whose title names a section) placed in a company, battalion, the regiment or a group:
+     * confirming places it there anyway. `$unitKind` names what the unit is, such as `a company`.
+     */
+    public static function sectionBilletAbove(string $title, string $unit, string $unitKind): self
+    {
+        $e = new self("{$title} is a section billet. Place it in {$unit}, {$unitKind}, anyway?");
+        $e->confirmation = 'section';
 
         return $e;
     }

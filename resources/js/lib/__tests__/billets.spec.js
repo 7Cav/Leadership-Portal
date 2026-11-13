@@ -16,21 +16,23 @@ describe('billets', () => {
         expect(conflictUnitLabel({ label: 'S6', source: 'rule' })).toBe('S6 (by the import rules)');
     });
 
-    it('tells a move to confirm apart from any other refusal', () => {
+    it('tells a move or a section billet to confirm apart from any other refusal', () => {
         const onError = vi.fn();
         postBillet('/x', {}, { failed: 'Not placed', onError });
         const options = post.mock.calls[0][2];
 
         options.onError({ billet_move: 'Move it here instead?' });
+        options.onError({ billet_section: 'Place it in A/1-7, a company, anyway?' });
         options.onError({ billet: 'Already there.' });
         options.onError({});
         options.onHttpException({ status: 403 });
 
         expect(onError.mock.calls).toEqual([
-            ['Move it here instead?', true],
-            ['Already there.', false],
-            ['Not placed. Try again.', false],
-            ['Not placed. You are not allowed to do that; reload the page, or exit view as first.', false],
+            ['Move it here instead?', 'move'],
+            ['Place it in A/1-7, a company, anyway?', 'section'],
+            ['Already there.', null],
+            ['Not placed. Try again.', null],
+            ['Not placed. You are not allowed to do that; reload the page, or exit view as first.', null],
         ]);
     });
 });
