@@ -47,15 +47,17 @@ The holders move on the next roster sync.
 
 A card at the top of the page lists what waits, and the sidebar shows the count beside **Org structure**:
 
-- **Renamed in the Cav**: the Cav renamed a placed billet, shown as old name → new name with its unit. The placement stays as it is. Choose **Confirm name** once it still fits, or move the billet from its unit.
-- **In two units at once**: billets of one name placed in different units, or a billet placed by hand in one unit while the rules or its command put it in another. Both units show the warning in their **Billets** list, and it says which unit the sync uses. When it is meant to be that way, such as the two Regimental Deputy Chiefs of Staff who hold the same Cav billet in their own groups, choose **Acknowledge** and give a reason.
-- **New billets**: billets no rule places, held or vacant, such as a start-up game's. Choose **Assign** to pick a unit, or **Leave unplaced** with a reason. A billet left unplaced comes back when the Cav renames it or lists it in another group.
+- **Renamed in the Cav**: the Cav renamed a placed billet, shown as old name → new name with its unit. It stays in its unit. Choose **Confirm name** once the unit still fits the new name, or move the billet.
+- **In two units**: two different cases, each in its own row.
+  - **Same billet name in two units**: two Cav billets share one name, such as the two "Regimental Deputy Chief of Staff" billets, one in DCOS1 and one in DCOS2. Nobody is placed wrong, since each holder lands by their own billet, but rosters and reports show only the name. Choose **Fine as it is** and say why, or open a unit with **Open DCOS1** and move its billet. To rename one, change it in the Cav.
+  - **Billet placed in two units**: one billet an Admin placed in one unit while its automatic placement (the import's rules, or the unit it commands) puts it in another. Each unit is marked **placed by Admin** or **automatic**. Its holder can only be in one, the Admin's unit. Choose **Keep in** the Admin's unit to leave it there, or **Keep in** the automatic unit to remove the Admin's placement, so the holder moves there on the next roster sync. The reason starts as "Kept in" the unit; change it if you like.
+- **New billets**: billets nothing places yet, held or vacant, such as a start-up game's. Choose **Assign** to pick a unit, or **Leave unplaced** with a reason. A billet left unplaced comes back when the Cav renames it or lists it in another group.
 
-An acknowledged billet leaves the card and the sidebar count. The units' **Billets** lists still show it as "In two units, acknowledged", with **Undo** to bring the warning back. The acknowledgement only covers the units the billet sat in when you acknowledged it: if the billet is added to another unit, moved, or taken out of one, or another billet takes the same name, it shows again.
+A billet marked fine, or kept in the Admin's unit, leaves the card and the sidebar count. Each unit's **Billets** list shows a quiet line such as "Regimental Deputy Chief of Staff: also in DCOS2 · marked fine", with **Flag again** to bring it back. It stays marked fine only while its billets sit where they were: if one is added to another unit, moved, or taken out of one, or another billet takes the same name, it shows again.
 
 Billets in Cav groups for troopers who no longer serve, such as Retired or Discharged, are never listed as new. A renamed billet that makes its holder an Admin is also confirmed on **Staff grants**, which decides the Admin rights. This page only decides the unit.
 
-> [!good-to-know] What this changes, and how to undo it: every assignment, move, removal, confirmation, acknowledgement and billet left unplaced is in the audit log with its reason. Move a billet back or choose **Remove** to undo a placement.
+> [!good-to-know] What this changes, and how to undo it: every assignment, move, removal, confirmation, billet marked fine or flagged again, and billet left unplaced is in the audit log with its reason. Move a billet back or choose **Remove** to undo a placement.
 
 ## Add, rename or move a unit
 
