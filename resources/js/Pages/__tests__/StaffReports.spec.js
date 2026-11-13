@@ -174,6 +174,23 @@ describe('StaffReports', () => {
         expect(page.find('[data-testid="staff-reports-row-7"]').classes()).toContain('focus-within:bg-accent/50');
     });
 
+    it('gives every HQ table the same column widths so the columns line up down the page', () => {
+        const groups = [
+            { id: 4, label: '1/A/1-7', rows: [row()] },
+            { id: 5, label: '2/A/1-7', rows: [row({ trooperId: 9, name: 'SGT Lee.K', href: '/staff-report/9/2026-10-03' })] },
+        ];
+        const page = mount(StaffReports, { props: { week: WEEK, groups } });
+
+        const widths = ['4', '5'].map((id) => {
+            const table = page.find(`[data-testid="staff-reports-hq-${id}"] table`);
+            expect(table.classes()).toContain('sm:table-fixed');
+
+            return table.findAll('colgroup col').map((col) => col.classes().join(' '));
+        });
+        expect(widths[0]).toEqual(['w-[30%]', 'w-44', '', 'w-32']);
+        expect(widths[1]).toEqual(widths[0]);
+    });
+
     it('shows the picked HQ unit health with its trend, and links to the other HQs', () => {
         const health = {
             unit: { id: 4, label: '1/A/1-7' },

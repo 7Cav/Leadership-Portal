@@ -786,11 +786,10 @@ function entryNote(id) {
                 </dl>
                 <div class="border-t px-4 py-3">
                     <p v-if="missing" class="mb-2 text-xs text-muted-foreground" data-testid="send-missing">{{ missing }}</p>
-                    <p v-else-if="editingReport && !form.reason.trim()" class="mb-2 text-xs text-muted-foreground">Give a reason for the record.</p>
-                    <p v-else class="mb-2 text-xs text-muted-foreground">You can edit it until {{ stamp(week.due) }}.</p>
+                    <p v-else-if="!editingReport" class="mb-2 text-xs text-muted-foreground">You can edit it until {{ stamp(week.due) }}.</p>
                     <div v-if="editingReport" class="mb-3 space-y-1.5">
                         <label for="edit-reason" class="text-xs font-medium">Reason for the record</label>
-                        <Textarea id="edit-reason" v-model="form.reason" rows="2" maxlength="1000" data-testid="staff-report-reason" />
+                        <Textarea id="edit-reason" v-model="form.reason" rows="2" maxlength="1000" placeholder="For example: added the practice I forgot" data-testid="staff-report-reason" />
                         <p v-if="form.errors.reason" role="alert" class="text-xs text-destructive">{{ form.errors.reason }}</p>
                     </div>
                     <Button type="submit" class="w-full" :disabled="!canSubmit" data-testid="staff-report-send">{{ editingReport ? 'Send again' : 'Send staff report' }}</Button>

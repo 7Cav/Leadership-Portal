@@ -25,6 +25,14 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => {
                     return JSON.stringify(Object.fromEntries(Object.keys(data).map((key) => [key, this[key]]))) !== initial;
                 },
             });
+            let defaults = { ...data };
+            form.defaults = (values) => {
+                defaults = { ...defaults, ...values };
+            };
+            form.reset = () => Object.assign(form, JSON.parse(JSON.stringify(defaults)));
+            form.clearErrors = () => {
+                form.errors = {};
+            };
             let transform = (value) => value;
             form.transform = (fn) => {
                 transform = fn;
@@ -506,6 +514,17 @@ describe('StaffReport page', () => {
         expect(wrapper.find('[data-testid="staff-report-edit"]').exists()).toBe(true);
         expect(wrapper.find('[data-testid="staff-report-sent"]').text()).not.toContain('A sent staff report is final.');
         expect(wrapper.findAll('[data-testid="staff-report-revision"]')).toHaveLength(1);
+    });
+
+    it('asks for the reason once, by its label, when editing a sent report', async () => {
+        const wrapper = page({ canSend: false, canEdit: true, report: { sentAt: '2026-10-10T18:00:00+00:00', attended: false, practices: [] } });
+        await wrapper.find('[data-testid="staff-report-edit"]').trigger('click');
+
+        const bar = wrapper.find('[data-testid="send-bar"]');
+        expect(bar.find('label[for="edit-reason"]').text()).toBe('Reason for the record');
+        expect(bar.text()).not.toContain('Give a reason for the record.');
+        expect(bar.text()).not.toContain('You can edit it until');
+        expect(bar.find('[data-testid="staff-report-reason"]').attributes('placeholder')).toContain('For example');
     });
 
     it('reads the presence answer back, with the public server check for a reader', () => {

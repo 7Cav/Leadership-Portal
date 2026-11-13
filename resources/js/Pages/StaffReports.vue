@@ -155,7 +155,14 @@ function openRow(event, row) {
 
         <Card v-for="group in shown" :key="group.id" class="gap-0 py-0 text-[13px]" :data-testid="`staff-reports-hq-${group.id}`">
             <h2 class="flex items-center gap-2 border-b px-4 py-2.5 text-sm font-semibold"><Guidon :design="group.guidon" :height="12" />{{ group.label }} HQ</h2>
-            <table class="w-full">
+            <!-- The same column widths in every HQ's table, so the columns line up down the page. -->
+            <table class="w-full sm:table-fixed">
+                <colgroup class="hidden sm:table-column-group">
+                    <col class="w-[30%]" />
+                    <col class="w-44" />
+                    <col />
+                    <col class="w-32" />
+                </colgroup>
                 <thead class="hidden text-left text-xs text-muted-foreground sm:table-header-group">
                     <tr>
                         <th class="px-4 py-2 font-medium">Name</th>
