@@ -3,11 +3,11 @@ title: Write and send your report
 summary: Check your numbers, fill in the subject and notes, then freeze and send the report up the chain.
 section: weekly-report
 order: 1
+updated: 2026-11-13
 audience: leader
 page: /reports
 weekly: true
 minutes: 10
-updated: 2026-11-13
 ---
 
 > [!why] Your report is what your chain of command reads about your unit's week. Sending it freezes the numbers, so what they read never changes after you send.
