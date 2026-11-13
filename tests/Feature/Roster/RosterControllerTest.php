@@ -230,7 +230,7 @@ it('keeps a departed trooper\'s past marks in their history (2.8)', function () 
 it('links the trooper Sheet to rollcall, milpac and the trooper page', function () {
     $this->actingAs($this->leader)->get('/roster')->assertInertia(fn ($page) => $page
         ->where('links.rollcall', '/rollcall/')
-        ->where('links.milpac', 'https://7cav.us/rosters/profile?uniqueid=')
+        ->missing('links.milpac')
         ->where('links.trooper', '/troopers/'));
 });
 
@@ -415,7 +415,7 @@ describe('trooper detail (Sheet)', function () {
             ->assertJsonPath('trooper.tig', '2026-01-02')
             ->assertJsonPath('trooper.section.id', $this->section1->id)
             ->assertJsonPath('trooper.sectionLeader.id', $this->leaderTrooper->id)
-            ->assertJsonPath('trooper.milpacUrl', 'https://7cav.us/rosters/profile?uniqueid=4242')
+            ->assertJsonPath('trooper.milpacUrl', 'https://7cav.us/rosters/profile/4242/')
             ->assertJsonPath('trooper.weeks.19.status', 'makeup')
             ->assertJsonPath('trooper.kpis.sp', [1, 1])
             ->assertJsonPath('currentWeek', ROSTER_WEEK);
