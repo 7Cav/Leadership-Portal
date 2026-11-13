@@ -21,6 +21,10 @@ const props = defineProps({
     processing: { type: Boolean, default: false },
     error: { type: String, default: null },
     testid: { type: String, default: 'reason-dialog' },
+    reasonLabel: { type: String, default: 'Reason for the record' },
+    placeholder: { type: String, default: null },
+    // The reason the field opens with, for an action whose reason is plain (such as "Kept in B/1-7"); still editable.
+    initialReason: { type: String, default: '' },
 });
 
 const emit = defineEmits(['update:open', 'confirm']);
@@ -33,7 +37,7 @@ const canConfirm = computed(() => !props.processing && (!props.requireReason || 
 watch(
     () => props.open,
     (open) => {
-        if (open) reason.value = '';
+        if (open) reason.value = props.initialReason ?? '';
     },
 );
 
@@ -54,11 +58,12 @@ function confirm() {
 
             <form class="space-y-3" @submit.prevent="confirm">
                 <div v-if="requireReason" class="space-y-1.5">
-                    <Label :for="`${testid}-reason`" class="text-[13px]">Reason for the record</Label>
+                    <Label :for="`${testid}-reason`" class="text-[13px]">{{ reasonLabel }}</Label>
                     <Textarea
                         :id="`${testid}-reason`"
                         v-model="reason"
                         rows="2"
+                        :placeholder="placeholder ?? undefined"
                         :data-testid="`${testid}-reason`"
                         :aria-describedby="`${testid}-reason-help`"
                         :aria-invalid="!!error"

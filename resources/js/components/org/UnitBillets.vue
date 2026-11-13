@@ -5,13 +5,13 @@ import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import ReasonDialog from '@/components/ReasonDialog.vue';
 import BilletAssignForm from './BilletAssignForm.vue';
-import { conflictUnitLabel, holdersLabel, postBillet, sourceLabel } from '@/lib/billets';
+import { conflictHeading, holdersLabel, joinAnd, otherUnitsLabel, placementUnits, postBillet, sameNameSentence, sourceLabel } from '@/lib/billets';
 
 // The selected unit's billets on Org structure, for an Admin (2026-11-13): every billet whose holders land in this
 // unit, how many hold it now, and why (a rule, an Admin's placement, or the unit it commands). An Admin adds a billet
 // to the unit, moves one elsewhere or removes their own placement; a rule's placement is shown but follows the Cav. A
-// billet in two units at once is warned about here, on every unit involved, with the unit the sync uses. One an Admin
-// acknowledged reads "In two units, acknowledged" instead, with Undo.
+// billet in two units at once is warned about here, on every unit involved; what to do about it sits on the card at the
+// top of the page. One an Admin marked fine reads "Also in DCOS2 · marked fine" instead, with Flag again.
 const props = defineProps({
     unitId: { type: Number, required: true },
     billets: { type: Array, default: () => [] },
@@ -76,10 +76,10 @@ function undo(reason) {
     undoError.value = null;
     undoProcessing.value = true;
     postBillet(`/settings/org-structure/billets/${conflict.positionId}/unacknowledge`, { kind: conflict.kind, reason }, {
-        failed: 'The acknowledgement was not undone',
+        failed: 'The billet was not flagged again',
         onDone: () => {
             undoing.value = null;
-            toast.success('Acknowledgement undone');
+            toast.success('Flagged again');
         },
         onError: (message) => {
             undoError.value = message;
@@ -88,6 +88,13 @@ function undo(reason) {
             undoProcessing.value = false;
         },
     });
+}
+
+// What a billet in two units is, in a line: the shared name, or the units it is set up in and where its holder sits.
+function conflictSummary(conflict) {
+    if (conflict.kind === 'title') return sameNameSentence(conflict);
+    const units = placementUnits(conflict);
+    return `${conflict.title} is set up in ${units.length === 2 ? 'both ' : ''}${joinAnd(units.map((at) => at.label))}. Its holder is in ${units[0].label} now.`;
 }
 
 function remove(reason) {
@@ -136,13 +143,13 @@ function remove(reason) {
                     role="alert"
                     class="rounded-md border border-warning/40 bg-warning/8 px-2.5 py-1.5 text-xs"
                 >
-                    <span class="font-medium">{{ conflict.title }}</span> is in {{ conflict.units.map(conflictUnitLabel).join(', ') }}. {{ conflict.uses }}
+                    <span class="font-medium">{{ conflictHeading(conflict) }}.</span> {{ conflictSummary(conflict) }} Sort it out in the card at the top of the page.
                 </li>
             </ul>
-            <ul v-if="acknowledgedConflicts.length" class="mt-2 space-y-1" aria-label="Billets in two units, acknowledged">
-                <li v-for="(conflict, index) in acknowledgedConflicts" :key="index" data-testid="unit-billet-acknowledged" class="text-xs text-muted-foreground">
-                    In two units, acknowledged: {{ conflict.title }}, in {{ conflict.units.map(conflictUnitLabel).join(', ') }}.
-                    <Button type="button" variant="link" size="sm" class="h-auto p-0 text-xs" data-testid="unit-billet-acknowledged-undo" @click="undoing = conflict">Undo</Button>
+            <ul v-if="acknowledgedConflicts.length" class="mt-2 space-y-1" aria-label="Billets in two units, marked fine">
+                <li v-for="(conflict, index) in acknowledgedConflicts" :key="index" data-testid="unit-billet-acknowledged" class="flex flex-wrap items-baseline gap-x-2 text-xs text-muted-foreground">
+                    <span>{{ conflict.title }}: also in {{ otherUnitsLabel(conflict, unitId) }} · marked fine</span>
+                    <Button type="button" variant="link" size="sm" class="h-auto p-0 text-xs" data-testid="unit-billet-acknowledged-undo" @click="undoing = conflict">Flag again</Button>
                 </li>
             </ul>
 
@@ -197,9 +204,9 @@ function remove(reason) {
 
         <ReasonDialog
             :open="undoing !== null"
-            title="Undo this acknowledgement?"
+            title="Flag again?"
             :description="undoing ? `${undoing.title} shows again among the billets that need an Admin.` : null"
-            confirm-label="Undo acknowledgement"
+            confirm-label="Flag again"
             pending-label="Saving"
             :processing="undoProcessing"
             :error="undoError"

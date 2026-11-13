@@ -16,10 +16,47 @@ export function sourceLabel(billet) {
     return billet.rule ? `Rule: ${billet.rule}` : 'Rule';
 }
 
-// Where a billet in a conflict lands and why, such as "B/1-7 (placed by an Admin)".
-export function conflictUnitLabel(at) {
-    const why = { admin: 'placed by an Admin', rule: 'by the import rules', command: 'commands it' }[at.source] ?? at.source;
-    return `${at.label} (${why})`;
+// A billet in two units at once (2026-11-13), in words an Admin reads at a glance. `title`: two or more Cav billets
+// share one name, each placed in its own unit. `rule`: one billet an Admin placed in one unit while the automatic
+// placement (the import's rules, or the unit the billet commands) puts it in another; its holder sits where the Admin
+// put it, the first unit listed.
+const COUNTS = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten'];
+
+// "A", "A and B", "A, B and C".
+export function joinAnd(items) {
+    if (items.length < 2) return items.join('');
+    return `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
+}
+
+// The badge beside a unit in a billet placed in two units.
+export function placementBadge(at) {
+    return at.source === 'admin' ? 'placed by Admin' : 'automatic';
+}
+
+export function conflictHeading(conflict) {
+    const units = new Set(conflict.units.map((at) => at.unitId)).size;
+    const many = units === 2 ? 'two' : 'several';
+    return conflict.kind === 'title' ? `Same billet name in ${many} units` : `Billet placed in ${many} units`;
+}
+
+// Two billets of one name: 'Two Cav billets are both called "X": one in A, one in B.'
+export function sameNameSentence(conflict) {
+    const byUnit = new Map();
+    for (const at of conflict.units) byUnit.set(at.unitId, { label: at.label, count: (byUnit.get(at.unitId)?.count ?? 0) + 1 });
+    const count = conflict.units.length;
+    const where = [...byUnit.values()].map(({ label, count: here }) => `${(COUNTS[here] ?? String(here)).toLowerCase()} in ${label}`).join(', ');
+    return `${COUNTS[count] ?? count} Cav billets are ${count === 2 ? 'both' : 'all'} called "${conflict.title}": ${where}.`;
+}
+
+// The units of a billet placed in two units, each once, the one its holder sits in first.
+export function placementUnits(conflict) {
+    const seen = new Set();
+    return conflict.units.filter((at) => !seen.has(at.unitId) && seen.add(at.unitId));
+}
+
+// Where a conflict sits besides `unitId`, for that unit's Billets list: "DCOS2", "A/1-7 and B/1-7".
+export function otherUnitsLabel(conflict, unitId) {
+    return joinAnd([...new Set(conflict.units.filter((at) => at.unitId !== unitId).map((at) => at.label))]);
 }
 
 // POST a billet write. `onDone` runs on success; `onError(message, confirm)` gets the server's refusal, with `confirm`

@@ -193,12 +193,11 @@ it('places a command billet by an Admin\'s explicit placement, which beats its c
     expect(UnitBilletMapping::query()->where('cav_position_id', 196)->sole()->unit_id)->toBe($elsewhere->id)
         ->and(UnitCommandMapping::query()->where('cav_position_id', 196)->sole()->unit_id)->toBe($company->id);
 
-    // Both units warn about it, and say which one the sync uses.
+    // Both units warn about it, the unit its holder sits in (the Admin's) first.
     $billets = obBillets($admin);
     $conflict = collect($billets['conflicts'])->firstWhere('kind', 'rule');
     expect($conflict['title'])->toBe('Commander A/1-7')
         ->and(collect($conflict['units'])->map(fn ($at) => "{$at['label']}:{$at['source']}")->all())->toBe(['B/1-7:admin', 'A/1-7:command'])
-        ->and($conflict['uses'])->toBe('The sync uses B/1-7, where an Admin placed it.')
         ->and($billets['conflictsByUnit'][$company->id])->toHaveCount(1)
         ->and($billets['conflictsByUnit'][$elsewhere->id])->toHaveCount(1);
 });

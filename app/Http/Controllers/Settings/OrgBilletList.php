@@ -111,9 +111,6 @@ final class OrgBilletList
             ...collect($conflict)->except('placements')->all(),
             'positionId' => $conflict['units'][0]['positionId'],
             'units' => array_map(fn (array $at) => [...$at, 'label' => $label($units->get($at['unitId'])) ?? 'a unit since deleted'], $conflict['units']),
-            'uses' => $conflict['kind'] === 'title'
-                ? 'The sync places each holder by their own billet.'
-                : 'The sync uses '.($label($units->get($conflict['units'][0]['unitId'])) ?? 'the unit').', where an Admin placed it.',
         ]);
         $conflictsByUnit = [];
         foreach ($conflicts as $conflict) {

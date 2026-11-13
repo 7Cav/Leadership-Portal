@@ -147,7 +147,7 @@ describe('UnitBillets', () => {
         expect(post).toHaveBeenLastCalledWith('/settings/org-structure/billets/196/assign', { unit_id: 11, reason: 'Acting section lead', confirm_level: true }, expect.any(Object));
     });
 
-    it('warns about a billet in two units, naming them and the unit the sync uses', async () => {
+    it('warns about a billet in two units, naming them and where its holder is', async () => {
         wrapper = mountList({
             conflicts: [
                 {
@@ -157,7 +157,6 @@ describe('UnitBillets', () => {
                         { unitId: 11, positionId: 196, source: 'admin', label: 'B/1-7' },
                         { unitId: 10, positionId: 196, source: 'command', label: 'A/1-7' },
                     ],
-                    uses: 'The sync uses B/1-7, where an Admin placed it.',
                 },
             ],
         });
@@ -166,11 +165,11 @@ describe('UnitBillets', () => {
         await wrapper.find('[data-testid="unit-billets-toggle"]').trigger('click');
 
         expect(wrapper.find('[data-testid="unit-billet-conflict"]').text()).toBe(
-            'Commander A/1-7 is in B/1-7 (placed by an Admin), A/1-7 (commands it). The sync uses B/1-7, where an Admin placed it.',
+            'Billet placed in two units. Commander A/1-7 is set up in both B/1-7 and A/1-7. Its holder is in B/1-7 now. Sort it out in the card at the top of the page.',
         );
     });
 
-    it('marks an acknowledged billet in two units without a warning, and undoes it with a reason', async () => {
+    it('shows a billet in two units marked fine quietly, and flags it again with a reason', async () => {
         wrapper = mountList({
             conflicts: [
                 {
@@ -182,7 +181,6 @@ describe('UnitBillets', () => {
                         { unitId: 10, positionId: 9015, source: 'admin', label: 'DCOS1' },
                         { unitId: 11, positionId: 9016, source: 'admin', label: 'DCOS2' },
                     ],
-                    uses: 'The sync places each holder by their own billet.',
                 },
             ],
         });
@@ -191,9 +189,9 @@ describe('UnitBillets', () => {
         await wrapper.find('[data-testid="unit-billets-toggle"]').trigger('click');
 
         expect(wrapper.find('[data-testid="unit-billet-conflict"]').exists()).toBe(false);
-        expect(wrapper.find('[data-testid="unit-billet-acknowledged"]').text()).toBe(
-            'In two units, acknowledged: Regimental Deputy Chief of Staff, in DCOS1 (placed by an Admin), DCOS2 (placed by an Admin). Undo',
-        );
+        const marked = wrapper.find('[data-testid="unit-billet-acknowledged"]');
+        expect(marked.find('span').text()).toBe('Regimental Deputy Chief of Staff: also in DCOS2 · marked fine');
+        expect(marked.find('button').text()).toBe('Flag again');
 
         await wrapper.find('[data-testid="unit-billet-acknowledged-undo"]').trigger('click');
         await flushPromises();
