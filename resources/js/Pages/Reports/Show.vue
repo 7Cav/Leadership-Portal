@@ -625,7 +625,7 @@ function useSuggestion() {
                     </p>
                 </div>
 
-                <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+                <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
                     <div class="flex min-w-0 flex-col gap-5">
                         <section v-if="sent" class="rounded-lg border border-border bg-card p-5" aria-labelledby="sent-title" data-testid="sent-panel">
                             <div class="flex items-start gap-3">
@@ -697,7 +697,7 @@ function useSuggestion() {
                             @focus="focusTarget"
                         />
 
-                        <section class="rounded-lg border border-border bg-card" aria-labelledby="notes-title" data-testid="notes-panel">
+                        <section class="rounded-lg border border-border bg-card lg:flex-1" aria-labelledby="notes-title" data-testid="notes-panel">
                             <div class="flex items-center gap-2 border-b border-border px-4 pt-3.5 pb-3">
                                 <h2 id="notes-title" class="text-[15px] font-semibold">Leader notes</h2>
                                 <span class="ml-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground" aria-live="polite" data-testid="save-state">
@@ -787,8 +787,9 @@ function useSuggestion() {
                         </section>
                     </div>
 
-                    <div class="min-w-0 lg:sticky lg:top-[calc(var(--shell-top,3rem)+1rem)]">
+                    <div class="flex min-w-0 flex-col">
                         <ReportPreview
+                            class="lg:flex-1"
                             :unit="unit"
                             :week="week"
                             :sent="sent"
