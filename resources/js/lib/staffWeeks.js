@@ -18,18 +18,18 @@ export const STAFF_SENT_STATES = {
     before: 'No staff reports yet',
 };
 
-/** The bottom half: whether the report met the rule, by the week's state. Not applicable unless one was sent. */
+/** The bottom half: whether the report met the rule, by the week's state. A finished week with no report sent falls short. */
 export const STAFF_MET_STATES = {
     met: 'Met the rule',
     short: 'Fell short',
-    notSent: 'Not applicable',
+    notSent: 'Not met, no report sent',
     open: 'Not applicable',
     loa: 'Not applicable',
     before: 'Not applicable',
 };
 
 const SENT_CLASS = { met: 'staff-sent', short: 'staff-sent', notSent: 'staff-notSent', open: 'staff-open', loa: 'loa', before: 'none' };
-const MET_CLASS = { met: 'staff-met', short: 'staff-short', notSent: 'staff-na', open: 'staff-na', loa: 'staff-na', before: 'none' };
+const MET_CLASS = { met: 'staff-met', short: 'staff-short', notSent: 'staff-short', open: 'staff-na', loa: 'staff-na', before: 'none' };
 
 /**
  * A roster week cell (`weekCell()`) with the staff report week in place of "No section that week": the top half

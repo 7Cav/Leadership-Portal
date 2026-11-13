@@ -159,7 +159,7 @@ describe('Trooper sheet', () => {
         expect(met[1].textContent).toContain('Practices: Yes: 1/1/A/1-7');
         expect(met[1].textContent).toContain('Presence: Public server hour');
         expect(sent[0].textContent).toContain('Not sent');
-        expect(met[0].textContent).toContain('Not applicable');
+        expect(met[0].textContent).toContain('Not met, no report sent');
         expect(document.body.querySelector('[data-testid="sheet-recent"] thead').textContent).toContain('Roll call or staff report');
         expect(document.body.querySelectorAll('[data-testid="staff-sent"]')).toHaveLength(20);
     });

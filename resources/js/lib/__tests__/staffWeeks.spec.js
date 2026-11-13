@@ -9,7 +9,7 @@ describe('withStaffWeek', () => {
     it('reads a line HQ staff week as two halves in place of "No section that week": report sent on top, rule met below', () => {
         expect(withStaffWeek(none, met)).toEqual({ rc: 'staff-sent', sp: 'staff-met', staff: met });
         expect(withStaffWeek(none, { state: 'short' })).toMatchObject({ rc: 'staff-sent', sp: 'staff-short' });
-        expect(withStaffWeek(none, { state: 'notSent' })).toMatchObject({ rc: 'staff-notSent', sp: 'staff-na' });
+        expect(withStaffWeek(none, { state: 'notSent' })).toMatchObject({ rc: 'staff-notSent', sp: 'staff-short' });
         expect(withStaffWeek(none, { state: 'open' })).toMatchObject({ rc: 'staff-open', sp: 'staff-na' });
     });
 
@@ -42,7 +42,7 @@ describe('staff week text', () => {
     it('names the HQ, whether it was sent and whether it met the rule', () => {
         expect(staffWeekText(met)).toBe('Staff report from 1/A/1-7: Sent. Accountability: Met the rule');
         expect(staffWeekText({ state: 'short', hq: '1/A/1-7' })).toBe('Staff report from 1/A/1-7: Sent. Accountability: Fell short');
-        expect(staffWeekText({ state: 'notSent', hq: null })).toBe('Staff report: Not sent. Accountability: Not applicable');
+        expect(staffWeekText({ state: 'notSent', hq: null })).toBe('Staff report: Not sent. Accountability: Not met, no report sent');
         expect(staffSentText({ state: 'open' })).toBe('Not sent yet');
     });
 

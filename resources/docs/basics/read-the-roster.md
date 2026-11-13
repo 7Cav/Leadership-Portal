@@ -42,8 +42,8 @@ The top half is whether the report was sent:
 The bottom half is whether the report met the rule, the same rule the **Staff reports** pages use:
 
 - Green: met the rule.
-- Red with a slash: fell short.
-- Grey: not applicable, as no report was sent or the week is on leave.
+- Red with a slash: fell short, or the week is over and no report was sent.
+- Grey: not applicable, as the week is on leave or still running.
 
 Weeks from before staff reports could be filed read "No staff reports yet" and look like "No section that week" in both halves.
 

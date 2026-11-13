@@ -31,7 +31,7 @@ const STAFF_SENT = [
 ];
 const STAFF_MET = [
     ['staff-met', 'Met the rule'],
-    ['staff-short', 'Fell short'],
+    ['staff-short', 'Fell short or not sent'],
     ['staff-na', 'Not applicable'],
 ];
 </script>
