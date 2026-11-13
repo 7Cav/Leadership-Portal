@@ -29,6 +29,18 @@ return new class extends Migration
             $table->timestamp('unplaced_at')->nullable();
             $table->timestamps();
         });
+
+        // An Admin acknowledged that a billet sits in two units at once on purpose, such as the one Cav title of the
+        // two Regimental Deputy Chiefs of Staff placed in both their groups. `conflict_key` names the conflict (its
+        // kind and the billet name or position id); `placements` is the exact set of billets and units acknowledged,
+        // so any change to where they sit brings the warning back.
+        Schema::create('cav_billet_acknowledgements', function (Blueprint $table) {
+            $table->id();
+            $table->string('conflict_key', 300)->unique();
+            $table->string('title');
+            $table->text('placements');
+            $table->timestamps();
+        });
     }
 
     /**
@@ -36,6 +48,7 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::dropIfExists('cav_billet_acknowledgements');
         Schema::dropIfExists('cav_billets');
     }
 };

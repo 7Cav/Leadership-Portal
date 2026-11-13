@@ -15,6 +15,9 @@ const NEW = [
 const CONFLICTS = [
     {
         kind: 'title',
+        key: 'title:regimental deputy chief of staff',
+        positionId: 9015,
+        acknowledged: false,
         title: 'Regimental Deputy Chief of Staff',
         units: [
             { unitId: 3, positionId: 9015, source: 'admin', label: 'DCOS1' },
@@ -54,7 +57,31 @@ describe('BilletNotices', () => {
         wrapper = mount(BilletNotices, { props: { conflicts: CONFLICTS } });
 
         expect(wrapper.find('[data-testid="billet-conflict"]').text()).toBe(
-            'Regimental Deputy Chief of Staff is in DCOS1 (placed by an Admin), DCOS2 (placed by an Admin). The sync places each holder by their own billet.',
+            'Regimental Deputy Chief of Staff is in DCOS1 (placed by an Admin), DCOS2 (placed by an Admin). The sync places each holder by their own billet. Acknowledge',
+        );
+    });
+
+    it('acknowledges a billet in two units with a reason', async () => {
+        wrapper = mount(BilletNotices, { props: { conflicts: CONFLICTS }, attachTo: document.body });
+        await wrapper.find('[data-testid="billet-conflict-acknowledge"]').trigger('click');
+        await flushPromises();
+
+        const dialog = document.body.querySelector('[data-testid="billet-acknowledge-dialog"]');
+        expect(dialog.textContent).toContain('If it is added to another unit or taken out of one, it shows again.');
+        const confirm = dialog.querySelector('[data-testid="billet-acknowledge-dialog-confirm"]');
+        // No reason, no acknowledgement.
+        expect(confirm.disabled).toBe(true);
+
+        const reason = dialog.querySelector('textarea');
+        reason.value = 'Both Deputy Chiefs of Staff hold this title';
+        reason.dispatchEvent(new Event('input'));
+        await flushPromises();
+        confirm.click();
+
+        expect(post).toHaveBeenCalledWith(
+            '/settings/org-structure/billets/9015/acknowledge',
+            { kind: 'title', reason: 'Both Deputy Chiefs of Staff hold this title' },
+            expect.any(Object),
         );
     });
 

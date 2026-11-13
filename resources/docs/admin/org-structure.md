@@ -5,7 +5,7 @@ section: admin
 order: 1
 audience: admin
 page: /settings/org-structure
-updated: 2026-11-12
+updated: 2026-11-13
 ---
 
 > [!why] Everyone's access comes from where their billet sits in this tree. A unit in the wrong place gives the wrong people access to it, and a missing acting lead leaves a unit with nobody who can run its roll call.
@@ -46,12 +46,14 @@ The holders move on the next roster sync.
 A card at the top of the page lists what waits, and the sidebar shows the count beside **Org structure**:
 
 - **Renamed in the Cav**: the Cav renamed a placed billet, shown as old name → new name with its unit. The placement stays as it is. Choose **Confirm name** once it still fits, or move the billet from its unit.
-- **In two units at once**: billets of one name placed in different units, or a billet placed by hand in one unit while the rules or its command put it in another. Both units show the warning in their **Billets** list, and it says which unit the sync uses.
+- **In two units at once**: billets of one name placed in different units, or a billet placed by hand in one unit while the rules or its command put it in another. Both units show the warning in their **Billets** list, and it says which unit the sync uses. When it is meant to be that way, such as the two Regimental Deputy Chiefs of Staff who hold the same Cav billet in their own groups, choose **Acknowledge** and give a reason.
 - **New billets**: billets no rule places, held or vacant, such as a start-up game's. Choose **Assign** to pick a unit, or **Leave unplaced** with a reason. A billet left unplaced comes back when the Cav renames it or lists it in another group.
+
+An acknowledged billet leaves the card and the sidebar count. The units' **Billets** lists still show it as "In two units, acknowledged", with **Undo** to bring the warning back. The acknowledgement only covers the units the billet sat in when you acknowledged it: if the billet is added to another unit, moved, or taken out of one, or another billet takes the same name, it shows again.
 
 Billets in Cav groups for troopers who no longer serve, such as Retired or Discharged, are never listed as new. A renamed billet that makes its holder an Admin is also confirmed on **Staff grants**, which decides the Admin rights. This page only decides the unit.
 
-> [!good-to-know] What this changes, and how to undo it: every assignment, move, removal, confirmation and billet left unplaced is in the audit log with its reason. Move a billet back or choose **Remove** to undo a placement.
+> [!good-to-know] What this changes, and how to undo it: every assignment, move, removal, confirmation, acknowledgement and billet left unplaced is in the audit log with its reason. Move a billet back or choose **Remove** to undo a placement.
 
 ## Add, rename or move a unit
 

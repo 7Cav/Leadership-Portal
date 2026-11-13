@@ -3,13 +3,15 @@
 namespace App\Repositories;
 
 use App\Models\CavBillet;
+use App\Models\CavBilletAcknowledgement;
 use Illuminate\Support\Collection;
 
 /**
  * Sole DB access for the billets the Cav lists (`cav_billets`): the name each carries now, the name its placement was
  * confirmed under, and whether an Admin chose to leave it unplaced. The org import and the roster sync record what they
  * see ({@see observe()}); an Admin's confirmation or choice is written only by the audited Commands in
- * `App\Commands\Units` (`ConfirmBilletName`, `AssignBillet`, `LeaveBilletUnplaced`).
+ * `App\Commands\Units` (`ConfirmBilletName`, `AssignBillet`, `LeaveBilletUnplaced`), as is an Admin's acknowledgement
+ * of a billet in two units at once (`AcknowledgeBilletConflict`, `UndoBilletAcknowledgement`).
  */
 interface CavBilletRepository
 {
@@ -54,14 +56,31 @@ interface CavBilletRepository
      * own, and a rule placement beside a command (a portfolio officer placed on the regiment), are one rule each, not a
      * conflict.
      *
-     * @return list<array{kind: string, title: string, units: list<array{unitId: int, positionId: int, source: string}>}>
+     * Each also carries its `key` ({@see conflictKey()}), its `placements` (the exact billets, units and sources, as one
+     * string) and whether an Admin `acknowledged` it. An acknowledgement holds only while the placements are exactly
+     * the ones acknowledged: a billet added, moved or removed brings the warning back.
+     *
+     * @return list<array{kind: string, key: string, title: string, placements: string, acknowledged: bool, units: list<array{unitId: int, positionId: int, source: string}>}>
      */
     public function conflicts(): array;
 
     /**
+     * The key of the conflict of `$kind` (`title` or `rule`) the billet is in or would be in: `title:<name>` by its name
+     * (trimmed, any case), `rule:<position id>` by the billet itself.
+     */
+    public function conflictKey(string $kind, int $positionId, string $title): string;
+
+    /** Acknowledge the conflict as it sits now, replacing an earlier acknowledgement of other placements. */
+    public function acknowledge(string $key, string $title, string $placements): CavBilletAcknowledgement;
+
+    /** Remove the acknowledgement of the conflict; returns the removed row, or null when there was none. */
+    public function unacknowledge(string $key): ?CavBilletAcknowledgement;
+
+    /**
      * How many billets wait for an Admin: placed billets the Cav renamed since their placement was confirmed, new
      * billets nothing places (no placement, no command mapping, not left unplaced, not in a group of troopers who no
-     * longer serve), and billets in two units at once ({@see conflicts()}). The sidebar's count beside Org structure.
+     * longer serve), and billets in two units at once ({@see conflicts()}) no Admin acknowledged. The sidebar's count
+     * beside Org structure.
      */
     public function attentionCount(): int;
 }

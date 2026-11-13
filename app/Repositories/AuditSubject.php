@@ -6,6 +6,7 @@ use App\Models\Attendance;
 use App\Models\AttendanceStatus;
 use App\Models\BattalionSetting;
 use App\Models\CavBillet;
+use App\Models\CavBilletAcknowledgement;
 use App\Models\ChangelogEntry;
 use App\Models\ChangelogState;
 use App\Models\CounselingRecord;
@@ -215,6 +216,7 @@ final class AuditSubject
                 .($target->starts_at !== null ? ', '.WeekLabel::date($target->starts_at).' to '.($target->ends_at !== null ? WeekLabel::date($target->ends_at) : 'open') : ''),
             $target instanceof UnitBilletMapping => 'Billet "'.($rel($target, 'billet')?->title ?? "position {$target->cav_position_id}").'"'
                 .($target->exists ? ' in '.$unit($rel($target, 'unit')) : ''),
+            $target instanceof CavBilletAcknowledgement => 'Billet "'.$target->title.'" in two units at once',
             $target instanceof CavBillet => 'Billet "'.$target->title.'"'.($target->group_title !== null ? " in {$target->group_title}" : ''),
             $target instanceof Unit => trim("{$target->callsign} {$target->name}"),
             $target instanceof Trooper => $target->display_name,
@@ -292,6 +294,13 @@ final class AuditSubject
             $label = fn (?Unit $unit) => $unit === null ? 'none' : ($unit->callsign ?? $unit->name);
 
             return [['field' => 'Unit', 'from' => $label($model->getRelation('previousUnit')), 'to' => $label($model->getRelation('unit'))]];
+        }
+
+        // A billet in two units at once an Admin acknowledged, or whose acknowledgement they undid (2026-11-13).
+        if ($model instanceof CavBilletAcknowledgement) {
+            return $model->exists
+                ? [['field' => 'Acknowledged', 'from' => 'no', 'to' => 'yes']]
+                : [['field' => 'Acknowledged', 'from' => 'yes', 'to' => 'no']];
         }
 
         // A guest a leader added or took back (#628): the entry names whose attendance changed.

@@ -10,7 +10,8 @@ import { conflictUnitLabel, holdersLabel, postBillet, sourceLabel } from '@/lib/
 // The selected unit's billets on Org structure, for an Admin (2026-11-13): every billet whose holders land in this
 // unit, how many hold it now, and why (a rule, an Admin's placement, or the unit it commands). An Admin adds a billet
 // to the unit, moves one elsewhere or removes their own placement; a rule's placement is shown but follows the Cav. A
-// billet in two units at once is warned about here, on every unit involved, with the unit the sync uses.
+// billet in two units at once is warned about here, on every unit involved, with the unit the sync uses. One an Admin
+// acknowledged reads "In two units, acknowledged" instead, with Undo.
 const props = defineProps({
     unitId: { type: Number, required: true },
     billets: { type: Array, default: () => [] },
@@ -28,6 +29,12 @@ const removing = ref(null);
 const removeError = ref(null);
 const removeProcessing = ref(false);
 const confirming = ref(null);
+const undoing = ref(null);
+const undoError = ref(null);
+const undoProcessing = ref(false);
+
+const activeConflicts = computed(() => props.conflicts.filter((conflict) => !conflict.acknowledged));
+const acknowledgedConflicts = computed(() => props.conflicts.filter((conflict) => conflict.acknowledged));
 
 // A fresh state for every unit selected.
 watch(
@@ -59,6 +66,26 @@ function confirmName(billet) {
         onError: (message) => toast.error(message),
         onFinish: () => {
             confirming.value = null;
+        },
+    });
+}
+
+function undo(reason) {
+    const conflict = undoing.value;
+    if (!conflict) return;
+    undoError.value = null;
+    undoProcessing.value = true;
+    postBillet(`/settings/org-structure/billets/${conflict.positionId}/unacknowledge`, { kind: conflict.kind, reason }, {
+        failed: 'The acknowledgement was not undone',
+        onDone: () => {
+            undoing.value = null;
+            toast.success('Acknowledgement undone');
+        },
+        onError: (message) => {
+            undoError.value = message;
+        },
+        onFinish: () => {
+            undoProcessing.value = false;
         },
     });
 }
@@ -97,19 +124,25 @@ function remove(reason) {
             <component :is="open ? PhCaretDown : PhCaretRight" class="size-3.5" aria-hidden="true" />
             Billets
             <span class="font-normal text-muted-foreground">{{ billets.length }}</span>
-            <PhWarning v-if="conflicts.length" class="size-3.5 text-warning" aria-label="A billet here is in two units" data-testid="unit-billets-conflict-icon" />
+            <PhWarning v-if="activeConflicts.length" class="size-3.5 text-warning" aria-label="A billet here is in two units" data-testid="unit-billets-conflict-icon" />
         </button>
 
         <div v-show="open" id="unit-billets-list">
-            <ul v-if="conflicts.length" class="mt-2 space-y-1.5" aria-label="Billets in two units">
+            <ul v-if="activeConflicts.length" class="mt-2 space-y-1.5" aria-label="Billets in two units">
                 <li
-                    v-for="(conflict, index) in conflicts"
+                    v-for="(conflict, index) in activeConflicts"
                     :key="index"
                     data-testid="unit-billet-conflict"
                     role="alert"
                     class="rounded-md border border-warning/40 bg-warning/8 px-2.5 py-1.5 text-xs"
                 >
                     <span class="font-medium">{{ conflict.title }}</span> is in {{ conflict.units.map(conflictUnitLabel).join(', ') }}. {{ conflict.uses }}
+                </li>
+            </ul>
+            <ul v-if="acknowledgedConflicts.length" class="mt-2 space-y-1" aria-label="Billets in two units, acknowledged">
+                <li v-for="(conflict, index) in acknowledgedConflicts" :key="index" data-testid="unit-billet-acknowledged" class="text-xs text-muted-foreground">
+                    In two units, acknowledged: {{ conflict.title }}, in {{ conflict.units.map(conflictUnitLabel).join(', ') }}.
+                    <Button type="button" variant="link" size="sm" class="h-auto p-0 text-xs" data-testid="unit-billet-acknowledged-undo" @click="undoing = conflict">Undo</Button>
                 </li>
             </ul>
 
@@ -161,6 +194,19 @@ function remove(reason) {
             />
             <p class="mt-1.5 text-xs text-muted-foreground">An Admin's placement beats the import rules. Holders move on the next roster sync.</p>
         </div>
+
+        <ReasonDialog
+            :open="undoing !== null"
+            title="Undo this acknowledgement?"
+            :description="undoing ? `${undoing.title} shows again among the billets that need an Admin.` : null"
+            confirm-label="Undo acknowledgement"
+            pending-label="Saving"
+            :processing="undoProcessing"
+            :error="undoError"
+            testid="unit-billet-undo-dialog"
+            @update:open="(value) => !value && (undoing = null)"
+            @confirm="undo"
+        />
 
         <ReasonDialog
             :open="removing !== null"

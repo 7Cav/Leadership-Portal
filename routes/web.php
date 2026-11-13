@@ -348,11 +348,14 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::delete('/settings/org-structure/{unit}', [OrgStructureController::class, 'destroy'])->middleware('throttle:audited-writes')->name('settings.org-structure.destroy');
 
     // A billet by its Cav position id (2026-11-13): place a new one or move a placed one, confirm a placed billet's new
-    // Cav name, or leave a new one unplaced. Admin gate in the controller; audited by each Command.
+    // Cav name, leave a new one unplaced, or acknowledge one in two units at once and undo that. Admin gate in the
+    // controller; audited by each Command.
     Route::post('/settings/org-structure/billets/{position}/assign', [OrgBilletsController::class, 'assign'])->middleware('throttle:audited-writes')->name('settings.org-structure.billets.assign');
     Route::post('/settings/org-structure/billets/{position}/unassign', [OrgBilletsController::class, 'unassign'])->middleware('throttle:audited-writes')->name('settings.org-structure.billets.unassign');
     Route::post('/settings/org-structure/billets/{position}/confirm-name', [OrgBilletsController::class, 'confirmName'])->middleware('throttle:audited-writes')->name('settings.org-structure.billets.confirm-name');
     Route::post('/settings/org-structure/billets/{position}/leave-unplaced', [OrgBilletsController::class, 'leaveUnplaced'])->middleware('throttle:audited-writes')->name('settings.org-structure.billets.leave-unplaced');
+    Route::post('/settings/org-structure/billets/{position}/acknowledge', [OrgBilletsController::class, 'acknowledge'])->middleware('throttle:audited-writes')->name('settings.org-structure.billets.acknowledge');
+    Route::post('/settings/org-structure/billets/{position}/unacknowledge', [OrgBilletsController::class, 'unacknowledge'])->middleware('throttle:audited-writes')->name('settings.org-structure.billets.unacknowledge');
 
     // Place a trooper the sync could not map into a section (Story 2.7). The Admin gate is checked in the
     // controller first and again in the Command's handler; the required reason and the audited write live

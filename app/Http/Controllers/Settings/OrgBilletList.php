@@ -12,7 +12,8 @@ use Illuminate\Support\Collection;
 
 /**
  * The billets Org structure shows an Admin (2026-11-13): each unit's billets, the placed billets the Cav renamed, the
- * new billets nothing places, the billets in two units at once, and every billet the Cav lists for the Add billet
+ * new billets nothing places, the billets in two units at once (those an Admin acknowledged only on the units' lists,
+ * marked as such), and every billet the Cav lists for the Add billet
  * picker. Read only; the writes are {@see OrgBilletsController}'s.
  *
  * A billet's source says why it lands in its unit: `rule` when the import placed it there by its rules (the rule in
@@ -104,9 +105,11 @@ final class OrgBilletList
             $byUnit,
         );
 
-        // Billets in two units at once, on the summary and on the list of every unit involved.
+        // Billets in two units at once, on the summary and on the list of every unit involved. One an Admin acknowledged
+        // stays off the summary and reads as acknowledged on the lists. `positionId` names it for Acknowledge and Undo.
         $conflicts = collect($this->billets->conflicts())->map(fn (array $conflict) => [
-            ...$conflict,
+            ...collect($conflict)->except('placements')->all(),
+            'positionId' => $conflict['units'][0]['positionId'],
             'units' => array_map(fn (array $at) => [...$at, 'label' => $label($units->get($at['unitId'])) ?? 'a unit since deleted'], $conflict['units']),
             'uses' => $conflict['kind'] === 'title'
                 ? 'The sync places each holder by their own billet.'
@@ -129,7 +132,7 @@ final class OrgBilletList
 
         return [
             'byUnit' => (object) $sorted,
-            'conflicts' => $conflicts->values()->all(),
+            'conflicts' => $conflicts->reject(fn (array $conflict) => $conflict['acknowledged'])->values()->all(),
             'conflictsByUnit' => (object) $conflictsByUnit,
             'catalog' => $catalogRows,
             'renamed' => collect($renamed)->sortBy(fn (array $row) => [mb_strtolower($row['title']), $row['positionId']])->values()->all(),

@@ -1,10 +1,12 @@
 <?php
 
+use App\Commands\Units\AcknowledgeBilletConflict;
 use App\Commands\Units\AssignBillet;
 use App\Commands\Units\ConfirmBilletName;
 use App\Commands\Units\ImportOrgStructure;
 use App\Commands\Units\LeaveBilletUnplaced;
 use App\Commands\Units\UnassignBillet;
+use App\Commands\Units\UndoBilletAcknowledgement;
 use App\Integration\Cav\CavApi;
 use App\Models\AuditLogEntry;
 use App\Models\CavBillet;
@@ -309,7 +311,109 @@ it('refuses every billet write to anyone but an Admin', function (string $path) 
     'confirm a name' => ['/settings/org-structure/billets/202/confirm-name'],
     'leave unplaced' => ['/settings/org-structure/billets/952/leave-unplaced'],
     'remove a placement' => ['/settings/org-structure/billets/952/unassign'],
+    'acknowledge a billet in two units' => ['/settings/org-structure/billets/201/acknowledge'],
+    'undo an acknowledgement' => ['/settings/org-structure/billets/201/unacknowledge'],
 ]);
+
+/** Name billet 204 like 201, so one name sits in two sections at once, as the two Deputy Chiefs of Staff do. */
+function obDoubled(): void
+{
+    CavBillet::query()->where('cav_position_id', 204)->update(['title' => 'Section Leader 1/1/A/1-7']);
+}
+
+function obPending(User $admin): int
+{
+    return test()->actingAs($admin)->get('/settings/org-structure')->viewData('page')['props']['orgBilletsPending'];
+}
+
+it('lets an Admin acknowledge a billet in two units, which leaves the notices and the count but stays marked on the units', function () {
+    obImport();
+    $admin = User::factory()->admin()->create();
+    obDoubled();
+    $before = obPending($admin);
+
+    test()->actingAs($admin)->post('/settings/org-structure/billets/204/acknowledge', ['kind' => 'title', 'reason' => 'Both Deputy Chiefs of Staff hold this title'])
+        ->assertRedirect(route('settings.org-structure'))
+        ->assertSessionHasNoErrors();
+
+    $billets = obBillets($admin);
+    $marked = collect($billets['conflictsByUnit'][obUnit('1/1/A/1-7')->id])->firstWhere('kind', 'title');
+    $entry = AuditLogEntry::query()->where('action', AcknowledgeBilletConflict::ACTION)->sole();
+    expect(collect($billets['conflicts'])->where('kind', 'title'))->toBeEmpty()
+        ->and($marked)->toMatchArray(['acknowledged' => true, 'positionId' => 201])
+        ->and(obPending($admin))->toBe($before - 1)
+        ->and($entry->actor_id)->toBe($admin->id)
+        ->and($entry->reason)->toBe('Both Deputy Chiefs of Staff hold this title')
+        ->and($entry->details['subject'])->toBe('Billet "Section Leader 1/1/A/1-7" in two units at once')
+        ->and($entry->details['changes'])->toBe([['field' => 'Acknowledged', 'from' => 'no', 'to' => 'yes']]);
+
+    test()->actingAs($admin)->post('/settings/org-structure/billets/201/acknowledge', ['kind' => 'title', 'reason' => 'x'])
+        ->assertSessionHasErrors(['billet' => 'This billet in two units is acknowledged already.']);
+});
+
+it('shows an acknowledged billet in two units again once where it sits changes', function () {
+    obImport();
+    $admin = User::factory()->admin()->create();
+    obDoubled();
+    $before = obPending($admin);
+
+    test()->actingAs($admin)->post('/settings/org-structure/billets/204/acknowledge', ['kind' => 'title', 'reason' => 'Meant to be'])->assertSessionHasNoErrors();
+    expect(obPending($admin))->toBe($before - 1);
+
+    // One of the two moves to a third unit: not what was acknowledged.
+    test()->actingAs($admin)->post('/settings/org-structure/billets/204/assign', ['unit_id' => obUnit('B/1-7')->id, 'reason' => 'Moved'])->assertSessionHasNoErrors();
+
+    $conflict = collect(obBillets($admin)['conflicts'])->firstWhere('kind', 'title');
+    expect($conflict)->not->toBeNull()
+        ->and($conflict['acknowledged'])->toBeFalse()
+        ->and(collect($conflict['units'])->pluck('label')->all())->toBe(['1/1/A/1-7', 'B/1-7']);
+
+    // Acknowledged again as it sits now, then a third billet takes the name (in any case): back again.
+    test()->actingAs($admin)->post('/settings/org-structure/billets/204/acknowledge', ['kind' => 'title', 'reason' => 'Still meant to be'])->assertSessionHasNoErrors();
+    expect(collect(obBillets($admin)['conflicts'])->where('kind', 'title'))->toBeEmpty();
+
+    CavBillet::query()->where('cav_position_id', 203)->update(['title' => 'section leader 1/1/a/1-7 ']);
+
+    $back = collect(obBillets($admin)['conflicts'])->firstWhere('kind', 'title');
+    expect($back['acknowledged'])->toBeFalse()
+        ->and(collect($back['units'])->pluck('positionId')->all())->toBe([201, 203, 204]);
+});
+
+it('lets an Admin undo an acknowledgement, with a reason, which brings the warning back', function () {
+    obImport();
+    $admin = User::factory()->admin()->create();
+    obDoubled();
+    $before = obPending($admin);
+
+    test()->actingAs($admin)->post('/settings/org-structure/billets/201/unacknowledge', ['kind' => 'title', 'reason' => 'x'])
+        ->assertSessionHasErrors(['billet' => 'This billet in two units has no acknowledgement to undo. Reload the page.']);
+
+    test()->actingAs($admin)->post('/settings/org-structure/billets/204/acknowledge', ['kind' => 'title', 'reason' => 'Meant to be'])->assertSessionHasNoErrors();
+    test()->actingAs($admin)->post('/settings/org-structure/billets/201/unacknowledge', ['kind' => 'title', 'reason' => 'One of them is moving'])
+        ->assertRedirect(route('settings.org-structure'))
+        ->assertSessionHasNoErrors();
+
+    $entry = AuditLogEntry::query()->where('action', UndoBilletAcknowledgement::ACTION)->sole();
+    expect(collect(obBillets($admin)['conflicts'])->firstWhere('kind', 'title')['acknowledged'])->toBeFalse()
+        ->and(obPending($admin))->toBe($before)
+        ->and($entry->reason)->toBe('One of them is moving')
+        ->and($entry->details['changes'])->toBe([['field' => 'Acknowledged', 'from' => 'yes', 'to' => 'no']]);
+});
+
+it('refuses to acknowledge without a reason, or a billet in no conflict', function () {
+    obImport();
+    $admin = User::factory()->admin()->create();
+    obDoubled();
+
+    test()->actingAs($admin)->post('/settings/org-structure/billets/204/acknowledge', ['kind' => 'title'])->assertSessionHasErrors('reason');
+    test()->actingAs($admin)->post('/settings/org-structure/billets/204/acknowledge', ['kind' => 'title', 'reason' => '   '])->assertSessionHasErrors('reason');
+    test()->actingAs($admin)->post('/settings/org-structure/billets/204/unacknowledge', ['kind' => 'title'])->assertSessionHasErrors('reason');
+    test()->actingAs($admin)->post('/settings/org-structure/billets/204/acknowledge', ['kind' => 'other', 'reason' => 'x'])->assertSessionHasErrors('kind');
+    test()->actingAs($admin)->post('/settings/org-structure/billets/202/acknowledge', ['kind' => 'title', 'reason' => 'x'])
+        ->assertSessionHasErrors(['billet' => 'This billet is not in two units at once any more. Reload the page.']);
+
+    expect(AuditLogEntry::query()->where('action', AcknowledgeBilletConflict::ACTION)->exists())->toBeFalse();
+});
 
 it('counts the billets waiting on Org structure for an Admin only', function () {
     obImport();

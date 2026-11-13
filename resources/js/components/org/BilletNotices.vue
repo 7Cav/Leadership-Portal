@@ -9,8 +9,9 @@ import BilletAssignForm from './BilletAssignForm.vue';
 import { conflictUnitLabel, holdersLabel, postBillet } from '@/lib/billets';
 
 // The billets waiting for an Admin at the top of Org structure (2026-11-13), the ones the sidebar counts: placed
-// billets the Cav renamed (old → new, confirm the placement follows), billets in two units at once, and new billets
-// nothing places (assign a unit, or leave unplaced). Hidden when nothing waits.
+// billets the Cav renamed (old → new, confirm the placement follows), billets in two units at once (acknowledge one
+// that is meant to be there), and new billets nothing places (assign a unit, or leave unplaced). Hidden when nothing
+// waits.
 const props = defineProps({
     renamed: { type: Array, default: () => [] },
     conflicts: { type: Array, default: () => [] },
@@ -27,6 +28,9 @@ const confirming = ref(null);
 const leaving = ref(null);
 const leaveError = ref(null);
 const leaveProcessing = ref(false);
+const acknowledging = ref(null);
+const acknowledgeError = ref(null);
+const acknowledgeProcessing = ref(false);
 
 function confirmName(billet) {
     confirming.value = billet.positionId;
@@ -56,6 +60,26 @@ function leave(reason) {
         },
         onFinish: () => {
             leaveProcessing.value = false;
+        },
+    });
+}
+
+function acknowledge(reason) {
+    const conflict = acknowledging.value;
+    if (!conflict) return;
+    acknowledgeError.value = null;
+    acknowledgeProcessing.value = true;
+    postBillet(`/settings/org-structure/billets/${conflict.positionId}/acknowledge`, { kind: conflict.kind, reason }, {
+        failed: 'The billet was not acknowledged',
+        onDone: () => {
+            acknowledging.value = null;
+            toast.success('Acknowledged');
+        },
+        onError: (message) => {
+            acknowledgeError.value = message;
+        },
+        onFinish: () => {
+            acknowledgeProcessing.value = false;
         },
     });
 }
@@ -93,6 +117,9 @@ function assigned() {
                 <li v-for="(conflict, index) in conflicts" :key="index" data-testid="billet-conflict">
                     <span class="font-medium">{{ conflict.title }}</span> is in {{ conflict.units.map(conflictUnitLabel).join(', ') }}.
                     <span class="text-muted-foreground">{{ conflict.uses }}</span>
+                    <Button type="button" variant="link" size="sm" class="ml-2 h-auto p-0 text-xs" data-testid="billet-conflict-acknowledge" @click="acknowledging = conflict">
+                        Acknowledge
+                    </Button>
                 </li>
             </ul>
         </section>
@@ -123,6 +150,19 @@ function assigned() {
                 </li>
             </ul>
         </section>
+
+        <ReasonDialog
+            :open="acknowledging !== null"
+            title="Acknowledge this billet in two units?"
+            :description="acknowledging ? `${acknowledging.title} stops showing here while it stays in these units. If it is added to another unit or taken out of one, it shows again.` : null"
+            confirm-label="Acknowledge"
+            pending-label="Saving"
+            :processing="acknowledgeProcessing"
+            :error="acknowledgeError"
+            testid="billet-acknowledge-dialog"
+            @update:open="(value) => !value && (acknowledging = null)"
+            @confirm="acknowledge"
+        />
 
         <ReasonDialog
             :open="leaving !== null"

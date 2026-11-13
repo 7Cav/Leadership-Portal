@@ -113,6 +113,44 @@ describe('UnitBillets', () => {
         );
     });
 
+    it('marks an acknowledged billet in two units without a warning, and undoes it with a reason', async () => {
+        wrapper = mountList({
+            conflicts: [
+                {
+                    kind: 'title',
+                    positionId: 9015,
+                    acknowledged: true,
+                    title: 'Regimental Deputy Chief of Staff',
+                    units: [
+                        { unitId: 10, positionId: 9015, source: 'admin', label: 'DCOS1' },
+                        { unitId: 11, positionId: 9016, source: 'admin', label: 'DCOS2' },
+                    ],
+                    uses: 'The sync places each holder by their own billet.',
+                },
+            ],
+        });
+
+        expect(wrapper.find('[data-testid="unit-billets-conflict-icon"]').exists()).toBe(false);
+        await wrapper.find('[data-testid="unit-billets-toggle"]').trigger('click');
+
+        expect(wrapper.find('[data-testid="unit-billet-conflict"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="unit-billet-acknowledged"]').text()).toBe(
+            'In two units, acknowledged: Regimental Deputy Chief of Staff, in DCOS1 (placed by an Admin), DCOS2 (placed by an Admin). Undo',
+        );
+
+        await wrapper.find('[data-testid="unit-billet-acknowledged-undo"]').trigger('click');
+        await flushPromises();
+
+        const dialog = document.body.querySelector('[data-testid="unit-billet-undo-dialog"]');
+        const reason = dialog.querySelector('textarea');
+        reason.value = 'One of them is moving';
+        reason.dispatchEvent(new Event('input'));
+        await flushPromises();
+        dialog.querySelector('[data-testid="unit-billet-undo-dialog-confirm"]').click();
+
+        expect(post).toHaveBeenCalledWith('/settings/org-structure/billets/9015/unacknowledge', { kind: 'title', reason: 'One of them is moving' }, expect.any(Object));
+    });
+
     it('removes an Admin placement with a reason', async () => {
         wrapper = mountList();
         await wrapper.find('[data-testid="unit-billets-toggle"]').trigger('click');

@@ -7,7 +7,8 @@ use DomainException;
 /**
  * A billet change on Org structure the domain rules refuse: a billet the import has not recorded, one already in the
  * unit picked, one an Admin placed elsewhere (until the move is confirmed), a rename with nothing to confirm, a placed
- * billet left unplaced, or a billet with no placement to undo.
+ * billet left unplaced, a billet with no placement to undo, or an acknowledgement of a billet in two units that does not
+ * fit what is placed now.
  * Domain rules, not request shape, so the controller turns this into a form error.
  */
 class InvalidBilletChangeException extends DomainException
@@ -51,6 +52,21 @@ class InvalidBilletChangeException extends DomainException
     public static function notAssigned(): self
     {
         return new self('This billet follows the import rules already. There is nothing to remove.');
+    }
+
+    public static function noConflict(): self
+    {
+        return new self('This billet is not in two units at once any more. Reload the page.');
+    }
+
+    public static function alreadyAcknowledged(): self
+    {
+        return new self('This billet in two units is acknowledged already.');
+    }
+
+    public static function notAcknowledged(): self
+    {
+        return new self('This billet in two units has no acknowledgement to undo. Reload the page.');
     }
 
     public static function alreadyPlaced(): self

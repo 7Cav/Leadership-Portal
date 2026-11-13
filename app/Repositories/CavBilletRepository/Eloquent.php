@@ -4,6 +4,7 @@ namespace App\Repositories\CavBilletRepository;
 
 use App\Models\AdminBillet;
 use App\Models\CavBillet;
+use App\Models\CavBilletAcknowledgement;
 use App\Models\UnitBilletMapping;
 use App\Models\UnitCommandMapping;
 use App\Repositories\CavBilletRepository;
@@ -86,7 +87,9 @@ class Eloquent implements CavBilletRepository
             ->whereExists(fn ($query) => $query->selectRaw('1')->from('unit_billet_mappings')->whereColumn('unit_billet_mappings.cav_position_id', 'cav_billets.cav_position_id'))
             ->count();
 
-        return $renamed + $this->unassigned()->count() + count($this->conflicts());
+        $conflicts = collect($this->conflicts())->reject(fn (array $conflict) => $conflict['acknowledged'])->count();
+
+        return $renamed + $this->unassigned()->count() + $conflicts;
     }
 
     public function conflicts(): array
@@ -106,9 +109,11 @@ class Eloquent implements CavBilletRepository
                 continue;
             }
 
+            $title = (string) $titles->get($rows->first()->cav_position_id);
             $conflicts[] = [
                 'kind' => 'title',
-                'title' => (string) $titles->get($rows->first()->cav_position_id),
+                'key' => $this->conflictKey('title', (int) $rows->first()->cav_position_id, $title),
+                'title' => $title,
                 'units' => $rows->sortBy('cav_position_id')->map(fn (UnitBilletMapping $row) => [
                     'unitId' => (int) $row->unit_id,
                     'positionId' => (int) $row->cav_position_id,
@@ -135,15 +140,55 @@ class Eloquent implements CavBilletRepository
             }
 
             if (count($units) > 1) {
+                $title = (string) ($titles->get($row->cav_position_id) ?? "Position {$row->cav_position_id}");
                 $conflicts[] = [
                     'kind' => 'rule',
-                    'title' => (string) ($titles->get($row->cav_position_id) ?? "Position {$row->cav_position_id}"),
+                    'key' => $this->conflictKey('rule', (int) $row->cav_position_id, $title),
+                    'title' => $title,
                     'units' => $units,
                 ];
             }
         }
 
-        return $conflicts;
+        // Acknowledged only while every billet sits exactly where it sat when an Admin acknowledged it.
+        $acknowledged = CavBilletAcknowledgement::query()->pluck('placements', 'conflict_key');
+
+        return array_map(function (array $conflict) use ($acknowledged): array {
+            $placements = collect($conflict['units'])
+                ->map(fn (array $at) => "{$at['positionId']}:{$at['unitId']}:{$at['source']}")
+                ->sort()->implode(',');
+
+            return [
+                'kind' => $conflict['kind'],
+                'key' => $conflict['key'],
+                'title' => $conflict['title'],
+                'placements' => $placements,
+                'acknowledged' => $acknowledged->get($conflict['key']) === $placements,
+                'units' => $conflict['units'],
+            ];
+        }, $conflicts);
+    }
+
+    public function conflictKey(string $kind, int $positionId, string $title): string
+    {
+        return $kind === 'title' ? 'title:'.mb_strtolower(trim($title)) : "rule:{$positionId}";
+    }
+
+    public function acknowledge(string $key, string $title, string $placements): CavBilletAcknowledgement
+    {
+        $row = CavBilletAcknowledgement::query()->where('conflict_key', $key)->lockForUpdate()->first()
+            ?? new CavBilletAcknowledgement(['conflict_key' => $key]);
+        $row->fill(['title' => $title, 'placements' => $placements])->save();
+
+        return $row;
+    }
+
+    public function unacknowledge(string $key): ?CavBilletAcknowledgement
+    {
+        $row = CavBilletAcknowledgement::query()->where('conflict_key', $key)->lockForUpdate()->first();
+        $row?->delete();
+
+        return $row;
     }
 
     /** Why a placement lands where it does: the import's rules while it still points where the import put it. */
