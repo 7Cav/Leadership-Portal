@@ -1610,17 +1610,48 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Practice took place');
         });
 
-        it('sends the confirmation it shows when confirming again, so the server can tell a racing one', async () => {
-            post.mockResolvedValue({ ok: true, status: 200, data: { confirmation: { at: '2026-10-09T08:00:00+00:00', by: 'Vasquez.R' } } });
+        it('sends the confirmation it shows when switching it, so the server can tell a racing one', async () => {
+            post.mockResolvedValue({ ok: true, status: 200, data: { confirmation: { at: '2026-10-09T08:00:00+00:00', by: 'Vasquez.R', held: false } } });
             const wrapper = factory({
                 capture: CAPTURE,
                 practice: { lastMarkedAt: null, confirmation: { at: '2026-10-08T16:20:00+00:00', by: 'Ortega.M' } },
             });
 
+            await wrapper.find('[data-testid="confirm-not-held"]').trigger('click');
+            await flushPromises();
+
+            expect(post).toHaveBeenCalledWith('/rollcall/12/confirm', { week: '2026-10-03', confirmedAt: '2026-10-08T16:20:00+00:00', held: false });
+        });
+
+        it('shows only the badge and one button to switch once the practice is confirmed as held', () => {
+            const wrapper = factory({
+                capture: CAPTURE,
+                practice: { lastMarkedAt: null, confirmation: { at: '2026-10-08T16:20:00+00:00', by: 'Ortega.M' } },
+            });
+
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Practice took place');
+            expect(wrapper.find('[data-testid="confirm-practice"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="confirm-not-held"]').text()).toBe('Change to: did not take place');
+            expect(wrapper.find('[data-testid="confirm-cluster"]').text()).not.toContain('again');
+        });
+
+        it('switches a not-held confirmation to held with its single button', async () => {
+            post.mockResolvedValue({ ok: true, status: 200, data: { confirmation: { at: '2026-10-09T08:00:00+00:00', by: 'Vasquez.R', held: true } } });
+            const wrapper = factory({
+                capture: CAPTURE,
+                practice: { lastMarkedAt: null, confirmation: { at: '2026-10-08T16:20:00+00:00', by: 'Ortega.M', held: false } },
+            });
+
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Practice did not take place');
+            expect(wrapper.find('[data-testid="confirm-not-held"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="confirm-practice"]').text()).toBe('Change to: took place');
+
             await wrapper.find('[data-testid="confirm-practice"]').trigger('click');
             await flushPromises();
 
             expect(post).toHaveBeenCalledWith('/rollcall/12/confirm', { week: '2026-10-03', confirmedAt: '2026-10-08T16:20:00+00:00', held: true });
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Practice took place');
+            expect(wrapper.find('[data-testid="confirm-not-held"]').text()).toBe('Change to: did not take place');
         });
 
         it('stays not confirmed and says so when the server refuses the confirmation', async () => {

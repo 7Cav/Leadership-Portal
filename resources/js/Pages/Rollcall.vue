@@ -1199,25 +1199,28 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                         confirmation ? (confirmedHeld ? 'Practice took place' : 'Practice did not take place') : 'Not confirmed'
                     }}
                 </Badge>
+                <!-- Once confirmed, the badge says which way and a single button switches to the other. -->
                 <Button
+                    v-if="!confirmation || !confirmedHeld"
                     size="sm"
-                    :variant="confirmedHeld ? 'outline' : 'default'"
+                    :variant="confirmation ? 'outline' : 'default'"
                     :disabled="!editable || confirming || !practiceOver"
                     :title="readOnlyReason ?? notOverReason ?? confirmationLabel ?? undefined"
                     data-testid="confirm-practice"
                     @click="confirmPractice(true)"
                 >
-                    <PhCheck />{{ confirmedHeld ? 'Confirm again: practice took place' : 'Confirm practice took place' }}
+                    <PhCheck v-if="!confirmation" />{{ confirmation ? 'Change to: took place' : 'Confirm practice took place' }}
                 </Button>
                 <Button
+                    v-if="!confirmation || confirmedHeld"
                     size="sm"
                     variant="outline"
                     :disabled="!editable || confirming || !practiceOver"
-                    :title="readOnlyReason ?? notOverReason ?? undefined"
+                    :title="readOnlyReason ?? notOverReason ?? confirmationLabel ?? undefined"
                     data-testid="confirm-not-held"
                     @click="confirmPractice(false)"
                 >
-                    Practice did not take place
+                    {{ confirmation ? 'Change to: did not take place' : 'Practice did not take place' }}
                 </Button>
             </div>
             <div :class="cn('flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground sm:w-auto', rows.length ? 'sm:ml-0' : 'sm:ml-auto')">
