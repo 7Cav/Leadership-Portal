@@ -60,6 +60,12 @@ class StaffReportsOverviewController extends Controller
             $weekStart,
         );
 
+        // Every listed report (the viewer's own too) that claims a practice its section marked as not held.
+        $conflicts = $this->week->conflicts(
+            collect($staff)->flatten(1)->pluck('report')->push($own === null ? null : $this->week->find($own, $weekStart))->filter()->unique('id')->values(),
+            $weekStart,
+        );
+
         // On the running week only: who still owes the week before's report, so the overview opened on this week
         // does not hide a missed one.
         $owing = $weekStart->equalTo($current) ? $owed->onHqs($hqs->pluck('id')->map(fn ($id) => (int) $id)->all(), $weekStart) : [];
@@ -78,6 +84,7 @@ class StaffReportsOverviewController extends Controller
                     ->map(fn (array $row) => [
                         ...$this->row($row['trooper'], $row['report'], $hq, $weekStart, $ended),
                         'discrepancy' => $discrepancies[$row['trooper']->id] ?? null,
+                        'conflict' => $conflicts[$row['trooper']->id] ?? null,
                         'owesPrevious' => isset($owing[$row['trooper']->id]),
                     ])
                     ->values()
@@ -99,7 +106,8 @@ class StaffReportsOverviewController extends Controller
             // How many listed staff still owe the week before's report (the running week only), or null when none do.
             'owed' => ($count = collect($groups)->flatMap(fn (array $group) => $group['rows'])->where('owesPrevious', true)->unique('trooperId')->count()) === 0
                 ? null : ['week' => $weekStart->subWeek()->toDateString(), 'count' => $count],
-            'own' => ($ownRow = $this->ownRow($own, $weekStart, $ended)) === null ? null : [...$ownRow, 'owesPrevious' => $ownOwes],
+            'own' => ($ownRow = $this->ownRow($own, $weekStart, $ended)) === null ? null
+                : [...$ownRow, 'owesPrevious' => $ownOwes, 'conflict' => $conflicts[$own->id] ?? null],
             'sheetConfigured' => $sheetConfigured,
             'groups' => $groups,
             // One HQ's unit health at a time, so the page reads a bounded number of queries however many HQs it lists:

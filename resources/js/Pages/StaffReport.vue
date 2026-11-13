@@ -27,6 +27,7 @@ import EmptyState from '@/components/EmptyState.vue';
 import ReportDeadlineBanner from '@/components/reports/ReportDeadlineBanner.vue';
 import { useDueCountdown } from '@/composables/useDueCountdown';
 import StaffHqHealth from '@/components/reports/StaffHqHealth.vue';
+import StaffReportConflict from '@/components/reports/StaffReportConflict.vue';
 import StaffReportDiscrepancy from '@/components/reports/StaffReportDiscrepancy.vue';
 import StaffReportPresence from '@/components/reports/StaffReportPresence.vue';
 import StaffReportRevisions from '@/components/reports/StaffReportRevisions.vue';
@@ -78,7 +79,8 @@ const props = defineProps({
     // Section ids whose capture saw them on the game server this week: a hint, never ticked for them.
     seen: { type: Array, default: () => [] },
     // `[{ id, label, own, group, platoon, held }]`: the sections under the HQ, in order of battle. `held` says whether the
-    // section's practice that week was held (`held`), or why not (`upcoming`, `unmarked`, `not_held`, `no_slot`).
+    // section's practice that week stands: `held`, `unmarked` or `not_held` once its time has passed, which can be
+    // ticked, or `upcoming`, `no_slot` or `cancelled`, which cannot.
     sections: { type: Array, default: () => [] },
     // What the HQ reports under its accountability options, `{ types, own, battalion, otherGames }`; null reads as the default.
     accountability: { type: Object, default: null },
@@ -87,6 +89,8 @@ const props = defineProps({
     limits: { type: Object, default: () => ({ ftxName: 120, otherEvents: 500, notes: 1000, officeHourNote: 200 }) },
     // For a reader only: where the game server disagrees with the sent report, `{ notSeen, seenElsewhere }`, or null.
     discrepancy: { type: Object, default: null },
+    // The section labels whose practice the sent report claims but the section marked as not held, or null.
+    conflict: { type: Array, default: null },
     // For a reader only: the HQ's unit health that week ({@see StaffHqHealth.vue}), or null.
     health: { type: Object, default: null },
 });
@@ -200,11 +204,13 @@ const picked = computed(() => new Set(form.section_ids));
 // Entries already there that are no longer picked: sending takes them off.
 const dropped = computed(() => props.entries.filter((entry) => type.value !== 'sp' && type.value !== 'ftx' ? true : !picked.value.has(entry.sectionId)));
 
-// A section practice report claims only practices that were held: one that was not is greyed out and cannot be ticked,
-// and says why. One ticked already (an entry, or a report sent before) can still be unticked. An FTX's sections name
-// who took part, so they are not held back.
+// On a section practice report each section says where its practice stands. One whose time has not passed yet (or
+// with no practice to claim) is greyed out and cannot be ticked; once its time has passed it can, marked held or not.
+// One ticked already (an entry, or a report sent before) can still be unticked. An FTX's sections name who took part,
+// so they say nothing and are not held back.
 const heldById = computed(() => new Map(props.sections.map((section) => [section.id, section.held])));
-const blocked = (id) => (type.value === 'sp' ? heldNote(heldById.value.get(id)) : null);
+const note = (id) => (type.value === 'sp' ? heldNote(heldById.value.get(id)) : null);
+const blocked = (id) => (note(id)?.claimable === false ? note(id) : null);
 
 function toggle(id) {
     if (!picked.value.has(id) && blocked(id)) return;
@@ -217,7 +223,7 @@ const missingDetails = computed(() => {
     if (form.section_ids.length > props.maxPractices && (type.value === 'sp' || type.value === 'ftx')) return `Pick at most ${props.maxPractices} practices.`;
     if (type.value === 'sp' && !form.section_ids.length) return 'Pick the section practice you attended.';
     const notHeld = type.value === 'sp' ? form.section_ids.filter((id) => blocked(id)) : [];
-    if (notHeld.length) return `Untick ${notHeld.map((id) => labels.value.get(id) ?? 'a section').join(', ')}: no SP held there this week.`;
+    if (notHeld.length) return `Untick ${notHeld.map((id) => labels.value.get(id) ?? 'a section').join(', ')}: no practice to claim there yet.`;
     if (named.value) {
         if (!form.ftx_name.trim()) return `Give the name of ${named.value.sentence.replace(/^an? /, 'the ')}.`;
         if (!inWeek(form.ftx_date)) return `Pick the ${named.value.short} date, ${forumDate(props.week.date)} to ${forumDate(weekEnd.value)}.`;
@@ -416,6 +422,8 @@ function entryNote(id) {
         </OwedWeekNotice>
 
         <ReportDeadlineBanner v-if="canSend" :due="week.due" :overdue-until="week.overdueUntil" :sent="!!report" />
+
+        <StaffReportConflict v-if="report" :name="trooper.displayName" :sections="conflict" />
 
         <Card v-if="!hq" class="py-10" data-testid="staff-report-none">
             <EmptyState :icon="PhUserCheck" title="No staff report for this week">
@@ -625,7 +633,7 @@ function entryNote(id) {
                                                         blocked(section.id) && !picked.has(section.id) ? 'cursor-not-allowed bg-muted/40 text-muted-foreground' : 'cursor-pointer',
                                                         !blocked(section.id) && !picked.has(section.id) ? 'hover:bg-accent/70' : '',
                                                     ]"
-                                                    :title="blocked(section.id)?.long"
+                                                    :title="note(section.id)?.long"
                                                     :data-held="section.held ?? 'held'"
                                                     :data-testid="`section-row-${section.id}`"
                                                 >
@@ -634,14 +642,22 @@ function entryNote(id) {
                                                         class="shrink-0 focus-visible:ring-0"
                                                         :model-value="picked.has(section.id)"
                                                         :disabled="!!blocked(section.id) && !picked.has(section.id)"
-                                                        :aria-describedby="blocked(section.id) ? `held-${section.id}` : undefined"
+                                                        :aria-describedby="note(section.id) ? `held-${section.id}` : undefined"
                                                         :data-testid="`section-${section.id}`"
                                                         @update:model-value="toggle(section.id)"
                                                     />
                                                     <span class="min-w-0 flex-1">
-                                                        <span class="block font-mono">{{ section.label }}</span>
-                                                        <span v-if="blocked(section.id)" :id="`held-${section.id}`" class="block text-xs" :class="picked.has(section.id) ? 'text-warning' : 'text-muted-foreground'" :data-testid="`held-${section.id}`">
-                                                            {{ blocked(section.id).short }}<span class="sr-only">. {{ blocked(section.id).long }}</span>
+                                                        <span class="flex flex-wrap items-baseline gap-x-2">
+                                                            <span class="font-mono">{{ section.label }}</span>
+                                                            <span
+                                                                v-if="note(section.id)"
+                                                                :id="`held-${section.id}`"
+                                                                class="text-xs"
+                                                                :class="blocked(section.id) && picked.has(section.id) ? 'text-warning' : 'text-muted-foreground'"
+                                                                :data-testid="`held-${section.id}`"
+                                                            >
+                                                                {{ note(section.id).short }}<span class="sr-only">. {{ note(section.id).long }}</span>
+                                                            </span>
                                                         </span>
                                                         <span v-if="entryNote(section.id)" class="block text-xs text-muted-foreground" :data-testid="`entered-${section.id}`">{{ entryNote(section.id) }}</span>
                                                     </span>

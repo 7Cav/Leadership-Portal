@@ -186,24 +186,44 @@ export function pickerScopeText(hqType, scope) {
 }
 
 /**
- * Why a section's practice cannot be ticked on a section practice report, from the picker's `held` state
- * (`PracticeHeldState` on the server), or null when it was held. `short` shows under the section, `long` on hover.
+ * Where a section's practice stands on a section practice report, from the picker's `held` state (`PracticeHeldState`
+ * on the server), or null when the server sent none. `short` shows next to the section, `long` on hover. `claimable`:
+ * it can be ticked, which is once its time has passed, marked held or not.
  *
- * @returns {{ short: string, long: string }|null}
+ * @returns {{ short: string, long: string, claimable: boolean }|null}
  */
 export function heldNote(state) {
     switch (state) {
         case undefined:
         case null:
-        case 'held':
             return null;
-        case 'upcoming':
-            return { short: 'Not held yet', long: 'This practice has not happened yet. You can tick it once it is held.' };
+        case 'held':
+            return { short: 'Held', long: 'The section marked this practice held.', claimable: true };
         case 'unmarked':
-            return { short: 'Not marked held yet', long: 'No SP held here yet. You can tick it once it is held.' };
+            return { short: 'Not marked yet', long: "Its time has passed. The section hasn't marked it held yet.", claimable: true };
+        case 'not_held':
+            return {
+                short: 'Marked not held',
+                long: 'The section marked this practice as not held. If you tick it, your report shows conflicting information.',
+                claimable: true,
+            };
+        case 'upcoming':
+            return { short: "Hasn't happened yet", long: "This practice hasn't happened yet. You can tick it once its time has passed.", claimable: false };
         case 'no_slot':
-            return { short: 'No practice time set', long: 'This section has no practice time set yet, so there is no practice to pick.' };
+            return { short: 'No practice time set', long: 'This section has no practice time set yet, so there is no practice to pick.', claimable: false };
         default:
-            return { short: 'No SP held', long: 'No SP was held here this week, so there is nothing to tick.' };
+            return { short: 'No practice this week', long: "This week's practice was cancelled, so there is nothing to tick.", claimable: false };
     }
+}
+
+/**
+ * The "Conflicting information" lines of a sent report: one per section whose practice it claims but the section
+ * marked as not held.
+ *
+ * @param {string} name who sent the report
+ * @param {string[]|null} sections the section labels, from the server's `conflict`
+ * @returns {string[]}
+ */
+export function conflictLines(name, sections) {
+    return (sections ?? []).map((section) => `${name} reports attending ${section}'s practice, but the section marked it as not held.`);
 }

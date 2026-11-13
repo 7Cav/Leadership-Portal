@@ -6,6 +6,7 @@ import EmptyState from '@/components/EmptyState.vue';
 import Guidon from '@/components/Guidon.vue';
 import OwedWeekNotice from '@/components/reports/OwedWeekNotice.vue';
 import StaffHqHealth from '@/components/reports/StaffHqHealth.vue';
+import StaffReportConflict from '@/components/reports/StaffReportConflict.vue';
 import StaffReportDiscrepancy from '@/components/reports/StaffReportDiscrepancy.vue';
 import StaffReportPresence from '@/components/reports/StaffReportPresence.vue';
 import { Badge } from '@/components/ui/badge';
@@ -28,8 +29,9 @@ const props = defineProps({
     // On the running week, how many listed staff still owe the week before's report, `{ week, count }`, or null.
     owed: { type: Object, default: null },
     // `[{ id, label, rows: [{ trooperId, name, billet, hq, status, attended, practiceType, ftx, officeHour, presenceType, publicServer, practices,
-    // otherEvents, notes, sheetPushedAt, metRule, discrepancy, owesPrevious, href }] }]`. `owesPrevious`: on the running
-    // week, they have not sent the week before's report (and were not on leave then).
+    // otherEvents, notes, sheetPushedAt, metRule, discrepancy, conflict, owesPrevious, href }] }]`. `owesPrevious`: on the
+    // running week, they have not sent the week before's report (and were not on leave then). `conflict`: the sections
+    // whose practice the report claims but the section marked as not held, or null.
     groups: { type: Array, default: () => [] },
     // Whether the reports Google Sheet is set up: only then is a sent report not yet copied there called out.
     sheetConfigured: { type: Boolean, default: false },
@@ -114,6 +116,7 @@ function openRow(event, row) {
                 <p class="font-medium">Your staff report, {{ own.hq }} HQ</p>
                 <p class="text-xs text-muted-foreground">
                     <template v-if="own.status === 'sent'">Attended: {{ attendedText(own) }}</template>
+                    <StaffReportConflict v-if="own.status === 'sent'" :name="own.name" :sections="own.conflict" compact class="ml-1.5" />
                     <template v-else>Not sent yet</template>
                 </p>
             </div>
@@ -187,6 +190,7 @@ function openRow(event, row) {
                                     :title="`The report for ${weekLabel(week.previous)} is not sent.`"
                                     data-testid="row-owes-previous"
                                 >Last week not sent</Badge>
+                                <StaffReportConflict :name="row.name" :sections="row.conflict" compact />
                             </span>
                         </td>
                         <td class="col-span-2 min-w-0 sm:px-4 sm:py-2">

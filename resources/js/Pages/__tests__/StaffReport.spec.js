@@ -590,12 +590,15 @@ describe('StaffReport page', () => {
         const notice = wrapper.get('[data-testid="owed-week"]');
         expect(notice.text().replace(/\s+/g, ' ')).toContain('The report for 26SEP26 to 02OCT26 is not sent. This page sends the report for 03OCT26 to 09OCT26.');
         expect(wrapper.get('[data-testid="owed-week-link"]').attributes('href')).toBe('/staff-report/7/2026-09-26');
+        // Red, as an overdue deadline is.
+        expect(notice.classes()).toEqual(expect.arrayContaining(['border-destructive/35', 'bg-destructive/7']));
+        expect(notice.attributes('role')).toBe('alert');
         // Sent already, the page sends nothing, so it only says what is owed.
         const sent = page({ canSend: false, week: { ...WEEK, owed: '2026-09-26' }, report: { sentAt: '2026-10-05T12:00:00+00:00', attended: false, practices: [] } });
         expect(sent.get('[data-testid="owed-week"]').text()).not.toContain('This page sends');
     });
 
-    it('greys out a practice that was not held, says why, and does not tick it', async () => {
+    it('greys out a practice whose time has not passed, says so next to the section, and does not tick it', async () => {
         const wrapper = await toPicker({
             sections: [
                 { ...SECTIONS[0], held: 'held' },
@@ -604,10 +607,10 @@ describe('StaffReport page', () => {
             ],
         });
 
-        expect(wrapper.find('[data-testid="held-4"]').exists()).toBe(false);
+        expect(wrapper.get('[data-testid="held-4"]').text()).toContain('Held');
         expect(wrapper.get('[data-testid="section-5"]').attributes('disabled')).toBeDefined();
-        expect(wrapper.get('[data-testid="held-5"]').text()).toContain('Not held yet');
-        expect(wrapper.get('[data-testid="section-row-5"]').attributes('title')).toBe('This practice has not happened yet. You can tick it once it is held.');
+        expect(wrapper.get('[data-testid="held-5"]').text()).toContain("Hasn't happened yet");
+        expect(wrapper.get('[data-testid="section-row-5"]').attributes('title')).toBe("This practice hasn't happened yet. You can tick it once its time has passed.");
         expect(wrapper.get('[data-testid="section-row-9"]').attributes('title')).toBe('This section has no practice time set yet, so there is no practice to pick.');
 
         await wrapper.find('[data-testid="section-5"]').trigger('click');
@@ -616,20 +619,59 @@ describe('StaffReport page', () => {
         expect(wrapper.find('[data-testid="send-summary"]').text()).toBe('Yes: 1/1/A/1-7');
     });
 
-    it('lets an entry on a practice not held be unticked, and holds the send back while it is ticked', async () => {
+    it('shows the state label next to the section name, on the same line', async () => {
+        const wrapper = await toPicker({ sections: [{ ...SECTIONS[1], held: 'upcoming' }] });
+        const label = wrapper.get('[data-testid="held-5"]');
+
+        expect(label.element.parentElement.querySelector('.font-mono').textContent).toBe('2/1/A/1-7');
+        expect(label.element.parentElement.classList.contains('flex')).toBe(true);
+    });
+
+    it('lets a practice be ticked once its time has passed, marked held or not', async () => {
+        const wrapper = await toPicker({
+            sections: [
+                { ...SECTIONS[0], held: 'unmarked' },
+                { ...SECTIONS[1], held: 'not_held' },
+            ],
+        });
+
+        expect(wrapper.get('[data-testid="held-4"]').text()).toContain('Not marked yet');
+        expect(wrapper.get('[data-testid="held-5"]').text()).toContain('Marked not held');
+        expect(wrapper.get('[data-testid="section-4"]').attributes('disabled')).toBeUndefined();
+        expect(wrapper.get('[data-testid="section-5"]').attributes('disabled')).toBeUndefined();
+
+        await wrapper.find('[data-testid="section-4"]').trigger('click');
+        await wrapper.find('[data-testid="section-5"]').trigger('click');
+        expect(wrapper.find('[data-testid="send-summary"]').text()).toBe('Yes: 1/1/A/1-7, 2/1/A/1-7');
+        expect(wrapper.find('[data-testid="step-missing"]').exists()).toBe(false);
+    });
+
+    it('lets an entry on a practice still to come be unticked, and holds the send back while it is ticked', async () => {
         const wrapper = page({
-            sections: [{ ...SECTIONS[0], held: 'held' }, { ...SECTIONS[1], held: 'not_held' }],
+            sections: [{ ...SECTIONS[0], held: 'held' }, { ...SECTIONS[1], held: 'upcoming' }],
             entries: [{ sectionId: 5, section: '2/1/A/1-7', enteredBy: 'Mercer.J', selfReported: false }],
         });
 
         expect(wrapper.get('[data-testid="section-5"]').attributes('disabled')).toBeUndefined();
-        expect(wrapper.get('[data-testid="held-5"]').text()).toContain('No SP held');
-        expect(wrapper.get('[data-testid="step-missing"]').text()).toBe('Untick 2/1/A/1-7: no SP held there this week.');
+        expect(wrapper.get('[data-testid="held-5"]').text()).toContain("Hasn't happened yet");
+        expect(wrapper.get('[data-testid="step-missing"]').text()).toBe('Untick 2/1/A/1-7: no practice to claim there yet.');
 
         await wrapper.find('[data-testid="section-5"]').trigger('click');
         await wrapper.find('[data-testid="section-4"]').trigger('click');
         expect(wrapper.find('[data-testid="step-missing"]').exists()).toBe(false);
         expect(wrapper.get('[data-testid="section-5"]').attributes('disabled')).toBeDefined();
+    });
+
+    it('says when the section marked a claimed practice as not held, and keeps the report as sent', () => {
+        const report = { sentAt: '2026-10-05T12:00:00+00:00', attended: true, practiceType: 'sp', practices: [{ sectionId: 5, section: '2/1/A/1-7', own: true }] };
+
+        expect(page({ canSend: false, report }).find('[data-testid="staff-report-conflict"]').exists()).toBe(false);
+
+        const wrapper = page({ canSend: false, report, conflict: ['2/1/A/1-7'] });
+        const conflict = wrapper.get('[data-testid="staff-report-conflict"]');
+        expect(conflict.text()).toContain('Conflicting information');
+        expect(conflict.text()).toContain("PVT Brandt.L reports attending 2/1/A/1-7's practice, but the section marked it as not held.");
+        expect(wrapper.get('[data-testid="staff-report-answer"]').text()).toBe('Attended 1 section practice.');
     });
 
     it('does not hold back the sections of an FTX', async () => {

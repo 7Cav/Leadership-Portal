@@ -96,6 +96,7 @@ it('reads a past week, with sent, not sent and the 1-practice rule', function ()
             'metRule' => true,
             'href' => route('staff-report.show', ['trooper' => $this->psg->id, 'week' => '2026-10-03']),
             'discrepancy' => null,
+            'conflict' => null,
             // Only the running week marks who still owes the week before.
             'owesPrevious' => false,
         ] && collect($rows)->firstWhere('trooperId', overviewTrooperOf($this->tree['users']['pl'])->id)['status'] === 'notSent'));

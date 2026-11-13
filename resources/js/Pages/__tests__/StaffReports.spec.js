@@ -72,6 +72,16 @@ describe('StaffReports', () => {
         expect(mount(StaffReports, { props: { week: running, groups, owed: { week: '2026-10-03', count: 3 } } }).get('[data-testid="staff-owed-week"]').text()).toContain('3 staff have not sent');
     });
 
+    it('flags a row whose report claims a practice the section marked as not held', () => {
+        const groups = [{ id: 4, label: '1/A/1-7', rows: [row({ conflict: ['1/1/A/1-7'] }), row({ trooperId: 8, conflict: null })] }];
+        const page = mount(StaffReports, { props: { week: WEEK, groups } });
+
+        const flag = page.get('[data-testid="staff-reports-row-7"] [data-testid="staff-report-conflict"]');
+        expect(flag.text()).toContain('Conflicting information');
+        expect(flag.attributes('title')).toBe("SSG Brandt.L reports attending 1/1/A/1-7's practice, but the section marked it as not held.");
+        expect(page.find('[data-testid="staff-reports-row-8"] [data-testid="staff-report-conflict"]').exists()).toBe(false);
+    });
+
     it('tells the viewer when their own report for last week is not sent, and links to it', () => {
         const running = { ...WEEK, date: '2026-10-10', start: '2026-10-10T00:00:00+00:00', previous: '2026-10-03', ended: false, next: null };
         const own = row({ status: 'notDue', owesPrevious: true });

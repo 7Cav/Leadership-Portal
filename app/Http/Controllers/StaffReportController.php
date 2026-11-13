@@ -145,6 +145,9 @@ class StaffReportController extends Controller
                 'notes' => SendStaffReportHandler::MAX_NOTES,
                 'officeHourNote' => SendStaffReportHandler::MAX_OFFICE_HOUR_NOTE,
             ],
+            // The sections whose practice the sent report claims but the section marked as not held: everyone who reads
+            // it, the staff member too. It only flags the report; what it met stands as sent.
+            'conflict' => $sentRow === null ? null : ($this->week->conflicts([$sentRow], $weekStart)[$trooper->id] ?? null),
             // Where the game server disagrees with the sent report: readers only, never the staff member themselves.
             'discrepancy' => $report === null || $self ? null
                 : ($this->week->discrepancies([$this->week->find($trooper, $weekStart)], $weekStart)[$trooper->id] ?? null),
@@ -228,8 +231,9 @@ class StaffReportController extends Controller
      * down the tree): an HLL HQ sees HLL sections. When the HQ or a section has no game on its chain, that section is kept, since nothing says it plays
      * another game.
      *
-     * `held` says whether the section's practice that week can be ticked ({@see PracticeHeldState}): `held`, or why not
-     * (`upcoming`, `unmarked`, `not_held`, `no_slot`). The send refuses a section practice that was not held.
+     * `held` says where the section's practice that week stands ({@see PracticeHeldState}): `held`, `unmarked` or
+     * `not_held` once its time has passed, which can be ticked; `upcoming`, `no_slot` or `cancelled`, which cannot. The
+     * send refuses a section practice that cannot be ticked.
      *
      * @return list<array{id: int, label: string, own: bool, group: ?string, platoon: ?string, held: string}>
      */
@@ -268,7 +272,7 @@ class StaffReportController extends Controller
                     'own' => $hq !== null && str_starts_with($unit->path, $hq->path),
                     'group' => $group,
                     'platoon' => ($parent = $byId->get($unit->parent_id)) === null ? null : ($parent->callsign ?? $parent->name),
-                    'held' => $held[$unit->id] ?? PracticeHeldState::NOT_HELD,
+                    'held' => $held[$unit->id] ?? PracticeHeldState::NO_SLOT,
                     'rank' => $rank,
                     'order' => $order,
                     'battle' => self::battleKey($unit->callsign),
