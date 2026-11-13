@@ -44,7 +44,7 @@ function cocLines(Unit $section): array
 
 function cocMilpac(int $cavId): string
 {
-    return Trooper::MILPAC_PROFILE_URL.$cavId;
+    return (new Trooper(['cav_id' => $cavId]))->milpacUrl();
 }
 
 beforeEach(function () {
