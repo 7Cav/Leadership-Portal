@@ -79,8 +79,8 @@ function staffPracticeWeek(): CarbonImmutable
 }
 
 /**
- * Reads every section's practice as held, for tests about the rest of the staff report: only a held practice can be
- * claimed on one, and that rule has its own tests (`StaffReportHeldPracticeTest`) with the real repository.
+ * Reads every section's practice as held, for tests about the rest of the staff report: only a practice whose time
+ * has passed can be claimed on one, and that rule has its own tests (`StaffReportHeldPracticeTest`) with the real repository.
  */
 function everyPracticeHeld(): void
 {

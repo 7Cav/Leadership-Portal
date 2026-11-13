@@ -20,7 +20,7 @@ use RuntimeException;
  * - `no_practice`: "Yes" with no practice picked, or "No" with practices picked;
  * - `not_a_section`: a pick that is not a section;
  * - `not_in_unit`: a section outside the staff member's own platoon, company or battalion;
- * - `not_held`: a section practice picked that was not held that week;
+ * - `not_over`: a section practice picked whose time has not passed yet that week, or with no practice to claim;
  * - `practice_type`: a practice type the HQ does not report (SP or FTX on a platoon or company HQ; SP, operation,
  *   class or event on a battalion HQ), a named type or its fields with "No", or sections with an operation, class or event;
  * - `ftx`: a named type (FTX, operation, class, event) without a name or with a date outside the week, or its fields on an SP;
@@ -130,15 +130,14 @@ class StaffReportRefusedException extends RuntimeException
         return new self('A section practice takes no name or date. Clear them.', 'ftx', 'ftx_name');
     }
 
-    /** A section practice picked that was not held that week; `$state` is a {@see PracticeHeldState} constant. */
-    public static function practiceNotHeld(string $section, string $state): self
+    /** A section practice picked that cannot be claimed yet; `$state` is a {@see PracticeHeldState} constant. */
+    public static function practiceNotOver(string $section, string $state): self
     {
         return new self(match ($state) {
-            PracticeHeldState::UPCOMING => "The practice of {$section} has not happened yet. You can tick it once it is held.",
-            PracticeHeldState::UNMARKED => "No SP held at {$section} yet. You can tick it once it is held.",
             PracticeHeldState::NO_SLOT => "{$section} has no practice time set, so there is no practice to tick.",
-            default => "No SP was held at {$section} this week, so it cannot be ticked.",
-        }, 'not_held', 'section_ids');
+            PracticeHeldState::CANCELLED => "{$section} had no practice this week, so there is nothing to tick.",
+            default => "The practice of {$section} hasn't happened yet. You can tick it once its time has passed.",
+        }, 'not_over', 'section_ids');
     }
 
     public static function notInUnit(bool $battalion = false): self

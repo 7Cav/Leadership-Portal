@@ -22,8 +22,9 @@ use Inertia\Testing\AssertableInertia;
 
 require_once __DIR__.'/../StaffPractices/fixture.php';
 
-// A staff report claims only section practices that were held: the picker greys out one still to come or not held,
-// and says why, and the send refuses it. The staff report pages open on the running week and warn about a report
+// A staff report claims a section practice once its time has passed, marked held or not: the picker greys out one
+// still to come, and says why, and the send refuses it. A report that claims a practice the section marked as not held
+// reads as conflicting, but stands as sent. The staff report pages open on the running week and warn about a report
 // still owed for the week before, unless the staff member was on leave then.
 
 beforeEach(function () {
@@ -114,15 +115,22 @@ it('reads each section\'s practice as held, still to come, not marked held, not 
     ]);
 });
 
-it('reads a practice confirmed as held as held, slot or not, and a cancelled week as not held', function () {
+it('reads a practice confirmed as held as held with no slot, and a cancelled week as cancelled', function () {
     confirmPracticeHeld($this->host, '2026-10-03');
     heldSlot($this->other->id, 3);
     app(SectionPracticeRepository::class)->findOrCreate($this->other->id, $this->week)->forceFill(['slot_cancelled' => true])->save();
 
     expect(heldStatesNow([$this->host->id, $this->other->id]))->toBe([
         $this->host->id => PracticeHeldState::HELD,
-        $this->other->id => PracticeHeldState::NOT_HELD,
+        $this->other->id => PracticeHeldState::CANCELLED,
     ]);
+});
+
+it('reads a practice still to come as still to come, even when it is already confirmed as held', function () {
+    heldSlot($this->host->id, 5);
+    confirmPracticeHeld($this->host, '2026-10-03');
+
+    expect(heldStatesNow([$this->host->id]))->toBe([$this->host->id => PracticeHeldState::UPCOMING]);
 });
 
 it('does not count LOA, Excused or an automatic makeup as a mark that holds a practice', function (AttendanceStatus $status, AttendanceSource $source) {
@@ -136,23 +144,45 @@ it('does not count LOA, Excused or an automatic makeup as a mark that holds a pr
     'an automatic makeup' => [AttendanceStatus::Makeup, AttendanceSource::Auto],
 ]);
 
-it('refuses a section practice that was not held, saying why, and writes nothing', function (Closure $arrange, string $message) {
+it('refuses a section practice whose time has not passed, or with no practice to claim, saying why, and writes nothing', function (Closure $arrange, string $message) {
     $arrange($this);
 
     $refusal = heldRefusal(fn () => heldSend($this->tree['users']['psg'], $this->psg, [$this->other->id]));
 
-    expect($refusal->reason)->toBe('not_held')
+    expect($refusal->reason)->toBe('not_over')
         ->and($refusal->field)->toBe('section_ids')
         ->and($refusal->getMessage())->toBe($message)
         ->and(StaffReport::query()->count())->toBe(0);
 })->with([
-    'still to come' => [fn ($test) => heldSlot($test->other->id, 5), 'The practice of 2/1/A/1-7 has not happened yet. You can tick it once it is held.'],
-    'over and not marked held' => [fn ($test) => heldSlot($test->other->id, 3), 'No SP held at 2/1/A/1-7 yet. You can tick it once it is held.'],
-    'confirmed as not held' => [function ($test) {
+    'still to come' => [fn ($test) => heldSlot($test->other->id, 5), "The practice of 2/1/A/1-7 hasn't happened yet. You can tick it once its time has passed."],
+    'still to come, already marked' => [function ($test) {
+        heldSlot($test->other->id, 5);
+        heldMark($test->other->id);
+    }, "The practice of 2/1/A/1-7 hasn't happened yet. You can tick it once its time has passed."],
+    'no practice time set' => [fn ($test) => null, '2/1/A/1-7 has no practice time set, so there is no practice to tick.'],
+    'cancelled that week' => [function ($test) {
+        heldSlot($test->other->id, 3);
+        app(SectionPracticeRepository::class)->findOrCreate($test->other->id, $test->week)->forceFill(['slot_cancelled' => true])->save();
+    }, '2/1/A/1-7 had no practice this week, so there is nothing to tick.'],
+]);
+
+it('takes a practice once its time has passed, whether or not the section marked it held', function (Closure $arrange) {
+    $arrange($this);
+
+    $report = heldSend($this->tree['users']['psg'], $this->psg, [$this->other->id]);
+
+    expect($report->practices)->toEqual([['section_id' => $this->other->id, 'section' => '2/1/A/1-7']])
+        ->and(StaffReport::query()->count())->toBe(1);
+})->with([
+    'over and not marked' => [fn ($test) => heldSlot($test->other->id, 3)],
+    'over and marked held' => [function ($test) {
+        heldSlot($test->other->id, 3);
+        heldMark($test->other->id);
+    }],
+    'over and confirmed as not held' => [function ($test) {
         heldSlot($test->other->id, 3);
         heldMark($test->other->id)->forceFill(['confirmed_at' => now(), 'not_held' => true])->save();
-    }, 'No SP was held at 2/1/A/1-7 this week, so it cannot be ticked.'],
-    'no practice time set' => [fn ($test) => null, '2/1/A/1-7 has no practice time set, so there is no practice to tick.'],
+    }],
 ]);
 
 it('takes a held practice, and refuses the whole report when one pick beside it was not held', function () {
@@ -160,7 +190,7 @@ it('takes a held practice, and refuses the whole report when one pick beside it 
     heldMark($this->host->id);
     heldSlot($this->other->id, 5);
 
-    expect(heldRefusal(fn () => heldSend($this->tree['users']['psg'], $this->psg, [$this->host->id, $this->other->id]))->reason)->toBe('not_held')
+    expect(heldRefusal(fn () => heldSend($this->tree['users']['psg'], $this->psg, [$this->host->id, $this->other->id]))->reason)->toBe('not_over')
         ->and(StaffReport::query()->count())->toBe(0);
 
     expect(heldSend($this->tree['users']['psg'], $this->psg, [$this->host->id])->practices)->toEqual([['section_id' => $this->host->id, 'section' => '1/1/A/1-7']]);
@@ -170,7 +200,7 @@ it('does not check the sections of an FTX, which name who took part', function (
     expect(heldSend($this->tree['users']['psg'], $this->psg, [$this->other->id], 'ftx')->practice_type)->toBe('ftx');
 });
 
-it('refuses an edit that keeps a pick that was not held, and leaves the sent report as it was', function () {
+it('refuses an edit that keeps a pick still to come, and leaves the sent report as it was', function () {
     heldSlot($this->host->id, 3);
     heldMark($this->host->id);
     heldSend($this->tree['users']['psg'], $this->psg, [$this->host->id]);
@@ -182,7 +212,7 @@ it('refuses an edit that keeps a pick that was not held, and leaves the sent rep
         $this->psg->id, $this->week, true, [$this->other->id], 'sp', reason: 'Fix the picks', presenceType: 'none',
     )));
 
-    expect($refusal->reason)->toBe('not_held')
+    expect($refusal->reason)->toBe('not_over')
         ->and(StaffReport::query()->sole()->practices)->toEqual([['section_id' => $this->other->id, 'section' => '2/1/A/1-7']]);
 });
 
@@ -193,10 +223,10 @@ it('answers a refused pick on the page as an error on the picker', function () {
         ->post(route('staff-report.send', ['trooper' => $this->psg->id, 'week' => '2026-10-03']), [
             'attended' => true, 'section_ids' => [$this->other->id], 'practice_type' => 'sp', 'presence_type' => 'none',
         ])
-        ->assertSessionHasErrors(['section_ids' => 'The practice of 2/1/A/1-7 has not happened yet. You can tick it once it is held.']);
+        ->assertSessionHasErrors(['section_ids' => "The practice of 2/1/A/1-7 hasn't happened yet. You can tick it once its time has passed."]);
 });
 
-it('tells the picker which practices were held, and why the others cannot be ticked', function () {
+it('tells the picker where each practice stands', function () {
     heldSlot($this->host->id, 3);
     heldMark($this->host->id);
     heldSlot($this->other->id, 5);
@@ -210,6 +240,38 @@ it('tells the picker which practices were held, and why the others cannot be tic
             ->where('sections.0.held', 'held')
             ->where('sections.1.id', $this->other->id)
             ->where('sections.1.held', 'upcoming'));
+});
+
+it('flags a sent report as conflicting when the section marks the practice as not held, and keeps what it met', function () {
+    heldSlot($this->other->id, 3);
+    heldSend($this->tree['users']['psg'], $this->psg, [$this->other->id]);
+    $page = route('staff-report.show', ['trooper' => $this->psg->id, 'week' => '2026-10-03']);
+
+    // Not marked yet: nothing conflicts.
+    $this->actingAs($this->tree['users']['co'])->get($page)->assertInertia(fn (AssertableInertia $page) => $page->where('conflict', null));
+
+    // The section marks it as not held after the report was sent.
+    app(SectionPracticeRepository::class)->findOrCreate($this->other->id, $this->week)->forceFill(['confirmed_at' => now(), 'not_held' => true])->save();
+
+    foreach (['psg', 'co'] as $viewer) {
+        $this->actingAs($this->tree['users'][$viewer])->get($page)->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('conflict', ['2/1/A/1-7'])
+            ->where('report.attended', true)
+            ->where('report.practices.0.sectionId', $this->other->id));
+    }
+
+    $this->actingAs($this->tree['users']['co'])->get('/staff-reports?week=2026-10-03')->assertInertia(fn (AssertableInertia $page) => $page
+        ->where('groups.0.rows', fn ($rows) => collect($rows)->firstWhere('trooperId', $this->psg->id)['conflict'] === ['2/1/A/1-7']
+            && collect($rows)->firstWhere('trooperId', $this->psg->id)['metRule'] === true));
+});
+
+it('does not flag an FTX whose sections marked their practice as not held', function () {
+    heldSlot($this->other->id, 3);
+    heldMark($this->other->id)->forceFill(['confirmed_at' => now(), 'not_held' => true])->save();
+    heldSend($this->tree['users']['psg'], $this->psg, [$this->other->id], 'ftx');
+
+    $this->actingAs($this->tree['users']['co'])->get(route('staff-report.show', ['trooper' => $this->psg->id, 'week' => '2026-10-03']))
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('conflict', null));
 });
 
 it('opens the staff member\'s own report on the running week and warns while last week\'s is owed', function () {

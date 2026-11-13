@@ -68,8 +68,8 @@ interface SectionPracticeRepository
     public function forSections(array $sectionIds, CarbonInterface $weekStart): Collection;
 
     /**
-     * Whether each section's practice of the week can be claimed on a staff report ({@see PracticeHeldState}): section id
-     * => `held`, `upcoming`, `unmarked`, `not_held` or `no_slot`, for every section given, as it stands at `$now`.
+     * Where each section's practice of the week stands for a staff report ({@see PracticeHeldState}): section id
+     * => `held`, `upcoming`, `unmarked`, `not_held`, `no_slot` or `cancelled`, for every section given, as it stands at `$now`.
      * A fixed number of queries however many sections. Never creates a row.
      *
      * @param  list<int>  $sectionIds

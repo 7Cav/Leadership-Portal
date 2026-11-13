@@ -51,8 +51,8 @@ use Carbon\CarbonImmutable;
  * a practice type their HQ does not report (SP or FTX on a platoon or company HQ; SP, operation, class or event on a
  * battalion HQ), no presence answer or one other than public server, office hour or none, a named type without a name or with a date
  * outside the week, an office hour without a note or with a date outside the week, text over its limit, a
- * pick that is not a section or not under their HQ, a section practice picked that was not held that week (still to come,
- * not marked held yet, not held, or a section with no practice time), a report already sent and past its deadline, and an edit with no reason. Then one audited transaction (`staff_report.sent`, AD-16, target the report,
+ * pick that is not a section or not under their HQ, a section practice picked whose time has not passed yet that week (or,
+ * for a section with no practice time or a cancelled week, one not held), a report already sent and past its deadline, and an edit with no reason. Then one audited transaction (`staff_report.sent`, AD-16, target the report,
  * digest over it and the week's entries): the report row is inserted under its UNIQUE key, so two sends at once land on
  * one and the second is told it was already sent. The game server check ({@see presenceCheck()}) and the public server
  * check ({@see PublicServerHour}) are computed before the transaction and frozen on the row. The HQ's own weekly report does not lock this: the staff member's
@@ -118,8 +118,9 @@ class SendStaffReportHandler
         $staff = $this->rules->staff($hq);
         $fields = $this->fields($command, $weekStart, $hq, $staff['types']);
         $sections = $this->pickedSections($command, $fields['practice_type'], $hq, $staff);
-        // Only a practice that was held can be claimed: one still to come, or not held, is refused by name.
-        $this->onlyHeld($fields['practice_type'], $sections, $weekStart);
+        // Only a practice whose time has passed can be claimed: one still to come is refused by name. One the section
+        // marked as not held is taken, and the report reads as conflicting.
+        $this->onlyPast($fields['practice_type'], $sections, $weekStart);
 
         // Sent already: an edit until the deadline (or an approved unlock), with a reason; after it, locked.
         $sent = $this->reports->find($trooper->id, $weekStart);
@@ -392,15 +393,15 @@ class SendStaffReportHandler
     }
 
     /**
-     * A section practice report claims only practices that were held that week ({@see PracticeHeldState}): the first
-     * pick that was not is refused, saying why. An FTX's sections name who took part, not a practice, so they are not
+     * A section practice report claims only practices whose time has passed that week ({@see PracticeHeldState::claimable()}),
+     * marked held or not: the first pick still to come (or with no practice to claim) is refused, saying why. An FTX's sections name who took part, not a practice, so they are not
      * checked. A report already sent is never rewritten for this; an edit of it must leave such a pick out.
      *
      * @param  list<Unit>  $sections
      *
      * @throws StaffReportRefusedException
      */
-    private function onlyHeld(?string $type, array $sections, CarbonImmutable $weekStart): void
+    private function onlyPast(?string $type, array $sections, CarbonImmutable $weekStart): void
     {
         if ($type !== StaffReport::SP || $sections === []) {
             return;
@@ -409,10 +410,10 @@ class SendStaffReportHandler
         $states = $this->practices->heldStates(array_map(fn (Unit $section) => $section->id, $sections), $weekStart);
 
         foreach ($sections as $section) {
-            $state = $states[$section->id] ?? PracticeHeldState::NOT_HELD;
+            $state = $states[$section->id] ?? PracticeHeldState::NO_SLOT;
 
-            if ($state !== PracticeHeldState::HELD) {
-                throw StaffReportRefusedException::practiceNotHeld($section->callsign ?? $section->name, $state);
+            if (! PracticeHeldState::claimable($state)) {
+                throw StaffReportRefusedException::practiceNotOver($section->callsign ?? $section->name, $state);
             }
         }
     }
