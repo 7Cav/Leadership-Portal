@@ -88,6 +88,16 @@ describe('TimeAgo', () => {
         quiet.unmount();
     });
 
+    it('keeps the time as readable text inside a time role, never hidden, so the sentence around it reads whole', async () => {
+        const wrapper = stamp();
+        await nextTick();
+        const time = wrapper.get('[data-time-ago]');
+
+        expect(time.attributes('role')).toBe('time');
+        expect(time.attributes('aria-hidden')).toBeUndefined();
+        expect(time.text()).toContain('16OCT26 22 16Z');
+    });
+
     it('leaves the tooltip to its host when told to', () => {
         const wrapper = stamp({ at: AT, tooltip: false });
 
