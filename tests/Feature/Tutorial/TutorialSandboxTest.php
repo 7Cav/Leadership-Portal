@@ -572,6 +572,7 @@ it('walks a platoon leader through a make-up, a guest, a blocked report and a mi
     $missing = $steps()['missing-report'];
     expect($missing['checklist'][0]['click'])->toBe('[data-report-unit="'.$ids['other'].'"] [data-testid="copy-reminder"], [data-reminder-unit="'.$ids['other'].'"]')
         ->and($missing['highlight'])->toContain('[data-row-id="'.$ids['other'].'"]')
+        ->and($missing['highlight'])->toContain('[data-report-unit="'.$ids['other'].'"] :is([data-testid="copy-reminder"], [data-testid="open-rollcall"])')
         ->and($missing['highlight'])->toContain('body:not(:has([data-check])) nav[aria-label="Report mode"] a[href="/reports"]');
     $this->get("/rollcall/{$ids['other']}")->assertOk();
     // Opening the roll call first leaves the copy to do, so the way to it stays blue.

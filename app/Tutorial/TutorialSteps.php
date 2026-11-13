@@ -313,7 +313,7 @@ final class TutorialSteps
             ],
             'missing-report' => [
                 'title' => 'Chase a missing report',
-                'body' => '2nd Section has not sent its report. Find it on the roll-up, copy the reminder for its leader, then open its roll call to see what is left.',
+                'body' => '2nd Section has not sent its report. Find it on the roll-up, copy the reminder for its leader, then choose Open roll call to see what is left.',
                 'href' => '/reports',
                 'area' => ['/reports', '/rollcall'],
                 'note' => 'Here the reminder goes nowhere. In the portal, paste it to the section leader.',
@@ -325,7 +325,7 @@ final class TutorialSteps
                     'body:not(:has([data-check])) nav[aria-label="Report mode"] a[href="/reports"]',
                     '[data-row-id="'.$other->id.'"]:not([aria-selected="true"])',
                     $this->expandTo($other),
-                    '[data-report-unit="'.$other->id.'"] :is([data-testid="copy-reminder"], [data-testid="open-report"])',
+                    '[data-report-unit="'.$other->id.'"] :is([data-testid="copy-reminder"], [data-testid="open-rollcall"])',
                     '[data-reminder-unit="'.$other->id.'"]',
                     '[data-check="confirmed"] a',
                 ]),

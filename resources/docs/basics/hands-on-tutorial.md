@@ -3,6 +3,7 @@ title: Practice in the tutorial
 summary: Run roll call, send a report and read the roster on practice data, where nothing you do counts.
 section: basics
 order: 9
+updated: 2026-11-13
 audience: everyone
 minutes: 15
 ---
@@ -41,7 +42,7 @@ If you lead a unit, a second tutorial practises what to do when a roll call or a
 2. Mark a trooper who made up the practice elsewhere **Make-up complete**.
 3. Add a trooper from 2nd Section who played at your practice but was not seen by the game server as a guest. They get a make-up on their own section's roll call.
 4. Get 1st Section's report sent: confirm the practice, give a missed trooper a reason, and say whether they made up the practice.
-5. A Platoon Leader and above also chase 2nd Section's report: copy the reminder for its leader and open its roll call.
+5. A Platoon Leader and above also chase 2nd Section's report: select it on the roll-up, choose **Copy reminder** for its leader, then **Open roll call**.
 
 ## Start over or leave
 
