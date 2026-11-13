@@ -69,6 +69,14 @@ describe('Settings/Games', () => {
         expect(wrapper.find('[data-testid="retired-hll"]').exists()).toBe(false);
     });
 
+    it('lets every games cell wrap, so the table fits its card without a sideways scroll', () => {
+        const wrapper = factory();
+        const cells = wrapper.get('[data-testid="game-row-hll"]').findAll('td');
+
+        expect(cells.length).toBeGreaterThan(0);
+        for (const cell of cells) expect(cell.classes()).toContain('whitespace-normal');
+    });
+
     it('offers delete only for a game nothing uses, and bring back only for a retired one', () => {
         const wrapper = factory();
 
