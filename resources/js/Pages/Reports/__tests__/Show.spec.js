@@ -589,12 +589,21 @@ describe('Reports/Show', () => {
     it('un-ticks the review when the notes change afterwards', async () => {
         const wrapper = mountShow();
 
+        expect(wrapper.get('#reviewed-help').text()).toBe('Editing the notes afterwards unticks this.');
         await wrapper.get('#reviewed').trigger('click');
         expect(wrapper.get('#reviewed').attributes('data-state')).toBe('checked');
         await wrapper.get('#report-notes').setValue('Changed.');
 
         expect(wrapper.get('#reviewed').attributes('data-state')).toBe('unchecked');
         expect(wrapper.text()).toContain('You edited the notes after confirming');
+    });
+
+    it('stretches the last card of each column on wide screens so both columns end on one line', () => {
+        const wrapper = mountShow();
+
+        expect(wrapper.get('[data-testid="notes-panel"]').classes()).toContain('lg:flex-1');
+        expect(wrapper.get('#preview').classes()).toEqual(expect.arrayContaining(['lg:flex-1', 'lg:flex', 'lg:flex-col']));
+        expect(wrapper.get('[data-testid="provenance"]').classes()).toContain('lg:mt-auto');
     });
 
     it('colours each change by what it means for that KPI', () => {

@@ -777,7 +777,7 @@ function useSuggestion() {
                                                 {{
                                                     staleReview
                                                         ? 'You edited the notes after confirming. Read them once more, then tick again.'
-                                                        : 'Editing the notes afterward clears this, so the check stays honest.'
+                                                        : 'Editing the notes afterwards unticks this.'
                                                 }}
                                             </p>
                                         </div>
