@@ -30,7 +30,7 @@ The page has two cards. **Chain of command** holds the regiment, its battalions 
 Every billet places its holder in one unit. Select a unit and open **Billets** in its details to see each billet that lands there, how many troopers hold it now, and why:
 
 - **Rule**, with the rule in words, such as "line billet in A/1-7" or "staff billet of S6": the import placed it from the Cav roster.
-- **Placed by an Admin**: someone placed it by hand. This beats the rules: the import keeps it and the roster sync places the holder there.
+- **Placed by an Admin**: someone placed it by hand. It stays there even if the Cav would put it elsewhere: the import keeps it and the roster sync places the holder there.
 - **Commands this unit**: a leader's billet with no placement of its own. Its holder lands in the unit they command.
 
 1. To add a billet to the unit, choose **Add billet**, pick it from the billets the Cav lists, give a reason and choose **Add billet**.

@@ -43,6 +43,11 @@ describe('UnitBillets', () => {
         expect(rows[1].text()).toContain('vacant');
         // Only an Admin's placement can be removed.
         expect(rows.map((row) => row.find('[data-testid="unit-billet-remove"]').exists())).toEqual([false, true, false]);
+        // The footer in plain words, without the import's jargon.
+        expect(wrapper.find('[data-testid="unit-billets-footer"]').text()).toBe(
+            'A billet you place here stays here, even if the Cav would put it elsewhere. People move on the next roster sync.',
+        );
+        expect(wrapper.text()).not.toMatch(/import rules|beats/i);
     });
 
     it('shows a rename with old and new name and confirms it', async () => {

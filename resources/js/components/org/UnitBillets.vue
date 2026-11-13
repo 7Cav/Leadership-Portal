@@ -199,7 +199,9 @@ function remove(reason) {
                 @done="done('Billet added')"
                 @cancel="adding = false"
             />
-            <p class="mt-1.5 text-xs text-muted-foreground">An Admin's placement beats the import rules. Holders move on the next roster sync.</p>
+            <p class="mt-1.5 text-xs text-muted-foreground" data-testid="unit-billets-footer">
+                A billet you place here stays here, even if the Cav would put it elsewhere. People move on the next roster sync.
+            </p>
         </div>
 
         <ReasonDialog
