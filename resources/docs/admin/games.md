@@ -3,7 +3,7 @@ title: Games
 summary: Add, edit and retire the games the regiment plays, and what reads their attendance.
 section: admin
 order: 4
-updated: 2026-11-12
+updated: 2026-11-13
 audience: admin
 page: /settings/games
 ---
@@ -20,7 +20,7 @@ page: /settings/games
 
 1. **CRCON**, **BattleMetrics** or **Nightwatch** reads the game's servers. Pick its servers on [Servers](/docs/admin/servers).
 2. **None** means reading is not set up yet. Leaders mark attendance by hand, and reports show **No game server data** where a check could not be made.
-3. **None (impossible)** is for a game whose attendance can never be read automatically, such as Battlefield 6, DCS World, Foxhole or Star Citizen. Leaders mark attendance by hand. Staff reports for its units show no **No game server data** alerts. Instead, each report says once: "Server data can't be read automatically for Battlefield 6. All attendance is self-reported."
+3. **None (impossible)** is for a game whose attendance can never be read automatically, such as Battlefield 6, DCS World, Foxhole or Star Citizen. Leaders mark attendance by hand. Staff reports for its units show no **No game server data** alerts. Instead, each report says once: "Server data can't be read automatically for Battlefield 6. All attendance is self-reported." The weekly reports of those units say the same once near the top, and so does each one's panel on the **Reports** overview.
 4. Existing games keep **None** until an Admin switches them. Troopers still link identities for either kind of game.
 
 ## Edit or retire a game

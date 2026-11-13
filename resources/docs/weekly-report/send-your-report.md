@@ -7,6 +7,7 @@ audience: leader
 page: /reports
 weekly: true
 minutes: 10
+updated: 2026-11-13
 ---
 
 > [!why] Your report is what your chain of command reads about your unit's week. Sending it freezes the numbers, so what they read never changes after you send.
@@ -28,6 +29,8 @@ minutes: 10
 2. Under **Unaccounted troopers**, pick a reason for each one. When the portal knows why, such as a trooper who moved out of your section this week, left the Cav, or posted leave the sync could not read, that reason is already chosen and the hint says why. Choose **Keep suggested reason**, or pick another. A suggestion you have not kept is not saved or sent.
 3. Fill in the **Training subject**. Last week's subject is offered; choose **Use it again** to keep it. It is the same topic as the roll call's **Training topic**, so one set on the roll call is already here, as are notes and reasons written on its close step. A section's report opens with a summary of its roll call: the training, the topic, the forum thread, and how the week signed and attended.
 4. Write your **Notes to send with this report**.
+
+> [!good-to-know] If your unit's game can never be read automatically, such as Battlefield 6, the report says so once near the top in orange: all attendance is self-reported. Every mark is then entered by hand, and nothing on the report asks for game server data.
 
 > [!good-to-know] The draft saves as you type. You can leave and come back to it any time before you send.
 
