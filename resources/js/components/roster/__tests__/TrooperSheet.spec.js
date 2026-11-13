@@ -149,12 +149,19 @@ describe('Trooper sheet', () => {
         await flushPromises();
 
         expect(document.body.querySelector('[data-testid="sheet-staff-reports"]').textContent).toContain('1 of 4 met');
-        const rows = document.body.querySelectorAll('[data-testid="sheet-staff-week"]');
-        expect(rows).toHaveLength(8);
-        expect(rows[1].textContent).toContain('Report met the rule');
-        expect(rows[1].textContent).toContain('Practices: Yes: 1/1/A/1-7');
-        expect(rows[1].textContent).toContain('Presence: Public server hour');
-        expect(rows[0].textContent).toContain('Report not sent');
+        const sent = document.body.querySelectorAll('[data-testid="sheet-staff-sent"]');
+        const met = document.body.querySelectorAll('[data-testid="sheet-staff-met"]');
+        expect(sent).toHaveLength(8);
+        expect(met).toHaveLength(8);
+        expect(sent[1].textContent).toContain('Sent');
+        expect(sent[1].textContent).toContain('Staff report, 1/A/1-7');
+        expect(met[1].textContent).toContain('Met the rule');
+        expect(met[1].textContent).toContain('Practices: Yes: 1/1/A/1-7');
+        expect(met[1].textContent).toContain('Presence: Public server hour');
+        expect(sent[0].textContent).toContain('Not sent');
+        expect(met[0].textContent).toContain('Not applicable');
+        expect(document.body.querySelector('[data-testid="sheet-recent"] thead').textContent).toContain('Roll call or staff report');
+        expect(document.body.querySelectorAll('[data-testid="staff-sent"]')).toHaveLength(20);
     });
 
     it('links to the section rollcall and to milpac in a new tab', async () => {

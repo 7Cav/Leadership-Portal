@@ -225,10 +225,11 @@ function stripLabel(trooper) {
     const missed = cells.filter((c) => c.sp === 'bad').length;
     const staff = cells.filter((c) => c.staff && !['loa', 'before'].includes(c.staff.state));
     if (staff.length) {
+        const sent = staff.filter((c) => c.staff.sent).length;
         const met = staff.filter((c) => c.staff.state === 'met').length;
         const shown = staff.filter((c) => c.staff.state !== 'open').length;
 
-        return `Last 8 weeks: staff report met the rule ${met} of ${shown} weeks${signed || attended ? `, roll call signed ${signed}, section practice attended ${attended}` : ''}.`;
+        return `Last 8 weeks: staff report sent ${sent} of ${shown} weeks, met the rule ${met}${signed || attended ? `, roll call signed ${signed}, section practice attended ${attended}` : ''}.`;
     }
 
     return `Last 8 weeks: roll call signed ${signed} of 8 weeks, section practice attended ${attended}${missed ? `, ${missed} missed` : ''}.`;

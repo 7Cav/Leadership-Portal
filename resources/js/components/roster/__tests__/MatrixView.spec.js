@@ -75,19 +75,26 @@ describe('Attendance matrix (roster-s3)', () => {
         const row = wrapper.find('[data-testid="matrix-trooper-12"]');
         const cells = row.findAll('.cc-focus');
 
-        expect(cells[18].attributes('aria-label')).toContain('Staff report from 1/A/1-7: Report met the rule.');
-        expect(cells[18].find('[data-testid="staff-cell"]').classes()).toContain('roster-h--staff-met');
-        expect(cells[16].find('[data-testid="staff-cell"]').classes()).toContain('roster-h--staff-notSent');
-        expect(cells[19].find('[data-testid="staff-cell"]').classes()).toContain('roster-h--staff-open');
-        expect(cells[17].findAll('.roster-h').map((h) => h.classes().find((c) => c.startsWith('roster-h--')))).toEqual(['roster-h--loa', 'roster-h--loa']);
+        const halves = (i) => cells[i].findAll('.roster-h').map((h) => h.classes().find((c) => c.startsWith('roster-h--')));
+
+        expect(cells[18].attributes('aria-label')).toContain('Staff report from 1/A/1-7: Sent. Accountability: Met the rule.');
+        expect(cells[16].attributes('aria-label')).toContain('Staff report from 1/A/1-7: Not sent. Accountability: Not applicable.');
+        expect(halves(18)).toEqual(['roster-h--staff-sent', 'roster-h--staff-met']);
+        expect(halves(16)).toEqual(['roster-h--staff-notSent', 'roster-h--staff-na']);
+        expect(halves(19)).toEqual(['roster-h--staff-open', 'roster-h--staff-na']);
+        expect(halves(17)).toEqual(['roster-h--loa', 'roster-h--staff-na']);
+        expect(cells[18].find('[data-testid="staff-sent"]').exists()).toBe(true);
+        expect(cells[18].find('[data-testid="staff-accountability"]').exists()).toBe(true);
         expect(row.find('[data-testid="matrix-staff-reports"]').text()).toBe('Reports1 of 3 met');
-        expect(wrapper.find('[data-testid="legend-staff"]').text()).toContain('Not sent');
+        expect(wrapper.find('[data-testid="legend-staff-sent"]').text()).toContain('Not sent');
+        expect(wrapper.find('[data-testid="legend-staff-met"]').text()).toContain('Not applicable');
 
         await nextTick();
         wrapper.find('[data-tip="m:12:18"]').element.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
         await nextTick();
         const tip = document.body.querySelector('[data-testid="roster-tip"]').textContent;
-        expect(tip).toContain('Report met the rule');
+        expect(tip).toContain('Sent');
+        expect(tip).toContain('Met the rule');
         expect(tip).toContain('Yes: 1/1/A/1-7');
         expect(tip).toContain('Office hour (29SEP26)');
         wrapper.unmount();

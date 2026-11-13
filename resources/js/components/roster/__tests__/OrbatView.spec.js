@@ -92,9 +92,13 @@ describe('Order of battle (roster-s2)', () => {
         const row = factory({ troopers: [staff, ...roster().troopers] }).find('[data-testid="trooper-15"]');
         const strip = row.findAll('.strip-wk');
 
-        expect(strip[6].find('[data-testid="staff-cell"]').classes()).toContain('roster-h--staff-met');
-        expect(strip[5].find('[data-testid="staff-cell"]').classes()).toContain('roster-h--staff-short');
-        expect(row.find('[role="img"]').attributes('aria-label')).toBe('Last 8 weeks: staff report met the rule 1 of 7 weeks.');
+        expect(strip[6].find('[data-testid="staff-sent"]').classes()).toContain('roster-h--staff-sent');
+        expect(strip[6].find('[data-testid="staff-accountability"]').classes()).toContain('roster-h--staff-met');
+        expect(strip[5].find('[data-testid="staff-sent"]').classes()).toContain('roster-h--staff-sent');
+        expect(strip[5].find('[data-testid="staff-accountability"]').classes()).toContain('roster-h--staff-short');
+        expect(strip[7].find('[data-testid="staff-sent"]').classes()).toContain('roster-h--staff-open');
+        expect(strip[7].find('[data-testid="staff-accountability"]').classes()).toContain('roster-h--staff-na');
+        expect(row.find('[role="img"]').attributes('aria-label')).toBe('Last 8 weeks: staff report sent 7 of 7 weeks, met the rule 1.');
         expect(row.find('[data-testid="flag-staff-reports"]').text()).toBe('Reports 1 of 4 met');
     });
 

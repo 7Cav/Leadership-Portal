@@ -22,12 +22,17 @@ const SP = [
     ['open', 'Not marked yet'],
     ['nil', 'No SP held'],
 ];
-// Line HQ staff are on no section's roll call: a week they were on the HQ is one block, their staff report.
-const STAFF = [
+// Line HQ staff are on no section's roll call: a week they were on the HQ reads their staff report, the top half
+// whether it was sent, the bottom half whether it met the rule.
+const STAFF_SENT = [
+    ['staff-sent', 'Sent'],
+    ['staff-notSent', 'Not sent'],
+    ['staff-open', 'Not sent yet (this week)'],
+];
+const STAFF_MET = [
     ['staff-met', 'Met the rule'],
     ['staff-short', 'Fell short'],
-    ['staff-notSent', 'Not sent'],
-    ['staff-open', 'This week, not sent yet'],
+    ['staff-na', 'Not applicable'],
 ];
 </script>
 
@@ -35,7 +40,7 @@ const STAFF = [
     <div id="roster-legend" class="grid items-start gap-2 px-3 py-2.5 text-xs text-muted-foreground sm:px-4 lg:grid-cols-[auto_1fr] lg:gap-x-6">
         <div class="flex items-center gap-2.5">
             <span aria-hidden="true"><WeekCell rc="ok" sp="mk" /></span>
-            <span class="leading-tight">Each cell is one Cav week, Sat to Fri.<br />Top half roll call, bottom half SP.</span>
+            <span class="leading-tight">Each cell is one Cav week, Sat to Fri.<br />Top half roll call, bottom half SP.<br />HQ staff: top half report sent, bottom half rule met.</span>
         </div>
         <div class="space-y-1.5">
             <div class="flex flex-wrap gap-x-4 gap-y-1.5">
@@ -50,9 +55,15 @@ const STAFF = [
                     <span class="roster-h inline-block w-[1.125rem]" :class="`roster-h--${state}`" aria-hidden="true" />{{ label }}
                 </span>
             </div>
-            <div class="flex flex-wrap gap-x-4 gap-y-1.5" data-testid="legend-staff">
-                <span class="w-full font-medium text-foreground sm:w-20">HQ staff</span>
-                <span v-for="[state, label] in STAFF" :key="state" class="inline-flex items-center gap-1.5">
+            <div class="flex flex-wrap gap-x-4 gap-y-1.5" data-testid="legend-staff-sent">
+                <span class="w-full font-medium text-foreground sm:w-20">HQ report</span>
+                <span v-for="[state, label] in STAFF_SENT" :key="state" class="inline-flex items-center gap-1.5">
+                    <span class="roster-h inline-block w-[1.125rem]" :class="`roster-h--${state}`" aria-hidden="true" />{{ label }}
+                </span>
+            </div>
+            <div class="flex flex-wrap gap-x-4 gap-y-1.5" data-testid="legend-staff-met">
+                <span class="w-full font-medium text-foreground sm:w-20">HQ rule</span>
+                <span v-for="[state, label] in STAFF_MET" :key="state" class="inline-flex items-center gap-1.5">
                     <span class="roster-h inline-block w-[1.125rem]" :class="`roster-h--${state}`" aria-hidden="true" />{{ label }}
                 </span>
             </div>

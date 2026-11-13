@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { forumDate } from '@/lib/forumDate';
 import { makeupPmUrl } from '@/lib/makeupPm';
 import { percentLabel, percentTone, RC_STATES, sourceLabel, SP_STATES, weekCell, weekLabel } from '@/lib/roster';
-import { STAFF_STATES, staffReportsText, staffReportsTone, staffTipRows, staffWeekText, withStaffWeek } from '@/lib/staffWeeks';
+import { staffMetText, staffReportsText, staffReportsTone, staffSentText, staffTipRows, staffWeekText, withStaffWeek } from '@/lib/staffWeeks';
 import RankBadge from './RankBadge.vue';
 import StaffPracticeList from './StaffPracticeList.vue';
 import TransferList from './TransferList.vue';
@@ -76,8 +76,8 @@ const cells = computed(() =>
         ),
     })),
 );
-// The tooltip rows past the state (practices, presence, sent), as one line each under the badge.
-const staffDetails = (entry) => staffTipRows(entry).slice(1).map(([label, value]) => `${label}: ${value}`);
+// The tooltip rows past the two states (practices, presence), as one line each under the rule badge.
+const staffDetails = (entry) => staffTipRows(entry).slice(2).map(([label, value]) => `${label}: ${value}`);
 const cellTitle = (cell) =>
     cell.staff
         ? `${weekLabel(cell.week)}. ${staffWeekText(cell.staff)}.`
@@ -113,7 +113,8 @@ const FAILURES = {
 
 const RC_TONE = { ok: 'success', cn: 'warning', mr: 'info', ex: 'warning', bad: 'danger' };
 const SP_TONE = { ok: 'success', mk: 'success', ex: 'warning', bad: 'danger' };
-const STAFF_TONE = { met: 'success', short: 'danger', notSent: 'danger' };
+const STAFF_SENT_TONE = { met: 'success', short: 'success', notSent: 'danger' };
+const STAFF_MET_TONE = { met: 'success', short: 'danger' };
 const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted: 'text-muted-foreground' };
 </script>
 
@@ -226,7 +227,7 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                         <h3 class="mb-1 text-xs text-muted-foreground">Last 8 weeks, newest first</h3>
                         <table class="w-full text-left" data-testid="sheet-recent">
                             <thead class="sr-only">
-                                <tr><th>Week</th><th>Roll call</th><th>Section practice</th></tr>
+                                <tr><th>Week</th><th>{{ recent.some((c) => c.staff) ? 'Roll call or staff report' : 'Roll call' }}</th><th>{{ recent.some((c) => c.staff) ? 'Section practice or accountability' : 'Section practice' }}</th></tr>
                             </thead>
                             <tbody>
                                 <tr v-for="cell in recent" :key="cell.week" class="border-b border-border align-top last:border-0">
@@ -235,11 +236,16 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                                         <span v-if="cell.week === current" class="block text-[11px] text-muted-foreground">This week</span>
                                         <span v-if="elsewhere(cell.mark)" class="block text-[11px] text-muted-foreground" data-testid="sheet-week-section">At {{ elsewhere(cell.mark) }}</span>
                                     </td>
-                                    <td v-if="cell.staff" colspan="2" class="py-2" data-testid="sheet-staff-week">
-                                        <Badge :variant="STAFF_TONE[cell.staff.state] ?? 'outline'">{{ STAFF_STATES[cell.staff.state] }}</Badge>
-                                        <span class="mt-1 block text-[11px] text-muted-foreground">Staff report{{ cell.staff.hq ? `, ${cell.staff.hq}` : '' }}</span>
-                                        <span v-for="line in staffDetails(cell.staff)" :key="line" class="block text-[11px] text-muted-foreground">{{ line }}</span>
-                                    </td>
+                                    <template v-if="cell.staff">
+                                        <td class="py-2 pr-3" data-testid="sheet-staff-sent">
+                                            <Badge :variant="STAFF_SENT_TONE[cell.staff.state] ?? 'outline'">{{ staffSentText(cell.staff) }}</Badge>
+                                            <span class="mt-1 block text-[11px] text-muted-foreground">Staff report{{ cell.staff.hq ? `, ${cell.staff.hq}` : '' }}</span>
+                                        </td>
+                                        <td class="py-2" data-testid="sheet-staff-met">
+                                            <Badge :variant="STAFF_MET_TONE[cell.staff.state] ?? 'outline'">{{ staffMetText(cell.staff) }}</Badge>
+                                            <span v-for="line in staffDetails(cell.staff)" :key="line" class="mt-1 block text-[11px] text-muted-foreground">{{ line }}</span>
+                                        </td>
+                                    </template>
                                     <template v-else>
                                         <td class="py-2 pr-3"><Badge :variant="RC_TONE[cell.rc] ?? 'outline'">{{ RC_STATES[cell.rc] }}</Badge></td>
                                         <td class="py-2">
