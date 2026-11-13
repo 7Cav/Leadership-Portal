@@ -14,8 +14,11 @@ defineProps({
     // `[{ trooperId, name, sent, attended, practices, practiceType, ftx, officeHour, presenceType, otherEvents, notes,
     // sheetPushedAt, presence, publicServer, discrepancy, href }]`; `practices` is a count here.
     rows: { type: Array, required: true },
-    // The unit's game when its attendance can never be read automatically, else null: one notice for the panel.
+    // The unit's game when its attendance can never be read automatically, else null: one notice for the panel, and no
+    // "No game server data" alert on any row.
     selfReported: { type: String, default: null },
+    // Off where the page already shows that notice once (the unit report shows it near the top).
+    notice: { type: Boolean, default: true },
 });
 </script>
 
@@ -24,7 +27,7 @@ defineProps({
         <div class="border-b border-border px-4 py-3">
             <h2 id="staff-reports-title" class="text-sm font-semibold">HQ staff reports</h2>
             <p class="mt-0.5 text-xs text-muted-foreground">Each HQ staff member reports their accountability and presence for the week.</p>
-            <SelfReportedNotice v-if="selfReported" :game="selfReported" class="mt-2" />
+            <SelfReportedNotice v-if="selfReported && notice" :game="selfReported" class="mt-2" />
         </div>
         <ul v-if="rows.length" class="divide-y divide-border">
             <li v-for="row in rows" :key="row.trooperId" class="flex flex-wrap items-center gap-x-2.5 gap-y-1 px-4 py-2.5" :data-testid="`staff-report-row-${row.trooperId}`">

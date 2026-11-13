@@ -18,6 +18,9 @@ class SelfReportedGame
     /** @var array<int, UnitGame>|null */
     private ?array $games = null;
 
+    /** @var array<int, ?string> The answer by game id, so a roll-up tree reads each game once. */
+    private array $names = [];
+
     public function __construct(
         private readonly UnitRepository $units,
         private readonly GameRepository $gameRepository,
@@ -28,8 +31,16 @@ class SelfReportedGame
     {
         $this->games ??= UnitGame::resolve($this->units->tree());
         $gameId = ($this->games[$unitId] ?? null)?->gameId;
-        $game = $gameId === null ? null : $this->gameRepository->find($gameId);
 
-        return $game?->interface === TelemetryInterface::Impossible ? $game->name : null;
+        if ($gameId === null) {
+            return null;
+        }
+
+        if (! array_key_exists($gameId, $this->names)) {
+            $game = $this->gameRepository->find($gameId);
+            $this->names[$gameId] = $game?->interface === TelemetryInterface::Impossible ? $game->name : null;
+        }
+
+        return $this->names[$gameId];
     }
 }

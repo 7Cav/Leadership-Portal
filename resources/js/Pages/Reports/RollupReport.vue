@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import TimeAgo from '@/components/TimeAgo.vue';
 import { weekPhrase } from '@/lib/forumDate';
 import { dayTime, displayStatus, percent, points, TYPE_LABEL, unitLabel } from '@/lib/reportRollup';
+import SelfReportedNotice from '@/components/reports/SelfReportedNotice.vue';
 import StatusPill from './StatusPill.vue';
 
 // The selected unit's report in the roll-up workspace (report-p2.html's right panel). A sent
@@ -110,6 +111,8 @@ function ratioLine(child) {
                 <PhLightning class="mt-px size-4 shrink-0" aria-hidden="true" />
                 {{ liveNote }}
             </p>
+
+            <SelfReportedNotice v-if="node.selfReported" :game="node.selfReported" />
 
             <div
                 v-if="node.status !== 'sent' && missing.length"

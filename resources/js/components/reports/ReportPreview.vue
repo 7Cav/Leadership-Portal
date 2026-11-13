@@ -42,6 +42,9 @@ const props = defineProps({
     // A section's live draft: on LOA and at-risk move with leave, so its source and last sync show (AD-20).
     loaSync: { type: Object, default: null },
     computedAt: { type: String, required: true },
+    // The unit's game when its attendance can never be read automatically: no mark comes from a capture, so the footer
+    // does not mention one.
+    selfReported: { type: String, default: null },
 });
 
 const audience = computed(() => (props.unit.parent ? `${unitLabel(props.unit.parent)} and command` : 'command'));
@@ -261,7 +264,7 @@ const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id ===
             </span>
             <span v-if="sent" class="inline-flex items-center gap-1.5"><PhLockSimple aria-hidden="true" /><span>Frozen <TimeAgo :at="sentAt">{{ stamp(sentAt) }}</TimeAgo></span></span>
             <span v-else-if="unit.isLeaf" class="inline-flex items-center gap-1.5">
-                <PhLightning aria-hidden="true" /><span>Computed from roll call and attendance at <TimeAgo :at="computedAt">{{ timeOf(computedAt) }}</TimeAgo>. Marks are manual unless noted as game server capture.</span>
+                <PhLightning aria-hidden="true" /><span>Computed from roll call and attendance at <TimeAgo :at="computedAt">{{ timeOf(computedAt) }}</TimeAgo>. {{ selfReported ? 'All marks are manual.' : 'Marks are manual unless noted as game server capture.' }}</span>
             </span>
             <span v-else class="inline-flex items-center gap-1.5"><PhStack aria-hidden="true" />Built from the frozen reports of the units below</span>
         </p>

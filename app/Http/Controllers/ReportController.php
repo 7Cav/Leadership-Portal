@@ -247,10 +247,11 @@ class ReportController extends Controller
             // (4.3, AD-20). A sent report is frozen and a roll-up reads its children's frozen reports: neither has any.
             'loaSync' => $isLeaf && ! $sent ? $this->loaProvenance->current()->toArray() : null,
             'computedAt' => CarbonImmutable::now('UTC')->toIso8601String(),
-            'staffReports' => $staffReports = $this->staffReportRows($request, $unit, $weekStart),
-            // The unit's game when its attendance can never be read : the staff panel says so once instead of
-            // a "No game server data" alert on every row.
-            'staffSelfReported' => $staffReports === null ? null : $selfReported->for($unit->id),
+            'staffReports' => $this->staffReportRows($request, $unit, $weekStart),
+            // The unit's game (its own or the nearest above it) when its attendance can never be read: the report says so
+            // once near the top, its footer drops the capture clause, and the staff panel leaves out its "No game server
+            // data" alerts. Live, not frozen with a sent report.
+            'selfReported' => $selfReported->for($unit->id),
         ]);
     }
 
