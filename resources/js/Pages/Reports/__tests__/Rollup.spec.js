@@ -32,7 +32,9 @@ function roots() {
         status: 'sent', open: false, live: false, kpis: kpis(6, [20, 24], [10, 12], 1), sentAt: '2026-10-06T22:14:00+00:00', sentBy: 'Haddad.Y',
         notes: 'Full house.', delta: { strength: 0, rcBp: 200, spBp: -150, atRisk: 1, onLoa: 0, makeups: 0 },
     });
-    const draft = unit(21, 'section', '2nd Section', '2/1/A/1-7', { status: 'draft', kpis: kpis(8, [6, 8], [3, 4]), savedAt: '2026-10-08T14:12:00+00:00', notes: 'Waiting on two.' });
+    const draft = unit(21, 'section', '2nd Section', '2/1/A/1-7', {
+        status: 'draft', kpis: kpis(8, [6, 8], [3, 4]), savedAt: '2026-10-08T14:12:00+00:00', notes: 'Waiting on two.', selfReported: 'Battlefield 6',
+    });
     const platoon = unit(2, 'platoon', '1st Platoon', '1/A/1-7', {
         holding: true, kpis: kpis(6, [20, 24], [10, 12], 1), coverage: { sent: 1, of: 2, missing: [21] }, children: [sent, draft],
     });
@@ -147,6 +149,17 @@ describe('Reports/Rollup', () => {
         expect(panel().text()).toContain('No sent report last week to compare');
         expect(panel().text()).toContain('Waiting on two.');
         expect(panel().find('[data-testid="open-report"]').attributes('href')).toBe('/reports/21/2026-10-03');
+    });
+
+    it("says in the report panel when all of a unit's attendance is self-reported, and only for that unit", async () => {
+        mountRollup();
+        await rows()[2].trigger('click');
+
+        expect(panel().findAll('[data-testid="self-reported-notice"]')).toHaveLength(1);
+        expect(panel().get('[data-testid="self-reported-notice"]').text()).toBe("Server data can't be read automatically for Battlefield 6. All attendance is self-reported.");
+
+        await rows()[1].trigger('click');
+        expect(panel().find('[data-testid="self-reported-notice"]').exists()).toBe(false);
     });
 
     it('copies a forum-ready reminder and confirms it', async () => {

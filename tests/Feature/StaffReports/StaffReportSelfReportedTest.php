@@ -4,6 +4,7 @@ use App\Commands\StaffReports\SendStaffReport;
 use App\Commands\StaffReports\SendStaffReportHandler;
 use App\Models\Game;
 use App\Models\TelemetryInterface;
+use App\Models\User;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Inertia\Testing\AssertableInertia;
@@ -48,7 +49,7 @@ function selfReportedProps(object $test): array
         });
     $test->actingAs($co)->get(route('reports.show', ['unit' => $test->tree['units']['platoon']->id, 'week' => '2026-10-03']))
         ->assertOk()->assertInertia(function (AssertableInertia $page) use (&$props) {
-            $props['report'] = $page->toArray()['props']['staffSelfReported'];
+            $props['report'] = $page->toArray()['props']['selfReported'];
         });
 
     return $props;
@@ -68,6 +69,45 @@ it('says nothing for a game whose reading is just not set up yet, or one that is
     'none' => [TelemetryInterface::None],
     'crcon' => [TelemetryInterface::Crcon],
 ]);
+
+/** The roll-up workspace from the company down: each unit's `selfReported`, by callsign. */
+function rollupSelfReported(object $test): array
+{
+    $found = [];
+    $test->actingAs($test->tree['users']['co'])->get(route('reports.index', ['unit' => $test->tree['units']['company']->id, 'week' => '2026-10-03']))
+        ->assertOk()->assertInertia(function (AssertableInertia $page) use (&$found) {
+            $walk = function (array $node) use (&$walk, &$found) {
+                $found[$node['callsign']] = $node['selfReported'];
+                array_map($walk, $node['children']);
+            };
+            array_map($walk, $page->toArray()['props']['roots']);
+        });
+
+    return $found;
+}
+
+it('names the game on a section report and on every unit of the roll-up, from the company it inherits', function () {
+    playing($this, TelemetryInterface::Impossible);
+
+    $this->actingAs($this->tree['users']['sl'])->get(route('reports.show', ['unit' => $this->tree['units']['host']->id, 'week' => '2026-10-03']))
+        ->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('selfReported', 'Battlefield 6'));
+
+    expect(rollupSelfReported($this))->toBe(['A/1-7' => 'Battlefield 6', '1/A/1-7' => 'Battlefield 6', '1/1/A/1-7' => 'Battlefield 6']);
+});
+
+it('names no game on the roll-up for a game that is read', function () {
+    playing($this, TelemetryInterface::Crcon);
+
+    expect(array_values(array_unique(rollupSelfReported($this))))->toBe([null]);
+});
+
+it('names no game on a unit above the one that plays it', function () {
+    playing($this, TelemetryInterface::Impossible);
+
+    $this->actingAs(User::factory()->commanding($this->tree['units']['battalion'])->create())
+        ->get(route('reports.show', ['unit' => $this->tree['units']['battalion']->id, 'week' => '2026-10-03']))
+        ->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('selfReported', null));
+});
 
 it('still freezes the checks on the report as no data, so switching the game back shows them again', function () {
     playing($this, TelemetryInterface::Impossible);

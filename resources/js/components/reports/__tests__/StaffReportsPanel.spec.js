@@ -74,6 +74,11 @@ describe('StaffReportsPanel', () => {
         expect(quiet.find('[data-testid="staff-report-presence"]').exists()).toBe(false);
         expect(quiet.find('[data-testid="staff-report-public-server"]').exists()).toBe(false);
 
+        // The unit report shows the notice near its top already: the panel only stays quiet.
+        const inReport = mount(StaffReportsPanel, { props: { rows, selfReported: 'Battlefield 6', notice: false } });
+        expect(inReport.find('[data-testid="self-reported-notice"]').exists()).toBe(false);
+        expect(inReport.find('[data-testid="staff-report-presence"]').exists()).toBe(false);
+
         // Not set up yet: the alerts stay, saying so, and there is no notice.
         const loud = mount(StaffReportsPanel, { props: { rows } });
         expect(loud.find('[data-testid="self-reported-notice"]').exists()).toBe(false);
