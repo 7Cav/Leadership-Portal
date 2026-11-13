@@ -1493,9 +1493,10 @@ function confirmDelete() {
                         :choices="battalionAccountability[selectedUnit.id].choices"
                     />
 
-                    <!-- A staff group goes under the regiment or another staff group, never under a holding group. -->
+                    <!-- A staff group goes under the regiment or another staff group, never under a holding group, and never
+                         under an inactive unit, where it would vanish with it (the server refuses it too). -->
                     <AddStaffGroup
-                        v-if="isAdmin && (selectedUnit.type === 'regiment' || (selectedUnit.type === 'group' && selectedUnit.kind === 'staff'))"
+                        v-if="isAdmin && !selectedUnit.inactive && (selectedUnit.type === 'regiment' || (selectedUnit.type === 'group' && selectedUnit.kind === 'staff'))"
                         :parent="selectedUnit"
                     />
 

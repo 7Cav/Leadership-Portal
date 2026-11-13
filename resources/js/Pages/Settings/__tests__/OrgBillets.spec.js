@@ -59,4 +59,15 @@ describe('Settings/OrgStructure billets', () => {
         expect(await offered(2)).toBe(false);
         expect(await offered(4)).toBe(false);
     });
+
+    it('offers no Add a staff group on an inactive staff group', async () => {
+        const units = [...UNITS, { id: 5, parent_id: 1, type: 'group', kind: 'staff', name: 'Old Desk', callsign: null, path: '1/5/', trooper_count: 0, inactive: true, deactivated_at: '2026-11-01T00:00:00Z', placed_count: 0 }];
+        const wrapper = mountPage({ units });
+        await wrapper.find('[data-testid="show-inactive-staff"]').trigger('click');
+        await wrapper.find('[data-testid="unit-row-5"]').trigger('click');
+
+        expect(wrapper.find('[data-testid="add-staff-group-open"]').exists()).toBe(false);
+        await wrapper.find('[data-testid="unit-row-3"]').trigger('click');
+        expect(wrapper.find('[data-testid="add-staff-group-open"]').exists()).toBe(true);
+    });
 });
