@@ -3,7 +3,7 @@ title: Run this week's roll call
 summary: Create the week's roll call, post it, record who signed, mark section practice, then close it for review.
 section: weekly-rollcall
 order: 1
-updated: 2026-11-12
+updated: 2026-11-13
 audience: leader
 page: /rollcall
 weekly: true
@@ -42,7 +42,7 @@ The sections below cover both. Where a step differs, it says which roll call it 
 On the new roll call, nothing else opens until the week's roll call is created.
 
 1. In step 1, **Create**, check the **Training date**. It comes from your section's practice slot. Change the day or time to move this week's practice only; the slot stays as it is for later weeks.
-2. Check the **Training topic**. It comes from your platoon's topic for the week. When your platoon enforces it, it shows **Set by** and the platoon, and you cannot change it. Otherwise you can change it for your section, or type your own when the platoon has set none.
+2. Check the training topic, the field below the date. It comes from your platoon's topic for the week. When your platoon enforces it, it shows **Set by** and the platoon, and you cannot change it. Otherwise you can change it for your section, or type your own when the platoon has set none.
 3. Choose **Create roll call**. If there is no practice this week, choose **Practice will not take place** instead: it cancels this week's practice and creates the roll call.
 
 > [!good-to-know] With no practice slot, the roll call is created without a date; choose **Set the practice slot** to add one. The training date and topic go into the forum post, and the topic is the same one the weekly report shows: change it in either place and both show the change.
