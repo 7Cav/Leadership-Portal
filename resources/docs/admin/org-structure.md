@@ -41,7 +41,7 @@ The holders move on the next roster sync.
 
 > [!good-to-know] One billet name has one unit placed by hand. If an Admin already placed that billet, or another of the same name, in another unit, the portal asks before moving it. Choose **Move it here** to move them all, or **Keep it there**.
 
-> [!good-to-know] A section billet belongs in a section. Its title names one, such as "Trooper 1/1/A/1-7" or "Section Leader 1/1/A/1-7". Placed in a company, a battalion, the regiment or a group, the portal asks first, such as "Section Leader 1/1/A/1-7 is a section billet. Place it in A/1-7, a company, anyway?" Choose **Place it anyway** or **Cancel**. A section or a platoon takes it without asking.
+> [!good-to-know] A billet whose title names a unit level belongs in a unit of that level: "Trooper 1/1/A/1-7" and "Section Leader 1/1/A/1-7" in a section, "Platoon Leader 1/A/1-7" in a platoon, "Commander A/1-7" or "First Sergeant A/1-7" in a company, "1-7 Commanding Officer" or "1-7 Sergeant Major" in a battalion. Placed in a unit of any other level, higher or lower, the regiment or a group included, the portal asks first, such as "Platoon Leader 1/A/1-7 is a platoon billet. Place it in A/1-7, a company, anyway?" Choose **Place it anyway** or **Cancel**. A section billet placed in a platoon is asked about too. A billet whose title names no level, such as a start-up or regimental staff billet, goes anywhere without asking.
 
 ### Billets that need an Admin
 

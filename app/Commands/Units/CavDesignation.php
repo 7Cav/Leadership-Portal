@@ -25,6 +25,12 @@ final readonly class CavDesignation
     /** A company group's title: one company letter over a battalion designation. */
     private const COMPANY_GROUP = '#^(?<company>[A-Z])/(?<battalion>[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*)$#';
 
+    /** A line billet's title: a role, then up to two numbers over a company designation (`Trooper 1/1/A/1-7`). */
+    private const LINE_TITLE = '#^\S.*\s(?:(?<first>[1-9]\d*)/)?(?:(?<second>[1-9]\d*)/)?[A-Z]/[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$#';
+
+    /** A numbered battalion's command billet, as {@see CommandBillet} lists them: `1-7 Commanding Officer`. */
+    private const BATTALION_COMMAND_TITLE = '#^[1-9]\d*-[1-9]\d* (?:Commanding Officer|Executive Officer|Sergeant Major)$#';
+
     private const NATO = [
         'A' => 'Alpha', 'B' => 'Bravo', 'C' => 'Charlie', 'D' => 'Delta', 'E' => 'Echo',
         'F' => 'Foxtrot', 'G' => 'Golf', 'H' => 'Hotel', 'I' => 'India', 'J' => 'Juliett',
@@ -111,18 +117,36 @@ final readonly class CavDesignation
     }
 
     /**
-     * The section a billet title names at its end, such as `1/1/A/1-7` for `Section Leader 1/1/A/1-7` or `Trooper
-     * 1/1/A/1-7`, read as {@see fromPositionTitle()} reads it (two numbers before a company designation), but without
-     * the company the title is listed in. Null when the title names no section: a company or platoon billet, a staff
-     * billet, or a start-up's `Section Leader Star Citizen Start-Up`, whose words alone do not make it a section billet.
+     * The unit level a billet title names, read the way {@see fromPositionTitle()} reads a line billet but without the
+     * company the title is listed in, or null when the title names no level:
+     *
+     *  - a section for a role and two numbers over a company at the end: `Trooper 1/1/A/1-7`, `Section Leader 2/1/A/1-7`;
+     *  - a platoon for one number over a company: `Platoon Leader 1/A/1-7`, `Platoon Sergeant 1/B/ACD`;
+     *  - a company for a role and a company alone: `Commander A/1-7`, `First Sergeant A/1-7`;
+     *  - a battalion for a numbered battalion's command role: `1-7 Commanding Officer`, `1-7 Executive Officer`, `2-7
+     *    Sergeant Major`. Only a numbered battalion counts, since `Regimental Executive Officer` has the same shape, and
+     *    ACD's `Auxiliary Commander` names no battalion at all.
+     *
+     * Null for a start-up's `Section Leader Star Citizen Start-Up` (its words alone do not make it a section billet), a
+     * regimental or staff billet, and a title the line shapes do not fit, such as `Trooper 1/1/1/A/1-7`.
      */
-    public static function sectionOfTitle(?string $title): ?string
+    public static function levelOfTitle(?string $title): ?UnitType
     {
-        if (preg_match('#\s(?<section>[1-9]\d*/[1-9]\d*/[A-Z]/[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*)$#', trim((string) $title), $m) !== 1) {
+        $title = trim((string) $title);
+
+        if (preg_match(self::BATTALION_COMMAND_TITLE, $title) === 1) {
+            return UnitType::Battalion;
+        }
+
+        if (preg_match(self::LINE_TITLE, $title, $m) !== 1) {
             return null;
         }
 
-        return $m['section'];
+        return match (true) {
+            ($m['first'] ?? '') === '' => UnitType::Company,
+            ($m['second'] ?? '') === '' => UnitType::Platoon,
+            default => UnitType::Section,
+        };
     }
 
     /** The highest numbered battalion, platoon or section offered when one is added by hand. */

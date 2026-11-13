@@ -24,10 +24,11 @@ use App\Support\Audit\AuditEnvelope;
  * different unit, the assignment is refused ({@see InvalidBilletChangeException::placedElsewhere()}) until the Admin
  * confirms the move, which then moves every one of them to the new unit.
  *
- * A section billet, one whose title names a section ({@see CavDesignation::sectionOfTitle()}, as `Trooper 1/1/A/1-7`),
- * placed in a company, battalion, the regiment or a group is refused the same way
- * ({@see InvalidBilletChangeException::sectionBilletAbove()}) until the Admin confirms it. A section or a platoon takes
- * it without asking.
+ * A billet whose title names a unit level ({@see CavDesignation::levelOfTitle()}: a section for `Trooper 1/1/A/1-7`, a
+ * platoon for `Platoon Leader 1/A/1-7`, a company for `Commander A/1-7`, a battalion for `1-7 Commanding Officer`)
+ * placed in a unit of another level, higher or lower, the regiment or a group included, is refused the same way
+ * ({@see InvalidBilletChangeException::otherLevel()}) until the Admin confirms it. A billet whose title names no level (a
+ * start-up's, a regimental staff billet) goes anywhere without asking.
  *
  * Admin-only, enforced by the controller (AD-6), as {@see CreateUnit}. It changes where troopers are placed, so it is
  * audited with a required reason (AD-16) as `billet.assigned`, one entry for the billet and any moved with it.
@@ -46,9 +47,9 @@ class AssignBillet
     /**
      * @throws InvalidBilletChangeException when the billet or unit is unknown, the billet is there already, or it (or one
      *                                      of its name) is placed elsewhere by an Admin and the move is not confirmed, or
-     *                                      it is a section billet placed above a platoon and that is not confirmed
+     *                                      its title names another unit level than the unit's and that is not confirmed
      */
-    public function handle(User $actor, int $positionId, int $unitId, string $reason, bool $confirmMove = false, bool $confirmSection = false): AuditedBatch
+    public function handle(User $actor, int $positionId, int $unitId, string $reason, bool $confirmMove = false, bool $confirmLevel = false): AuditedBatch
     {
         $unit = $this->units->find($unitId) ?? throw InvalidBilletChangeException::noSuchUnit();
 
@@ -57,7 +58,7 @@ class AssignBillet
             action: self::ACTION,
             reason: $reason,
             reasonRequired: true,
-            mutation: function () use ($positionId, $unit, $confirmMove, $confirmSection): AuditedBatch {
+            mutation: function () use ($positionId, $unit, $confirmMove, $confirmLevel): AuditedBatch {
                 // Read again under a lock: the import or a sync may have changed it since the page loaded.
                 $billet = $this->billets->lockForPosition($positionId) ?? throw InvalidBilletChangeException::unknown();
                 $placements = $this->mappings->lockAll();
@@ -67,8 +68,10 @@ class AssignBillet
                     throw InvalidBilletChangeException::alreadyThere($unit->callsign ?? $unit->name);
                 }
 
-                if (! $confirmSection && ($kind = $this->aboveSection($billet->title, $unit)) !== null) {
-                    throw InvalidBilletChangeException::sectionBilletAbove($billet->title, $unit->callsign ?? $unit->name, $kind);
+                $level = CavDesignation::levelOfTitle($billet->title);
+
+                if (! $confirmLevel && $level !== null && $level !== $unit->type) {
+                    throw InvalidBilletChangeException::otherLevel($billet->title, $level, $unit->callsign ?? $unit->name, $this->describe($unit));
                 }
 
                 // Every explicit placement of this name in another unit, this billet's own included.
@@ -100,18 +103,12 @@ class AssignBillet
         );
     }
 
-    /**
-     * What `$unit` is, such as `a company`, when `$title` names a section and the unit is a company or higher: a
-     * battalion, the regiment or a group. Null when nothing needs confirming.
-     */
-    private function aboveSection(string $title, Unit $unit): ?string
+    /** What `$unit` is, such as `a company`, for the confirm message. */
+    private function describe(Unit $unit): string
     {
-        if (CavDesignation::sectionOfTitle($title) === null) {
-            return null;
-        }
-
         return match ($unit->type) {
-            UnitType::Section, UnitType::Platoon => null,
+            UnitType::Section => 'a section',
+            UnitType::Platoon => 'a platoon',
             UnitType::Company => 'a company',
             UnitType::Battalion => 'a battalion',
             UnitType::Regiment => 'the regiment',

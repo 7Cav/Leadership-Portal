@@ -8,8 +8,9 @@ import { postBillet } from '@/lib/billets';
 
 // Place a billet in a unit: pick the unit for a fixed billet (`positionId`), or the billet for a fixed unit (`unitId`,
 // a unit's Add billet). A reason is required. When the server says the billet is placed in another unit by an Admin,
-// the form asks before sending it again as a move; when it says a section billet is going to a company or higher, the
-// form asks before placing it there anyway. Each step confirmed is sent again with the next try, so both can be asked.
+// the form asks before sending it again as a move; when it says the unit is of another level than the billet's title
+// names (a section billet in a company, a company billet in a platoon), the form asks before placing it there anyway.
+// Each step confirmed is sent again with the next try, so both can be asked.
 const props = defineProps({
     positionId: { type: Number, default: null },
     unitId: { type: Number, default: null },
@@ -25,9 +26,9 @@ const emit = defineEmits(['done', 'cancel']);
 const picked = ref(null);
 const reason = ref('');
 const error = ref(null);
-// The step the server asks to confirm, `{ kind: 'move' | 'section', message }`, and the steps already confirmed.
+// The step the server asks to confirm, `{ kind: 'move' | 'level', message }`, and the steps already confirmed.
 const ask = ref(null);
-const confirmed = ref({ move: false, section: false });
+const confirmed = ref({ move: false, level: false });
 const sending = ref(false);
 
 const target = computed(() => (props.positionId === null ? { position: picked.value, unit: props.unitId } : { position: props.positionId, unit: picked.value }));
@@ -43,7 +44,7 @@ function send() {
             unit_id: target.value.unit,
             reason: reason.value.trim(),
             ...(confirmed.value.move ? { confirm_move: true } : {}),
-            ...(confirmed.value.section ? { confirm_section: true } : {}),
+            ...(confirmed.value.level ? { confirm_level: true } : {}),
         },
         {
             failed: 'The billet was not placed',
@@ -71,7 +72,7 @@ function confirm() {
 function pick(value) {
     picked.value = value;
     ask.value = null;
-    confirmed.value = { move: false, section: false };
+    confirmed.value = { move: false, level: false };
 }
 </script>
 

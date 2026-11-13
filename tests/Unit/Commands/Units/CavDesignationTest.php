@@ -86,16 +86,27 @@ it('only resolves titles against a company', function () {
     CavDesignation::fromPositionTitle('Trooper 1/1/A/1-7', CavDesignation::regiment());
 })->throws(InvalidArgumentException::class);
 
-it('reads the section a billet title names, without the company it is listed in', function (string $title, ?string $section) {
-    expect(CavDesignation::sectionOfTitle($title))->toBe($section);
+it('reads the unit level a billet title names, without the company it is listed in', function (string $title, ?UnitType $level) {
+    expect(CavDesignation::levelOfTitle($title))->toBe($level);
 })->with([
-    'trooper' => ['Trooper 1/1/A/1-7', '1/1/A/1-7'],
-    'section leader' => ['Section Leader 2/1/A/1-7', '2/1/A/1-7'],
-    'assistant section leader' => ['Assistant Section Leader 3/2/C/1-7', '3/2/C/1-7'],
-    'a named battalion' => ['Trooper 1/2/B/ACD', '1/2/B/ACD'],
-    'platoon billet' => ['Platoon Leader 1/A/1-7', null],
-    'company billet' => ['Commander A/1-7', null],
+    'trooper' => ['Trooper 1/1/A/1-7', UnitType::Section],
+    'section leader' => ['Section Leader 2/1/A/1-7', UnitType::Section],
+    'assistant section leader' => ['Assistant Section Leader 3/2/C/1-7', UnitType::Section],
+    'a section of a named battalion' => ['Trooper 1/2/B/ACD', UnitType::Section],
+    'platoon leader' => ['Platoon Leader 1/A/1-7', UnitType::Platoon],
+    'platoon sergeant of a named battalion' => ['Platoon Sergeant 1/B/ACD', UnitType::Platoon],
+    'commander' => ['Commander A/1-7', UnitType::Company],
+    'executive officer' => ['Executive Officer A/1-7', UnitType::Company],
+    'first sergeant' => ['First Sergeant A/1-7', UnitType::Company],
+    'battalion commanding officer' => ['1-7 Commanding Officer', UnitType::Battalion],
+    'battalion executive officer' => ['1-7 Executive Officer', UnitType::Battalion],
+    'battalion sergeant major' => ['2-7 Sergeant Major', UnitType::Battalion],
+    'regimental, the same shape as a battalion billet' => ['Regimental Executive Officer', null],
+    'ACD names no battalion' => ['Auxiliary Commander', null],
     'start-up section leader' => ['Section Leader Star Citizen Start-Up', null],
+    'staff billet' => ['S1 1IC', null],
+    'designation only, no role' => ['A/1-7', null],
     'three levels below company' => ['Trooper 1/1/1/A/1-7', null],
     'glued to the role' => ['Trooper1/1/A/1-7', null],
+    'zero is not an ordinal' => ['Trooper 0/1/A/1-7', null],
 ]);

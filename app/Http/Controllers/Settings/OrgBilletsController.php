@@ -45,7 +45,9 @@ class OrgBilletsController extends Controller
             'reason' => ['required', 'string', 'max:500'],
             // Set once the Admin confirmed moving a billet an Admin placed in another unit.
             'confirm_move' => ['sometimes', 'boolean'],
-            // Set once the Admin confirmed placing a section billet in a company or higher.
+            // Set once the Admin confirmed placing a billet in a unit of another level than its title names.
+            // `confirm_section` is the older name, still accepted.
+            'confirm_level' => ['sometimes', 'boolean'],
             'confirm_section' => ['sometimes', 'boolean'],
         ], self::MESSAGES);
 
@@ -55,7 +57,7 @@ class OrgBilletsController extends Controller
             (int) $data['unit_id'],
             $data['reason'],
             (bool) ($data['confirm_move'] ?? false),
-            (bool) ($data['confirm_section'] ?? false),
+            (bool) ($data['confirm_level'] ?? $data['confirm_section'] ?? false),
         ));
     }
 
@@ -128,8 +130,8 @@ class OrgBilletsController extends Controller
         try {
             $write();
         } catch (InvalidBilletChangeException $e) {
-            // A step the Admin may confirm (a move, a section billet above a platoon) comes back under its own key,
-            // `billet_move` or `billet_section`, so the page can ask before sending it again.
+            // A step the Admin may confirm (a move, a billet in a unit of another level) comes back under its own key,
+            // `billet_move` or `billet_level`, so the page can ask before sending it again.
             throw ValidationException::withMessages([$e->confirmation !== null ? "billet_{$e->confirmation}" : 'billet' => $e->getMessage()]);
         }
 

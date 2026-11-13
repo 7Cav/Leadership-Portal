@@ -23,15 +23,15 @@ export function conflictUnitLabel(at) {
 }
 
 // POST a billet write. `onDone` runs on success; `onError(message, confirm)` gets the server's refusal, with `confirm`
-// naming what the Admin may confirm to go ahead: 'move' for a billet placed elsewhere, 'section' for a section billet
-// placed in a company or higher. Null for any other refusal.
+// naming what the Admin may confirm to go ahead: 'move' for a billet placed elsewhere, 'level' for a billet placed in a
+// unit of another level than its title names. Null for any other refusal.
 export function postBillet(path, data, { failed, onDone, onError, onFinish }) {
     router.post(path, data, {
         preserveScroll: true,
         onSuccess: () => onDone?.(),
         onError: (errors) => {
             if (errors.billet_move) onError?.(errors.billet_move, 'move');
-            else if (errors.billet_section) onError?.(errors.billet_section, 'section');
+            else if (errors.billet_level) onError?.(errors.billet_level, 'level');
             else onError?.(errors.billet ?? errors.unit_id ?? errors.reason ?? Object.values(errors)[0] ?? `${failed}. Try again.`, null);
         },
         onHttpException: onHttpException(failed, (message) => onError?.(message, null)),
