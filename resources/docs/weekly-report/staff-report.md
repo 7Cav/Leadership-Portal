@@ -3,7 +3,7 @@ title: Send your staff report
 summary: Platoon, company and battalion HQ staff report their accountability and presence each week.
 section: weekly-report
 order: 4
-updated: 2026-11-12
+updated: 2026-11-13
 audience: everyone
 page: /staff-report/{trooper}/{week}
 weekly: true
@@ -24,7 +24,7 @@ minutes: 2
 
 1. Choose **Staff report** in the sidebar, or **Open staff report** on Home. It always opens the running Cav week.
 2. You can send it before the week ends. It is due when the unit reports are: Saturday 2359Z, the end of the Saturday after the Cav week.
-3. If you have not sent last week's report, the page says so, for example "The report for 31OCT26 to 06NOV26 is not sent.", with a link to open that week. You can still send it there, even past its deadline. There is no warning for a week your LOA covered.
+3. If you have not sent last week's report, the page says so in red, for example "The report for 31OCT26 to 06NOV26 is not sent.", with a link to open that week. You can still send it there, even past its deadline. There is no warning for a week your LOA covered.
 
 ## Answer and pick the practices
 
@@ -34,11 +34,13 @@ The form asks one question at a time. The numbered steps at the top show where y
 2. For Yes, pick what it was: **Section practice** or **FTX** on a platoon or company HQ; **Section practice**, **Operation**, **Class** or **Other official event** on a battalion HQ.
 3. For a section practice, pick each one you attended. Only sections in your own platoon or company (for battalion HQ staff, the battalion) that play its game are listed, in order of battle under a heading for each platoon. When the list spans many platoons, only your own starts open; click a platoon's heading to open it. **Find a section** narrows the list and opens every platoon.
    What the form offers follows what counts for your HQ's accountability, set per unit. See [Set what counts for accountability](/docs/your-troopers/accountability-options).
-   Only a practice that was held can be ticked. One that has not happened yet, or was not held, is greyed out; point at it to see why. It can be ticked once its leader marks it held or confirms it. A section with no practice time set has no practice to pick. The portal refuses a report that claims a practice that was not held.
+   Each section says where its practice stands next to its name: **Held**, **Not marked yet**, **Marked not held** or **Hasn't happened yet**. A practice can be ticked once its time has passed, whether or not the section has marked it held. Until then it is greyed out. A section with no practice time set has no practice to pick until its leader confirms one was held. The portal refuses a report that claims a practice that hasn't happened yet.
 4. For an FTX, an operation, a class or an event, give its name and its date, a day in that Cav week. An FTX may also list the sections that took part.
 5. Answer the presence question: **Public server hour**, **Office hour** or **I did not**. Every report needs an answer. For an office hour, give its date, a day in that Cav week, and a short note of what it was, up to 200 characters.
-6. Practices already entered for you this week are picked, with who entered them, and the form opens on them. Take off one you did not attend: sending takes it off. One on a practice that was not held has to come off before you can send.
+6. Practices already entered for you this week are picked, with who entered them, and the form opens on them. Take off one you did not attend: sending takes it off. One on a practice that hasn't happened yet has to come off before you can send.
 7. The last step is **Notes**: write anything command should know about your week, and add **Other events attended** if you like. Both are optional.
+
+> [!good-to-know] If the section marks a practice you claimed as not held, now or later, your report shows **Conflicting information**, for example "Brandt.L reports attending 1/1/A/1-7's practice, but the section marked it as not held." Your report and whether it met the rule stay as you sent them. Your chain of command sees it too.
 
 > [!good-to-know] **Seen on the game server** means a capture saw you on the server that Cav week. It is never ticked for you, because the capture reads the whole week, not one practice.
 

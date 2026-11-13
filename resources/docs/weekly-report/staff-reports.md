@@ -3,7 +3,7 @@ title: Read your staff's reports
 summary: See which platoon, company and battalion HQ staff under you sent their staff report and attended a section practice.
 section: weekly-report
 order: 5
-updated: 2026-11-12
+updated: 2026-11-13
 audience: everyone
 page: /staff-reports
 weekly: true
@@ -34,6 +34,8 @@ minutes: 2
 5. Choose anywhere on a line to open their full staff report. With the keyboard, Tab to the name and press Enter.
 
 > [!good-to-know] A warning icon beside an answer means the game server's practice capture disagrees with it: a practice they reported was captured and did not see them, or a captured practice they did not report saw them. Point at the icon to read which. A practice with no capture never shows one, nor does an FTX, an operation, a class or an event, which the game server does not capture. A public server hour that the public servers do not back up shows its own warning. Staff never see it on their own report.
+
+> [!good-to-know] **Conflicting information** on a line means the report claims a section practice that the section marked as not held. Point at it to read which. It does not change what they reported or **1 SP met**.
 
 > [!good-to-know] A red **Self-report conflicts with CRCON data** badge (the capture system of that game) was set when the report was sent: a practice they picked was captured and none of the picked captures saw them. It never changes afterwards. **No CRCON data** means nothing they picked was captured, so there was nothing to compare.
 

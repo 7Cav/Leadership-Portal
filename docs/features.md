@@ -668,7 +668,7 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
 - Where: "Staff report" in the sidebar for platoon, company and battalion HQ staff opens
   `/staff-report/<trooper>/<week>` for the running week, always; the arrows move between weeks. While the week before
   is still owed (they filed one for it, it is not sent, and their LOA did not cover it) their own page says "The
-  report for <week> is not sent." with "Open <week>", the notice the unit report page shows. Home's reminder still
+  report for <week> is not sent." in red with "Open <week>", the notice the unit report page shows. Home's reminder still
   opens the week that ended while its report is due.
 - Filling it in: the week, its dates and the deadline sit at the top. The form asks one question at a time, with a
   row of numbered steps above it and Back and Next below; a step opens once every step before it is answered. First
@@ -679,11 +679,15 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
   callsign) under a platoon heading, with a search. When the list spans more than four platoons, every
   platoon but the staff member's own starts collapsed and opens on a click; a search opens them all. Only sections that play the HQ's game are offered (the unit's game, inherited down the tree): an HLL
   HQ sees HLL sections. A section, or an HQ, with no game on its chain is never left out for it. An SP needs one or
-  more sections, each a practice that was held that week (confirmed held, or over with a leader's mark, as the roster
-  reads it). A practice still to come, over and not marked held, confirmed not held or cancelled, or a section with
-  no practice time, is greyed out and cannot be ticked, with a tooltip saying why; one ticked already (an entry) can
-  be unticked, and holds the send back until it is. The send refuses such a pick by name (`not_held`); an FTX's
-  sections are not checked. Reports sent before the rule are not rewritten. An FTX, an operation, a class or an event needs its name (up to 120 characters) and its date, a day
+  more sections, each a practice whose time has passed that week (its hour is over), marked held or not. Each section
+  shows its state next to its name: "Held", "Not marked yet", "Marked not held" or "Hasn't happened yet". A practice
+  still to come is greyed out and cannot be ticked, as is a cancelled week, or a section with no practice time unless
+  its practice is confirmed held; one ticked already (an entry) can be unticked, and holds the send back until it is.
+  The send refuses such a pick by name (`not_over`); an FTX's sections are not checked. Reports sent before the rule
+  are not rewritten. A sent SP report that claims a practice the section confirmed as not held (or cancelled), before
+  or after the send, shows "Conflicting information" with a line per section ("<name> reports attending <section>'s
+  practice, but the section marked it as not held."), on the report page and on its overview row. It only flags the
+  report: what it met stands as sent. An FTX, an operation, a class or an event needs its name (up to 120 characters) and its date, a day
   in that Cav week; an FTX's sections are optional, the others take none. Then the presence question, for every level:
   "Public server hour", "Office hour" or "I did not", required on every send and edit. An office hour needs its date, a day in that Cav week, and a short note
   (up to 200 characters), and is never checked. No to accountability goes straight to presence. The last step is "Notes": free-text notes (up to 1000 characters) and other
