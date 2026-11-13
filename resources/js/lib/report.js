@@ -1,5 +1,5 @@
 import { forumDate, weekPhrase, zuluTime } from '@/lib/forumDate';
-import { owesMakeup, practiceOf, signatureOf } from '@/lib/rollcall';
+import { isLocked, owesMakeup, practiceOf, signatureOf } from '@/lib/rollcall';
 
 // Presentation rules for the weekly report screen (Stories 5.3–5.5, mockups/v2/report-p3.html).
 // The numbers themselves come from the server (KpiService, AD-21); this file only formats them,
@@ -86,7 +86,10 @@ export function baselineText(baseline) {
     return 'First report: no earlier sent report to compare with.';
 }
 
-const isLoa = (t) => t.onLoa || t.status === 'loa';
+// On leave for the week by the one LOA rule (`LoaCoverage`): the KPI reading's `onLoa`, the covering leave (`loa`), or an
+// older stored LOA mark. Such a week reads LOA on both halves whatever was signed or captured, as the roll call shows it.
+export const onLeave = (t) => Boolean(t.onLoa) || isLocked(t);
+const isLoa = onLeave;
 
 // The week's roll call as RC counts it: signed means signed, of those due. Troopers on leave and those excused (by a
 // leader or automatically in a first week, 2026-10-30) have nothing to sign, so they are left out of both numbers and
@@ -286,7 +289,7 @@ export function highlights({ kpis, delta, troopers, reasons, reasonLabels, child
     rows.filter((t) => t.atRisk).forEach((t) =>
         list.push({ id: `risk-${t.id}`, icon: 'warning', tone: 'bad', text: `${t.name} has missed ${t.missed} practices in 30 days and is at-risk. ${reasonText(t.id)}` }),
     );
-    rows.filter((t) => t.status === 'missed' && !t.atRisk).forEach((t) =>
+    rows.filter((t) => t.status === 'missed' && !t.atRisk && !isLoa(t)).forEach((t) =>
         list.push({ id: `miss-${t.id}`, icon: 'miss', tone: 'bad', text: `${t.name} missed practice with no makeup. ${reasonText(t.id)}` }),
     );
 

@@ -97,6 +97,25 @@ describe('Reports/Show', () => {
         expect(wrapper.find('[data-testid="send-bar"]').exists()).toBe(true);
     });
 
+    it('reads a trooper whose leave covers the week as LOA in both columns, whatever was signed or captured', () => {
+        const wrapper = mountShow({
+            kpis: { ...KPIS, onLoa: 1 },
+            troopers: [
+                { id: 1, name: 'SGT Vasquez.R', rollcall: 'will_attend', status: 'present', source: 'auto', atRisk: false, missed: 0, onLoa: false },
+                { id: 3, name: 'PFC Mock.T', rollcall: 'will_attend', status: null, source: 'auto', atRisk: false, missed: 0, onLoa: true, loa: { state: 'covered' } },
+            ],
+        });
+        const [, mock] = wrapper.get('[data-testid="trooper-table"]').findAll('tbody tr');
+        const cells = mock.findAll('td').map((cell) => cell.text());
+
+        expect(cells).toEqual(['PFC Mock.T', 'LOA', 'LOA', '']);
+        expect(wrapper.get('[data-testid="trooper-table"]').text()).toContain('Marked from game server capture');
+        // Not marked for practice, but on leave: no "not marked" highlight, and the roll call line names them apart.
+        const highlights = wrapper.text();
+        expect(highlights).not.toContain('not marked for this week');
+        expect(highlights).toContain('Roll call signed by 1 of 1, 1 on LOA');
+    });
+
     it("names the leave source and last sync under a live draft's KPIs, and nothing when the server sends none (4.3, AD-20)", () => {
         expect(mountShow().get('[data-testid="loa-sync"]').text()).toBe('Leave from Forum thread, synced 08OCT26 09\u200A14Z');
 

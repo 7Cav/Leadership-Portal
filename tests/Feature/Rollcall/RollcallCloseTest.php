@@ -124,3 +124,20 @@ it('tells the summary who is on leave that week, so it names them apart rather t
             ->where('rollcall.troopers.0.loa.state', 'covered')
             ->where('rollcall.troopers.0.excused', null));
 });
+
+it("gives the draft's trooper rows the leave that covers the week, as the roll call reads it, so the table reads LOA", function () {
+    Loa::factory()->create(['trooper_id' => $this->trooper->id, 'starts_at' => '2026-10-05', 'ends_at' => '2026-10-19']);
+
+    $this->actingAs($this->leader)->get("/reports/{$this->section->id}/{$this->week}")
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('troopers.0.onLoa', true)
+            ->where('troopers.0.loa.state', 'covered')
+            ->where('troopers.0.loa.endsAt', fn ($end) => str_starts_with((string) $end, '2026-10-19')));
+});
+
+it('leaves loa null on a trooper row with no leave that week', function () {
+    $this->actingAs($this->leader)->get("/reports/{$this->section->id}/{$this->week}")
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('troopers.0.onLoa', false)
+            ->where('troopers.0.loa', null));
+});

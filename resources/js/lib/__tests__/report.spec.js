@@ -6,6 +6,7 @@ import {
     formatKpi,
     highlights,
     kpiChange,
+    onLeave,
     percent,
     readinessChecks,
     sentenceDiff,
@@ -165,6 +166,19 @@ describe('highlights', () => {
         expect(rc(troopers)).toMatchObject({ tone: 'neutral', text: 'Roll call signed by 0 of 3, 2 on LOA.' });
         expect(rc([...troopers.slice(3), trooper(6, { rollcall: 'excused' }), trooper(7)])).toMatchObject({ tone: 'good', text: 'Roll call signed by 1 of 1, 2 on LOA, 1 excused.' });
         expect(rc(troopers.slice(3)).text).toBe('Nobody due to sign the roll call, 2 on LOA.');
+    });
+
+    it('reads leave by the covering LOA too, so a signed or captured week on leave raises no miss or not marked line', () => {
+        const kpis = { strength: 2, rc: { numerator: 1, denominator: 1 }, sp: { numerator: 1, denominator: 1 }, atRisk: 0, onLoa: 1, makeups: 0 };
+        const covered = trooper(2, { rollcall: 'will_attend', status: 'missed', source: 'auto', loa: { state: 'covered' } });
+        const text = highlights({ kpis, delta: null, troopers: [trooper(1), covered], reasons: new Map(), reasonLabels: {}, isLeaf: true })
+            .map((h) => h.text)
+            .join(' | ');
+
+        expect(onLeave(covered)).toBe(true);
+        expect(onLeave(trooper(3, { loa: { state: 'needs_review' } }))).toBe(false);
+        expect(text).not.toContain('PFC T2 missed practice');
+        expect(text).toContain('Roll call signed by 1 of 1, 1 on LOA, RC 100% over 30 days.');
     });
 
     it('reads the readiness roll call check over those due as well', () => {

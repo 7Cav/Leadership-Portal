@@ -9,7 +9,7 @@ import { copyText } from '@/lib/clipboard';
 import LoaSyncNote from '@/components/LoaSyncNote.vue';
 import TimeAgo from '@/components/TimeAgo.vue';
 import { weekPhrase } from '@/lib/forumDate';
-import { baselineText, formatKpi, KPIS, stamp, timeOf, unitLabel } from '@/lib/report';
+import { baselineText, formatKpi, KPIS, onLeave, stamp, timeOf, unitLabel } from '@/lib/report';
 import { excusedReason, practiceOf, signatureOf } from '@/lib/rollcall';
 import { reportSummary } from '@/lib/reportSummary';
 import HighlightList from './HighlightList.vue';
@@ -61,7 +61,7 @@ const hints = computed(() => {
         rc: 'Signed, last 30 days',
         sp: 'Credited, last 30 days',
         atRisk: names((t) => t.atRisk) || '',
-        onLoa: names((t) => t.onLoa) || '',
+        onLoa: names(onLeave) || '',
         makeups: names((t) => t.status === 'makeup') || '',
     };
 });
@@ -87,6 +87,8 @@ function noteFor(trooper) {
     const reason = reasonFor.value.get(trooper.id);
     if (reason) parts.push(props.reasonLabels[reason]);
     if (trooper.atRisk) parts.push(`At-risk, ${trooper.missed} misses in 30 days`);
+    // A leave week reads LOA whatever was captured, so where a mark came from says nothing there.
+    if (onLeave(trooper)) return parts.join('. ');
     if (trooper.source === 'auto') parts.push('Marked from game server capture');
     // An automatic Excused shows on a half nobody recorded; say why once.
     if (trooper.excused && (signatureOf(trooper) === 'excused' || practiceOf(trooper) === 'excused')) parts.push(excusedReason(trooper.excused));
@@ -179,11 +181,12 @@ const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id ===
                             <TableRow v-for="t in troopers" :key="t.id">
                                 <TableCell class="font-medium">{{ t.name }}</TableCell>
                                 <TableCell>
-                                    <Badge v-if="t.onLoa && t.rollcall === 'unsigned'" variant="warning">LOA</Badge>
+                                    <Badge v-if="onLeave(t)" variant="warning">LOA</Badge>
                                     <Badge v-else :variant="RC[signatureOf(t)][1]">{{ RC[signatureOf(t)][0] }}</Badge>
                                 </TableCell>
                                 <TableCell>
-                                    <Badge v-if="practiceOf(t)" :variant="SP[practiceOf(t)][1]">{{ SP[practiceOf(t)][0] }}</Badge>
+                                    <Badge v-if="onLeave(t)" variant="warning">LOA</Badge>
+                                    <Badge v-else-if="practiceOf(t)" :variant="SP[practiceOf(t)][1]">{{ SP[practiceOf(t)][0] }}</Badge>
                                     <Badge v-else variant="warning">Not marked</Badge>
                                 </TableCell>
                                 <TableCell class="min-w-[12rem] text-xs whitespace-normal text-muted-foreground">{{ noteFor(t) }}</TableCell>

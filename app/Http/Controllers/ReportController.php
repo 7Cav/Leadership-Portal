@@ -745,10 +745,12 @@ class ReportController extends Controller
         $kpis = $this->kpis->trooperAttendance($section, $weekStart);
         // A first week after a transfer or joining is excused automatically (2026-10-30): accounted, like leave.
         $excused = $this->autoExcused->forTroopers($roster->pluck('id')->all(), $weekStart);
+        // The one LOA rule (AD-21), as the roll call and the roster read it: a covered week reads LOA on both halves.
+        $covers = $this->loaCoverage->forTroopers($roster->pluck('id')->all(), $weekStart);
 
         $week = $weekStart->toDateString();
 
-        return $roster->map(function (Trooper $trooper) use ($marks, $kpis, $excused, $week) {
+        return $roster->map(function (Trooper $trooper) use ($marks, $kpis, $excused, $covers, $week) {
             /** @var CountingMark|null $mark */
             $mark = $marks->get($trooper->id);
             /** @var TrooperAttendance|null $reading */
@@ -766,6 +768,8 @@ class ReportController extends Controller
                 'atRisk' => $reading?->atRisk() ?? false,
                 'missed' => $reading->missed ?? 0,
                 'onLoa' => $reading->onLoa ?? false,
+                // The leave that covers the week (the roll call screen's shape), null with none.
+                'loa' => isset($covers[$trooper->id]) && $covers[$trooper->id]->isCovered() ? $covers[$trooper->id]->toArray() : null,
                 // `recruit` or `transfer` when the week is excused automatically, else null.
                 'excused' => $excused[$trooper->id] ?? null,
                 // Asked for a make-up on this week's roll call and none recorded: the send asks whether they made it up.
