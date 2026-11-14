@@ -72,9 +72,9 @@ it('runs every tutorial write on the practice copy, leaving the real audit log o
 
     $this->actingAs($leader)->post('/tutorial')->assertRedirect();
     $section = practiceSectionId($leader->id);
-    $week = WeekOf::start(CarbonImmutable::now())->toDateString();
+    $week = WeekOf::reporting(CarbonImmutable::now())->toDateString();
 
-    $this->get("/rollcall/{$section}")->assertOk()->assertInertia(fn ($page) => $page->where('tutorialMode.steps.0.id', 'rollcall'));
+    $this->get("/rollcall/{$section}?week={$week}")->assertOk()->assertInertia(fn ($page) => $page->where('tutorialMode.steps.0.id', 'rollcall'));
     $this->postJson("/rollcall/{$section}/create", ['week' => $week])->assertOk();
     $this->postJson("/rollcall/{$section}/posted", ['week' => $week])->assertOk();
     markDemo($this, $leader->id, $section, $week);
@@ -97,15 +97,15 @@ it('ticks the coach card from what was done in the practice copy', function () {
     $leader = User::factory()->commanding($this->section)->create();
     $this->actingAs($leader)->post('/tutorial');
     $section = practiceSectionId($leader->id);
-    $week = WeekOf::start(CarbonImmutable::now())->toDateString();
+    $week = WeekOf::reporting(CarbonImmutable::now())->toDateString();
 
     // The tutorial's week is on the new roll call (#703): Create roll call first, or the Create step while another is open.
-    $this->get("/rollcall/{$section}")->assertInertia(fn ($page) => $page
+    $this->get("/rollcall/{$section}?week={$week}")->assertInertia(fn ($page) => $page
         ->where('flow.version', 2)
         ->where('tutorialMode.steps.0.highlight', '[data-step="1"]:not([aria-current="step"]), section[aria-labelledby="step-1-title"] [data-testid="create-rollcall"]'));
     markDemo($this, $leader->id, $section, $week);
     $this->postJson("/rollcall/{$section}/confirm", ['week' => $week])->assertOk();
-    $this->get("/rollcall/{$section}")->assertInertia(fn ($page) => $page
+    $this->get("/rollcall/{$section}?week={$week}")->assertInertia(fn ($page) => $page
         ->where('tutorialMode.steps.0.checklist.0.done', true)
         ->where('tutorialMode.steps.0.checklist.1.done', false)
         ->where('tutorialMode.steps.0.checklist.4.done', true)
@@ -118,11 +118,11 @@ it('asks for an answer for Demo.K, and ticks it only once that answer is not Uns
     $leader = User::factory()->commanding($this->section)->create();
     $this->actingAs($leader)->post('/tutorial');
     $section = practiceSectionId($leader->id);
-    $week = WeekOf::start(CarbonImmutable::now())->toDateString();
+    $week = WeekOf::reporting(CarbonImmutable::now())->toDateString();
     $demo = inTutorial($leader->id, fn () => app(TutorialPracticeRepository::class)->trooperByUsername(PracticeWorld::DEMO)->id);
-    $step = function () use ($section) {
+    $step = function () use ($section, $week) {
         $step = null;
-        $this->get("/rollcall/{$section}")->assertInertia(function ($page) use (&$step) {
+        $this->get("/rollcall/{$section}?week={$week}")->assertInertia(function ($page) use (&$step) {
             $step = $page->toArray()['props']['tutorialMode']['steps'][0];
         });
 
@@ -152,11 +152,11 @@ it('points at each roll call step in turn: its tab while another step is open, t
     $leader = User::factory()->commanding($this->section)->create();
     $this->actingAs($leader)->post('/tutorial');
     $section = practiceSectionId($leader->id);
-    $week = WeekOf::start(CarbonImmutable::now())->toDateString();
+    $week = WeekOf::reporting(CarbonImmutable::now())->toDateString();
     $demo = inTutorial($leader->id, fn () => app(TutorialPracticeRepository::class)->trooperByUsername(PracticeWorld::DEMO)->id);
-    $highlight = function () use ($section) {
+    $highlight = function () use ($section, $week) {
         $selector = null;
-        $this->get("/rollcall/{$section}")->assertInertia(function ($page) use (&$selector) {
+        $this->get("/rollcall/{$section}?week={$week}")->assertInertia(function ($page) use (&$selector) {
             $selector = $page->toArray()['props']['tutorialMode']['steps'][0]['highlight'];
         });
 
@@ -352,7 +352,7 @@ it('keeps each person in their own practice copy', function () {
 
     $this->actingAs($first)->post('/tutorial');
     $section = practiceSectionId($first->id);
-    $week = WeekOf::start(CarbonImmutable::now())->toDateString();
+    $week = WeekOf::reporting(CarbonImmutable::now())->toDateString();
     markDemo($this, $first->id, $section, $week);
     $this->postJson("/rollcall/{$section}/confirm", ['week' => $week])->assertOk();
 
@@ -380,13 +380,25 @@ it('starts over from fresh practice data', function () {
     $leader = User::factory()->commanding($this->section)->create();
     $this->actingAs($leader)->post('/tutorial');
     $section = practiceSectionId($leader->id);
-    $week = WeekOf::start(CarbonImmutable::now())->toDateString();
+    $week = WeekOf::reporting(CarbonImmutable::now())->toDateString();
     markDemo($this, $leader->id, $section, $week);
     $this->postJson("/rollcall/{$section}/confirm", ['week' => $week])->assertOk();
 
     $this->post('/tutorial/restart');
 
     expect(inTutorial($leader->id, fn () => AuditLogEntry::query()->where('action', 'practice.confirmed')->count()))->toBe(0);
+});
+
+it('confirms the week the tutorial is built on, which on a Saturday is the closing week until its report is due', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-11-14 12:00:00', 'UTC'));
+    $leader = User::factory()->commanding($this->section)->create();
+    $this->actingAs($leader)->post('/tutorial');
+    $section = practiceSectionId($leader->id);
+    $week = WeekOf::reporting(CarbonImmutable::now())->toDateString();
+    expect($week)->toBe('2026-11-07');
+    markDemo($this, $leader->id, $section, $week);
+
+    $this->postJson("/rollcall/{$section}/confirm", ['week' => $week])->assertOk();
 });
 
 it('returns to the guides home and the real portal on exit', function () {
