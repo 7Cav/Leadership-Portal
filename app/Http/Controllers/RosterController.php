@@ -188,7 +188,7 @@ class RosterController extends Controller
                 'admin' => $editsAccountability || $editsGuidon,
             ],
             'links' => [
-                'milpac' => Trooper::MILPAC_PROFILE_URL,
+                // The link out to 7cav.us is not here: each trooper the Sheet loads carries its own `milpacUrl`.
                 // The in-app milpac page (Story 6.3); the Sheet appends the trooper's id.
                 'trooper' => '/troopers/',
                 // The rollcall screen (3.7); the Sheet appends the trooper's section id.
