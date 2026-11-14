@@ -31,9 +31,9 @@ const ENRICHED = {
     fetched_at: '2026-08-03T09:14:00+00:00',
 };
 
-function mountLayout({ url = '/home', user = { id: 1, username: 'Hale.S', is_admin: false }, profile = null, viewAs = null, crumb = undefined, canActAs = false, features = {}, adminBilletsPending = 0, flash = { notice: null }, changelogUnseen = false, changelogOutdated = false } = {}) {
+function mountLayout({ url = '/home', user = { id: 1, username: 'Hale.S', is_admin: false }, profile = null, viewAs = null, crumb = undefined, canActAs = false, features = {}, adminBilletsPending = 0, orgBilletsPending = 0, flash = { notice: null }, changelogUnseen = false, changelogOutdated = false } = {}) {
     mockPage.url = url;
-    mockPage.props = { auth: { user, profile }, viewAs, crumb, canActAs, features, adminBilletsPending, flash, changelogUnseen, changelogOutdated };
+    mockPage.props = { auth: { user, profile }, viewAs, crumb, canActAs, features, adminBilletsPending, orgBilletsPending, flash, changelogUnseen, changelogOutdated };
 
     return mount(AppLayout, {
         slots: { default: '<p data-testid="page-body">Page body</p>' },
@@ -117,6 +117,15 @@ describe('AppLayout', () => {
 
             wrapper = mountLayout({ user: { id: 1, username: 'Hale.S', is_admin: true }, adminBilletsPending: 0 });
             expect(wrapper.find('[data-testid="nav-count-Staff grants"]').exists()).toBe(false);
+        });
+
+        it('shows an Admin how many billets wait beside Org structure, and nothing when none do', () => {
+            wrapper = mountLayout({ user: { id: 1, username: 'Hale.S', is_admin: true }, orgBilletsPending: 3 });
+            expect(wrapper.find('[data-testid="nav-count-Org structure"]').text()).toBe('3 waiting for an Admin');
+            wrapper.unmount();
+
+            wrapper = mountLayout({ user: { id: 1, username: 'Hale.S', is_admin: true }, orgBilletsPending: 0 });
+            expect(wrapper.find('[data-testid="nav-count-Org structure"]').exists()).toBe(false);
         });
 
         // The full table of is_admin values lives in composables/__tests__/useIdentity.spec.js.

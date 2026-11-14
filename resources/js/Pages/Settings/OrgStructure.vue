@@ -32,6 +32,9 @@ import OrgTreeNode from './OrgTreeNode.vue';
 import { Checkbox } from '@/components/ui/checkbox';
 import AccountabilityPanel from '@/components/roster/AccountabilityPanel.vue';
 import AccountabilityUnderBattalion from '@/components/roster/AccountabilityUnderBattalion.vue';
+import AddStaffGroup from '@/components/org/AddStaffGroup.vue';
+import BilletNotices from '@/components/org/BilletNotices.vue';
+import UnitBillets from '@/components/org/UnitBillets.vue';
 
 // Flat units array with `path` (AD-18) — nested here for rendering; the server keeps the
 // authoritative shape flat so subtree scoping elsewhere never depends on this tree walk.
@@ -47,6 +50,9 @@ const props = defineProps({
     unplacedTroopers: { type: Array, default: null },
     // The true count of unplaced troopers; the list above is capped, so this can be larger.
     unplacedTotal: { type: Number, default: null },
+    // The billets (2026-11-13), for an Admin only: `{ byUnit, conflicts, conflictsByUnit, catalog, renamed, new }`;
+    // null for everyone else.
+    billets: { type: Object, default: null },
     // Who is in each group the viewer may see, by unit id: `{ id, displayName, billet, was }`. `was` is the line
     // unit an ELOA trooper left, or null.
     groupMembers: { type: Object, default: () => ({}) },
@@ -707,6 +713,8 @@ function sectionLabel(unit) {
 
     return above.length ? `${own} (${above.join(' / ')})` : own;
 }
+// Every unit as a `{ value, label }` option, for placing a billet.
+const unitOptions = computed(() => sections.value.map((section) => ({ value: section.id, label: section.label })));
 const assigningId = ref(null);
 const assignSection = ref(null);
 const assignReason = ref('');
@@ -982,6 +990,15 @@ function confirmDelete() {
             </p>
         </div>
 
+        <BilletNotices
+            v-if="billets"
+            :renamed="billets.renamed"
+            :conflicts="billets.conflicts"
+            :new-billets="billets.new"
+            :unit-options="unitOptions"
+            @select-unit="pickUnit"
+        />
+
         <div class="grid items-start gap-5 lg:grid-cols-[1.1fr_0.9fr]">
             <div class="min-w-0 space-y-5">
                 <Card class="min-w-0 gap-0 py-0" data-testid="line-card">
@@ -1161,6 +1178,15 @@ function confirmDelete() {
                             </li>
                         </ul>
                     </section>
+
+                    <UnitBillets
+                        v-if="billets"
+                        :unit-id="selectedUnit.id"
+                        :billets="billets.byUnit[selectedUnit.id] ?? []"
+                        :conflicts="billets.conflictsByUnit[selectedUnit.id] ?? []"
+                        :catalog="billets.catalog"
+                        :unit-options="unitOptions"
+                    />
 
                     <section
                         v-if="isAdmin && canTakeActingLead && (selectedUnit.acting_lead || selectedUnit.acting_lead_allowed)"
@@ -1465,6 +1491,13 @@ function confirmDelete() {
                         v-if="battalionAccountability[selectedUnit.id]?.units"
                         :units="battalionAccountability[selectedUnit.id].units"
                         :choices="battalionAccountability[selectedUnit.id].choices"
+                    />
+
+                    <!-- A staff group goes under the regiment or another staff group, never under a holding group, and never
+                         under an inactive unit, where it would vanish with it (the server refuses it too). -->
+                    <AddStaffGroup
+                        v-if="isAdmin && !selectedUnit.inactive && (selectedUnit.type === 'regiment' || (selectedUnit.type === 'group' && selectedUnit.kind === 'staff'))"
+                        :parent="selectedUnit"
                     />
 
                 </div>

@@ -60,7 +60,8 @@ export const NAV_GROUPS = [
         label: 'Settings',
         adminOnly: true,
         items: [
-            { label: 'Org structure', href: '/settings/org-structure', icon: PhTreeStructure, allow: 'canSetBattalionAccountability' },
+            // The count: billets the Cav renamed, and new billets nothing places, waiting for an Admin there.
+            { label: 'Org structure', href: '/settings/org-structure', icon: PhTreeStructure, allow: 'canSetBattalionAccountability', count: 'orgBilletsPending' },
             // `count` names a shared prop whose number the sidebar shows beside the item while it is above zero: here the
             // Regimental HQ billets waiting for an Admin to confirm them.
             { label: 'Staff grants', href: '/settings/staff-grants', icon: PhKey, count: 'adminBilletsPending' },

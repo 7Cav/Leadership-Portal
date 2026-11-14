@@ -11,6 +11,7 @@ use App\Models\SyncRun;
 use App\Models\TrooperStatus;
 use App\Models\UnitKind;
 use App\Repositories\AdminBilletRepository;
+use App\Repositories\CavBilletRepository;
 use App\Repositories\KeptGameIdentityRepository;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
@@ -78,6 +79,7 @@ class SyncRosterHandler
         private readonly AdminBilletRepository $adminBillets,
         private readonly KeptGameIdentityRepository $keptIdentities,
         private readonly ?EndDepartedOversight $departedOversight = null,
+        private readonly ?CavBilletRepository $cavBillets = null,
     ) {}
 
     /**
@@ -157,6 +159,14 @@ class SyncRosterHandler
 
             // Only billets that already have a row: the import creates them, as it is what sees the group.
             $this->adminBillets->observe($this->titlesByPosition($scope->filterEntries($result->troopers)), createMissing: false);
+
+            // The name each serving trooper's billet carries now: a placed billet the Cav renamed, and a billet seen for
+            // the first time that nothing places, wait for an Admin on Org structure. Placement does not change here.
+            ($this->cavBillets ?? app(CavBilletRepository::class))->observe(
+                $this->servingBilletNames($scope->filterEntries($result->troopers)),
+                $this->billetMappings->unitIdsByPositionId()->keys()->all(),
+                complete: false,
+            );
 
             // A unit run reports only its own troopers' bad rows: one elsewhere is not this unit's partial sync.
             $errors = $scope->filterErrors($result->errors);
@@ -292,6 +302,20 @@ class SyncRosterHandler
         }
 
         return $titles;
+    }
+
+    /**
+     * The billet each serving trooper holds, `position id => [title, null, null]` (no group, no rule), for
+     * {@see CavBilletRepository::observe()}. A trooper who no longer serves says nothing about which billets need a unit.
+     *
+     * @param  list<CavRosterEntry>  $entries
+     * @return array<int, array{0: string, 1: null, 2: null}>
+     */
+    private function servingBilletNames(array $entries): array
+    {
+        $serving = array_filter($entries, fn (CavRosterEntry $entry) => $this->statusFor($entry->status)->isServing());
+
+        return array_map(fn (array $names) => [$names[0], null, null], $this->titlesByPosition(array_values($serving)));
     }
 
     /**

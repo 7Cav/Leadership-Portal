@@ -28,6 +28,7 @@ use App\Http\Controllers\Settings\AuditLogController;
 use App\Http\Controllers\Settings\DemoDataController;
 use App\Http\Controllers\Settings\GamesController;
 use App\Http\Controllers\Settings\LoaSyncController;
+use App\Http\Controllers\Settings\OrgBilletsController;
 use App\Http\Controllers\Settings\OrgStructureController;
 use App\Http\Controllers\Settings\RosterSyncController;
 use App\Http\Controllers\Settings\ServersController;
@@ -68,7 +69,7 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
 // route taking one of these ids cannot forget the constraint (RouteIdConstraintTest walks the
 // routes and fails on an id-like parameter missing from this list). Don't add `whereNumber()` or
 // `where()` for these on a route: it replaces the global pattern rather than adding to it.
-foreach (['unit', 'grant', 'trooper', 'version', 'game', 'server', 'counseling', 'template', 'billet', 'entry', 'editRequest', 'bookmark'] as $id) {
+foreach (['unit', 'grant', 'trooper', 'version', 'game', 'server', 'counseling', 'template', 'billet', 'entry', 'editRequest', 'bookmark', 'position'] as $id) {
     Route::pattern($id, '[0-9]{1,18}');
 }
 
@@ -353,6 +354,16 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::post('/settings/org-structure/{unit}/oversight', [OrgStructureController::class, 'setOversight'])->middleware('throttle:audited-writes')->name('settings.org-structure.oversight.store');
     Route::delete('/settings/org-structure/{unit}/oversight', [OrgStructureController::class, 'clearOversight'])->middleware('throttle:audited-writes')->name('settings.org-structure.oversight.destroy');
     Route::delete('/settings/org-structure/{unit}', [OrgStructureController::class, 'destroy'])->middleware('throttle:audited-writes')->name('settings.org-structure.destroy');
+
+    // A billet by its Cav position id (2026-11-13): place a new one or move a placed one, confirm a placed billet's new
+    // Cav name, leave a new one unplaced, or acknowledge one in two units at once and undo that. Admin gate in the
+    // controller; audited by each Command.
+    Route::post('/settings/org-structure/billets/{position}/assign', [OrgBilletsController::class, 'assign'])->middleware('throttle:audited-writes')->name('settings.org-structure.billets.assign');
+    Route::post('/settings/org-structure/billets/{position}/unassign', [OrgBilletsController::class, 'unassign'])->middleware('throttle:audited-writes')->name('settings.org-structure.billets.unassign');
+    Route::post('/settings/org-structure/billets/{position}/confirm-name', [OrgBilletsController::class, 'confirmName'])->middleware('throttle:audited-writes')->name('settings.org-structure.billets.confirm-name');
+    Route::post('/settings/org-structure/billets/{position}/leave-unplaced', [OrgBilletsController::class, 'leaveUnplaced'])->middleware('throttle:audited-writes')->name('settings.org-structure.billets.leave-unplaced');
+    Route::post('/settings/org-structure/billets/{position}/acknowledge', [OrgBilletsController::class, 'acknowledge'])->middleware('throttle:audited-writes')->name('settings.org-structure.billets.acknowledge');
+    Route::post('/settings/org-structure/billets/{position}/unacknowledge', [OrgBilletsController::class, 'unacknowledge'])->middleware('throttle:audited-writes')->name('settings.org-structure.billets.unacknowledge');
 
     // Place a trooper the sync could not map into a section (Story 2.7). The Admin gate is checked in the
     // controller first and again in the Command's handler; the required reason and the audited write live

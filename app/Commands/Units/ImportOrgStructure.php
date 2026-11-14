@@ -10,6 +10,7 @@ use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\AdminBilletRepository;
+use App\Repositories\CavBilletRepository;
 use App\Repositories\UnitBilletMappingRepository;
 use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitRepository;
@@ -62,6 +63,11 @@ use Illuminate\Support\Facades\Log;
  * back to pending and its holder stops being an Admin until an Admin confirms the new names. Moved out of those groups,
  * it can no longer be approved. The import never approves one.
  *
+ * **Billet names (2026-11-13).** Every billet the Cav lists is recorded with its name, group and the rule that places it
+ * ({@see CavBilletRepository::observe()}), and a billet the Cav no longer lists is forgotten. A placed billet renamed since
+ * its placement was confirmed, and a billet nothing places, wait for an Admin on Org structure; the import never drops a
+ * placement over a rename.
+ *
  * **All or nothing.** The Cav fetch and the parsing happen before any write; the writes happen
  * inside the audited envelope's single transaction (AD-16), so a failure part-way leaves no
  * partial tree. The audit row targets the regiment root — the import's one stable subject.
@@ -80,6 +86,7 @@ class ImportOrgStructure
         private readonly UnitCommandMappingRepository $commands,
         private readonly AuditEnvelope $audit,
         private readonly AdminBilletRepository $adminBillets,
+        private readonly CavBilletRepository $billets,
     ) {}
 
     /**
@@ -103,8 +110,16 @@ class ImportOrgStructure
             throw OrgStructureImportFailedException::cavUnavailable($e);
         }
 
-        [$designations, $sectionByPositionId, $commandByPositionId, $skippedTitles, $ignoredGroups, $groupNodes, $leadPositions] = $this->plan($groups);
+        [$designations, $sectionByPositionId, $commandByPositionId, $skippedTitles, $ignoredGroups, $groupNodes, $leadPositions, $ruleByPositionId] = $this->plan($groups);
         [$adminGroupBillets, $otherBillets] = $this->billetNames($groups);
+        $seenBillets = array_map(
+            fn (array $names) => [$names[0], $names[1], null],
+            $adminGroupBillets + $otherBillets,
+        );
+
+        foreach ($ruleByPositionId as $positionId => $rule) {
+            $seenBillets[$positionId][2] = $rule;
+        }
 
         if ($designations === []) {
             Log::warning('Org-structure import aborted: Cav listed no line companies.', [
@@ -142,7 +157,7 @@ class ImportOrgStructure
                 action: 'org_structure.imported',
                 reason: null,
                 reasonRequired: false,
-                mutation: function () use ($designations, $groupNodes, $leadPositions, $sectionByPositionId, $commandByPositionId, $adminGroupBillets, $otherBillets, &$unitsCreated, &$sectionCounts, &$commandCounts): Unit {
+                mutation: function () use ($designations, $groupNodes, $leadPositions, $sectionByPositionId, $commandByPositionId, $adminGroupBillets, $otherBillets, $seenBillets, &$unitsCreated, &$sectionCounts, &$commandCounts): Unit {
                     $index = $this->existingUnitsByKey();
                     $regimentKey = CavDesignation::regiment()->key();
                     $root = $index[$regimentKey] ?? null;
@@ -192,6 +207,10 @@ class ImportOrgStructure
                     // the names it carries now. Nothing is approved here.
                     $this->adminBillets->observe($adminGroupBillets, createMissing: true);
                     $this->adminBillets->observe($otherBillets, createMissing: false);
+
+                    // Every billet the Cav lists, with the name it carries now and the rule that places it: a placed
+                    // billet renamed since its placement was confirmed waits for an Admin, as does one nothing places.
+                    $this->billets->observe($seenBillets, $this->mappings->unitIdsByPositionId()->keys()->all(), complete: true);
 
                     return $root;
                 },
@@ -332,10 +351,11 @@ class ImportOrgStructure
      * Since 2026-10-24 the placement map (the second element) holds every billet that places its holder, not only
      * sections: a non-command HQ billet → its company, platoon, battalion or the regiment, and a holding or staff
      * billet → its group ({@see StaffBillet}). The groups to ensure come next, each after its portfolio, and last each
-     * portfolio's lead billet by group key.
+     * portfolio's lead billet by group key. Last comes, per placed position id, the rule that places it in words ("line
+     * billet in A/1-7"), which the Org structure page shows beside the billet.
      *
      * @param  list<CavPositionGroup>  $groups  in Cav display order
-     * @return array{0: array<string, CavDesignation>, 1: array<int, string>, 2: array<int, string>, 3: list<string>, 4: list<string>, 5: array<string, GroupDesignation>, 6: array<string, int>}
+     * @return array{0: array<string, CavDesignation>, 1: array<int, string>, 2: array<int, string>, 3: list<string>, 4: list<string>, 5: array<string, GroupDesignation>, 6: array<string, int>, 7: array<int, string>}
      */
     private function plan(array $groups): array
     {
@@ -346,6 +366,7 @@ class ImportOrgStructure
         $ignoredGroups = [];
         $groupNodes = [];
         $leadPositions = [];
+        $ruleByPositionId = [];
 
         foreach ($groups as $group) {
             $company = CavDesignation::companyGroup($group->title);
@@ -384,11 +405,14 @@ class ImportOrgStructure
                     if ($placedIn !== null) {
                         $this->addGroup($groupNodes, $placedIn);
                         $sectionByPositionId[$position->id] ??= $placedIn->key();
+                        $ruleByPositionId[$position->id] ??= "staff billet of {$placedIn->name}";
                     } elseif ($headquarters !== null && ($commanded === null || $portfolio !== null)) {
                         $sectionByPositionId[$position->id] ??= $headquarters->key();
+                        $ruleByPositionId[$position->id] ??= $portfolio !== null ? "portfolio officer in {$group->title}" : "billet in {$group->title}";
                     } elseif ($portfolio !== null && $commanded === null) {
                         // A portfolio officer outside Regimental HQ (the RDC Commander) sits on their portfolio.
                         $sectionByPositionId[$position->id] ??= $portfolio->key();
+                        $ruleByPositionId[$position->id] ??= "officer of {$portfolio->name}";
                     }
                 }
 
@@ -422,6 +446,7 @@ class ImportOrgStructure
                 // company (2026-10-24) on that HQ node; a command billet above a section by its command mapping.
                 if ($designation->type === UnitType::Section || ! $commands) {
                     $sectionByPositionId[$position->id] ??= $designation->key();
+                    $ruleByPositionId[$position->id] ??= "line billet in {$group->title}";
                 }
 
                 if ($commands) {
@@ -436,7 +461,7 @@ class ImportOrgStructure
             $this->addGroup($groupNodes, $group);
         }
 
-        return [$designations, $sectionByPositionId, $commandByPositionId, $skippedTitles, $ignoredGroups, $groupNodes, $leadPositions];
+        return [$designations, $sectionByPositionId, $commandByPositionId, $skippedTitles, $ignoredGroups, $groupNodes, $leadPositions, $ruleByPositionId];
     }
 
     /**
