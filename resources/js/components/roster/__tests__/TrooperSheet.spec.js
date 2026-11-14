@@ -245,6 +245,32 @@ describe('Trooper sheet', () => {
         expect(line).toBe('1/A/1-7, led by SGT Oduya.N (acting)');
     });
 
+    it('names the unit once when the billet already does (Trooper 1/1/C/ACD, not twice)', async () => {
+        respond(200, detail({ billet: 'Trooper 2/1/A/1-7' }));
+        factory();
+        await flushPromises();
+        expect(document.body.querySelector('[data-testid="sheet-billet"]').textContent.trim()).toBe('Trooper 2/1/A/1-7');
+
+        document.body.innerHTML = '';
+        respond(200, detail({ billet: 'Rifleman' }));
+        factory();
+        await flushPromises();
+        expect(document.body.querySelector('[data-testid="sheet-billet"]').textContent.trim()).toBe('Rifleman, 2/1/A/1-7');
+    });
+
+    it('shows the weeks leave covers as On LOA, not Unsigned, as the milpac does', async () => {
+        const unsigned = { rollcall: 'unsigned', status: null, source: null, held: false };
+        respond(200, detail({ weeks: WEEKS.map(() => unsigned), loaWeeks: [WEEKS[18], WEEKS[19]] }));
+        factory();
+        await flushPromises();
+
+        const recent = document.body.querySelectorAll('[data-testid="sheet-recent"] tbody tr');
+        expect(recent[0].textContent).toContain('On LOA');
+        expect(recent[0].textContent).not.toContain('Unsigned');
+        expect(recent[1].textContent).toContain('On LOA');
+        expect(recent[2].textContent).toContain('Unsigned');
+    });
+
     it('stays closed with no trooper selected', () => {
         globalThis.fetch = vi.fn();
         factory(null);

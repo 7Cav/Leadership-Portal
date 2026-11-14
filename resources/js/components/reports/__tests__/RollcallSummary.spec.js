@@ -38,6 +38,16 @@ describe('RollcallSummary (#703)', () => {
         expect(wrapper.get('[data-testid="summary-unaccounted"]').text()).toBe('SPC Demo.K: No notice given');
     });
 
+    it('names those on LOA or excused apart from the signatures, never as signed', () => {
+        const troopers = [
+            { id: 1, rollcall: 'will_attend', status: 'present' },
+            { id: 2, rollcall: 'unsigned', status: null, onLoa: true },
+            { id: 3, rollcall: 'excused', status: 'excused' },
+        ];
+
+        expect(factory({ troopers, unaccounted: [] }).get('[data-testid="summary-signatures"]').text()).toBe('1 will attend · 1 excused · 1 on LOA');
+    });
+
     it('says what is missing instead of inventing it', () => {
         const wrapper = factory({ rollcall: { ...ROLLCALL, trainingStart: null, threadUrl: null }, subject: null, unaccounted: [] });
 

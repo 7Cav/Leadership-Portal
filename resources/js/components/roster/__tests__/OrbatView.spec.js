@@ -86,10 +86,11 @@ describe('Order of battle (roster-s2)', () => {
         expect(strip[7].classes()).toContain('is-now');
     });
 
-    it("labels the strip with the first and last week's start dates, apart, not two ranges run together", () => {
+    it("labels the strip with the first and last week's end dates, as the matrix and the reports do, the ranges in the titles", () => {
         const ends = factory().find('[data-testid="strip-ends"]');
 
-        expect(ends.findAll('span').map((s) => s.text())).toEqual(['15AUG', '03OCT']);
+        expect(ends.findAll('span').map((s) => s.text())).toEqual(['21AUG', '09OCT']);
+        expect(ends.findAll('span').map((s) => s.attributes('title'))).toEqual(['Week Ending 21AUG26 (15AUG26 to 21AUG26)', 'Week Ending 09OCT26 (03OCT26 to 09OCT26)']);
         expect(ends.classes()).toEqual(expect.arrayContaining(['justify-between', 'gap-2']));
     });
 
