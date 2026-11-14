@@ -15,6 +15,7 @@ use App\Jobs\PushStaffReportToSheetJob;
 use App\Kpi\Headcount;
 use App\Kpi\KpiService;
 use App\Kpi\StaffHqHealth;
+use App\Milpac\SelfReportedGame;
 use App\Milpac\StaffReportWeek;
 use App\Models\AuditLogEntry;
 use App\Models\StaffReport;
@@ -78,7 +79,7 @@ class StaffReportController extends Controller
         ]);
     }
 
-    public function show(Request $request, AuditLogRepository $audit, ReportEditProps $editProps, StaffReportOwed $owed, int $trooper, string $week): Response
+    public function show(Request $request, AuditLogRepository $audit, ReportEditProps $editProps, SelfReportedGame $selfReported, StaffReportOwed $owed, int $trooper, string $week): Response
     {
         $trooper = $this->troopers->find($trooper) ?? abort(404);
         $weekStart = $this->weekStart($week);
@@ -154,6 +155,8 @@ class StaffReportController extends Controller
             // A reader's view only: how the HQ's unit stood that week and the weeks before, and how many of its staff
             // kept to the one practice rule. Never on the staff member's own page.
             'health' => $self || $hq === null ? null : $this->healthOf($hq, $weekStart),
+            // The HQ's game when its attendance can never be read: one notice in place of the "No game server data" alerts.
+            'selfReported' => $hq === null ? null : $selfReported->for($hq->id),
         ]);
     }
 

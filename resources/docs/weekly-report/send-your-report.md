@@ -31,6 +31,8 @@ minutes: 10
 3. Fill in the **Training subject**. Last week's subject is offered; choose **Use it again** to keep it. It is the same topic as the roll call's training topic, so one set on the roll call is already here, as are notes and reasons written on its close step. A section's report opens with a summary of its roll call: the training, the topic, the forum thread, and how the week signed and attended, with those on leave or excused named apart.
 4. Write your **Notes to send with this report**.
 
+> [!good-to-know] If your unit's game can never be read automatically, such as Battlefield 6, the report says so once near the top in orange: all attendance is self-reported. Every mark is then entered by hand, and nothing on the report asks for game server data.
+
 > [!good-to-know] The draft saves as you type. You can leave and come back to it any time before you send.
 
 ## Freeze and send

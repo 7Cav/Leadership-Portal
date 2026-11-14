@@ -7,7 +7,6 @@ use App\Commands\Units\AccountabilityRules;
 use App\Models\CrossSectionSighting;
 use App\Models\ReportEditRequest;
 use App\Models\StaffReport;
-use App\Models\TelemetryInterface;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
@@ -239,7 +238,7 @@ class SendStaffReportHandler
         $gameId = (UnitGame::resolve($this->units->tree())[$sectionId] ?? null)?->gameId;
         $interface = $gameId === null ? null : $this->games->find($gameId)?->interface;
 
-        return $interface === null || $interface === TelemetryInterface::None ? 'game server' : $interface->label();
+        return $interface === null || ! $interface->reads() ? 'game server' : $interface->label();
     }
 
     /**

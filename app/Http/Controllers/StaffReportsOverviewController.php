@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Authorization\StaffReportAccess;
 use App\Commands\StaffReports\PushStaffReportToSheetHandler;
 use App\Kpi\StaffHqHealth;
+use App\Milpac\SelfReportedGame;
 use App\Milpac\StaffReportWeek;
 use App\Models\StaffReport;
 use App\Models\Trooper;
@@ -39,7 +40,7 @@ class StaffReportsOverviewController extends Controller
         private readonly UnitGuidonRepository $guidons,
     ) {}
 
-    public function index(Request $request, StaffReportOwed $owed): Response
+    public function index(Request $request, SelfReportedGame $selfReported, StaffReportOwed $owed): Response
     {
         $user = $request->user();
         $hqs = $this->access->readableHqs($user);
@@ -79,6 +80,9 @@ class StaffReportsOverviewController extends Controller
                 'id' => $hq->id,
                 'label' => $hq->callsign ?? $hq->name,
                 'guidon' => $guidonOf[$hq->id] ?? null,
+                // The HQ's game when its attendance can never be read: the group says so once instead of a
+                // "No game server data" alert on every row.
+                'selfReported' => $selfReported->for($hq->id),
                 'rows' => collect($staff[$hq->id])
                     ->reject(fn (array $row) => $own !== null && $row['trooper']->id === $own->id)
                     ->map(fn (array $row) => [

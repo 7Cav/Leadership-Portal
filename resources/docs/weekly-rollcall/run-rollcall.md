@@ -88,7 +88,7 @@ If your section plays a game and has no slot, a warning sits at the top of the r
 
 1. With a practice slot set, the portal reads the game server by itself within ten minutes of the practice ending. If the game server recorded the practice, the marks are already filled in and say where they came from. A trooper counts as attended after 40 minutes on the server during the hour, unless your battalion set another minimum. Check the marks and fix any that are wrong.
 2. Once the practice is over, confirm it: **Confirm practice took place** when it took place and every trooper is marked, or **Practice did not take place** when it did not. Once confirmed, the badge shows which, and **Change to: did not take place** or **Change to: took place** switches it. Changing a mark by hand afterwards clears the confirmation; confirm again.
-3. If the banner says the server could not be read, mark by hand, or choose **Try again** to read it again.
+3. If the banner says the server could not be read, mark by hand, or choose **Try again** to read it again. If it says server data can't be read automatically for your game, nothing will ever be read for it: mark everyone by hand.
 4. Players the server saw who are linked to no trooper are listed for you to link or dismiss. See [Link or dismiss an unmatched player](/docs/weekly-rollcall/unmatched-players).
 
 > [!good-to-know] A trooper with no identity for the section's game has a warning icon by their name, and a warning at the top of the page lists them. The capture cannot see them, so mark them by hand and link them on [Game identities](/docs/your-troopers/game-identities).

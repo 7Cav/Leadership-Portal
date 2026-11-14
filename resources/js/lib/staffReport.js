@@ -77,9 +77,10 @@ export function discrepancyLines(discrepancy) {
 
 /**
  * The game server check frozen on a sent report, `{ check, source, minutes? }`: "Self-report conflicts with CRCON data" for a
- * conflict, "No CRCON data" when nothing was captured, and empty when it agreed or there was no check. A public server
- * check with no data says why, from its `reason`, naming the trooper (`name`); one frozen before reasons were kept
- * reads "No public server data".
+ * conflict, "No CRCON data" when nothing was captured, and empty when it agreed or there was no check. A section practice
+ * check on a game no system reads yet (source "game server") says it is not set up yet. A public server check with no
+ * data says why, from its `reason`, naming the trooper (`name`); one frozen before reasons were kept reads "No public
+ * server data".
  */
 export function presenceText(presence, name = null) {
     if (!presence) return '';
@@ -91,14 +92,23 @@ export function presenceText(presence, name = null) {
     if (presence.check === 'conflict') return `Self-report conflicts with ${source} data`;
     if (presence.check === 'no_data') {
         const who = name || 'them';
-        if (presence.reason === 'no_server') return 'No game server data: no public server is set up';
+        if (presence.reason === 'no_server') return 'No game server data: no public server is set up yet';
         if (presence.reason === 'no_identity') return `No game server data: no game account linked for ${who}`;
         if (presence.reason === 'unreadable') return 'No game server data: the public servers could not be read this week';
+        if (source === 'game server') return 'No game server data: not set up for this game yet';
 
         return `No ${source} data`;
     }
 
     return '';
+}
+
+/**
+ * The one notice a report shows for a game whose attendance can never be read automatically (its source is "None
+ * (impossible)", such as Battlefield 6), in place of a "No game server data" alert on every staff report.
+ */
+export function selfReportedText(game) {
+    return `Server data can't be read automatically for ${game}. All attendance is self-reported.`;
 }
 
 /**

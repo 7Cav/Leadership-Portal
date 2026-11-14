@@ -35,6 +35,7 @@ use App\Kpi\WeeklyReportKpis;
 use App\Loa\LoaCoverage;
 use App\Loa\LoaProvenance;
 use App\Milpac\RosterProvenance;
+use App\Milpac\SelfReportedGame;
 use App\Milpac\StaffReportWeek;
 use App\Models\AuditLogEntry;
 use App\Models\PlatoonTrainingTopic;
@@ -112,7 +113,7 @@ class ReportController extends Controller
         private readonly LoaCoverage $loaCoverage,
     ) {}
 
-    public function show(Request $request, UnaccountedSuggestions $suggestions, AuditLogRepository $audit, ReportEditProps $editProps, int $unit, string $week): Response
+    public function show(Request $request, UnaccountedSuggestions $suggestions, AuditLogRepository $audit, ReportEditProps $editProps, SelfReportedGame $selfReported, int $unit, string $week): Response
     {
         $unit = $this->unitInScope($request, $unit);
         $weekStart = $this->weekStart($week);
@@ -249,6 +250,10 @@ class ReportController extends Controller
             'loaSync' => $isLeaf && ! $sent ? $this->loaProvenance->current()->toArray() : null,
             'computedAt' => CarbonImmutable::now('UTC')->toIso8601String(),
             'staffReports' => $this->staffReportRows($request, $unit, $weekStart),
+            // The unit's game (its own or the nearest above it) when its attendance can never be read: the report says so
+            // once near the top, its footer drops the capture clause, and the staff panel leaves out its "No game server
+            // data" alerts. Live, not frozen with a sent report.
+            'selfReported' => $selfReported->for($unit->id),
         ]);
     }
 

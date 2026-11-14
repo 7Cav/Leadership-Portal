@@ -35,6 +35,7 @@ import OwedWeekNotice from '@/components/reports/OwedWeekNotice.vue';
 import ReportEditRequestPanel from '@/components/reports/ReportEditRequestPanel.vue';
 import SendDialog from '@/components/reports/SendDialog.vue';
 import RollcallSummary from '@/components/reports/RollcallSummary.vue';
+import SelfReportedNotice from '@/components/reports/SelfReportedNotice.vue';
 import StaffReportsPanel from '@/components/reports/StaffReportsPanel.vue';
 import TimeAgo from '@/components/TimeAgo.vue';
 import Guidon from '@/components/Guidon.vue';
@@ -93,6 +94,9 @@ const props = defineProps({
     // A platoon's or company's HQ staff and their own staff reports for the week, read only and
     // live; null for any other unit.
     staffReports: { type: Array, default: null },
+    // The unit's game (its own or the nearest above it) when its attendance can never be read automatically, else null:
+    // one notice near the top says all attendance is self-reported, and nothing below calls server data missing.
+    selfReported: { type: String, default: null },
     // A section's draft with troopers: whether the week's practice is confirmed (`{ confirmed, held }`), which the send
     // needs (#634). Null when nothing needs confirming.
     practice: { type: Object, default: null },
@@ -557,6 +561,8 @@ function useSuggestion() {
             :reason-labels="reasonLabels"
         />
 
+        <SelfReportedNotice v-if="selfReported" :game="selfReported" />
+
         <OwedWeekNotice v-if="week.owed" :owed="week.owed" :href="weekUrl(week.owed)">This page sends the report for {{ weekLabel(week.start) }}.</OwedWeekNotice>
 
         <!-- The shared mode switch (5.3 AC): this screen creates and sends; the roll-up navigates. -->
@@ -798,11 +804,12 @@ function useSuggestion() {
                             :roster-sync="rosterSync"
                             :loa-sync="loaSync"
                             :computed-at="computedAt"
+                            :self-reported="selfReported"
                         />
                     </div>
                 </div>
 
-                <StaffReportsPanel v-if="staffReports" class="mt-5" :rows="staffReports" />
+                <StaffReportsPanel v-if="staffReports" class="mt-5" :rows="staffReports" :self-reported="selfReported" :notice="false" />
 
                 <div
                     v-if="!sent && !week.beforeFloor"

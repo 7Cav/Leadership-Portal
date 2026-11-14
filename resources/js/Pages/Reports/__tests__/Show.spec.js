@@ -880,3 +880,47 @@ describe('Reports/Show deadline banner', () => {
         expect(mountShow().find('[data-testid="report-deadline"]').exists()).toBe(false);
     });
 });
+
+describe('Reports/Show for a game that can never be read', () => {
+    const NOTICE = "Server data can't be read automatically for Battlefield 6. All attendance is self-reported.";
+    const noData = {
+        trooperId: 7, name: 'Stone.A', sent: true, attended: true, practices: 1, practiceType: 'section', ftx: null, officeHour: null, presenceType: 'public_server',
+        otherEvents: null, notes: null, sheetPushedAt: null, discrepancy: null, href: '/staff-report/7/2026-10-03',
+        presence: { check: 'no_data', source: 'game server' },
+        publicServer: { check: 'no_data', source: 'public server', minutes: null, reason: 'no_server' },
+    };
+
+    it('says once near the top that all attendance is self-reported, and the footer drops the capture clause', () => {
+        const wrapper = mountShow({ selfReported: 'Battlefield 6' });
+
+        expect(wrapper.findAll('[data-testid="self-reported-notice"]')).toHaveLength(1);
+        expect(wrapper.get('[data-testid="self-reported-notice"]').text()).toBe(NOTICE);
+        expect(wrapper.get('[data-testid="provenance"]').text()).toContain('All marks are manual.');
+        expect(wrapper.get('[data-testid="provenance"]').text()).not.toContain('game server capture');
+    });
+
+    it('shows no notice and keeps the capture clause for a game that is read or not set up yet', () => {
+        const wrapper = mountShow();
+
+        expect(wrapper.find('[data-testid="self-reported-notice"]').exists()).toBe(false);
+        expect(wrapper.get('[data-testid="provenance"]').text()).toContain('Marks are manual unless noted as game server capture.');
+    });
+
+    it('shows the notice once on a sent roll-up, and its staff panel has no no data alerts', () => {
+        const wrapper = mountShow({
+            unit: { id: 2, name: '1st Platoon', callsign: '1/A/1-7', type: 'platoon', isLeaf: false, parent: null },
+            report: { status: 'sent', notes: '', trainingSubject: '', unaccounted: [], savedAt: null, sentAt: '2026-10-06T22:14:00+00:00', sentBy: 'Haddad.Y' },
+            troopers: null,
+            names: {},
+            children: [],
+            loaSync: null,
+            staffReports: [noData],
+            selfReported: 'Battlefield 6',
+        });
+
+        expect(wrapper.findAll('[data-testid="self-reported-notice"]')).toHaveLength(1);
+        expect(wrapper.find('[data-testid="staff-reports-panel"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="staff-report-presence"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="staff-report-public-server"]').exists()).toBe(false);
+    });
+});
