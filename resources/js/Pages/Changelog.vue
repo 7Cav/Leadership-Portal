@@ -511,7 +511,7 @@ function runImport() {
                 </template>
                 <Popover v-if="technicalSetting">
                     <PopoverTrigger as-child>
-                        <Button size="icon" variant="outline" class="size-8" aria-label="Changelog settings" title="Changelog settings" data-testid="changelog-settings">
+                        <Button size="icon-sm" variant="outline" aria-label="Changelog settings" title="Changelog settings" data-testid="changelog-settings">
                             <PhGear aria-hidden="true" />
                         </Button>
                     </PopoverTrigger>
@@ -526,6 +526,9 @@ function runImport() {
                             Make technical and security items available to everyone
                         </label>
                         <p class="pl-6 text-xs text-muted-foreground">When off, only the changelog editors see them.</p>
+                        <p v-if="technicalSetting.deployedAt" class="mt-2 border-t border-border pt-2 text-xs text-muted-foreground tabular-nums" data-testid="changelog-last-deployed">
+                            Last deployed {{ zulu(technicalSetting.deployedAt) }}
+                        </p>
                     </PopoverContent>
                 </Popover>
             </div>

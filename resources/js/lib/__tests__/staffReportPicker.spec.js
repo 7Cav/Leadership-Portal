@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pickerCollapses, pickerGroups, presenceText } from '@/lib/staffReport';
+import { conflictLines, heldNote, pickerCollapses, pickerGroups, presenceText } from '@/lib/staffReport';
 
 const section = (id, label, platoon, group = null, own = false) => ({ id, label, platoon, group, own });
 
@@ -38,5 +38,31 @@ describe('presenceText', () => {
         expect(presenceText({ check: 'no_data', source: 'CRCON' })).toBe('No CRCON data');
         expect(presenceText({ check: 'confirmed', source: 'CRCON' })).toBe('');
         expect(presenceText(null)).toBe('');
+    });
+});
+
+describe('heldNote', () => {
+    it('says nothing when the server sent no state', () => {
+        expect(heldNote(undefined)).toBeNull();
+        expect(heldNote(null)).toBeNull();
+    });
+
+    it('lets a practice be ticked once its time has passed, marked held or not', () => {
+        expect(heldNote('held')).toMatchObject({ short: 'Held', claimable: true });
+        expect(heldNote('unmarked')).toMatchObject({ short: 'Not marked yet', claimable: true });
+        expect(heldNote('not_held')).toMatchObject({ short: 'Marked not held', claimable: true });
+    });
+
+    it('says why a practice cannot be ticked yet', () => {
+        expect(heldNote('upcoming')).toEqual({ short: "Hasn't happened yet", long: "This practice hasn't happened yet. You can tick it once its time has passed.", claimable: false });
+        expect(heldNote('no_slot')).toMatchObject({ long: 'This section has no practice time set yet, so there is no practice to pick.', claimable: false });
+        expect(heldNote('cancelled')).toMatchObject({ short: 'No practice this week', claimable: false });
+    });
+});
+
+describe('conflictLines', () => {
+    it('says, per section, that the section marked the claimed practice as not held', () => {
+        expect(conflictLines('SSG Brandt.L', ['1/1/A/1-7'])).toEqual(["SSG Brandt.L reports attending 1/1/A/1-7's practice, but the section marked it as not held."]);
+        expect(conflictLines('SSG Brandt.L', null)).toEqual([]);
     });
 });

@@ -50,12 +50,46 @@ describe('StaffReports', () => {
         expect(page.find('a[aria-label^="Previous week"]').attributes('aria-label')).toBe('Previous week, 26SEP26 to 02OCT26');
     });
 
-    it('reads the running week as not due', () => {
+    it('reads the running week as not due, with its due time, and offers the viewer to send theirs', () => {
         const groups = [{ id: 4, label: '1/A/1-7', rows: [row({ status: 'notDue', attended: null, practices: [], metRule: null })] }];
-        const page = mount(StaffReports, { props: { week: { ...WEEK, ended: false, next: null }, groups } });
+        const own = row({ status: 'notDue', attended: null, practices: [], metRule: null, href: '/staff-report/7/2026-10-10' });
+        const page = mount(StaffReports, { props: { week: { ...WEEK, ended: false, next: null }, own, groups } });
 
         expect(page.find('[data-testid="staff-reports-row-7"]').text()).toContain('Not due yet');
-        expect(page.find('[data-testid="due-line"]').text()).toBe('Sent once the week ends');
+        expect(page.find('[data-testid="due-line"]').text()).toContain('10OCT26');
+        expect(page.find('[data-testid="own-staff-report-send"]').attributes('href')).toBe('/staff-report/7/2026-10-10');
+    });
+
+    it('marks the staff who still owe the report for last week on the running week, and says how many', () => {
+        const running = { ...WEEK, date: '2026-10-10', start: '2026-10-10T00:00:00+00:00', previous: '2026-10-03', ended: false, next: null };
+        const groups = [{ id: 4, label: '1/A/1-7', rows: [row({ status: 'notDue', owesPrevious: true }), row({ trooperId: 8, status: 'notDue', owesPrevious: false })] }];
+        const page = mount(StaffReports, { props: { week: running, groups, owed: { week: '2026-10-03', count: 1 } } });
+
+        expect(page.get('[data-testid="staff-owed-week"]').text()).toContain('1 staff member has not sent the report for 03OCT26 to 09OCT26.');
+        expect(page.get('[data-testid="staff-owed-week"] [data-testid="owed-week-link"]').attributes('href')).toBe('/staff-reports?week=2026-10-03');
+        expect(page.get('[data-testid="staff-reports-row-7"] [data-testid="row-owes-previous"]').text()).toBe('Last week not sent');
+        expect(page.find('[data-testid="staff-reports-row-8"] [data-testid="row-owes-previous"]').exists()).toBe(false);
+        expect(mount(StaffReports, { props: { week: running, groups, owed: { week: '2026-10-03', count: 3 } } }).get('[data-testid="staff-owed-week"]').text()).toContain('3 staff have not sent');
+    });
+
+    it('flags a row whose report claims a practice the section marked as not held', () => {
+        const groups = [{ id: 4, label: '1/A/1-7', rows: [row({ conflict: ['1/1/A/1-7'] }), row({ trooperId: 8, conflict: null })] }];
+        const page = mount(StaffReports, { props: { week: WEEK, groups } });
+
+        const flag = page.get('[data-testid="staff-reports-row-7"] [data-testid="staff-report-conflict"]');
+        expect(flag.text()).toContain('Conflicting information');
+        expect(flag.attributes('title')).toBe("SSG Brandt.L reports attending 1/1/A/1-7's practice, but the section marked it as not held.");
+        expect(page.find('[data-testid="staff-reports-row-8"] [data-testid="staff-report-conflict"]').exists()).toBe(false);
+    });
+
+    it('tells the viewer when their own report for last week is not sent, and links to it', () => {
+        const running = { ...WEEK, date: '2026-10-10', start: '2026-10-10T00:00:00+00:00', previous: '2026-10-03', ended: false, next: null };
+        const own = row({ status: 'notDue', owesPrevious: true });
+        const page = mount(StaffReports, { props: { week: running, own, groups: [] } });
+
+        expect(page.get('[data-testid="own-owed-week"]').text()).toContain('Your report for 03OCT26 to 09OCT26 is not sent.');
+        expect(page.get('[data-testid="own-owed-week"] [data-testid="owed-week-link"]').attributes('href')).toBe('/staff-report/7/2026-10-03');
+        expect(mount(StaffReports, { props: { week: running, own: { ...own, owesPrevious: false }, groups: [] } }).find('[data-testid="own-owed-week"]').exists()).toBe(false);
     });
 
     it('puts the viewer\'s own unsent report on top with a link to send it', () => {
@@ -138,6 +172,23 @@ describe('StaffReports', () => {
         expect(link.attributes('tabindex')).toBeUndefined();
         expect(link.classes()).toContain('focus-visible:ring-2');
         expect(page.find('[data-testid="staff-reports-row-7"]').classes()).toContain('focus-within:bg-accent/50');
+    });
+
+    it('gives every HQ table the same column widths so the columns line up down the page', () => {
+        const groups = [
+            { id: 4, label: '1/A/1-7', rows: [row()] },
+            { id: 5, label: '2/A/1-7', rows: [row({ trooperId: 9, name: 'SGT Lee.K', href: '/staff-report/9/2026-10-03' })] },
+        ];
+        const page = mount(StaffReports, { props: { week: WEEK, groups } });
+
+        const widths = ['4', '5'].map((id) => {
+            const table = page.find(`[data-testid="staff-reports-hq-${id}"] table`);
+            expect(table.classes()).toContain('sm:table-fixed');
+
+            return table.findAll('colgroup col').map((col) => col.classes().join(' '));
+        });
+        expect(widths[0]).toEqual(['w-[30%]', 'w-44', '', 'w-32']);
+        expect(widths[1]).toEqual(widths[0]);
     });
 
     it('shows the picked HQ unit health with its trend, and links to the other HQs', () => {

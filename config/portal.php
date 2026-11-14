@@ -171,11 +171,16 @@ return [
     | `changelog_deploy_id` overrides the deploy id the outdated bar compares (the asset build version Inertia uses):
     | null uses that version, a string is used as the id, and false means there is none, so the bar never shows.
     |
+    | `changelog_deploy_marker` is the file whose modified time is shown to Admins as "Last deployed": the Vite manifest,
+    | written by every front-end build a deploy runs.
+    |
     */
 
     'changelog_editors' => ['Grayson.J', 'Laui.M'],
 
     'changelog_deploy_id' => null,
+
+    'changelog_deploy_marker' => public_path('build/manifest.json'),
 
     /*
     |--------------------------------------------------------------------------

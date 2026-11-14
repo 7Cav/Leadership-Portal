@@ -162,6 +162,17 @@ describe('Reports/Rollup', () => {
         expect(panel().find('[data-testid="self-reported-notice"]').exists()).toBe(false);
     });
 
+    it('opens a section\'s roll call for the same week from its panel, and offers none for a platoon', async () => {
+        mountRollup();
+        await rows()[2].trigger('click');
+
+        expect(panel().find('[data-testid="open-rollcall"]').attributes('href')).toBe('/rollcall/21?week=2026-10-03');
+        expect(panel().find('[data-testid="open-rollcall"]').text()).toBe('Open roll call');
+
+        await rows()[1].trigger('click');
+        expect(panel().find('[data-testid="open-rollcall"]').exists()).toBe(false);
+    });
+
     it('copies a forum-ready reminder and confirms it', async () => {
         const writeText = vi.fn().mockResolvedValue(undefined);
         Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });

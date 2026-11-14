@@ -4,6 +4,7 @@ use App\Commands\WeeklyReports\ReopenWeeklyReport;
 use App\Commands\WeeklyReports\ReopenWeeklyReportHandler;
 use App\Commands\WeeklyReports\SendWeeklyReport;
 use App\Commands\WeeklyReports\SendWeeklyReportHandler;
+use App\Models\Loa;
 use App\Models\SectionPractice;
 use App\Models\Trooper;
 use App\Models\Unit;
@@ -112,5 +113,31 @@ it('gives a sent report\'s summary the marks it was sent with, which the page ha
     $this->actingAs($this->leader)->get("/reports/{$this->section->id}/{$this->week}")
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->where('troopers', null)
-            ->where('rollcall.troopers', [['id' => $this->trooper->id, 'rollcall' => 'unsigned', 'status' => 'present']]));
+            ->where('rollcall.troopers', [['id' => $this->trooper->id, 'rollcall' => 'unsigned', 'status' => 'present', 'loa' => null, 'excused' => null]]));
+});
+
+it('tells the summary who is on leave that week, so it names them apart rather than as unsigned', function () {
+    Loa::factory()->create(['trooper_id' => $this->trooper->id, 'starts_at' => '2026-10-01', 'ends_at' => '2026-10-20']);
+
+    $this->actingAs($this->leader)->get("/reports/{$this->section->id}/{$this->week}")
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('rollcall.troopers.0.loa.state', 'covered')
+            ->where('rollcall.troopers.0.excused', null));
+});
+
+it("gives the draft's trooper rows the leave that covers the week, as the roll call reads it, so the table reads LOA", function () {
+    Loa::factory()->create(['trooper_id' => $this->trooper->id, 'starts_at' => '2026-10-05', 'ends_at' => '2026-10-19']);
+
+    $this->actingAs($this->leader)->get("/reports/{$this->section->id}/{$this->week}")
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('troopers.0.onLoa', true)
+            ->where('troopers.0.loa.state', 'covered')
+            ->where('troopers.0.loa.endsAt', fn ($end) => str_starts_with((string) $end, '2026-10-19')));
+});
+
+it('leaves loa null on a trooper row with no leave that week', function () {
+    $this->actingAs($this->leader)->get("/reports/{$this->section->id}/{$this->week}")
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('troopers.0.onLoa', false)
+            ->where('troopers.0.loa', null));
 });

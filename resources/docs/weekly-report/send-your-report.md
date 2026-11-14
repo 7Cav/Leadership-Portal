@@ -22,12 +22,13 @@ minutes: 10
 
 1. The numbers are counted from your roll call and section practice marks for the week.
 2. If one is wrong, choose **Open roll call**, fix the mark, and come back. The report updates.
+3. A trooper whose leave covers the week reads LOA in both columns of the preview's **Troopers** table, whatever they signed or the game server saw, as on the roll call. The **Last 8 weeks** chart names each week by its end date; point at one to see the whole week.
 
 ## Work through Ready to send
 
-1. **Ready to send** lists what is still open: roll call complete, practice marked, practice confirmed, unaccounted troopers explained, training subject filled, notes reviewed.
+1. **Ready to send** lists what is still open: roll call complete, practice marked, practice confirmed, unaccounted troopers explained, training subject filled, notes reviewed. Roll call counts only troopers who signed, of those due. Troopers on leave or excused have nothing to sign, so they are left out of both numbers and named after them, as in "Roll call signed by 2 of 3, 2 on LOA". That is how RC leaves them out.
 2. Under **Unaccounted troopers**, pick a reason for each one. When the portal knows why, such as a trooper who moved out of your section this week, left the Cav, or posted leave the sync could not read, that reason is already chosen and the hint says why. Choose **Keep suggested reason**, or pick another. A suggestion you have not kept is not saved or sent.
-3. Fill in the **Training subject**. Last week's subject is offered; choose **Use it again** to keep it. It is the same topic as the roll call's **Training topic**, so one set on the roll call is already here, as are notes and reasons written on its close step. A section's report opens with a summary of its roll call: the training, the topic, the forum thread, and how the week signed and attended.
+3. Fill in the **Training subject**. Last week's subject is offered; choose **Use it again** to keep it. It is the same topic as the roll call's training topic, so one set on the roll call is already here, as are notes and reasons written on its close step. A section's report opens with a summary of its roll call: the training, the topic, the forum thread, and how the week signed and attended, with those on leave or excused named apart.
 4. Write your **Notes to send with this report**.
 
 > [!good-to-know] If your unit's game can never be read automatically, such as Battlefield 6, the report says so once near the top in orange: all attendance is self-reported. Every mark is then entered by hand, and nothing on the report asks for game server data.

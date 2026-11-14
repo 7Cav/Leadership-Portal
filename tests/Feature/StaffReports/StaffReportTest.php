@@ -43,6 +43,7 @@ require_once __DIR__.'/../StaffPractices/fixture.php';
 // each lists them on the host's rollcall as a staff guest, shown only.
 
 beforeEach(function () {
+    everyPracticeHeld();
     $this->tree = staffPracticeTree();
     $this->week = staffPracticeWeek();
     // The Saturday after the fixture's week: it has ended and its report is due tonight.

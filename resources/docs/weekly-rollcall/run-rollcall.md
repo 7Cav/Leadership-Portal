@@ -3,7 +3,7 @@ title: Run this week's roll call
 summary: Create the week's roll call, post it, record who signed, mark section practice, then close it for review.
 section: weekly-rollcall
 order: 1
-updated: 2026-11-12
+updated: 2026-11-13
 audience: leader
 page: /rollcall
 weekly: true
@@ -42,7 +42,7 @@ The sections below cover both. Where a step differs, it says which roll call it 
 On the new roll call, nothing else opens until the week's roll call is created.
 
 1. In step 1, **Create**, check the **Training date**. It comes from your section's practice slot. Change the day or time to move this week's practice only; the slot stays as it is for later weeks.
-2. Check the **Training topic**. It comes from your platoon's topic for the week. When your platoon enforces it, it shows **Set by** and the platoon, and you cannot change it. Otherwise you can change it for your section, or type your own when the platoon has set none.
+2. Check the training topic, the field below the date. It comes from your platoon's topic for the week. When your platoon enforces it, it shows **Set by** and the platoon, and you cannot change it. Otherwise you can change it for your section, or type your own when the platoon has set none.
 3. Choose **Create roll call**. If there is no practice this week, choose **Practice will not take place** instead: it cancels this week's practice and creates the roll call.
 
 > [!good-to-know] With no practice slot, the roll call is created without a date; choose **Set the practice slot** to add one. The training date and topic go into the forum post, and the topic is the same one the weekly report shows: change it in either place and both show the change.
@@ -87,7 +87,7 @@ If your section plays a game and has no slot, a warning sits at the top of the r
 ## Check what the game server saw
 
 1. With a practice slot set, the portal reads the game server by itself within ten minutes of the practice ending. If the game server recorded the practice, the marks are already filled in and say where they came from. A trooper counts as attended after 40 minutes on the server during the hour, unless your battalion set another minimum. Check the marks and fix any that are wrong.
-2. Once the practice is over, confirm it: **Confirm practice took place** when it took place and every trooper is marked, or **Practice did not take place** when it did not. Changing a mark by hand afterwards clears the confirmation; confirm again.
+2. Once the practice is over, confirm it: **Confirm practice took place** when it took place and every trooper is marked, or **Practice did not take place** when it did not. Once confirmed, the badge shows which, and **Change to: did not take place** or **Change to: took place** switches it. Changing a mark by hand afterwards clears the confirmation; confirm again.
 3. If the banner says the server could not be read, mark by hand, or choose **Try again** to read it again. If it says server data can't be read automatically for your game, nothing will ever be read for it: mark everyone by hand.
 4. Players the server saw who are linked to no trooper are listed for you to link or dismiss. See [Link or dismiss an unmatched player](/docs/weekly-rollcall/unmatched-players).
 
@@ -115,7 +115,8 @@ If your section plays a game and has no slot, a warning sits at the top of the r
 
 1. Once the post is on the forum, choose **Mark roll call posted**. On the new roll call, paste the thread's link under **Forum thread link** if you like (the close step and the report link to it), then choose **Mark as posted, continue**, which takes you on to **Sign and mark**.
 2. If you change a mark later, the page says the copied BBCode is out of date. Repost the updated BBCode, then choose **Mark posted again**. A template that uses the live Signed RC and Attended SP images ([Roll call templates](/docs/admin/rollcall-templates) says how) shows the new marks in those images on its own, once the forum reloads them, which can take a minute; the rest of the post is still text you repost.
-3. Then [write and send your report](/docs/weekly-report/send-your-report). On a week from before the new roll call, **Send for review** at the end of **Review and post** opens the report's send window for you.
+3. Once the weekly report is sent, the roll call is locked and the page no longer asks for a repost. To change it, edit the report, or choose **Request edit** on it once it is past its deadline ([Send your report](/docs/weekly-report/send-your-report) says how).
+4. Then [write and send your report](/docs/weekly-report/send-your-report). On a week from before the new roll call, **Send for review** at the end of **Review and post** opens the report's send window for you.
 
 ## Close for review
 

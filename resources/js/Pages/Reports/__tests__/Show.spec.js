@@ -97,6 +97,25 @@ describe('Reports/Show', () => {
         expect(wrapper.find('[data-testid="send-bar"]').exists()).toBe(true);
     });
 
+    it('reads a trooper whose leave covers the week as LOA in both columns, whatever was signed or captured', () => {
+        const wrapper = mountShow({
+            kpis: { ...KPIS, onLoa: 1 },
+            troopers: [
+                { id: 1, name: 'SGT Vasquez.R', rollcall: 'will_attend', status: 'present', source: 'auto', atRisk: false, missed: 0, onLoa: false },
+                { id: 3, name: 'PFC Mock.T', rollcall: 'will_attend', status: null, source: 'auto', atRisk: false, missed: 0, onLoa: true, loa: { state: 'covered' } },
+            ],
+        });
+        const [, mock] = wrapper.get('[data-testid="trooper-table"]').findAll('tbody tr');
+        const cells = mock.findAll('td').map((cell) => cell.text());
+
+        expect(cells).toEqual(['PFC Mock.T', 'LOA', 'LOA', '']);
+        expect(wrapper.get('[data-testid="trooper-table"]').text()).toContain('Marked from game server capture');
+        // Not marked for practice, but on leave: no "not marked" highlight, and the roll call line names them apart.
+        const highlights = wrapper.text();
+        expect(highlights).not.toContain('not marked for this week');
+        expect(highlights).toContain('Roll call signed by 1 of 1, 1 on LOA');
+    });
+
     it("names the leave source and last sync under a live draft's KPIs, and nothing when the server sends none (4.3, AD-20)", () => {
         expect(mountShow().get('[data-testid="loa-sync"]').text()).toBe('Leave from Forum thread, synced 08OCT26 09\u200A14Z');
 
@@ -359,6 +378,20 @@ describe('Reports/Show', () => {
         expect(wrapper.get('#training-subject').attributes('disabled')).toBeDefined();
     });
 
+    it('leaves the live roster sync out of a frozen report, and keeps it on a draft', () => {
+        const rosterSync = { source: 'milpac', at: '2026-10-12T17:00:00+00:00' };
+        const sent = mountShow({
+            rosterSync,
+            report: { status: 'sent', notes: '', trainingSubject: '', unaccounted: [], savedAt: null, sentAt: '2026-10-08T16:24:00+00:00', sentBy: null },
+            troopers: null,
+        });
+        const provenance = sent.get('[data-testid="provenance"]').text();
+
+        expect(provenance).toContain('Frozen');
+        expect(provenance).not.toContain('Roster from');
+        expect(mountShow({ rosterSync }).get('[data-testid="roster-sync"]').text()).toContain('Roster from milpac, synced');
+    });
+
     it('badges a reopened report Being edited and says until when it can be sent again', () => {
         const wrapper = mountShow({
             report: { status: 'sent', editing: true, notes: 'Good.', trainingSubject: 'Land nav', unaccounted: [], savedAt: null, sentAt: '2026-10-08T16:24:00+00:00', sentBy: 'SGT Vasquez.R' },
@@ -575,12 +608,21 @@ describe('Reports/Show', () => {
     it('un-ticks the review when the notes change afterwards', async () => {
         const wrapper = mountShow();
 
+        expect(wrapper.get('#reviewed-help').text()).toBe('Editing the notes afterwards unticks this.');
         await wrapper.get('#reviewed').trigger('click');
         expect(wrapper.get('#reviewed').attributes('data-state')).toBe('checked');
         await wrapper.get('#report-notes').setValue('Changed.');
 
         expect(wrapper.get('#reviewed').attributes('data-state')).toBe('unchecked');
         expect(wrapper.text()).toContain('You edited the notes after confirming');
+    });
+
+    it('stretches the last card of each column on wide screens so both columns end on one line', () => {
+        const wrapper = mountShow();
+
+        expect(wrapper.get('[data-testid="notes-panel"]').classes()).toContain('lg:flex-1');
+        expect(wrapper.get('#preview').classes()).toEqual(expect.arrayContaining(['lg:flex-1', 'lg:flex', 'lg:flex-col']));
+        expect(wrapper.get('[data-testid="provenance"]').classes()).toContain('lg:mt-auto');
     });
 
     it('colours each change by what it means for that KPI', () => {

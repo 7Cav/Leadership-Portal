@@ -33,6 +33,18 @@ describe('stepCells', () => {
         expect(cells.report).toEqual({ state: 'warn', text: 'Draft' });
     });
 
+    it('never counts leave as signed: those on LOA or excused are out of both numbers, and named after them', () => {
+        // 1/1/C/ACD on production: five on the roll call, two on LOA, nobody signed. It read "2 of 5 signed".
+        const cells = stepCells(step({ strength: 5, signed: 0, due: 3, onLoa: 2, excused: 0 }));
+
+        expect(cells.signed).toMatchObject({ state: 'wait', percent: 0, text: '0 of 3 signed, 2 on LOA' });
+        expect(stepCells(step({ strength: 5, signed: 3, due: 3, onLoa: 1, excused: 1 })).signed).toMatchObject({ state: 'ok', percent: 100, text: '3 of 3 signed, 1 on LOA, 1 excused' });
+    });
+
+    it('has nobody to sign when everyone on the roll call is on LOA', () => {
+        expect(stepCells(step({ strength: 2, signed: 0, due: 0, onLoa: 2 })).signed).toEqual({ state: 'ok', percent: null, text: 'Nobody to sign, 2 on LOA' });
+    });
+
     it('has nothing to sign or mark in a section with no troopers, rather than 0 or 100%', () => {
         const cells = stepCells(step({ strength: 0 }));
 
@@ -42,6 +54,12 @@ describe('stepCells', () => {
 });
 
 describe('laneTotals', () => {
+    it('adds signed up over those due, leave left out, as the section cells count it', () => {
+        const lanes = laneTotals([step({ strength: 5, signed: 0, due: 3, onLoa: 2 }), step({ id: 2, strength: 4, signed: 4, due: 4 })]);
+
+        expect(lanes[1]).toMatchObject({ text: '4 of 7 signed', done: 4, of: 7 });
+    });
+
     it('adds each step up across the sections in scope', () => {
         const lanes = laneTotals([
             step({ postedAt: '2026-10-03T10:00:00+00:00', strength: 6, signed: 5, held: true, marked: 6, report: 'sent' }),
