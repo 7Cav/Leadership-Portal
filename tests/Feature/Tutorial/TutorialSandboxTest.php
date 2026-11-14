@@ -506,14 +506,15 @@ it('starts the fixing problems tutorial for a section leader, on its own steps',
 
     $this->actingAs($leader)->post('/tutorial', ['track' => 'fix-problems'])->assertRedirect();
     $section = practiceSectionId($leader->id);
+    $week = WeekOf::reporting(CarbonImmutable::now())->toDateString();
 
-    $this->get("/rollcall/{$section}")->assertOk()->assertInertia(fn ($page) => $page
+    $this->get("/rollcall/{$section}?week={$week}")->assertOk()->assertInertia(fn ($page) => $page
         ->where('tutorialMode.title', 'Fixing problems tutorial')
         ->where('tutorialMode.steps', fn ($steps) => collect($steps)->pluck('id')->all() === ['makeup', 'guest', 'blocked-report']));
 
     // Starting over keeps the tutorial it runs.
     $this->post('/tutorial/restart')->assertRedirect();
-    $this->get("/rollcall/{$section}")->assertInertia(fn ($page) => $page->where('tutorialMode.title', 'Fixing problems tutorial'));
+    $this->get("/rollcall/{$section}?week={$week}")->assertInertia(fn ($page) => $page->where('tutorialMode.title', 'Fixing problems tutorial'));
 });
 
 it('offers the fixing problems tutorial only to someone who leads a unit', function () {
@@ -533,11 +534,11 @@ it('walks a platoon leader through a make-up, a guest, a blocked report and a mi
     $leader = User::factory()->commanding($platoon)->create();
     $this->actingAs($leader)->post('/tutorial', ['track' => 'fix-problems'])->assertRedirect();
     $section = practiceSectionId($leader->id);
-    $week = WeekOf::start(CarbonImmutable::now())->toDateString();
+    $week = WeekOf::reporting(CarbonImmutable::now())->toDateString();
     $ids = fixTroopers($leader->id);
-    $steps = function () use ($section) {
+    $steps = function () use ($section, $week) {
         $steps = null;
-        $this->get("/rollcall/{$section}")->assertInertia(function ($page) use (&$steps) {
+        $this->get("/rollcall/{$section}?week={$week}")->assertInertia(function ($page) use (&$steps) {
             $steps = collect($page->toArray()['props']['tutorialMode']['steps'])->keyBy('id');
         });
 
@@ -586,7 +587,7 @@ it('walks a platoon leader through a make-up, a guest, a blocked report and a mi
         ->and($missing['highlight'])->toContain('[data-row-id="'.$ids['other'].'"]')
         ->and($missing['highlight'])->toContain('[data-report-unit="'.$ids['other'].'"] :is([data-testid="copy-reminder"], [data-testid="open-rollcall"])')
         ->and($missing['highlight'])->toContain('body:not(:has([data-check])) nav[aria-label="Report mode"] a[href="/reports"]');
-    $this->get("/rollcall/{$ids['other']}")->assertOk();
+    $this->get("/rollcall/{$ids['other']}?week={$week}")->assertOk();
     // Opening the roll call first leaves the copy to do, so the way to it stays blue.
     expect($steps()['missing-report']['checklist'][1]['done'])->toBeTrue()
         ->and($steps()['missing-report']['done'])->toBeFalse()
