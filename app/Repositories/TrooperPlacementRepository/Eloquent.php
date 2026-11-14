@@ -66,6 +66,25 @@ class Eloquent implements TrooperPlacementRepository
             ->get();
     }
 
+    public function historiesChangedSince(CarbonInterface $since): Collection
+    {
+        $since = CarbonImmutable::instance($since)->utc();
+        $changed = TrooperPlacement::query()
+            ->select('trooper_id')
+            ->where(fn (Builder $query) => $query->where('placed_from', '>=', $since)->orWhere('placed_until', '>=', $since));
+
+        return TrooperPlacement::query()
+            ->with(['unit', 'trooper'])
+            ->whereIn('trooper_id', $changed)
+            ->orderBy('trooper_id')
+            ->orderByRaw('placed_from is not null')
+            ->orderBy('placed_from')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('trooper_id')
+            ->map(fn (Collection $rows) => $rows->values());
+    }
+
     public function unitIdsOfTrooperInWeek(Trooper $trooper, CarbonInterface $weekStart): array
     {
         $week = WeekOf::requireStart($weekStart);
@@ -591,7 +610,7 @@ class Eloquent implements TrooperPlacementRepository
             ->whereNotNull('trooper_placements.placed_from')
             ->where('trooper_placements.placed_from', '>=', $from)
             ->where('trooper_placements.placed_from', '<', $until)
-            ->select(['trooper_placements.trooper_id', 'trooper_placements.placed_from as at'])
+            ->select(['trooper_placements.id', 'trooper_placements.unit_id', 'trooper_placements.placed_until', 'trooper_placements.trooper_id', 'trooper_placements.placed_from as at'])
             ->selectRaw("'transfer' as kind");
 
         // Joined the Cav in the span: Cav's join date, a date with no time.
@@ -600,12 +619,21 @@ class Eloquent implements TrooperPlacementRepository
             ->whereNotNull('troopers.tis')
             ->where('troopers.tis', '>=', $from->toDateString())
             ->where('troopers.tis', '<', $until->toDateString())
-            ->select(['troopers.id as trooper_id', 'troopers.tis as at'])
-            ->selectRaw("'recruit' as kind");
+            // The same columns as the placements, in the same order, for the union; a join has no placement row.
+            ->selectRaw("null as id, null as unit_id, null as placed_until, troopers.id as trooper_id, troopers.tis as at, 'recruit' as kind");
 
+        $rows = $entered->unionAll($joined)->get();
+        $alreadyThere = $this->inSectionAtWeekStart($rows->whereNotNull('id')->values());
         $events = [];
 
-        foreach ($entered->unionAll($joined)->get() as $row) {
+        foreach ($rows as $row) {
+            // Out and straight back inside one week (most likely a wrong milpac edit put right) is no transfer either
+            // way: neither the move back into the section they began the week in, nor the stay they had left again
+            // before the week was over.
+            if ($row->id !== null && (isset($alreadyThere[(int) $row->id]) || self::leftWithinWeek($row))) {
+                continue;
+            }
+
             $events[(int) $row->trooper_id][] = ['at' => CarbonImmutable::parse($row->at, 'UTC'), 'kind' => $row->kind];
         }
 
@@ -614,5 +642,55 @@ class Eloquent implements TrooperPlacementRepository
         }
 
         return $events;
+    }
+
+    /** Whether a placement row ended inside the Cav week it began in: a stay the trooper never finished a week in. */
+    private static function leftWithinWeek(object $row): bool
+    {
+        if ($row->placed_until === null) {
+            return false;
+        }
+
+        $start = CarbonImmutable::parse($row->at, 'UTC');
+
+        return CarbonImmutable::parse($row->placed_until, 'UTC')->lt(WeekOf::next(WeekOf::start($start)));
+    }
+
+    /**
+     * Which of these placement rows put a trooper back in the section they were already in when that Cav week began:
+     * a move out and straight back inside the week, most likely a wrong milpac edit put right. Such a trooper never
+     * left as far as the week is concerned, so it is no transfer. One query for all of them.
+     *
+     * @param  Collection<int, object{id: int, unit_id: int, trooper_id: int, at: string}>  $rows
+     * @return array<int, true> placement row id => true
+     */
+    private function inSectionAtWeekStart(Collection $rows): array
+    {
+        if ($rows->isEmpty()) {
+            return [];
+        }
+
+        $others = DB::table('trooper_placements')
+            ->whereIn('trooper_id', $rows->pluck('trooper_id')->map(fn ($id) => (int) $id)->unique()->values()->all())
+            ->whereIn('unit_id', $rows->pluck('unit_id')->map(fn ($id) => (int) $id)->unique()->values()->all())
+            ->get(['id', 'trooper_id', 'unit_id', 'placed_from', 'placed_until'])
+            ->groupBy(fn (object $row) => "{$row->trooper_id}:{$row->unit_id}");
+
+        $found = [];
+
+        foreach ($rows as $row) {
+            $weekStart = WeekOf::start(CarbonImmutable::parse($row->at, 'UTC'));
+
+            foreach ($others->get("{$row->trooper_id}:{$row->unit_id}", collect()) as $other) {
+                $from = $other->placed_from === null ? null : CarbonImmutable::parse($other->placed_from, 'UTC');
+                $until = $other->placed_until === null ? null : CarbonImmutable::parse($other->placed_until, 'UTC');
+
+                if ((int) $other->id !== (int) $row->id && ($from === null || $from->lte($weekStart)) && ($until === null || $until->gt($weekStart))) {
+                    $found[(int) $row->id] = true;
+                }
+            }
+        }
+
+        return $found;
     }
 }

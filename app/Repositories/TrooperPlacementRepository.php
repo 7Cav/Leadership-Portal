@@ -38,6 +38,15 @@ interface TrooperPlacementRepository
     public function historyOf(int $trooperId): Collection;
 
     /**
+     * {@see historyOf()} for every trooper whose placement changed at or after `$since`, with their whole history so a
+     * move can be read against the one before it: trooper id => their rows, oldest first, each with its unit and
+     * trooper loaded. Two queries, however many troopers. What the Admin's list of placement changes reads.
+     *
+     * @return Collection<int, Collection<int, TrooperPlacement>>
+     */
+    public function historiesChangedSince(CarbonInterface $since): Collection;
+
+    /**
      * The units, of any type, one trooper was placed in at any moment of the Cav week starting `$weekStart` (audit
      * L3): a placement row that overlaps the week, in the order they were placed there. Read as {@see sectionsByWeek()}
      * reads it: a trooper with no history, or whose open row is not their current `primary_section_id`, is read as
@@ -192,7 +201,9 @@ interface TrooperPlacementRepository
      * including) `$until`, in one query (2026-10-30, read by `Kpi\AutoExcused`):
      *
      * - `transfer`: placed into a section, the start of a placement row in a unit of type section. A placement from
-     *   before the history began (`placed_from` null) is not one;
+     *   before the history began (`placed_from` null) is not one. Nor is a move back into the section the trooper was
+     *   already in when that Cav week began, or a stay they left again before the week was over: out and straight
+     *   back is most likely a wrong milpac edit put right;
      * - `recruit`: joined the Cav, by their join date (`troopers.tis`).
      *
      * @param  list<int>  $trooperIds
