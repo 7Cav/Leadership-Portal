@@ -4,7 +4,7 @@ import { Link } from '@inertiajs/vue3';
 import NoValue from '@/components/NoValue.vue';
 import Sparkline from '@/components/reports/Sparkline.vue';
 import { Card } from '@/components/ui/card';
-import { weekLabel } from '@/lib/forumDate';
+import { weekEnding, weekLabel } from '@/lib/forumDate';
 
 // How an HQ's unit stood in one Cav week, beside its staff reports: SP and roll call over the KPI window (the numbers
 // Home and the roster show), headcount against how many are in roll call, at risk, and how many of the HQ's staff kept
@@ -19,8 +19,15 @@ const props = defineProps({
 
 const pct = (v) => (v === null || v === undefined ? null : Math.round(v * 100));
 const trend = computed(() => props.health.trend ?? []);
-const first = computed(() => trend.value[0]?.week);
-const span = computed(() => (first.value ? `${trend.value.length} weeks from the week ${weekLabel(first.value)}` : ''));
+// The weeks the sparklines cover, in the house date style: `Last 8 weeks, 12SEP26 to 13NOV26`.
+const span = computed(() => {
+    const weeks = trend.value;
+    if (!weeks.length) return '';
+    const from = weekLabel(weeks[0].week).split(' to ')[0];
+    const to = weekEnding(weeks[weeks.length - 1].week);
+
+    return `${weeks.length === 1 ? 'Last week' : `Last ${weeks.length} weeks`}, ${from} to ${to}`;
+});
 
 const tiles = computed(() => [
     {
@@ -70,7 +77,7 @@ function spoken(tile) {
 </script>
 
 <template>
-    <Card class="gap-0 py-0 text-[13px]" data-testid="staff-hq-health">
+    <Card class="@container gap-0 py-0 text-[13px]" data-testid="staff-hq-health">
         <div class="flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-2.5">
             <h2 class="text-sm font-semibold">{{ health.unit.label }} health</h2>
             <p class="text-xs text-muted-foreground">{{ span }}</p>
@@ -88,20 +95,22 @@ function spoken(tile) {
                 </Link>
             </nav>
         </div>
-        <dl class="grid grid-cols-2 sm:grid-cols-5">
-            <div v-for="tile in tiles" :key="tile.key" class="flex flex-col gap-1 border-b px-4 py-3 sm:border-r sm:border-b-0" :data-testid="`health-${tile.key}`">
+        <!-- Columns by the card's own width, not the screen's: the card is narrow on a single report. The value sits over
+        its sparkline so "10 of 17" never wraps. -->
+        <dl class="grid grid-cols-2 @2xl:grid-cols-5">
+            <div v-for="tile in tiles" :key="tile.key" class="flex min-w-0 flex-col gap-1 border-b px-4 py-3 odd:border-r @2xl:border-r @2xl:border-b-0" :data-testid="`health-${tile.key}`">
                 <dt class="text-xs text-muted-foreground">{{ tile.label }}</dt>
-                <dd class="flex items-end justify-between gap-2">
-                    <span class="text-lg font-semibold tabular-nums" :class="{ 'text-warning': tile.warn }">
+                <dd class="flex flex-col items-start gap-1.5">
+                    <span class="text-lg font-semibold whitespace-nowrap tabular-nums" :class="{ 'text-warning': tile.warn }">
                         <NoValue v-if="tile.value === null || tile.value === undefined" />
                         <template v-else>{{ tile.value }}<span class="text-xs font-normal text-muted-foreground">{{ tile.unit }}</span></template>
                     </span>
                     <Sparkline :values="tile.series" :domain="tile.domain" :color="tile.color" :label="spoken(tile)" />
                 </dd>
             </div>
-            <div class="col-span-2 flex flex-col gap-1 px-4 py-3 sm:col-span-1" data-testid="health-staff">
+            <div class="col-span-2 flex flex-col gap-1 px-4 py-3 @2xl:col-span-1" data-testid="health-staff">
                 <dt class="text-xs text-muted-foreground">Staff with 1 SP</dt>
-                <dd class="text-lg font-semibold tabular-nums">
+                <dd class="text-lg font-semibold whitespace-nowrap tabular-nums">
                     {{ staffMet.met }}<span class="text-xs font-normal text-muted-foreground"> of {{ staffMet.total }}</span>
                 </dd>
             </div>

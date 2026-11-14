@@ -15,7 +15,6 @@ import {
     PhPencilSimpleLine,
     PhSealCheck,
     PhStack,
-    PhWarning,
 } from '@phosphor-icons/vue';
 import { toast } from 'vue-sonner';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +31,7 @@ import ReadinessChecklist from '@/components/reports/ReadinessChecklist.vue';
 import ReportDeadlineBanner from '@/components/reports/ReportDeadlineBanner.vue';
 import ReportPreview from '@/components/reports/ReportPreview.vue';
 import EditReportDialog from '@/components/reports/EditReportDialog.vue';
+import OwedWeekNotice from '@/components/reports/OwedWeekNotice.vue';
 import ReportEditRequestPanel from '@/components/reports/ReportEditRequestPanel.vue';
 import SendDialog from '@/components/reports/SendDialog.vue';
 import RollcallSummary from '@/components/reports/RollcallSummary.vue';
@@ -557,20 +557,7 @@ function useSuggestion() {
             :reason-labels="reasonLabels"
         />
 
-        <div
-            v-if="week.owed"
-            class="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg border border-warning/35 bg-warning/8 px-3.5 py-2 text-[13px]"
-            data-testid="owed-week"
-        >
-            <PhWarning class="size-4 shrink-0 text-warning" aria-hidden="true" />
-            <p class="min-w-0 flex-1">
-                <span class="font-semibold">The report for {{ weekLabel(week.owed) }} is not sent.</span>
-                <span class="text-muted-foreground"> This page sends the report for {{ weekLabel(week.start) }}.</span>
-            </p>
-            <Link :href="weekUrl(week.owed)" class="font-medium underline underline-offset-2 hover:text-foreground" data-testid="owed-week-link">
-                Open {{ weekLabel(week.owed) }}
-            </Link>
-        </div>
+        <OwedWeekNotice v-if="week.owed" :owed="week.owed" :href="weekUrl(week.owed)">This page sends the report for {{ weekLabel(week.start) }}.</OwedWeekNotice>
 
         <!-- The shared mode switch (5.3 AC): this screen creates and sends; the roll-up navigates. -->
         <nav aria-label="Report mode" class="inline-flex w-fit gap-0.5 rounded-md bg-muted p-0.5 text-xs font-medium">

@@ -28,6 +28,7 @@ require_once __DIR__.'/../StaffPractices/fixture.php';
 // office hour or "No" is never checked. CRCON is never called: the servers are fakes.
 
 beforeEach(function () {
+    everyPracticeHeld();
     $this->tree = staffPracticeTree();
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-10 12:00:00', 'UTC'));
     $this->psg = $this->tree['troopers']['psg'];
@@ -191,7 +192,7 @@ it('shows the frozen check to readers on the page, the overview and the unit rep
     $this->actingAs($this->tree['users']['co'])->get(route('staff-report.show', ['trooper' => $this->psg->id, 'week' => '2026-10-03']))
         ->assertInertia(fn (AssertableInertia $page) => $page->where('report.presenceType', 'public_server')->where('report.publicServer', $conflict));
 
-    $this->actingAs($this->tree['users']['co'])->get('/staff-reports')->assertInertia(fn (AssertableInertia $page) => $page
+    $this->actingAs($this->tree['users']['co'])->get('/staff-reports?week=2026-10-03')->assertInertia(fn (AssertableInertia $page) => $page
         ->where('groups.0.rows', fn ($rows) => collect($rows)->firstWhere('trooperId', $this->psg->id)['publicServer'] === $conflict));
 
     $this->actingAs($this->tree['users']['co'])->get(route('reports.show', ['unit' => $this->tree['units']['platoon']->id, 'week' => '2026-10-03']))

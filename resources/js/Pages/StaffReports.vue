@@ -4,7 +4,9 @@ import { Head, Link, router } from '@inertiajs/vue3';
 import { PhCaretLeft, PhCaretRight, PhUserCheck } from '@phosphor-icons/vue';
 import EmptyState from '@/components/EmptyState.vue';
 import Guidon from '@/components/Guidon.vue';
+import OwedWeekNotice from '@/components/reports/OwedWeekNotice.vue';
 import StaffHqHealth from '@/components/reports/StaffHqHealth.vue';
+import StaffReportConflict from '@/components/reports/StaffReportConflict.vue';
 import StaffReportDiscrepancy from '@/components/reports/StaffReportDiscrepancy.vue';
 import StaffReportPresence from '@/components/reports/StaffReportPresence.vue';
 import { Badge } from '@/components/ui/badge';
@@ -24,8 +26,12 @@ const props = defineProps({
     week: { type: Object, required: true },
     // The viewer's own line when they file a report that week, else null. Same shape as a row, without `discrepancy`.
     own: { type: Object, default: null },
+    // On the running week, how many listed staff still owe the week before's report, `{ week, count }`, or null.
+    owed: { type: Object, default: null },
     // `[{ id, label, rows: [{ trooperId, name, billet, hq, status, attended, practiceType, ftx, officeHour, presenceType, publicServer, practices,
-    // otherEvents, notes, sheetPushedAt, metRule, discrepancy, href }] }]`.
+    // otherEvents, notes, sheetPushedAt, metRule, discrepancy, conflict, owesPrevious, href }] }]`. `owesPrevious`: on the
+    // running week, they have not sent the week before's report (and were not on leave then). `conflict`: the sections
+    // whose practice the report claims but the section marked as not held, or null.
     groups: { type: Array, default: () => [] },
     // Whether the reports Google Sheet is set up: only then is a sent report not yet copied there called out.
     sheetConfigured: { type: Boolean, default: false },
@@ -34,7 +40,10 @@ const props = defineProps({
 });
 
 // Counts down only for the viewer's own unsent report.
-const dueNote = useDueCountdown(() => props.week.due, { sent: () => props.own?.status !== 'notSent' });
+const dueNote = useDueCountdown(() => props.week.due, { sent: () => !props.own || props.own.status === 'sent' });
+const owedTitle = computed(() =>
+    props.owed ? `${props.owed.count} ${props.owed.count === 1 ? 'staff member has' : 'staff have'} not sent the report for ${weekLabel(props.owed.week)}.` : null,
+);
 
 const STATUS = {
     sent: { label: 'Sent', variant: 'success' },
@@ -87,21 +96,31 @@ function openRow(event, row) {
                 <Button v-else variant="ghost" size="icon-sm" disabled aria-label="Next week, not open yet"><PhCaretRight /></Button>
             </nav>
             <p class="w-full text-xs text-muted-foreground sm:ml-auto sm:w-auto sm:text-right" data-testid="due-line">
-                <template v-if="week.ended">Due {{ stamp(week.due) }}<template v-if="dueNote"> ({{ dueNote }})</template></template>
-                <template v-else>Sent once the week ends</template>
+                Due {{ stamp(week.due) }}<template v-if="dueNote"> ({{ dueNote }})</template>
             </p>
         </section>
+
+        <OwedWeekNotice
+            v-if="own?.owesPrevious"
+            :owed="week.previous"
+            :href="`/staff-report/${own.trooperId}/${week.previous}`"
+            :title="`Your report for ${weekLabel(week.previous)} is not sent.`"
+            data-testid="own-owed-week"
+        />
+        <OwedWeekNotice v-if="owed" :owed="owed.week" :href="weekUrl(owed.week)" :title="owedTitle" data-testid="staff-owed-week">
+            They are marked below.
+        </OwedWeekNotice>
 
         <Card v-if="own" class="flex flex-row flex-wrap items-center gap-3 px-4 py-3 text-[13px]" data-testid="own-staff-report">
             <div class="min-w-0">
                 <p class="font-medium">Your staff report, {{ own.hq }} HQ</p>
                 <p class="text-xs text-muted-foreground">
                     <template v-if="own.status === 'sent'">Attended: {{ attendedText(own) }}</template>
-                    <template v-else-if="own.status === 'notSent'">Not sent yet</template>
-                    <template v-else>You can send it once the week ends</template>
+                    <StaffReportConflict v-if="own.status === 'sent'" :name="own.name" :sections="own.conflict" compact class="ml-1.5" />
+                    <template v-else>Not sent yet</template>
                 </p>
             </div>
-            <Button v-if="own.status === 'notSent'" size="sm" class="ml-auto" as-child>
+            <Button v-if="own.status !== 'sent'" size="sm" class="ml-auto" as-child>
                 <Link :href="own.href" data-testid="own-staff-report-send">Send your staff report</Link>
             </Button>
             <Button v-else variant="outline" size="sm" class="ml-auto" as-child>
@@ -136,7 +155,14 @@ function openRow(event, row) {
 
         <Card v-for="group in shown" :key="group.id" class="gap-0 py-0 text-[13px]" :data-testid="`staff-reports-hq-${group.id}`">
             <h2 class="flex items-center gap-2 border-b px-4 py-2.5 text-sm font-semibold"><Guidon :design="group.guidon" :height="12" />{{ group.label }} HQ</h2>
-            <table class="w-full">
+            <!-- The same column widths in every HQ's table, so the columns line up down the page. -->
+            <table class="w-full sm:table-fixed">
+                <colgroup class="hidden sm:table-column-group">
+                    <col class="w-[30%]" />
+                    <col class="w-44" />
+                    <col />
+                    <col class="w-32" />
+                </colgroup>
                 <thead class="hidden text-left text-xs text-muted-foreground sm:table-header-group">
                     <tr>
                         <th class="px-4 py-2 font-medium">Name</th>
@@ -162,7 +188,17 @@ function openRow(event, row) {
                             <p class="truncate text-xs text-muted-foreground">{{ row.billet }}</p>
                         </td>
                         <td class="justify-self-end sm:px-4 sm:py-2">
-                            <Badge :variant="STATUS[row.status].variant" data-testid="row-status">{{ STATUS[row.status].label }}</Badge>
+                            <span class="flex flex-col items-end gap-1 sm:items-start">
+                                <Badge :variant="STATUS[row.status].variant" data-testid="row-status">{{ STATUS[row.status].label }}</Badge>
+                                <Badge
+                                    v-if="row.owesPrevious"
+                                    variant="warning"
+                                    class="font-normal"
+                                    :title="`The report for ${weekLabel(week.previous)} is not sent.`"
+                                    data-testid="row-owes-previous"
+                                >Last week not sent</Badge>
+                                <StaffReportConflict :name="row.name" :sections="row.conflict" compact />
+                            </span>
                         </td>
                         <td class="col-span-2 min-w-0 sm:px-4 sm:py-2">
                             <span class="inline-flex items-center gap-1.5">

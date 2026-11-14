@@ -2,10 +2,15 @@
 
 namespace App\Repositories\SectionPracticeRepository;
 
+use App\Models\Attendance;
+use App\Models\AttendanceSource;
+use App\Models\AttendanceStatus;
 use App\Models\SectionPractice;
+use App\Models\SectionPracticeSlot;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitType;
+use App\Repositories\PracticeHeldState;
 use App\Repositories\PracticeWeekStatus;
 use App\Repositories\RollcallFlow;
 use App\Repositories\SectionPracticeRepository;
@@ -71,6 +76,38 @@ class Eloquent implements SectionPracticeRepository
             ->get()
             ->keyBy('section_id')
             ->toBase();
+    }
+
+    public function heldStates(array $sectionIds, CarbonInterface $weekStart, ?CarbonInterface $now = null): array
+    {
+        $weekStart = WeekOf::requireStart($weekStart);
+        $ids = array_values(array_unique(array_map('intval', $sectionIds)));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $now ??= CarbonImmutable::now();
+        $practices = $this->forSections($ids, $weekStart);
+        $slots = SectionPracticeSlot::query()->whereIn('section_id', $ids)->get()->keyBy('section_id');
+        // A leader's mark holds a practice: never LOA or Excused, and never an automatic makeup (as the roster reads it).
+        $marked = $practices->isEmpty() ? collect() : Attendance::query()
+            ->whereIn('section_practice_id', $practices->pluck('id'))
+            ->whereNotIn('status', [AttendanceStatus::Loa->value, AttendanceStatus::Excused->value])
+            ->where(fn ($query) => $query->where('status', '!=', AttendanceStatus::Makeup->value)
+                ->orWhereNull('source')
+                ->orWhere('source', '!=', AttendanceSource::Auto->value))
+            ->distinct()
+            ->pluck('section_practice_id')
+            ->flip();
+
+        $out = [];
+        foreach ($ids as $id) {
+            $practice = $practices->get($id);
+            $out[$id] = PracticeHeldState::of($weekStart, $practice, $slots->get($id), $practice !== null && $marked->has($practice->id), $now);
+        }
+
+        return $out;
     }
 
     public function weekStatuses(int $sectionId, CarbonInterface $firstWeek, CarbonInterface $lastWeek, array $excused = []): Collection

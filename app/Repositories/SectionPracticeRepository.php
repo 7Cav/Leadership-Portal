@@ -68,6 +68,18 @@ interface SectionPracticeRepository
     public function forSections(array $sectionIds, CarbonInterface $weekStart): Collection;
 
     /**
+     * Where each section's practice of the week stands for a staff report ({@see PracticeHeldState}): section id
+     * => `held`, `upcoming`, `unmarked`, `not_held`, `no_slot` or `cancelled`, for every section given, as it stands at `$now`.
+     * A fixed number of queries however many sections. Never creates a row.
+     *
+     * @param  list<int>  $sectionIds
+     * @return array<int, string>
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function heldStates(array $sectionIds, CarbonInterface $weekStart, ?CarbonInterface $now = null): array;
+
+    /**
      * Where the section's practices stand for the weeks `$firstWeek` through `$lastWeek` inclusive
      * (the rollcall's week navigation): per practice row, the troopers currently placed in the
      * section (not inactive) who carry a practice mark, and whether the rollcall is marked posted
