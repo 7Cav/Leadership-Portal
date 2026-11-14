@@ -123,7 +123,7 @@ const applyAccountLinks = (game) => act('post', `/settings/games/${game.id}/acco
                     </TableHeader>
                     <TableBody>
                         <TableRow v-for="game in games" :key="game.id" :data-testid="`game-row-${game.slug}`">
-                            <TableCell class="px-4 font-medium">
+                            <TableCell class="px-4 font-medium whitespace-normal">
                                 <span class="flex flex-wrap items-center gap-1.5">
                                     {{ game.name }}
                                     <span
@@ -135,13 +135,19 @@ const applyAccountLinks = (game) => act('post', `/settings/games/${game.id}/acco
                                     <Badge v-if="game.retired" variant="outline" :data-testid="`retired-${game.slug}`">Retired</Badge>
                                 </span>
                             </TableCell>
-                            <TableCell>
+                            <TableCell class="whitespace-normal">
                                 <span :data-testid="`kinds-${game.slug}`">{{ game.idKinds.join(', ') }}</span>
                                 <span v-if="game.checkedKinds?.length" class="block text-xs text-muted-foreground" :data-testid="`checked-kinds-${game.slug}`">
                                     Shape checked: {{ game.checkedKinds.join(', ') }}
                                 </span>
                                 <span v-if="isAdmin && !game.retired && game.pendingAccountLinks > 0" class="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                                    <Button variant="outline" size="xs" :data-testid="`apply-account-links-${game.slug}`" @click="applyAccountLinks(game)">
+                                    <Button
+                                        variant="outline"
+                                        size="xs"
+                                        class="h-auto py-1 text-left whitespace-normal"
+                                        :data-testid="`apply-account-links-${game.slug}`"
+                                        @click="applyAccountLinks(game)"
+                                    >
                                         {{ accountLabel(game) }}
                                     </Button>
                                     <span :data-testid="`pending-account-links-${game.slug}`">
@@ -149,9 +155,10 @@ const applyAccountLinks = (game) => act('post', `/settings/games/${game.id}/acco
                                     </span>
                                 </span>
                             </TableCell>
-                            <TableCell :data-testid="`interface-${game.slug}`">{{ interfaceLabel(game.interface) }}</TableCell>
-                            <TableCell class="px-4 text-right whitespace-nowrap">
-                                <template v-if="isAdmin">
+                            <TableCell class="whitespace-normal" :data-testid="`interface-${game.slug}`">{{ interfaceLabel(game.interface) }}</TableCell>
+                            <TableCell class="px-4 whitespace-normal">
+                                <!-- The actions wrap onto a second line rather than push the table past its card. -->
+                                <div v-if="isAdmin" class="flex flex-wrap justify-end gap-x-1">
                                     <Button variant="ghost" size="sm" :data-testid="`edit-${game.slug}`" @click="edit(game)">Edit</Button>
                                     <Button v-if="game.retired" variant="ghost" size="sm" :data-testid="`reinstate-${game.slug}`" @click="reinstate(game)">
                                         Bring back
@@ -167,7 +174,7 @@ const applyAccountLinks = (game) => act('post', `/settings/games/${game.id}/acco
                                     >
                                         Delete
                                     </Button>
-                                </template>
+                                </div>
                             </TableCell>
                         </TableRow>
                     </TableBody>
@@ -204,7 +211,7 @@ const applyAccountLinks = (game) => act('post', `/settings/games/${game.id}/acco
                             @update:model-value="(value) => (form.abbreviation = String(value).toUpperCase())"
                         />
                         <p id="game-abbreviation-help" class="text-xs text-muted-foreground">
-                            2 to 6 letters or digits, shown on a battalion's row in Org structure.<template v-if="!editing"> Left blank, it is made from the name.</template>
+                            2 to 6 letters or digits. Org structure shows it on the highest line unit in an AO that plays the game, usually a battalion.<template v-if="!editing"> Left blank, it is made from the name.</template>
                         </p>
                         <p v-if="form.errors.abbreviation" class="text-xs text-destructive" data-testid="error-abbreviation">{{ form.errors.abbreviation }}</p>
                     </div>
@@ -244,7 +251,7 @@ const applyAccountLinks = (game) => act('post', `/settings/games/${game.id}/acco
                         <NativeSelect id="game-interface" v-model="form.interface" data-testid="game-interface" :aria-invalid="!!form.errors.interface">
                             <option v-for="option in interfaces" :key="option.value" :value="option.value">{{ option.label }}</option>
                         </NativeSelect>
-                        <p class="text-xs text-muted-foreground">None means leaders mark this game's attendance by hand.</p>
+                        <p class="text-xs text-muted-foreground">None means reading is not set up yet. None (impossible) means this game's attendance can never be read automatically, so reports say it is self-reported. Either way leaders mark it by hand.</p>
                         <p v-if="form.errors.interface" class="text-xs text-destructive" data-testid="error-interface">{{ form.errors.interface }}</p>
                     </div>
 

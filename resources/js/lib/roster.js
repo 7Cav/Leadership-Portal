@@ -129,14 +129,17 @@ const RC_BY_SIGNATURE = { will_attend: 'ok', cannot_attend: 'cn', makeup_request
  * nothing was recorded, so a signature or practice mark from before they left still shows. Without a recorded date,
  * `departed` marks the current week only. `inSection` false is a week they were in no section (HQ staff, a group):
  * `none`, unless a mark says otherwise.
+ *
+ * `loa` is true for a week the trooper's leave covers (`LoaCoverage`, the one LOA definition): the week reads On LOA on
+ * both halves whatever the marks say, as on the milpac page, and stays out of RC and SP as the KPIs leave it out.
  */
-export function weekCell(mark, weekStart, { current = false, joined = null, excused = null, departedAt = null, departed = false, inSection = true } = {}) {
+export function weekCell(mark, weekStart, { current = false, joined = null, excused = null, departedAt = null, departed = false, inSection = true, loa = false } = {}) {
     const auto = excused ?? mark?.excused ?? null;
     if (joined && endOfWeek(weekStart) < joined) return { rc: 'out', sp: 'out' };
     if (hasLeft(mark, weekStart, { current, departedAt, departed })) return { rc: 'left', sp: 'left' };
+    if (loa || mark?.status === 'loa') return { rc: 'loa', sp: 'loa' };
     if (!mark && inSection === false) return { rc: 'none', sp: 'none' };
     if (!mark) return auto ? { rc: 'ex', sp: 'ex' } : { rc: current ? 'open' : 'nil', sp: current ? 'pending' : 'nil' };
-    if (mark.status === 'loa') return { rc: 'loa', sp: 'loa' };
 
     const rc = RC_BY_SIGNATURE[mark.rollcall] ?? (auto ? 'ex' : current ? 'open' : 'bad');
     const autoPractice = auto && (!mark.status || (mark.source === 'auto' && mark.status !== 'present' && mark.status !== 'makeup'));
@@ -145,6 +148,22 @@ export function weekCell(mark, weekStart, { current = false, joined = null, excu
     if (!sp) sp = mark.held ? 'open' : current ? 'pending' : 'nil';
 
     return { rc, sp };
+}
+
+/**
+ * {@link weekCell} for one roster trooper row (`RosterController::trooperRow`) and history week. Every roster view (the
+ * matrix, the order of battle, the Sheet and the section rows) reads a trooper's week through here, so they agree.
+ */
+export function trooperWeekCell(trooper, index, weekStart, currentWeek) {
+    return weekCell(trooper.weeks?.[index] ?? null, weekStart, {
+        current: weekStart === currentWeek,
+        joined: trooper.joined,
+        departedAt: trooper.departedAt,
+        departed: trooper.departed,
+        inSection: trooper.inSection?.[index],
+        excused: trooper.excusedWeeks?.[weekStart] ?? null,
+        loa: !!trooper.loaWeeks?.includes(weekStart),
+    });
 }
 
 /** Why a recorded SP mark shows dimmed (#634): it counts only once its practice is over. */
@@ -177,6 +196,18 @@ export function displayName(trooper) {
     return trooper?.name || (trooper?.cavId ? `#${trooper.cavId}` : 'Unknown');
 }
 
+/**
+ * The Sheet's header line, billet then unit: "Rifleman, 1/1/C/ACD". A milpac billet often names the unit already
+ * ("Trooper 1/1/C/ACD"), and then it is shown alone rather than naming the unit twice.
+ */
+export function billetLine(billet, unit) {
+    const text = billet || 'No billet on record';
+    if (!unit) return text;
+    const named = text.toLowerCase().split(/[\s,()]+/).includes(unit.toLowerCase());
+
+    return named ? text : `${text}, ${unit}`;
+}
+
 /** Where a week's SP mark came from, for tooltips and the Sheet. */
 export function sourceLabel(mark) {
     if (!mark) return null;
@@ -187,7 +218,7 @@ export function sourceLabel(mark) {
     return null;
 }
 
-export { weekEndTick, weekLabel, weekStartTick, weekTick, weekTitle } from './forumDate';
+export { weekEndTick, weekLabel, weekTick, weekTitle } from './forumDate';
 
 /**
  * One move from the placement history (`Milpac\PlacementHistory`, 2026-10-27), as the milpac and the Sheet word it:
@@ -368,8 +399,14 @@ export function shortDuration(months) {
  * rollcalls of those due, attended practices of those eligible — every member of a held practice,
  * marked or not, as the KPI service counts them. Counts and a heat level for one cell only; the
  * RC/SP percentages beside it come from the KPI service.
+ *
+ * Due is everyone in the week's roll call who is not on LOA or excused, as Home counts it: an unsigned member is due
+ * while the roll call is still open too, and so is a member with no row on a roll call the others are on. A week
+ * nobody has a row for has no roll call to count.
  */
 export function aggregateWeek(members, index, weekStart, current) {
+    const currentWeek = current ? weekStart : null;
+    const anyRow = members.some((member) => member.weeks?.[index]);
     let signed = 0;
     let due = 0;
     let attended = 0;
@@ -380,7 +417,7 @@ export function aggregateWeek(members, index, weekStart, current) {
 
     for (const member of members) {
         const mark = member.weeks?.[index];
-        const cell = weekCell(mark, weekStart, { current, joined: member.joined, excused: member.excusedWeeks?.[weekStart] ?? null });
+        const cell = trooperWeekCell(member, index, weekStart, currentWeek);
         if (cell.rc === 'out') continue;
         if (mark) anyMark = true;
         if (cell.rc === 'loa') loa++;
@@ -388,7 +425,7 @@ export function aggregateWeek(members, index, weekStart, current) {
         if (cell.rc === 'ok' || cell.rc === 'cn' || cell.rc === 'mr') {
             signed++;
             due++;
-        } else if (cell.rc === 'bad') {
+        } else if (cell.rc === 'bad' || (anyRow && (cell.rc === 'open' || cell.rc === 'nil'))) {
             due++;
         }
         if (['ok', 'mk'].includes(cell.sp)) {

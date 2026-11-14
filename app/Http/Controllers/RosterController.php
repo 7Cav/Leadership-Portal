@@ -20,8 +20,10 @@ use App\Kpi\Ratio;
 use App\Kpi\StrengthTrends;
 use App\Kpi\TrooperAttendance;
 use App\Kpi\UnitKpis;
+use App\Loa\LoaCover;
 use App\Loa\LoaCoverage;
 use App\Loa\LoaProvenance;
+use App\Loa\LoaReviewQueue;
 use App\Loa\LoaSyncProblems;
 use App\Loa\UpcomingLeave;
 use App\Milpac\BilletTags;
@@ -100,9 +102,10 @@ class RosterController extends Controller
         private readonly MissingGameIdentities $missingIdentities,
         private readonly AutomaticAttendance $automatic,
         private readonly TrooperPlacementRepository $placements,
+        private readonly LoaCoverage $loaCoverage,
+        private readonly LoaReviewQueue $loaReviewQueue,
         private readonly StaffReportWeeks $staffReportWeeks,
         private readonly StaffReportAccess $staffReports,
-        private readonly LoaCoverage $loaCoverage,
     ) {}
 
     /**
@@ -160,8 +163,9 @@ class RosterController extends Controller
             'presenceMinimum' => $selected ? $this->presenceMinimum->props($user, $selected) : null,
             // What counts for the unit's HQ staff report, or for a section's makeups: the Admin tab, for those who may change it.
             'accountability' => $editsAccountability ? $accountability : null,
-            // On a company's or platoon's Admin tab, the platoons and sections under it the viewer may change, the same way.
-            'accountabilityUnits' => $editsAccountability ? $this->accountability->children($user, $selected) : ['platoons' => [], 'sections' => []],
+            // On a company's or platoon's Admin tab, the platoons and sections under it the viewer may change, the same way,
+            // less the empty ones the order of battle leaves out (#442).
+            'accountabilityUnits' => $editsAccountability ? $this->shownOnly($this->accountability->children($user, $selected), $shown) : ['platoons' => [], 'sections' => []],
             // The Strength tab: headcount and in roll call per Cav week. Read only when the tab is open (`?view=strength`);
             // the page asks for it with a partial reload when the tab is picked, so the other views never pay for it.
             'strengthTrends' => fn () => $this->strengthProps($request, $selected),
@@ -176,7 +180,7 @@ class RosterController extends Controller
             'loaSync' => $this->loaProvenance->current()->toArray(),
             // What the latest LOA sync could not read, for an Admin (follows view-as, like `can.sync`). There is no
             // leave sync button yet, so this sits beside the leave note on the page that holds the roster sync.
-            'loaSyncProblems' => $this->scope->actsAsAdmin($user) ? $this->loaSyncProblems->latest() : null,
+            'loaSyncProblems' => $this->scope->actsAsAdmin($user) ? $this->loaSyncProblemsIn($scope) : null,
             'can' => [
                 // Follows view-as: a preview of a non-Admin never offers an Admin action (1.13).
                 'sync' => $this->scope->actsAsAdmin($user),
@@ -188,7 +192,7 @@ class RosterController extends Controller
                 'admin' => $editsAccountability || $editsGuidon,
             ],
             'links' => [
-                'milpac' => Trooper::MILPAC_PROFILE_URL,
+                // The link out to 7cav.us is not here: each trooper the Sheet loads carries its own `milpacUrl`.
                 // The in-app milpac page (Story 6.3); the Sheet appends the trooper's id.
                 'trooper' => '/troopers/',
                 // The rollcall screen (3.7); the Sheet appends the trooper's section id.
@@ -239,7 +243,7 @@ class RosterController extends Controller
         $lead = $this->leads->leadsOf([$section->id])->get($section->id);
         $inSection = $this->inSectionWeeks([$found->id], $week);
         $staff = $this->staffWeeks($request->user(), collect([$found->id => $found]), $inSection, collect([$found->id => $marks]), $week);
-        $row = $this->trooperRow($found, $kpis, $marks, $week, $this->billetTags->of(collect([$found]))->get($found->id), $this->excusedWeeks([$found->id], $week)[$found->id] ?? [], $inSection[$found->id] ?? null, $staff[$found->id] ?? null);
+        $row = $this->trooperRow($found, $kpis, $marks, $week, $this->billetTags->of(collect([$found]))->get($found->id), $this->excusedWeeks([$found->id], $week)[$found->id] ?? [], $inSection[$found->id] ?? null, $this->loaWeeks([$found->id], $week)[$found->id] ?? [], $staff[$found->id] ?? null);
         // Each week's section by name, for the weeks they were somewhere else (2026-10-27).
         $labels = $marks->pluck('sectionId')->filter()->unique()
             ->mapWithKeys(fn (int $id) => [$id => ($unit = $this->units->find($id)) === null ? null : ($unit->callsign ?? $unit->name)]);
@@ -340,6 +344,7 @@ class RosterController extends Controller
         $marks = $this->historyMarks($unit, $week);
         $excused = $this->excusedWeeks($placed->modelKeys(), $week);
         $inSection = $this->inSectionWeeks($placed->modelKeys(), $week);
+        $loaWeeks = $this->loaWeeks($placed->modelKeys(), $week);
         $staff = $this->staffWeeks($user, $placed->keyBy('id'), $inSection, $marks, $week);
         // The unit headers name the unit's lead, acting leads and portfolio officers included (2026-10-25); each
         // trooper's tag is the command billet they hold in their unit, or their acting lead (#443).
@@ -387,6 +392,7 @@ class RosterController extends Controller
             $tags->get($t->id),
             $excused[$t->id] ?? [],
             $inSection[$t->id] ?? null,
+            $loaWeeks[$t->id] ?? [],
             $staff[$t->id] ?? null,
         ))->values()->all();
         // The game each serving trooper has no identity linked for, so the capture cannot see them; read-only.
@@ -443,10 +449,11 @@ class RosterController extends Controller
     /**
      * @param  Collection<int, CountingMark>  $marks  this trooper's marks over the history window
      * @param  array<string, string>  $excused  their automatically excused history weeks ({@see AutoExcused})
+     * @param  list<string>  $loaWeeks  the history weeks their leave covers ({@see loaWeeks()})
      * @param  array{weeks: list<?array<string, mixed>>, reports: ?array<string, int>}|null  $staff  their staff report weeks ({@see staffWeeks()})
      * @return array<string, mixed>
      */
-    private function trooperRow(Trooper $t, ?TrooperAttendance $kpis, Collection $marks, CarbonImmutable $week, ?string $role, array $excused = [], ?array $inSection = null, ?array $staff = null): array
+    private function trooperRow(Trooper $t, ?TrooperAttendance $kpis, Collection $marks, CarbonImmutable $week, ?string $role, array $excused = [], ?array $inSection = null, array $loaWeeks = [], ?array $staff = null): array
     {
         $byWeek = $marks->keyBy(fn (CountingMark $m) => $m->weekStart->toDateString());
 
@@ -503,6 +510,9 @@ class RosterController extends Controller
             // Per history week, oldest first, whether they were placed in a section (#623): false on HQ staff or in a
             // group, so a week with no mark reads "No section that week" rather than unsigned. Null when unknown.
             'inSection' => $inSection,
+            // The history weeks their leave covers, `Y-m-d` week starts: the cell reads On LOA whatever the marks say, as
+            // on the milpac page, and the KPIs already leave those weeks out of RC and SP.
+            'loaWeeks' => $loaWeeks,
             // Per history week, oldest first, a line HQ staff member's staff report for a week they were on a platoon,
             // company or battalion HQ and on no section's roll call ({@see StaffReportWeeks}), else null. Null when
             // they had no such week.
@@ -510,6 +520,60 @@ class RosterController extends Controller
             // Their staff reports over the KPI window's finished weeks, `{met, due, weeks}`, beside RC and SP 30d.
             'staffReports' => $staff['reports'] ?? null,
         ];
+    }
+
+    /**
+     * The latest LOA sync's problems, with the posts that need review counted as Home's Needs attention lists them for
+     * the same scope ({@see LoaReviewQueue}): one per trooper on a rollcall in the weeks Home reads, not the sync's own
+     * tally of every post it stored that way.
+     *
+     * @param  Collection<int, int>  $scope
+     * @return array<string, mixed>|null
+     */
+    private function loaSyncProblemsIn(Collection $scope): ?array
+    {
+        $latest = $this->loaSyncProblems->latest();
+
+        if ($latest === null) {
+            return null;
+        }
+
+        $sections = $this->units->sectionsAmong($scope)->modelKeys();
+
+        return [...$latest, 'needsReview' => count($this->loaReviewQueue->forSections($sections, WeekOf::reporting(CarbonImmutable::now())))];
+    }
+
+    /**
+     * The Admin tab's child units without the empty line units the order of battle and the unit picker leave out
+     * ({@see Headcount::withoutEmptyLineUnits()}, #442), so both list the same units.
+     *
+     * @param  array{platoons: list<array<string, mixed>>, sections: list<array<string, mixed>>}  $children
+     * @param  Collection<int, Unit>  $shown
+     * @return array{platoons: list<array<string, mixed>>, sections: list<array<string, mixed>>}
+     */
+    private function shownOnly(array $children, Collection $shown): array
+    {
+        $ids = $shown->pluck('id')->flip();
+
+        return array_map(
+            fn (array $units) => array_values(array_filter($units, fn (array $unit) => $ids->has($unit['unitId']))),
+            $children,
+        );
+    }
+
+    /**
+     * Each trooper's history weeks that leave covers, from the one LOA definition ({@see LoaCoverage}, AD-21), the
+     * rule the milpac's attendance history uses: covered, not a post that needs review. One query.
+     *
+     * @param  list<int>  $trooperIds
+     * @return array<int, list<string>>
+     */
+    private function loaWeeks(array $trooperIds, CarbonImmutable $week): array
+    {
+        return array_map(
+            fn (array $covers) => array_keys(array_filter($covers, fn (LoaCover $cover) => $cover->isCovered())),
+            $this->loaCoverage->forTroopersOverWeeks($trooperIds, $week->subWeeks(self::HISTORY_WEEKS - 1), self::HISTORY_WEEKS),
+        );
     }
 
     /**

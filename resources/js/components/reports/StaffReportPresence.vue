@@ -12,9 +12,12 @@ const props = defineProps({
     testid: { type: String, default: 'staff-report-presence' },
     // The trooper's name, for a public server check that says why there is no data.
     name: { type: String, default: null },
+    // The game's attendance can never be read automatically: the page says so once ({@see SelfReportedNotice.vue}), so
+    // a check with no data shows nothing here.
+    selfReported: { type: Boolean, default: false },
 });
 
-const text = computed(() => presenceText(props.presence, props.name));
+const text = computed(() => (props.selfReported && props.presence?.check === 'no_data' ? '' : presenceText(props.presence, props.name)));
 const confirmed = computed(() => confirmedText(props.presence));
 </script>
 

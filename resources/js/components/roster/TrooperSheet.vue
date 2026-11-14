@@ -10,7 +10,7 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Skeleton } from '@/components/ui/skeleton';
 import { forumDate } from '@/lib/forumDate';
 import { makeupPmUrl } from '@/lib/makeupPm';
-import { percentLabel, percentTone, RC_STATES, sourceLabel, SP_STATES, weekCell, weekLabel } from '@/lib/roster';
+import { billetLine, percentLabel, percentTone, RC_STATES, sourceLabel, SP_STATES, trooperWeekCell, weekLabel } from '@/lib/roster';
 import { staffMetText, staffReportsText, staffReportsTone, staffSentText, staffTipRows, staffWeekText, withStaffWeek } from '@/lib/staffWeeks';
 import RankBadge from './RankBadge.vue';
 import StaffPracticeList from './StaffPracticeList.vue';
@@ -70,10 +70,7 @@ const cells = computed(() =>
         index,
         mark: trooper.value.weeks[index],
         // A line HQ staff member's week reads their staff report instead of "No section that week".
-        ...withStaffWeek(
-            weekCell(trooper.value.weeks[index], week, { current: week === current.value, joined: trooper.value.joined, departedAt: trooper.value.departedAt, departed: trooper.value.departed, inSection: trooper.value.inSection?.[index], excused: trooper.value.excusedWeeks?.[week] ?? null }),
-            trooper.value.staffWeeks?.[index],
-        ),
+        ...withStaffWeek(trooperWeekCell(trooper.value, index, week, current.value), trooper.value.staffWeeks?.[index]),
     })),
 );
 // The tooltip rows past the two states (practices, presence), as one line each under the rule badge.
@@ -125,8 +122,8 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                 <SheetHeader class="flex-row items-start gap-3 border-b border-border p-5 pr-12">
                     <RankBadge :rank="trooper.rank" :title="trooper.rankFull" large />
                     <div class="min-w-0">
-                        <SheetDescription class="text-xs">
-                            {{ trooper.billet ?? 'No billet on record' }}, {{ trooper.section.callsign ?? trooper.section.name }}
+                        <SheetDescription class="text-xs" data-testid="sheet-billet">
+                            {{ billetLine(trooper.billet, sectionLabel) }}
                         </SheetDescription>
                         <SheetTitle class="text-base leading-snug">{{ trooper.displayName }}</SheetTitle>
                         <Badge v-if="leaveFrom" variant="outline" class="mt-1" title="Leave starting next Cav week, from LOA records" data-testid="leave-from">Leave from {{ leaveFrom }}</Badge>

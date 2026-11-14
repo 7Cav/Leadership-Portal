@@ -3,6 +3,7 @@ title: Read your staff's reports
 summary: See which platoon, company and battalion HQ staff under you sent their staff report and attended a section practice.
 section: weekly-report
 order: 5
+updated: 2026-11-13
 audience: everyone
 page: /staff-reports
 weekly: true
@@ -13,9 +14,10 @@ minutes: 2
 
 ## Open it
 
-1. Choose **Staff reports** in the sidebar. It opens the week that just ended, the one whose reports are due.
+1. Choose **Staff reports** in the sidebar. It opens the running Cav week.
 2. Use the arrows beside the week to go back a week or forward again.
 3. If you send a staff report yourself, it sits at the top. Choose **Send your staff report** while it is not sent yet.
+4. On the running week, staff who have not sent last week's report are marked **Last week not sent**, and a note above the list says how many, with a link to last week. Staff whose LOA covered last week are not marked.
 
 ## Read the unit health
 
@@ -33,6 +35,10 @@ minutes: 2
 
 > [!good-to-know] A warning icon beside an answer means the game server's practice capture disagrees with it: a practice they reported was captured and did not see them, or a captured practice they did not report saw them. Point at the icon to read which. A practice with no capture never shows one, nor does an FTX, an operation, a class or an event, which the game server does not capture. A public server hour that the public servers do not back up shows its own warning. Staff never see it on their own report.
 
+> [!good-to-know] **Conflicting information** on a line means the report claims a section practice that the section marked as not held. Point at it to read which. It does not change what they reported or **1 SP met**.
+
 > [!good-to-know] A red **Self-report conflicts with CRCON data** badge (the capture system of that game) was set when the report was sent: a practice they picked was captured and none of the picked captures saw them. It never changes afterwards. **No CRCON data** means nothing they picked was captured, so there was nothing to compare.
+
+> [!good-to-know] An HQ whose game can never be read automatically, such as Battlefield 6, shows one orange line under its name: "Server data can't be read automatically for Battlefield 6. All attendance is self-reported." Its staff's lines then show no **No game server data** alerts. Your unit's weekly report says the same once near its top, and its HQ staff list shows no alerts.
 
 > [!good-to-know] You see the staff of every HQ under a unit you command or read: a company commander sees their platoon HQs, battalion command sees company and platoon HQs, regiment command also sees the battalion HQs, and Admins see all. A PL or PSG sees only their own report. For a week that has ended, each HQ lists who was on it when the week ended.

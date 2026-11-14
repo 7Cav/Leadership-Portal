@@ -665,9 +665,11 @@ placed on a platoon, company or battalion HQ node (the PL, PSG, CO, XO, 1SG, the
 else placed there, ACD included). Regiment HQ, staff departments, ELOA, Reservists and New Recruits file none. It is
 not a line in the unit's report. It replaces the regiment's Weekly Staff Report and Weekly Battalion Report forms.
 
-- Where: "Staff report" in the sidebar for platoon, company and battalion HQ staff, and the reminder on Home. Both open
-  `/staff-report/<trooper>/<week>` for the last week to have ended, the one whose report is due; the arrows move
-  between weeks. The running week opens read-only, saying from when it can be sent.
+- Where: "Staff report" in the sidebar for platoon, company and battalion HQ staff opens
+  `/staff-report/<trooper>/<week>` for the running week, always; the arrows move between weeks. While the week before
+  is still owed (they filed one for it, it is not sent, and their LOA did not cover it) their own page says "The
+  report for <week> is not sent." in red with "Open <week>", the notice the unit report page shows. Home's reminder still
+  opens the week that ended while its report is due.
 - Filling it in: the week, its dates and the deadline sit at the top. The form asks one question at a time, with a
   row of numbered steps above it and Back and Next below; a step opens once every step before it is answered. First
   the accountability question as two large choices, Yes and No. Yes moves on to "What was it?": "Section practice" or
@@ -677,7 +679,15 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
   callsign) under a platoon heading, with a search. When the list spans more than four platoons, every
   platoon but the staff member's own starts collapsed and opens on a click; a search opens them all. Only sections that play the HQ's game are offered (the unit's game, inherited down the tree): an HLL
   HQ sees HLL sections. A section, or an HQ, with no game on its chain is never left out for it. An SP needs one or
-  more sections. An FTX, an operation, a class or an event needs its name (up to 120 characters) and its date, a day
+  more sections, each a practice whose time has passed that week (its hour is over), marked held or not. Each section
+  shows its state next to its name: "Held", "Not marked yet", "Marked not held" or "Hasn't happened yet". A practice
+  still to come is greyed out and cannot be ticked, as is a cancelled week, or a section with no practice time unless
+  its practice is confirmed held; one ticked already (an entry) can be unticked, and holds the send back until it is.
+  The send refuses such a pick by name (`not_over`); an FTX's sections are not checked. Reports sent before the rule
+  are not rewritten. A sent SP report that claims a practice the section confirmed as not held (or cancelled), before
+  or after the send, shows "Conflicting information" with a line per section ("<name> reports attending <section>'s
+  practice, but the section marked it as not held."), on the report page and on its overview row. It only flags the
+  report: what it met stands as sent. An FTX, an operation, a class or an event needs its name (up to 120 characters) and its date, a day
   in that Cav week; an FTX's sections are optional, the others take none. Then the presence question, for every level:
   "Public server hour", "Office hour" or "I did not", required on every send and edit. An office hour needs its date, a day in that Cav week, and a short note
   (up to 200 characters), and is never checked. No to accountability goes straight to presence. The last step is "Notes": free-text notes (up to 1000 characters) and other
@@ -688,8 +698,7 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
   never asked. The week's staff practice entries are ticked already, each saying who entered it, and the form then
   opens on the sections. A practice the game server saw them at says "Seen on the game server" and is never ticked
   for them: the capture reads the whole Cav week, so it only says they were on the server.
-- Sending: only once the Cav week has ended (from Saturday 0000Z), so the HQ it counts for is the one they ended
-  the week on. Only the staff member, signed in as themselves, sends it. Nobody sends it for them, Admins included, and
+- Sending: from the start of the Cav week; the running week goes to the HQ they are on now. Only the staff member, signed in as themselves, sends it. Nobody sends it for them, Admins included, and
   never through act as or view as. It is due when the unit reports are, 2359Z on the Saturday after the week. Until
   then they may send it again with a reason ("Edit report", audited as `staff_report.edited`): the row is rewritten,
   the version it replaces is kept and listed under "Earlier versions", and its row on the reports sheet is overwritten.
@@ -735,7 +744,8 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
   answered No. A practice with no capture says nothing, and a named type (FTX, operation, class, event) is never compared. The overview
   reads it for every row at once.
 - Staff reports overview (`/staff-reports?week=<date>`): for anyone who reads some HQ staff's reports, the sidebar item
-  reads "Staff reports" and opens this page instead of "Staff report". It opens the last week to have ended, with
+  reads "Staff reports" and opens this page instead of "Staff report". It opens the running week (on it, staff who still
+  owe the week before's report are marked "Last week not sent", with a count and a link above the list), with
   arrows between weeks, and lists every platoon, company and battalion HQ staff member whose report the viewer reads,
   grouped by HQ down the tree, each with billet, status ("Sent", "Not sent yet", or "Not due yet" for the running
   week), what they attended (SP and sections, or an FTX, operation, class or event with its name and date), their
@@ -788,6 +798,13 @@ checks, messages, layout and theme toggle). Only the data and the consequences d
   a Platoon Leader 1st Platoon, HQ staff sit on that HQ, an Admin keeps Admin.
 - Private: each person has their own practice copy. **Start over** replaces it with fresh data. **Exit tutorial**
   removes it and goes back to the guides home.
+- A second tutorial, Fixing problems (`TutorialTrack::FixProblems`, `track` on `POST /tutorial`), for anyone who leads a
+  unit and Admins, started from its own card on the guides home. The practice week has CPL Sample.R not seen (mark
+  Make-up complete), PFC Model.G of 2nd Section at 1st Section's practice unseen (add as a guest, which writes their
+  make-up), PVT Trial.B who asked for a make-up and missed (1st Section's report waits on the confirmed practice, his
+  reason and his make-up answer), and, for a Platoon Leader and above, 2nd Section's report not sent (copy the reminder,
+  open its roll call). Copying leaves nothing on the server, so that item has a `click` selector and is ticked in the
+  browser for the tab. Start over keeps the tutorial being run.
 - Not in the tutorial: View as and Act as (refused while it is on; the start is refused while either is on).
 
 ### How the isolation works

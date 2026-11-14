@@ -9,7 +9,7 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     usePage: () => ({ props: { forum: { baseUrl: 'https://7cav.us' } } }),
 }));
 
-const LINKS = { milpac: 'https://7cav.us/rosters/profile?uniqueid=', rollcall: '/rollcall/', trooper: '/troopers/' };
+const LINKS = { rollcall: '/rollcall/', trooper: '/troopers/' };
 
 function respond(status, body) {
     globalThis.fetch = vi.fn().mockResolvedValue({ ok: status < 400, status, json: async () => body });
@@ -28,7 +28,7 @@ function detail(over = {}) {
             tig: '2026-02-01',
             section: { id: 3, type: 'section', name: '2nd Section', callsign: '2/1/A/1-7' },
             sectionLeader: { id: 10, rank: 'SGT', name: 'Vasquez.R', displayName: 'SGT Vasquez.R' },
-            milpacUrl: 'https://7cav.us/rosters/profile?uniqueid=4012',
+            milpacUrl: 'https://7cav.us/rosters/profile/4012/',
             ...over,
         },
         weeks: WEEKS,
@@ -171,7 +171,7 @@ describe('Trooper sheet', () => {
 
         expect(document.body.querySelector('[data-testid="sheet-open-rollcall"]').getAttribute('href')).toBe('/rollcall/3');
         const milpac = document.body.querySelector('[data-testid="sheet-milpac"]');
-        expect(milpac.getAttribute('href')).toBe('https://7cav.us/rosters/profile?uniqueid=4012');
+        expect(milpac.getAttribute('href')).toBe('https://7cav.us/rosters/profile/4012/');
         expect(milpac.getAttribute('target')).toBe('_blank');
         expect(milpac.getAttribute('rel')).toContain('noopener');
     });
@@ -266,6 +266,32 @@ describe('Trooper sheet', () => {
 
         const line = document.body.querySelector('[data-testid="sheet-unit"]').textContent.replace(/\s+/g, ' ').trim();
         expect(line).toBe('1/A/1-7, led by SGT Oduya.N (acting)');
+    });
+
+    it('names the unit once when the billet already does (Trooper 1/1/C/ACD, not twice)', async () => {
+        respond(200, detail({ billet: 'Trooper 2/1/A/1-7' }));
+        factory();
+        await flushPromises();
+        expect(document.body.querySelector('[data-testid="sheet-billet"]').textContent.trim()).toBe('Trooper 2/1/A/1-7');
+
+        document.body.innerHTML = '';
+        respond(200, detail({ billet: 'Rifleman' }));
+        factory();
+        await flushPromises();
+        expect(document.body.querySelector('[data-testid="sheet-billet"]').textContent.trim()).toBe('Rifleman, 2/1/A/1-7');
+    });
+
+    it('shows the weeks leave covers as On LOA, not Unsigned, as the milpac does', async () => {
+        const unsigned = { rollcall: 'unsigned', status: null, source: null, held: false };
+        respond(200, detail({ weeks: WEEKS.map(() => unsigned), loaWeeks: [WEEKS[18], WEEKS[19]] }));
+        factory();
+        await flushPromises();
+
+        const recent = document.body.querySelectorAll('[data-testid="sheet-recent"] tbody tr');
+        expect(recent[0].textContent).toContain('On LOA');
+        expect(recent[0].textContent).not.toContain('Unsigned');
+        expect(recent[1].textContent).toContain('On LOA');
+        expect(recent[2].textContent).toContain('Unsigned');
     });
 
     it('stays closed with no trooper selected', () => {

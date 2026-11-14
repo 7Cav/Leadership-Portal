@@ -78,6 +78,7 @@ class FakeSheetsClient implements SheetsClient
 }
 
 beforeEach(function () {
+    everyPracticeHeld();
     $this->tree = staffPracticeTree();
     $this->week = staffPracticeWeek();
     // The Saturday after the fixture's week: 03OCT26 has ended and its report is due tonight.
@@ -267,7 +268,7 @@ it('freezes the new fields with the report and reads them back on the page, the 
             ->where('report.otherEvents', 'Range day')
             ->where('report.notes', 'Ran the OPFOR.'));
 
-    $this->actingAs($this->tree['users']['co'])->get('/staff-reports')->assertInertia(fn (AssertableInertia $page) => $page
+    $this->actingAs($this->tree['users']['co'])->get('/staff-reports?week=2026-10-03')->assertInertia(fn (AssertableInertia $page) => $page
         ->where('groups.0.rows', fn ($rows) => ($psg = collect($rows)->firstWhere('trooperId', $this->psg->id)) !== null
             && $psg['practiceType'] === 'ftx' && $psg['otherEvents'] === 'Range day' && $psg['notes'] === 'Ran the OPFOR.'
             // An FTX keeps to the rule of one practice a week, sections or not.
@@ -373,7 +374,7 @@ it('keeps the send when the push fails, leaves the report not sent to the sheet,
         ->assertSessionHasNoErrors();
 
     expect(StaffReport::query()->sole()->sheet_pushed_at)->toBeNull();
-    $this->actingAs($this->tree['users']['co'])->get('/staff-reports')->assertInertia(fn (AssertableInertia $page) => $page
+    $this->actingAs($this->tree['users']['co'])->get('/staff-reports?week=2026-10-03')->assertInertia(fn (AssertableInertia $page) => $page
         ->where('sheetConfigured', true)
         ->where('groups.0.rows', fn ($rows) => collect($rows)->firstWhere('trooperId', $this->psg->id)['sheetPushedAt'] === null));
 
@@ -565,7 +566,7 @@ it('freezes the presence answer and reads it back on the page and the overview',
             ->where('report.publicServer', null)
             ->where('limits.officeHourNote', 200));
 
-    $this->actingAs($this->tree['users']['co'])->get('/staff-reports')->assertInertia(fn (AssertableInertia $page) => $page
+    $this->actingAs($this->tree['users']['co'])->get('/staff-reports?week=2026-10-03')->assertInertia(fn (AssertableInertia $page) => $page
         ->where('groups.0.rows', fn ($rows) => ($row = collect($rows)->firstWhere('trooperId', $this->psg->id)) !== null
             && $row['presenceType'] === 'office_hour' && $row['officeHour'] === ['date' => '2026-10-06', 'note' => 'Q and A'] && $row['publicServer'] === null));
 });

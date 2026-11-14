@@ -1160,6 +1160,20 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-step="3"]').attributes('aria-label')).toBe('Step 3, Review and post, Not posted yet');
         });
 
+        it('does not ask for a repost on a locked week, and points at Request edit on the report', () => {
+            const wrapper = factory({
+                locked: true,
+                report: { due: '2026-10-10T23:59:00+00:00', overdueUntil: '2026-10-31T00:00:00+00:00', sent: true, href: '/reports/12/2026-10-03' },
+                practice: { lastMarkedAt: '2026-10-08T17:00:00+00:00', posted: { at: '2026-10-08T16:20:00+00:00', by: 'Vasquez.R' } },
+            });
+
+            const state = wrapper.find('[data-testid="posted-state"]');
+            expect(state.text()).not.toContain('Repost');
+            expect(state.text()).toContain('The weekly report is sent, so this roll call is locked. To change it, edit the report, or use Request edit there once it is past its deadline.');
+            expect(wrapper.find('[data-testid="posted-report-link"]').attributes('href')).toBe('/reports/12/2026-10-03');
+            expect(wrapper.find('[data-step="3"]').attributes('aria-label')).toBe('Step 3, Review and post, Posted');
+        });
+
         it('keeps copying the forum post on a locked week, but not marking it posted', async () => {
             const writeText = vi.fn().mockResolvedValue();
             Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
@@ -1596,17 +1610,48 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Practice took place');
         });
 
-        it('sends the confirmation it shows when confirming again, so the server can tell a racing one', async () => {
-            post.mockResolvedValue({ ok: true, status: 200, data: { confirmation: { at: '2026-10-09T08:00:00+00:00', by: 'Vasquez.R' } } });
+        it('sends the confirmation it shows when switching it, so the server can tell a racing one', async () => {
+            post.mockResolvedValue({ ok: true, status: 200, data: { confirmation: { at: '2026-10-09T08:00:00+00:00', by: 'Vasquez.R', held: false } } });
             const wrapper = factory({
                 capture: CAPTURE,
                 practice: { lastMarkedAt: null, confirmation: { at: '2026-10-08T16:20:00+00:00', by: 'Ortega.M' } },
             });
 
+            await wrapper.find('[data-testid="confirm-not-held"]').trigger('click');
+            await flushPromises();
+
+            expect(post).toHaveBeenCalledWith('/rollcall/12/confirm', { week: '2026-10-03', confirmedAt: '2026-10-08T16:20:00+00:00', held: false });
+        });
+
+        it('shows only the badge and one button to switch once the practice is confirmed as held', () => {
+            const wrapper = factory({
+                capture: CAPTURE,
+                practice: { lastMarkedAt: null, confirmation: { at: '2026-10-08T16:20:00+00:00', by: 'Ortega.M' } },
+            });
+
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Practice took place');
+            expect(wrapper.find('[data-testid="confirm-practice"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="confirm-not-held"]').text()).toBe('Change to: did not take place');
+            expect(wrapper.find('[data-testid="confirm-cluster"]').text()).not.toContain('again');
+        });
+
+        it('switches a not-held confirmation to held with its single button', async () => {
+            post.mockResolvedValue({ ok: true, status: 200, data: { confirmation: { at: '2026-10-09T08:00:00+00:00', by: 'Vasquez.R', held: true } } });
+            const wrapper = factory({
+                capture: CAPTURE,
+                practice: { lastMarkedAt: null, confirmation: { at: '2026-10-08T16:20:00+00:00', by: 'Ortega.M', held: false } },
+            });
+
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Practice did not take place');
+            expect(wrapper.find('[data-testid="confirm-not-held"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="confirm-practice"]').text()).toBe('Change to: took place');
+
             await wrapper.find('[data-testid="confirm-practice"]').trigger('click');
             await flushPromises();
 
             expect(post).toHaveBeenCalledWith('/rollcall/12/confirm', { week: '2026-10-03', confirmedAt: '2026-10-08T16:20:00+00:00', held: true });
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Practice took place');
+            expect(wrapper.find('[data-testid="confirm-not-held"]').text()).toBe('Change to: did not take place');
         });
 
         it('stays not confirmed and says so when the server refuses the confirmation', async () => {
@@ -1743,7 +1788,16 @@ describe('Rollcall page', () => {
         it('says telemetry is not configured, with no retry to offer', () => {
             wrapper = factory({ telemetry: NOT_CONFIGURED });
 
-            expect(wrapper.find('[data-testid="telemetry-banner"]').text()).toContain('Capture is not set up for Hell Let Loose, so nothing was pre-filled. Mark attendance by hand.');
+            expect(wrapper.find('[data-testid="telemetry-banner"]').text()).toContain('Capture is not set up yet for Hell Let Loose, so nothing was pre-filled. Mark attendance by hand.');
+            expect(wrapper.find('[data-testid="telemetry-retry"]').exists()).toBe(false);
+        });
+
+        it('says plainly a game that can never be read is marked by hand, with no retry and no set-up hint', () => {
+            wrapper = factory({ telemetry: { ...NOT_CONFIGURED, platformLabel: 'Battlefield 6', detail: 'impossible' } });
+            const banner = wrapper.find('[data-testid="telemetry-banner"]');
+
+            expect(banner.text()).toBe("Server data can't be read automatically for Battlefield 6. Mark attendance by hand.");
+            expect(banner.classes()).toContain('bg-warning/8');
             expect(wrapper.find('[data-testid="telemetry-retry"]').exists()).toBe(false);
         });
 

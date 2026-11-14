@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import EmptyState from '@/components/EmptyState.vue';
 import SearchSelect from '@/components/SearchSelect.vue';
 import UserFilterPicker from '@/components/UserFilterPicker.vue';
-import { forumDateTime } from '@/lib/forumDate';
+import { forumZulu } from '@/lib/forumDate';
 
 // Flat entries + option lists (mirrors `StaffGrants.vue`'s flat-props pattern). `entries` is a
 // Laravel paginator serialized as-is — `data` plus the standard pagination metadata — so no
@@ -183,7 +183,7 @@ function goTo(url) {
                             <span v-else class="text-muted-foreground">None given</span>
                         </TableCell>
                         <TableCell class="font-mono text-xs text-muted-foreground" :title="entry.content_digest">{{ entry.content_digest.slice(0, 12) }}</TableCell>
-                        <TableCell class="px-4 tabular-nums">{{ forumDateTime(entry.created_at) }}</TableCell>
+                        <TableCell class="px-4 tabular-nums">{{ forumZulu(entry.created_at) }}</TableCell>
                     </TableRow>
                 </TableBody>
             </Table>

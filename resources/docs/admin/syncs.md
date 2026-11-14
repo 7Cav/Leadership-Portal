@@ -4,6 +4,7 @@ summary: When the portal refreshes the roster and leave, and when to run one by 
 section: admin
 order: 6
 audience: admin
+updated: 2026-11-12
 ---
 
 > [!why] The portal reads the Cav roster and the forum's leave threads, it never writes to them. If either is out of date, roll calls show the wrong troopers or miss someone on leave.
@@ -25,7 +26,7 @@ audience: admin
 
 ## When leave looks wrong
 
-1. When the latest leave sync had problems, **Roster** shows Admins a warning under the leave note. Open it to see the threads it could not read, each linked to the forum, and how many posts need review. A post that needs review is fixed by the trooper on the forum; the next sync reads it again.
+1. When the latest leave sync had problems, **Roster** shows Admins a warning under the leave note. Open it to see the threads it could not read, each linked to the forum, and how many posts need review. That count is the one Home's **Needs attention** lists: one per trooper on a roll call this week (and in the week just ended, until its report is due). A post that needs review is fixed by the trooper on the forum; the next sync reads it again.
 2. A leave post that is deleted, hidden or moved out of the leave sections is removed from the portal by the next clean daily read, once it is confirmed gone. If it is put back, it is stored again.
 
 > [!good-to-know] What this changes, and how to undo it: a sync only refreshes the portal's copy. To undo a wrong change, fix the milpac or the leave post at the source, then sync again.

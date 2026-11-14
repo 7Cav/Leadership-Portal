@@ -24,7 +24,7 @@ import {
     sourceLabel,
     SORTS,
     SP_STATES,
-    weekCell,
+    trooperWeekCell,
     weekLabel,
     weekEndTick,
 } from '@/lib/roster';
@@ -134,10 +134,8 @@ const anyRows = computed(() => rows.value.some((row) => row.kind === 'trooper' |
 function cell(trooper, index) {
     const week = props.weeks[index];
 
-    const base = weekCell(trooper.weeks[index], week, { current: week === props.currentWeek, joined: trooper.joined, departedAt: trooper.departedAt, departed: trooper.departed, inSection: trooper.inSection?.[index], excused: trooper.excusedWeeks?.[week] ?? null });
-
     // A line HQ staff member's week reads their staff report instead of "No section that week".
-    return withStaffWeek(base, trooper.staffWeeks?.[index]);
+    return withStaffWeek(trooperWeekCell(trooper, index, week, props.currentWeek), trooper.staffWeeks?.[index]);
 }
 function aggregate(members, index) {
     const week = props.weeks[index];
