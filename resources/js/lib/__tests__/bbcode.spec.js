@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import cases from '../../../../tests/Fixtures/bbcode-templates.json';
-import { DESCRIBED, FILTERS, LABELLED, codeLabel, LISTS, ROW_FLAGS, ROW_STRINGS, TOP_FLAGS, TOP_STRINGS, inert, parse, render, sampleContext, templateLegend } from '../bbcode';
+import { DESCRIBED, FILTERS, LABELLED, chainText, codeLabel, LISTS, ROW_FLAGS, ROW_STRINGS, TOP_FLAGS, TOP_STRINGS, inert, parse, render, sampleContext, templateLegend } from '../bbcode';
 
 // Story 3.10. The grammar cases are shared with the server's TemplateSyntax (tests/Fixtures/bbcode-templates.json), so the
 // browser and the server accept and refuse the same templates with the same messages.
@@ -352,5 +352,48 @@ describe('a value cannot become BBCode', () => {
         const out = render('{{#troopers}}{{name}}{{/troopers}}', context({ troopers: [row({ name: '{{unit}}' })] }));
 
         expect(out.text).toBe('{{unit}}');
+    });
+});
+
+describe('the chain of command, {{coc}}', () => {
+    const holder = (rank, name, id) => [{ rank, name, url: `https://7cav.us/rosters/profile?uniqueid=${id}` }];
+    const CHAIN = [
+        { role: 'Assistant Section Leader', holders: [], acting: false },
+        { role: 'Section Leader', holders: holder('Specialist', 'Shakif.A', 1), acting: false },
+        { role: 'Platoon Leader', holders: holder('First Lieutenant', 'Laui.M', 2), acting: true },
+        { role: 'Company Executive Officer', holders: [], acting: false },
+    ];
+
+    it('prints one line per billet, each holder linked to their milpac, an empty billet as plain Vacant, an acting lead marked', () => {
+        expect(render('{{coc}}', { coc: CHAIN }).text).toBe(
+            [
+                'Assistant Section Leader: Vacant',
+                'Section Leader: [url=https://7cav.us/rosters/profile?uniqueid=1]Specialist Shakif.A[/url]',
+                'Platoon Leader: [url=https://7cav.us/rosters/profile?uniqueid=2]First Lieutenant Laui.M[/url] (acting)',
+                'Company Executive Officer: Vacant',
+            ].join('\n'),
+        );
+    });
+
+    it('cases the words with a filter but never the address', () => {
+        expect(render('{{coc|upper}}', { coc: CHAIN.slice(1, 2) }).text).toBe('SECTION LEADER: [url=https://7cav.us/rosters/profile?uniqueid=1]SPECIALIST SHAKIF.A[/url]');
+    });
+
+    it('keeps a name inert and prints an address that could break the tag without a link', () => {
+        const chain = [{ role: 'Section Leader', holders: [{ rank: 'Sergeant', name: '[B]x', url: 'https://example.com/a]b' }], acting: false }];
+
+        expect(render('{{coc}}', { coc: chain }).text).toBe('Section Leader: Sergeant [\u200BB\uFF3Dx');
+        expect(chainText([{ role: 'Section Leader', holders: [{ rank: 'Sergeant', name: 'Jay.JH', url: 'javascript:alert(1)' }] }])).toBe('Section Leader: Sergeant Jay.JH');
+    });
+
+    it('is set as a section when the section has a chain, and empty when it has none', () => {
+        expect(render('{{#coc}}CoC{{/coc}}{{^coc}}None{{/coc}}', { coc: CHAIN }).text).toBe('CoC');
+        expect(render('{{#coc}}CoC{{/coc}}{{^coc}}None{{/coc}}[{{coc}}]', { coc: [] }).text).toBe('None[]');
+    });
+
+    it('has a label for the visual editor and a chain in the sample section', () => {
+        expect(codeLabel('coc')).toBe('Chain of command');
+        expect(render('{{coc}}', sampleContext()).text.split('\n')).toHaveLength(10);
+        expect(render('{{coc}}', sampleContext()).text).toContain('Platoon Leader: [url=https://example.com/milpac/3]First Lieutenant Laui.M[/url] (acting)');
     });
 });

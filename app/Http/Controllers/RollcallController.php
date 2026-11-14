@@ -76,6 +76,7 @@ use App\Repositories\UnitDesignationOrder;
 use App\Repositories\UnitGuidonRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
+use App\Rollcall\ChainOfCommand;
 use App\Rollcall\MissingGameIdentities;
 use App\Rollcall\ResultImageUrls;
 use App\Rollcall\RollcallGuests;
@@ -164,6 +165,7 @@ class RollcallController extends Controller
         private readonly AutomaticAttendance $automatic,
         private readonly RollcallCycleProps $cycle,
         private readonly PageAccess $pages,
+        private readonly ChainOfCommand $chainOfCommand,
     ) {}
 
     /**
@@ -248,6 +250,8 @@ class RollcallController extends Controller
             // The live result images the post can embed (#641): the Signed RC and the Attended SP of this week, drawn
             // from the marks as they are when a fetch reaches the portal (a cache may reuse one for a minute). The unit's secret in the URL is what lets the forum load them.
             'resultImages' => ResultImageUrls::for($section, $weekStart),
+            // The section's chain of command up to its battalion, which the post prints as `{{coc}}`.
+            'chainOfCommand' => $this->chainOfCommand->lines($section),
             'report' => $this->reportProps($section, $weekStart),
             // Which roll call flow the week follows and whether its roll call was created (#703).
             'flow' => $this->cycle->flow($section, $weekStart),

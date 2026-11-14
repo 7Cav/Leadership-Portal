@@ -422,3 +422,20 @@ describe('the starter template, filled', () => {
         expect(JSON.stringify(tree)).toContain('<script>alert(1)</script>');
     });
 });
+
+describe('the chain of command in the preview', () => {
+    it('shows each holder as a link to their milpac and Vacant as text', () => {
+        const coc = [
+            { role: 'Section Leader', holders: [], acting: false },
+            { role: 'Platoon Leader', holders: [{ rank: 'First Lieutenant', name: 'Laui.M', url: 'https://7cav.us/rosters/profile?uniqueid=3099' }], acting: true },
+        ];
+
+        expect(read(render('{{coc}}', { coc }).text)).toEqual([
+            'Section Leader: Vacant',
+            'br',
+            'Platoon Leader: ',
+            ['url', { attrs: { href: 'https://7cav.us/rosters/profile?uniqueid=3099', rel: 'noopener noreferrer nofollow', target: '_blank' } }, ['First Lieutenant Laui.M']],
+            ' (acting)',
+        ]);
+    });
+});
