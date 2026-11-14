@@ -25,6 +25,7 @@ import {
     sourceLabel,
     SP_STATES,
     transferLabel,
+    transferNote,
     trooperWeekCell,
     weekCell,
     weekLabel,
@@ -571,6 +572,12 @@ describe('transfers and the attendance history', () => {
         expect(transferLabel({ at: '2026-10-12T18:00:00Z', from: '2/1/A/1-7', to: '1/2/A/1-7' })).toBe('Moved from 2/1/A/1-7 to 1/2/A/1-7, 12OCT26');
         expect(transferLabel({ at: '2026-10-12T18:00:00Z', from: null, to: '1/2/A/1-7' })).toBe('Placed in 1/2/A/1-7, 12OCT26');
         expect(transferLabel({ at: '2026-10-12T18:00:00Z', from: '2/1/A/1-7', to: null })).toBe('Left 2/1/A/1-7, 12OCT26');
+    });
+
+    it('notes a move undone in a later week, and the move that undid it, as a likely milpac correction', () => {
+        expect(transferNote({ at: '2026-10-01T12:00:00Z', from: 'A', to: 'B', reversedAt: '2026-10-05T12:00:00Z', reverses: false })).toBe('Moved back 05OCT26. Likely a milpac correction');
+        expect(transferNote({ at: '2026-10-05T12:00:00Z', from: 'B', to: 'A', reversedAt: null, reverses: true })).toBe('Undoes the move before. Likely a milpac correction');
+        expect(transferNote({ at: '2026-10-05T12:00:00Z', from: 'B', to: 'A', reversedAt: null, reverses: false })).toBeNull();
     });
 
     const week = (overrides = {}) => ({ week: '2026-09-19', section: { id: 4, label: '2/1/A/1-7' }, rollcall: 'will_attend', status: 'present', source: 'manual', held: true, loa: false, ...overrides });
