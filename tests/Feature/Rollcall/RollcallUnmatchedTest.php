@@ -63,7 +63,7 @@ it('lists a player linked to a departed trooper as departed, with the trooper na
     $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")->assertInertia(fn (Assert $page) => $page
         ->has('unmatched', 1)
         ->has('departed', 1)
-        ->where('departed.0', ['platform' => 'hll', 'platformLabel' => 'Hell Let Loose (WW2)', 'playerName' => 'GoneA', 'platformId' => '76561190000000040', 'retired' => false, 'idSource' => null, 'trooperName' => $left->fresh()->display_name]));
+        ->where('departed.0', ['platform' => 'hll', 'platformLabel' => 'Hell Let Loose (WW2)', 'playerName' => 'GoneA', 'platformId' => '76561190000000040', 'retired' => false, 'idSource' => null, 'minutes' => null, 'trooperName' => $left->fresh()->display_name]));
 
     // Not linkable from the drawer: the link exists, and it is not an unmatched player.
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this, ['platform_id' => '76561190000000040']))
@@ -77,7 +77,7 @@ it('lists the unmatched players of a captured practice, with the capture seam fo
     $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")->assertInertia(fn (Assert $page) => $page
         ->where('capture', ['source' => 'crcon', 'capturedAt' => '2026-10-08T12:00:00+00:00'])
         ->has('unmatched', 1)
-        ->where('unmatched.0', ['platform' => 'hll', 'platformLabel' => 'Hell Let Loose (WW2)', 'playerName' => 'Ortega', 'platformId' => '76561190000000001', 'retired' => false, 'idSource' => null]));
+        ->where('unmatched.0', ['platform' => 'hll', 'platformLabel' => 'Hell Let Loose (WW2)', 'playerName' => 'Ortega', 'platformId' => '76561190000000001', 'retired' => false, 'idSource' => null, 'minutes' => null]));
 });
 
 it('writes out hidden characters in a captured player name, so an override cannot reorder the text around it, and keeps the ID as reported', function () {
@@ -438,7 +438,7 @@ it('lists this practice\'s dismissed players for the drawer, and undoing one lis
 
     $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")->assertInertia(fn (Assert $page) => $page
         ->where('unmatched', [])
-        ->where('dismissed', [['platform' => 'hll', 'platformLabel' => 'Hell Let Loose (WW2)', 'playerName' => 'Ortega', 'platformId' => '76561190000000001', 'retired' => false, 'idSource' => null]]));
+        ->where('dismissed', [['platform' => 'hll', 'platformLabel' => 'Hell Let Loose (WW2)', 'playerName' => 'Ortega', 'platformId' => '76561190000000001', 'retired' => false, 'idSource' => null, 'minutes' => null]]));
 
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/restore", linkBody($this))
         ->assertOk()->assertJsonPath('restored', true);
@@ -547,4 +547,10 @@ it('leaves no audit trail behind a refused collision, and nothing is consumed by
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this))->assertStatus(422);
 
     expect(AuditLogEntry::query()->count())->toBe($before);
+});
+
+it('sends each unmatched player\'s time on the server, so the row can show it', function () {
+    $this->seen->forceFill(['minutes' => 42])->save();
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")->assertInertia(fn (Assert $page) => $page->where('unmatched.0.minutes', 42));
 });

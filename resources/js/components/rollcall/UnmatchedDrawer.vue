@@ -28,7 +28,8 @@ const props = defineProps({
     sectionId: { type: Number, required: true },
     // The practice's week (`YYYY-MM-DD`).
     week: { type: String, required: true },
-    // `[{ platform, platformLabel, playerName, platformId, retired, idSource }]`; `retired` is true when the player's game is
+    // `[{ platform, platformLabel, playerName, platformId, retired, idSource, minutes }]`; `minutes` is their time on the
+    // server in the practice window, null when the source only knows they were seen (#176); `retired` is true when the player's game is
     // retired, which takes no new links (#388); `idSource` is `battlemetrics` when the ID is a BattleMetrics player number
     // read through CRCON's fallback, not a game ID.
     players: { type: Array, required: true },
@@ -204,7 +205,10 @@ async function dismiss(player) {
                         <b class="truncate font-medium" data-testid="unmatched-name">{{ player.playerName }}</b>
                         <Badge variant="outline" class="shrink-0">{{ player.platformLabel }}</Badge>
                     </p>
-                    <p class="truncate font-mono text-xs text-muted-foreground" data-testid="unmatched-id">{{ player.platformId }}</p>
+                    <p class="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                        <span class="truncate font-mono" data-testid="unmatched-id">{{ player.platformId }}</span>
+                        <span v-if="player.minutes != null" class="shrink-0" data-testid="unmatched-minutes">{{ player.minutes }} min on the server</span>
+                    </p>
                 </div>
 
                 <p v-if="linkBlocked(player)" class="text-xs text-muted-foreground" data-testid="unmatched-blocked">{{ linkBlocked(player) }}</p>

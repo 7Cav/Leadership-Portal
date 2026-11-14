@@ -12,10 +12,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * section is elsewhere. Written only by the capture handler through `PracticeCapturePlayerRepository`,
  * replaced on every run. `id_source` is set when `platform_id` is not a game ID but a service's own number for the
  * player (`battlemetrics`: a BattleMetrics player number read through CRCON's fallback); such a player is never linked.
+ * `minutes` is how long the capture saw them inside the window (#176), null when the source only knows they were seen.
  */
-#[Fillable(['section_practice_id', 'game_id', 'player_name', 'platform_id', 'trooper_id', 'id_source'])]
+#[Fillable(['section_practice_id', 'game_id', 'player_name', 'platform_id', 'trooper_id', 'id_source', 'minutes'])]
 class PracticeCapturePlayer extends Model
 {
+    protected function casts(): array
+    {
+        return ['minutes' => 'integer'];
+    }
+
     public function game(): BelongsTo
     {
         return $this->belongsTo(Game::class);

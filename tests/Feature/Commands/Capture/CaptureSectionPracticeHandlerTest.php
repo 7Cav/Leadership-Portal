@@ -786,3 +786,14 @@ function runCaptureWindow(object $test, DateTimeImmutable $start, DateTimeImmuta
     app()->instance(CaptureSources::class, new CaptureSources(['crcon' => [answeringSource('crcon', [])]]));
     app(CaptureSectionPracticeHandler::class)->handle(new CaptureSectionPractice($test->practice->id, game('hll')->id, $start, $end));
 }
+
+it('keeps each unmatched player\'s time on the server, added up across servers, and none when the source does not know it', function () {
+    app()->instance(CaptureSources::class, new CaptureSources(['crcon' => []], fn () => [
+        new CaptureServer(1, 'A', [answeringSource('crcon', [new CrconPlayer('Twice', '76561198000000007', minutes: 20), new CrconPlayer('Seen', '76561198000000008')])]),
+        new CaptureServer(2, 'B', [answeringSource('crcon', [new CrconPlayer('Twice', '76561198000000007', minutes: 15)])]),
+    ]));
+
+    app(CaptureSectionPracticeHandler::class)->handle(new CaptureSectionPractice($this->practice->id, game('hll')->id, $this->start, $this->end, 'system'));
+
+    expect(PracticeCapturePlayer::query()->orderBy('id')->pluck('minutes', 'platform_id')->all())->toBe(['76561198000000007' => 35, '76561198000000008' => null]);
+});
