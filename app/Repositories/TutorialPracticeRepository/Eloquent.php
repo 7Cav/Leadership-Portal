@@ -3,6 +3,8 @@
 namespace App\Repositories\TutorialPracticeRepository;
 
 use App\Models\Attendance;
+use App\Models\AttendanceStatus;
+use App\Models\CrossSectionSighting;
 use App\Models\Game;
 use App\Models\Loa;
 use App\Models\LoaParseStatus;
@@ -216,6 +218,21 @@ class Eloquent implements TutorialPracticeRepository
             'note' => $sent || filled($report?->notes),
             'sent' => $sent,
             'staffSent' => $personaTrooperId !== null && StaffReport::query()->where('trooper_id', $personaTrooperId)->exists(),
+        ];
+    }
+
+    public function fixProgress(?int $sectionId, ?int $madeUpTrooperId, ?int $guestTrooperId, CarbonInterface $week): array
+    {
+        $practice = $sectionId === null ? null : SectionPractice::query()->where('section_id', $sectionId)->where('week_start', $week)->first();
+        $report = $sectionId === null ? null : WeeklyReport::query()->where('unit_id', $sectionId)->where('week_start', $week)->first();
+
+        return [
+            'madeUp' => $practice !== null && $madeUpTrooperId !== null && Attendance::query()
+                ->where('section_practice_id', $practice->id)->where('trooper_id', $madeUpTrooperId)->first()?->status === AttendanceStatus::Makeup,
+            'guestAdded' => $practice !== null && $guestTrooperId !== null && CrossSectionSighting::query()
+                ->where('section_practice_id', $practice->id)->where('trooper_id', $guestTrooperId)
+                ->where('source', CrossSectionSighting::SOURCE_MANUAL)->exists(),
+            'sectionSent' => $report?->status === WeeklyReportStatus::Sent,
         ];
     }
 }

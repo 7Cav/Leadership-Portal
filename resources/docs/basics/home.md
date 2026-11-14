@@ -3,7 +3,7 @@ title: Home
 summary: See where your units stand this week, what needs attention, and how your numbers are trending.
 section: basics
 order: 6
-updated: 2026-10-31
+updated: 2026-11-12
 audience: everyone
 page: /home
 ---
@@ -24,7 +24,8 @@ Both warnings are for leaders at battalion level and below. If you lead the regi
 
 1. The bar at the top shows the days of the Cav week and when the report is due.
 2. Its five lanes count your sections: **Roll call posted**, **Roll call signed**, **SP held**, **Attendance marked** and **Report sent**.
-3. Choose a section's step to go to the place where it gets done.
+3. **Roll call signed** counts only troopers who signed. Troopers on leave, or excused in their first week after joining or a transfer, have nothing to sign: they are left out of both numbers and named after them, as in "3 of 5 signed, 2 on LOA". That is how RC leaves them out on the reports.
+4. Choose a section's step to go to the place where it gets done.
 
 ## Read the numbers
 

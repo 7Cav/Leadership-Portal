@@ -322,13 +322,14 @@ final class Headcount
 
     /**
      * Whether troopers placed in `$placed` count towards `$unit`: it is `$unit` or under it. The holding groups (New
-     * Recruits, ELOA, Reservists) only count on their own group: the headcount above them is the active regiment,
-     * sections plus staff, and those groups show their own numbers.
+     * Recruits, ELOA, Reservists) never count on a line unit above them: a line unit's headcount is the active regiment,
+     * sections plus staff, and those groups show their own numbers. A staff group above one counts it like any other
+     * child, so the portfolio that holds the Reservists (RDC) includes them, and so does the portfolio above it.
      */
     public static function counts(Unit $placed, Unit $unit): bool
     {
         return str_starts_with($placed->path, $unit->path)
-            && (! self::isHoldingGroup($placed) || $placed->kind === $unit->kind);
+            && (! self::isHoldingGroup($placed) || $placed->kind === $unit->kind || $unit->kind === UnitKind::Staff);
     }
 
     private static function isHoldingGroup(Unit $unit): bool

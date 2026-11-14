@@ -907,6 +907,9 @@ const markedSince = (practice) =>
     Boolean(practice?.posted && practice.lastMarkedAt && new Date(practice.lastMarkedAt) > new Date(practice.posted.at));
 const posted = ref(props.practice?.posted ?? null);
 const editedSincePost = ref(markedSince(props.practice));
+// A repost is only asked for while one can be made: a sent report locks the week, marking it posted again included, so
+// a locked week reads as posted and points at Request edit on the report instead.
+const repostNeeded = computed(() => editedSincePost.value && !weekLocked.value);
 // The forum thread link typed on the post step (#703), filled from the one on record.
 const threadUrl = ref(props.practice?.posted?.threadUrl ?? '');
 watch(posted, (value) => {
@@ -948,7 +951,7 @@ const steps = computed(() =>
               sent: reportSent.value,
               unlinked: unlinkedCount.value,
           })
-        : stepsOf(rows.value, posted.value && !editedSincePost.value ? posted.value.at : null, unlinkedCount.value),
+        : stepsOf(rows.value, posted.value && !repostNeeded.value ? posted.value.at : null, unlinkedCount.value),
 );
 // Where the cycle stands, for the badge beside the title (mockups 703-1 to 703-4).
 const cycleState = computed(() => {
@@ -1196,25 +1199,28 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                         confirmation ? (confirmedHeld ? 'Practice took place' : 'Practice did not take place') : 'Not confirmed'
                     }}
                 </Badge>
+                <!-- Once confirmed, the badge says which way and a single button switches to the other. -->
                 <Button
+                    v-if="!confirmation || !confirmedHeld"
                     size="sm"
-                    :variant="confirmedHeld ? 'outline' : 'default'"
+                    :variant="confirmation ? 'outline' : 'default'"
                     :disabled="!editable || confirming || !practiceOver"
                     :title="readOnlyReason ?? notOverReason ?? confirmationLabel ?? undefined"
                     data-testid="confirm-practice"
                     @click="confirmPractice(true)"
                 >
-                    <PhCheck />{{ confirmedHeld ? 'Confirm again: practice took place' : 'Confirm practice took place' }}
+                    <PhCheck v-if="!confirmation" />{{ confirmation ? 'Change to: took place' : 'Confirm practice took place' }}
                 </Button>
                 <Button
+                    v-if="!confirmation || confirmedHeld"
                     size="sm"
                     variant="outline"
                     :disabled="!editable || confirming || !practiceOver"
-                    :title="readOnlyReason ?? notOverReason ?? undefined"
+                    :title="readOnlyReason ?? notOverReason ?? confirmationLabel ?? undefined"
                     data-testid="confirm-not-held"
                     @click="confirmPractice(false)"
                 >
-                    Practice did not take place
+                    {{ confirmation ? 'Change to: did not take place' : 'Practice did not take place' }}
                 </Button>
             </div>
             <div :class="cn('flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground sm:w-auto', rows.length ? 'sm:ml-0' : 'sm:ml-auto')">
@@ -1682,19 +1688,24 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                         :class="
                             cn(
                                 'mt-3 flex items-start gap-2.5 rounded-lg border px-3.5 py-3 text-[13px]',
-                                editedSincePost ? 'border-warning/40 bg-warning/7' : 'border-success/35 bg-success/7',
+                                repostNeeded ? 'border-warning/40 bg-warning/7' : 'border-success/35 bg-success/7',
                             )
                         "
                         data-testid="posted-state"
                     >
-                        <PhWarning v-if="editedSincePost" class="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
+                        <PhWarning v-if="repostNeeded" class="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
                         <PhCheckCircle v-else class="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
                         <div class="flex-1">
                             <p class="font-medium">
                                 Roll call posted <TimeAgo :at="posted.at" quiet>{{ postedLabel }}</TimeAgo><template v-if="posted.by"> by {{ posted.by }}</template>
                             </p>
                             <p class="mt-0.5 text-xs text-muted-foreground">
-                                <template v-if="editedSincePost">Marks changed since then. Repost the updated BBCode, then mark it posted again.</template>
+                                <template v-if="repostNeeded">Marks changed since then. Repost the updated BBCode, then mark it posted again.</template>
+                                <template v-else-if="weekLocked">
+                                    The weekly report is sent, so this roll call is locked. To change it, edit the
+                                    <Link v-if="report?.href" :href="report.href" class="underline underline-offset-2" data-testid="posted-report-link">report</Link
+                                    ><template v-else>report</template>, or use Request edit there once it is past its deadline.
+                                </template>
                                 <template v-else>Edits after this show up here as changes to repost.</template>
                             </p>
                         </div>
@@ -1919,8 +1930,8 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                             <li
                                 v-for="(item, index) in [
                                     { label: copyStale ? 'Copy the updated BBCode' : 'Copy the BBCode', done: copied },
-                                    { label: 'Paste it as a reply in the roll call thread', done: copied && !!posted && !editedSincePost },
-                                    { label: 'Mark the roll call posted', done: !!posted && !editedSincePost },
+                                    { label: 'Paste it as a reply in the roll call thread', done: copied && !!posted && !repostNeeded },
+                                    { label: 'Mark the roll call posted', done: !!posted && !repostNeeded },
                                 ]"
                                 :key="item.label"
                                 class="flex items-center gap-2.5"

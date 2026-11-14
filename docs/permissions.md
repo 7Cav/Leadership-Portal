@@ -51,12 +51,14 @@ Notes:
 
 - Matching is exact. A leadership title at the wrong echelon (`Section Leader 1/A/1-7` names a platoon) or any title
   not in the list gives nothing.
-- The Regimental Executive Officer leads the "Executive Officer" portfolio (which holds Reserve & Development Command)
-  but already commands the whole regiment.
-- The default portfolio tree: Reserve & Development Command (RDC Commander) sits under the Executive Officer portfolio
-  and holds DEVCOM staff and the Reservists. Recruiting Oversight holds RRD, RTC and S5. Security Operations holds S2,
-  MP and JAG. Information Management holds S6. S1, S3, S7 and WAG sit directly under the regiment. An Admin can move a
-  department to another portfolio; the import never moves it back.
+- The Regimental Commanding Officer leads the "Office of the Commanding Officer" portfolio and the Regimental Executive
+  Officer the "Executive Officer" portfolio under it; both already command the whole regiment, so leading a portfolio
+  gives them nothing more.
+- The default portfolio tree (`StaffBillet`): the Office of the Commanding Officer holds the Executive Officer,
+  which holds Reserve & Development Command (DEVCOM staff, Reservists) and JAG. The Chief of Staff holds S1, ODS and
+  the two Deputy Chiefs of Staff (1: S5, RRD, RTC; 2: S3, S7). Security Operations holds S2 and MP, Information
+  Management S6, and the Command Sergeant Major NCOA and WAG. The import creates every portfolio and department, even
+  one no Cav billet maps to. An Admin can move a department to another portfolio; the import never moves it back.
 - `DEVCOM 1IC` commands DEVCOM as its battalion commander and `DEVCOM 2IC` as its XO, so both have battalion command
   over DEVCOM, D/DEVCOM and its platoons and sections, roll call templates included. The org
   page names the 1IC as DEVCOM's lead; when that billet is vacant the lead shows vacant, and the 2IC keeps their rights.

@@ -5,6 +5,7 @@ section: admin
 order: 1
 audience: admin
 page: /settings/org-structure
+updated: 2026-11-12
 ---
 
 > [!why] Everyone's access comes from where their billet sits in this tree. A unit in the wrong place gives the wrong people access to it, and a missing acting lead leaves a unit with nobody who can run its roll call.
@@ -21,6 +22,8 @@ The page has two cards. **Chain of command** holds the regiment, its battalions 
 
 1. Open **Settings**, then **Org structure**.
 2. Choose **Import from Cav roster**. It adds units the roster has and the portal does not, and maps billets to units. When Cav has moved a billet to another unit, the import moves its mapping too, so the next roster sync places the holder in the new unit. A mapping someone corrected by hand is kept, and the import says how many it kept.
+
+The import also builds the whole regimental staff tree: every portfolio and department exists after it runs, even one no Cav billet maps to yet, such as JAG under the Executive Officer. The Office of the Commanding Officer, led by the Regimental Commanding Officer, holds the Executive Officer. A group that already exists stays where it is, so on a tree imported before the Office of the Commanding Officer existed, move the Executive Officer under it yourself.
 
 > [!good-to-know] What this changes, and how to undo it: the import adds units and maps billets; it never deletes a unit. To undo a unit it added, delete that unit while it is still empty.
 
