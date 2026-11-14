@@ -454,7 +454,7 @@ class ScopeResolver
      */
     private function battalionPlacing(Trooper $trooper): ?Unit
     {
-        $placed = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
+        $placed = $trooper->primary_section_id === null ? null : $this->units->findActive($trooper->primary_section_id);
 
         return $placed?->type === UnitType::Battalion ? $placed : null;
     }
@@ -465,7 +465,7 @@ class ScopeResolver
      */
     private function regimentPlacing(Trooper $trooper): ?Unit
     {
-        $placed = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
+        $placed = $trooper->primary_section_id === null ? null : $this->units->findActive($trooper->primary_section_id);
         if (! self::isRegimentalHqPlacement($placed)) {
             return null;
         }

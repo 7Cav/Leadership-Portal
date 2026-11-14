@@ -478,7 +478,7 @@ class Eloquent implements TrooperRepository
     {
         return Trooper::query()
             ->with('lastLineUnit')
-            ->whereIn('primary_section_id', Unit::query()->select('id')->where('path', 'like', "{$unit->path}%"))
+            ->whereIn('primary_section_id', Unit::query()->active()->select('id')->where('path', 'like', "{$unit->path}%"))
             ->orderBy('id')
             ->get();
     }
@@ -571,7 +571,7 @@ class Eloquent implements TrooperRepository
 
         return Trooper::query()
             // Placed in a section: HQ staff and groups have no rollcall to carry the makeup.
-            ->whereIn('primary_section_id', Unit::query()->select('id')->where('type', UnitType::Section->value))
+            ->whereIn('primary_section_id', Unit::query()->active()->select('id')->where('type', UnitType::Section->value))
             ->where('primary_section_id', '!=', $hostSectionId)
             ->whereIn('status', TrooperStatus::servingValues())
             ->whereRaw("LOWER(username) LIKE ? ESCAPE '!'", ["%{$escaped}%"])

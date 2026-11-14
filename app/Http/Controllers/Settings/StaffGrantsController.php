@@ -70,9 +70,13 @@ class StaffGrantsController extends Controller
         // Open to everyone signed in (PageAccess::openSetting); the page shows a non-Admin only what is theirs.
         $this->pages->openSetting($request->user())->orAbort();
         $isAdmin = $scope->actsAsAdmin($request->user());
-        $all = $this->grants->all();
         $tree = $this->units->tree();
         $byId = $tree->keyBy('id');
+        // A grant on an inactive unit gives no scope while the unit is inactive, and works again once it is reactivated.
+        // An Admin still sees it, tagged, to revoke it; anyone else sees no inactive unit at all, so not the grant either.
+        $inactive = $isAdmin ? $this->units->inactiveIds()->flip() : collect();
+        $labelsById = $isAdmin && $inactive->isNotEmpty() ? $this->units->treeWithInactive()->keyBy('id') : $byId;
+        $all = $this->grants->all()->filter(fn (PortalRoleGrant $grant) => $byId->has($grant->unit_id) || $inactive->has($grant->unit_id))->values();
 
         // A grant only counts in scope while its holder serves (ScopeResolver). One that has lapsed
         // stays listed and flagged rather than hidden: the row still exists, and an Admin needs to
@@ -87,7 +91,8 @@ class StaffGrantsController extends Controller
             'holder_serving' => $grant->user->cav_id !== null && $serving->has($grant->user->cav_id),
             'unit_id' => $grant->unit_id,
             'unit_name' => $grant->unit->name,
-            'unit_label' => $this->label($grant->unit, $byId),
+            'unit_label' => $this->label($grant->unit, $labelsById),
+            'unit_inactive' => $inactive->has($grant->unit_id),
             'created_at' => $grant->created_at->toIso8601String(),
             // The end date, if any: `ends` revokes it for good once passed, `renew` lapses it until renewed. `past_end`
             // is the server's answer to whether it already gives no scope, so the page never trusts the viewer's clock.

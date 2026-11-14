@@ -2,6 +2,7 @@
 
 use App\Commands\Units\ImportOrgStructure;
 use App\Commands\Units\MoveUnit;
+use App\Commands\Units\SetUnitActive;
 use App\Commands\Units\StaffBillet;
 use App\Integration\Cav\CavApi;
 use App\Models\AdminBillet;
@@ -253,6 +254,19 @@ it('is idempotent: a re-run creates no group and no mapping', function () {
 
     expect(Unit::query()->orderBy('id')->get()->map->getAttributes()->all())->toBe($units)
         ->and(UnitBilletMapping::query()->orderBy('id')->get()->map->getAttributes()->all())->toBe($placements);
+});
+
+it('leaves a deactivated group inactive on the next import, never making it again, and keeps its billets mapped there', function () {
+    isgImport();
+    $admin = User::factory()->admin()->create();
+    app(SetUnitActive::class)->deactivate($admin, isgGroup('S7'), 'Merged into S3');
+    $mapping = UnitBilletMapping::query()->where('unit_id', isgGroup('S7')->id)->sole();
+
+    isgImport();
+
+    expect(Unit::query()->where('callsign', 'S7')->count())->toBe(1)
+        ->and(isgGroup('S7')->deactivated_at)->not->toBeNull()
+        ->and(UnitBilletMapping::query()->whereKey($mapping->id)->value('unit_id'))->toBe(isgGroup('S7')->id);
 });
 
 it('keeps an Admin\'s move of a department to another portfolio on the next import', function () {

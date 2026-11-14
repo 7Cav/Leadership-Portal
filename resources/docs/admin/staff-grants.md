@@ -5,6 +5,7 @@ section: admin
 order: 2
 audience: admin
 page: /settings/staff-grants
+updated: 2026-11-12
 ---
 
 > [!why] Staff such as S1 need to see units they do not command. A grant gives read access only: the holder can open the unit's roster, roll call, reports and game identities, and can never mark, send or change anything there.
@@ -27,6 +28,8 @@ A grant with an end date counts until 23 59Z on that day. From then on it gives 
 To change or remove an end date, choose **End date** next to the grant, pick the new one or **No end date**, and give a reason. Grants that end or lapse within 7 days are listed first, marked in amber.
 
 > [!good-to-know] A grant only counts while its holder is a serving trooper. When they leave the Cav, it stops counting at once and is shown as lapsed.
+
+> [!good-to-know] A grant on a unit an Admin deactivated on Org structure stays listed, tagged **Inactive unit**, so you can revoke it. It gives no access while the unit is inactive, and works again once the unit is reactivated. Only Admins see these grants.
 
 > [!good-to-know] Regimental HQ staff, such as the Chief of Staff and the Adjutants General, need no grant. They read the whole regiment, and are Admins once an Admin approves their billet.
 

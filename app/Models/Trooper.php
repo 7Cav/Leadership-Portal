@@ -150,7 +150,7 @@ class Trooper extends Model
     protected function assignedWithin(Builder $query, Unit $unit): void
     {
         $query->whereIn('troopers.status', TrooperStatus::servingValues())
-            ->whereIn('troopers.primary_section_id', Unit::query()->select('id')
+            ->whereIn('troopers.primary_section_id', Unit::query()->active()->select('id')
                 ->where('path', 'like', "{$unit->path}%")
                 ->where('type', UnitType::Section->value));
     }
@@ -165,6 +165,6 @@ class Trooper extends Model
     protected function placedWithin(Builder $query, Unit $unit): void
     {
         $query->whereIn('troopers.status', TrooperStatus::servingValues())
-            ->whereIn('troopers.primary_section_id', Unit::query()->select('id')->where('path', 'like', "{$unit->path}%"));
+            ->whereIn('troopers.primary_section_id', Unit::query()->active()->select('id')->where('path', 'like', "{$unit->path}%"));
     }
 }

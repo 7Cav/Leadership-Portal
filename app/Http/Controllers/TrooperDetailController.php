@@ -93,7 +93,7 @@ class TrooperDetailController extends Controller
      */
     private function unitGuidon(Trooper $trooper): ?array
     {
-        $section = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
+        $section = $trooper->primary_section_id === null ? null : $this->units->findActive($trooper->primary_section_id);
 
         return $section === null ? null : $this->guidons->designsFor([$section], inherit: true)[$section->id];
     }
@@ -193,7 +193,7 @@ class TrooperDetailController extends Controller
      */
     private function missedWeeks(Trooper $trooper): array
     {
-        $section = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
+        $section = $trooper->primary_section_id === null ? null : $this->units->findActive($trooper->primary_section_id);
 
         if ($section === null) {
             return [];

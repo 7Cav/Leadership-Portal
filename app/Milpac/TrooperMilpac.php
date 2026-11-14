@@ -45,7 +45,8 @@ final class TrooperMilpac
         $today = CarbonImmutable::now('UTC');
         $rows = $this->trooperCourses->forTrooper($trooper->id);
         $awards = $this->awards();
-        $section = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
+        // Someone placed in an inactive unit reads as unplaced, as they count nowhere until an Admin moves them.
+        $section = $trooper->primary_section_id === null ? null : $this->units->findActive($trooper->primary_section_id);
 
         return [
             // The page's last breadcrumb crumb (the shell reads `crumb` for a page nested under a nav item).

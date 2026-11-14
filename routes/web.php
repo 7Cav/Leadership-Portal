@@ -346,6 +346,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::patch('/settings/org-structure/{unit}', [OrgStructureController::class, 'update'])->middleware('throttle:audited-writes')->name('settings.org-structure.update');
     Route::patch('/settings/org-structure/{unit}/label', [OrgStructureController::class, 'label'])->middleware('throttle:audited-writes')->name('settings.org-structure.label');
     Route::patch('/settings/org-structure/{unit}/game', [OrgStructureController::class, 'game'])->middleware('throttle:audited-writes')->name('settings.org-structure.game');
+    Route::patch('/settings/org-structure/{unit}/active', [OrgStructureController::class, 'setActive'])->middleware('throttle:audited-writes')->name('settings.org-structure.active');
     Route::post('/settings/org-structure/{unit}/acting-lead', [OrgStructureController::class, 'assignActingLead'])->middleware('throttle:audited-writes')->name('settings.org-structure.acting-lead.store');
     Route::delete('/settings/org-structure/{unit}/acting-lead', [OrgStructureController::class, 'removeActingLead'])->middleware('throttle:audited-writes')->name('settings.org-structure.acting-lead.destroy');
     // Who oversees a battalion or the Reservists: set or clear, Admin-only, audited.
