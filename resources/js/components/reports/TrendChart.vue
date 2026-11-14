@@ -1,13 +1,14 @@
 <script setup>
 import { computed, ref, useTemplateRef } from 'vue';
 import { useElementSize } from '@vueuse/core';
-import { weekLabel, weekTick } from '@/lib/forumDate';
+import { weekEndTick, weekLabel } from '@/lib/forumDate';
 import { percent } from '@/lib/report';
 
 // RC % and SP % over the last eight weeks (P3 mini chart). Earlier weeks are their frozen sent
 // snapshots; a week with no sent report is a gap in the line, never an estimate. The last point
 // is this report. Two series, one 0–100 axis, legend always shown, markers differ in shape so
-// identity never rests on colour, and a screen-reader table carries every value.
+// identity never rests on colour, and a screen-reader table carries every value. Ticks name a week by its end date
+// (`25SEP`), as the roster's strip does, so eight fit side by side; the tooltip and the table give the whole week.
 const props = defineProps({
     points: { type: Array, required: true },
     // Whether the last point is still live (a draft) or frozen.
@@ -129,7 +130,7 @@ const hoverLabel = (v) => `${weekLabel(v.week)}${v.current ? (props.live ? ', th
                     class="fill-muted-foreground text-[10px]"
                     :class="{ 'font-semibold': v.current }"
                 >
-                    {{ weekTick(v.week) }}
+                    {{ weekEndTick(v.week) }}
                 </text>
                 <line
                     v-if="hover !== null"

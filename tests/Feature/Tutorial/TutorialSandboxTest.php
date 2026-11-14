@@ -4,6 +4,8 @@ use App\Commands\StaffReports\PublicServerHour;
 use App\Commands\StaffReports\PushStaffReportToSheet;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Jobs\PushStaffReportToSheetJob;
+use App\Models\Attendance;
+use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
 use App\Models\PageVisit;
 use App\Models\PlatoonTrainingTopic;
@@ -72,9 +74,9 @@ it('runs every tutorial write on the practice copy, leaving the real audit log o
 
     $this->actingAs($leader)->post('/tutorial')->assertRedirect();
     $section = practiceSectionId($leader->id);
-    $week = WeekOf::start(CarbonImmutable::now())->toDateString();
+    $week = WeekOf::reporting(CarbonImmutable::now())->toDateString();
 
-    $this->get("/rollcall/{$section}")->assertOk()->assertInertia(fn ($page) => $page->where('tutorialMode.steps.0.id', 'rollcall'));
+    $this->get("/rollcall/{$section}?week={$week}")->assertOk()->assertInertia(fn ($page) => $page->where('tutorialMode.steps.0.id', 'rollcall'));
     $this->postJson("/rollcall/{$section}/create", ['week' => $week])->assertOk();
     $this->postJson("/rollcall/{$section}/posted", ['week' => $week])->assertOk();
     markDemo($this, $leader->id, $section, $week);
@@ -97,15 +99,15 @@ it('ticks the coach card from what was done in the practice copy', function () {
     $leader = User::factory()->commanding($this->section)->create();
     $this->actingAs($leader)->post('/tutorial');
     $section = practiceSectionId($leader->id);
-    $week = WeekOf::start(CarbonImmutable::now())->toDateString();
+    $week = WeekOf::reporting(CarbonImmutable::now())->toDateString();
 
     // The tutorial's week is on the new roll call (#703): Create roll call first, or the Create step while another is open.
-    $this->get("/rollcall/{$section}")->assertInertia(fn ($page) => $page
+    $this->get("/rollcall/{$section}?week={$week}")->assertInertia(fn ($page) => $page
         ->where('flow.version', 2)
         ->where('tutorialMode.steps.0.highlight', '[data-step="1"]:not([aria-current="step"]), section[aria-labelledby="step-1-title"] [data-testid="create-rollcall"]'));
     markDemo($this, $leader->id, $section, $week);
     $this->postJson("/rollcall/{$section}/confirm", ['week' => $week])->assertOk();
-    $this->get("/rollcall/{$section}")->assertInertia(fn ($page) => $page
+    $this->get("/rollcall/{$section}?week={$week}")->assertInertia(fn ($page) => $page
         ->where('tutorialMode.steps.0.checklist.0.done', true)
         ->where('tutorialMode.steps.0.checklist.1.done', false)
         ->where('tutorialMode.steps.0.checklist.4.done', true)
@@ -118,11 +120,11 @@ it('asks for an answer for Demo.K, and ticks it only once that answer is not Uns
     $leader = User::factory()->commanding($this->section)->create();
     $this->actingAs($leader)->post('/tutorial');
     $section = practiceSectionId($leader->id);
-    $week = WeekOf::start(CarbonImmutable::now())->toDateString();
+    $week = WeekOf::reporting(CarbonImmutable::now())->toDateString();
     $demo = inTutorial($leader->id, fn () => app(TutorialPracticeRepository::class)->trooperByUsername(PracticeWorld::DEMO)->id);
-    $step = function () use ($section) {
+    $step = function () use ($section, $week) {
         $step = null;
-        $this->get("/rollcall/{$section}")->assertInertia(function ($page) use (&$step) {
+        $this->get("/rollcall/{$section}?week={$week}")->assertInertia(function ($page) use (&$step) {
             $step = $page->toArray()['props']['tutorialMode']['steps'][0];
         });
 
@@ -152,11 +154,11 @@ it('points at each roll call step in turn: its tab while another step is open, t
     $leader = User::factory()->commanding($this->section)->create();
     $this->actingAs($leader)->post('/tutorial');
     $section = practiceSectionId($leader->id);
-    $week = WeekOf::start(CarbonImmutable::now())->toDateString();
+    $week = WeekOf::reporting(CarbonImmutable::now())->toDateString();
     $demo = inTutorial($leader->id, fn () => app(TutorialPracticeRepository::class)->trooperByUsername(PracticeWorld::DEMO)->id);
-    $highlight = function () use ($section) {
+    $highlight = function () use ($section, $week) {
         $selector = null;
-        $this->get("/rollcall/{$section}")->assertInertia(function ($page) use (&$selector) {
+        $this->get("/rollcall/{$section}?week={$week}")->assertInertia(function ($page) use (&$selector) {
             $selector = $page->toArray()['props']['tutorialMode']['steps'][0]['highlight'];
         });
 
@@ -194,7 +196,9 @@ it('ticks the subject of a platoon report from its training topic, and points at
     $before = inTutorial($leader->id, $steps);
     // Not opened yet: the platoon's row on the roll-up, then Open report in its panel.
     expect($before['weekly-report']['checklist'][1]['done'])->toBeFalse()
-        ->and($before['weekly-report']['highlight'])->toBe('[data-row-id="'.$platoon.'"]:not([aria-selected="true"]), [data-report-unit="'.$platoon.'"] [data-testid="open-report"]')
+        ->and($before['weekly-report']['highlight'])->toStartWith('[data-row-id="'.$platoon.'"]:not([aria-selected="true"]), [data-report-unit="'.$platoon.'"] [data-testid="open-report"], ')
+        // The rows above it, should they be collapsed, so the row shows.
+        ->and($before['weekly-report']['highlight'])->toContain('[aria-expanded="false"] .rt-caret')
         ->and($before['weekly-report']['area'])->toBe('/reports')
         ->and($before['weekly-report']['nav'])->toBe('[data-testid="nav-Reports"]')
         ->and($before['rollcall']['nav'])->toBe('[data-testid="nav-Roll call"]');
@@ -352,7 +356,7 @@ it('keeps each person in their own practice copy', function () {
 
     $this->actingAs($first)->post('/tutorial');
     $section = practiceSectionId($first->id);
-    $week = WeekOf::start(CarbonImmutable::now())->toDateString();
+    $week = WeekOf::reporting(CarbonImmutable::now())->toDateString();
     markDemo($this, $first->id, $section, $week);
     $this->postJson("/rollcall/{$section}/confirm", ['week' => $week])->assertOk();
 
@@ -380,13 +384,25 @@ it('starts over from fresh practice data', function () {
     $leader = User::factory()->commanding($this->section)->create();
     $this->actingAs($leader)->post('/tutorial');
     $section = practiceSectionId($leader->id);
-    $week = WeekOf::start(CarbonImmutable::now())->toDateString();
+    $week = WeekOf::reporting(CarbonImmutable::now())->toDateString();
     markDemo($this, $leader->id, $section, $week);
     $this->postJson("/rollcall/{$section}/confirm", ['week' => $week])->assertOk();
 
     $this->post('/tutorial/restart');
 
     expect(inTutorial($leader->id, fn () => AuditLogEntry::query()->where('action', 'practice.confirmed')->count()))->toBe(0);
+});
+
+it('confirms the week the tutorial is built on, which on a Saturday is the closing week until its report is due', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-11-14 12:00:00', 'UTC'));
+    $leader = User::factory()->commanding($this->section)->create();
+    $this->actingAs($leader)->post('/tutorial');
+    $section = practiceSectionId($leader->id);
+    $week = WeekOf::reporting(CarbonImmutable::now())->toDateString();
+    expect($week)->toBe('2026-11-07');
+    markDemo($this, $leader->id, $section, $week);
+
+    $this->postJson("/rollcall/{$section}/confirm", ['week' => $week])->assertOk();
 });
 
 it('returns to the guides home and the real portal on exit', function () {
@@ -470,4 +486,117 @@ it('notes starting, starting over and leaving the tutorial in the real audit log
     expect($entries->pluck('action')->all())->toBe(['tutorial.started', 'tutorial.restarted', 'tutorial.exited'])
         ->and($entries->pluck('actor_id')->unique()->all())->toBe([$leader->id])
         ->and($entries->pluck('target_id')->map(fn ($id) => (int) $id)->unique()->all())->toBe([$leader->id]);
+});
+
+// The fixing problems tutorial (TutorialTrack::FixProblems).
+
+function fixTroopers(int $userId): array
+{
+    return inTutorial($userId, fn () => [
+        'madeUp' => app(TutorialPracticeRepository::class)->trooperByUsername(PracticeWorld::MADE_UP)->id,
+        'owes' => app(TutorialPracticeRepository::class)->trooperByUsername(PracticeWorld::OWES_MAKEUP)->id,
+        'guest' => app(TutorialPracticeRepository::class)->trooperByUsername(PracticeWorld::GUEST)->id,
+        'other' => app(TutorialPracticeRepository::class)->unitByCallsign(PracticeWorld::OTHER_SECTION)->id,
+    ]);
+}
+
+it('starts the fixing problems tutorial for a section leader, on its own steps', function () {
+    $leader = User::factory()->commanding($this->section)->create();
+    $section = null;
+
+    $this->actingAs($leader)->post('/tutorial', ['track' => 'fix-problems'])->assertRedirect();
+    $section = practiceSectionId($leader->id);
+    $week = WeekOf::reporting(CarbonImmutable::now())->toDateString();
+
+    $this->get("/rollcall/{$section}?week={$week}")->assertOk()->assertInertia(fn ($page) => $page
+        ->where('tutorialMode.title', 'Fixing problems tutorial')
+        ->where('tutorialMode.steps', fn ($steps) => collect($steps)->pluck('id')->all() === ['makeup', 'guest', 'blocked-report']));
+
+    // Starting over keeps the tutorial it runs.
+    $this->post('/tutorial/restart')->assertRedirect();
+    $this->get("/rollcall/{$section}?week={$week}")->assertInertia(fn ($page) => $page->where('tutorialMode.title', 'Fixing problems tutorial'));
+});
+
+it('offers the fixing problems tutorial only to someone who leads a unit', function () {
+    config(['portal.docs' => true]);
+    $trooper = User::factory()->serving()->create();
+
+    $this->actingAs($trooper)->post('/tutorial', ['track' => 'fix-problems'])->assertRedirect()->assertSessionHas('notice');
+    expect(session('tutorial'))->toBeNull();
+    $this->get('/docs')->assertInertia(fn ($page) => $page->where('fixTutorial', false));
+
+    $leader = User::factory()->commanding($this->section)->create();
+    $this->actingAs($leader)->get('/docs')->assertInertia(fn ($page) => $page->where('fixTutorial', true));
+});
+
+it('walks a platoon leader through a make-up, a guest, a blocked report and a missing one', function () {
+    $platoon = Unit::factory()->create(['type' => UnitType::Platoon]);
+    $leader = User::factory()->commanding($platoon)->create();
+    $this->actingAs($leader)->post('/tutorial', ['track' => 'fix-problems'])->assertRedirect();
+    $section = practiceSectionId($leader->id);
+    $week = WeekOf::reporting(CarbonImmutable::now())->toDateString();
+    $ids = fixTroopers($leader->id);
+    $steps = function () use ($section, $week) {
+        $steps = null;
+        $this->get("/rollcall/{$section}?week={$week}")->assertInertia(function ($page) use (&$steps) {
+            $steps = collect($page->toArray()['props']['tutorialMode']['steps'])->keyBy('id');
+        });
+
+        return $steps;
+    };
+
+    expect($steps()->keys()->all())->toBe(['makeup', 'guest', 'blocked-report', 'missing-report'])
+        ->and($steps()['makeup']['highlight'])->toContain('[data-trooper="'.$ids['madeUp'].'"]');
+
+    // The make-up.
+    $this->postJson("/rollcall/{$section}", ['week' => $week, 'marks' => [['trooper_id' => $ids['madeUp'], 'status' => 'makeup']]])->assertOk();
+    expect($steps()['makeup']['done'])->toBeTrue();
+
+    // The guest, who gets a make-up on 2nd Section's roll call.
+    $this->postJson("/rollcall/{$section}/guests", ['week' => $week, 'trooper_id' => $ids['guest']])->assertOk();
+    expect($steps()['guest']['done'])->toBeTrue()
+        ->and(inTutorial($leader->id, fn () => Attendance::query()->where('trooper_id', $ids['guest'])
+            ->whereHas('sectionPractice', fn ($q) => $q->where('section_id', $ids['other'])->where('week_start', WeekOf::reporting(CarbonImmutable::now('UTC'))))
+            ->value('status')))->toBe(AttendanceStatus::Makeup);
+
+    // The blocked report: refused until the practice is confirmed, then sent with Trial.B's miss and make-up answered.
+    $send = fn () => $this->post("/reports/{$section}/{$week}/send", [
+        'reason' => 'Weekly report',
+        'notes' => '',
+        'unaccounted' => [['trooper_id' => $ids['owes'], 'reason' => 'no_reason']],
+        'makeup_checks' => [['trooper_id' => $ids['owes'], 'done' => false]],
+    ]);
+    $this->get("/reports/{$section}/{$week}")->assertOk();
+    $send();
+    expect($steps()['blocked-report']['checklist'][2]['done'])->toBeFalse()
+        ->and($steps()['blocked-report']['highlight'])->toBe('[data-check="confirmed"] a, [data-testid="confirm-practice"]');
+    $this->postJson("/rollcall/{$section}/confirm", ['week' => $week])->assertOk();
+    // Confirmed: Reports from the roll call, the section on the roll-up, then the reason before the send.
+    expect(array_column($steps()['blocked-report']['checklist'], 'label')[0])->toBe('Confirm the practice')
+        ->and($steps()['blocked-report']['highlight'])->toContain('body:has([data-step]) [data-testid="nav-Reports"]')
+        ->and($steps()['blocked-report']['highlight'])->toContain('[data-report-unit="'.$section.'"] [data-testid="open-report"]')
+        ->and($steps()['blocked-report']['highlight'])->toContain('[data-check="unaccounted"]:not([data-done])')
+        ->and($steps()['blocked-report']['highlight'])->toContain('body:has([data-check="unaccounted"][data-done]) :is(');
+    $send()->assertSessionHasNoErrors();
+    expect($steps()['blocked-report']['checklist'][2]['done'])->toBeTrue()
+        ->and($steps()['blocked-report']['done'])->toBeTrue();
+
+    // The missing report: the copy is ticked in the browser, the roll call from the visit.
+    $missing = $steps()['missing-report'];
+    expect($missing['checklist'][0]['click'])->toBe('[data-report-unit="'.$ids['other'].'"] [data-testid="copy-reminder"], [data-reminder-unit="'.$ids['other'].'"]')
+        ->and($missing['highlight'])->toContain('[data-row-id="'.$ids['other'].'"]')
+        ->and($missing['highlight'])->toContain('[data-report-unit="'.$ids['other'].'"] :is([data-testid="copy-reminder"], [data-testid="open-rollcall"])')
+        ->and($missing['highlight'])->toContain('body:not(:has([data-check])) nav[aria-label="Report mode"] a[href="/reports"]');
+    $this->get("/rollcall/{$ids['other']}?week={$week}")->assertOk();
+    // Opening the roll call first leaves the copy to do, so the way to it stays blue.
+    expect($steps()['missing-report']['checklist'][1]['done'])->toBeTrue()
+        ->and($steps()['missing-report']['done'])->toBeFalse()
+        ->and($steps()['missing-report']['highlight'])->toContain('[data-testid="copy-reminder"]');
+});
+
+it('ignores a track that is not a single word, starting the basics tutorial', function () {
+    $leader = User::factory()->commanding($this->section)->create();
+
+    $this->actingAs($leader)->post('/tutorial', ['track' => ['fix-problems']])->assertRedirect();
+    expect(session('tutorial')['track'] ?? null)->toBe('basics');
 });

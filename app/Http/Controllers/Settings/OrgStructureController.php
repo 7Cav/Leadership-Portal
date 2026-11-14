@@ -199,8 +199,8 @@ class OrgStructureController extends Controller
             'guidon' => $guidonOf->get($unit->id)?->design(),
             'path' => $unit->path,
             'own_count' => $byUnit->get($unit->id, 0),
-            // The headcount's own rule, so this page and the roster agree: New Recruits, ELOA and the Reservists count
-            // only on their own group.
+            // The headcount's own rule, so this page and the roster agree: New Recruits, ELOA and the Reservists never
+            // count on a line unit above them, only on their own group and a staff group that holds it.
             'trooper_count' => $byUnit
                 ->filter(fn (int $count, int $id) => Headcount::counts($placedIn->get($id), $unit))
                 ->sum(),

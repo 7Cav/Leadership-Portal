@@ -16,6 +16,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Repositories\TrooperPlacementRepository;
+use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use Carbon\CarbonImmutable;
@@ -83,6 +84,28 @@ it('counts ELOA and Reservists only on their own group, never above it', functio
     expect($headcount->forUnit($this->regiment))->toBe(6)
         ->and($headcount->forUnit($eloa))->toBe(1)
         ->and($headcount->forUnit($reserve))->toBe(2);
+});
+
+it('counts a staff group with the groups under it, the Reservists included, and nobody twice', function () {
+    $units = app(UnitRepository::class);
+    $xo = $units->create(UnitType::Group, 'Executive Officer', 'XO', $this->regiment->id, UnitKind::Staff);
+    $rdc = $units->create(UnitType::Group, 'Reserve & Development Command', 'RDC', $xo->id, UnitKind::Staff);
+    $reserve = $units->create(UnitType::Group, 'Reservists', 'RES', $rdc->id, UnitKind::Reserve);
+    $devcom = $units->create(UnitType::Group, 'DEVCOM Staff', 'DEVCOM STAFF', $rdc->id, UnitKind::Staff);
+    hcPlace($xo);       // the XO on their portfolio
+    hcPlace($rdc);      // the RDC Commander on RDC itself
+    hcPlace($reserve, ['status' => TrooperStatus::Reserve]);
+    hcPlace($reserve, ['status' => TrooperStatus::Reserve]);
+    hcPlace($devcom);
+    $headcount = app(Headcount::class);
+
+    expect($headcount->forUnit($reserve))->toBe(2)
+        ->and($headcount->forUnit($devcom))->toBe(1)
+        ->and($headcount->forUnit($rdc))->toBe(4)
+        ->and($headcount->forUnit($xo))->toBe(5)
+        // The regiment is the active line: the XO, RDC Commander and DEVCOM staff, never the Reservists.
+        ->and($headcount->forUnit($this->regiment))->toBe(9)
+        ->and($headcount->perUnit($units->subtree($this->regiment), app(TrooperRepository::class)->countsBySection())->get($rdc->id))->toBe(4);
 });
 
 it('leaves the measured strength, and the roll-up equality, as they were', function () {

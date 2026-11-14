@@ -10,7 +10,7 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Skeleton } from '@/components/ui/skeleton';
 import { forumDate } from '@/lib/forumDate';
 import { makeupPmUrl } from '@/lib/makeupPm';
-import { percentLabel, percentTone, RC_STATES, sourceLabel, SP_STATES, weekCell, weekLabel } from '@/lib/roster';
+import { billetLine, percentLabel, percentTone, RC_STATES, sourceLabel, SP_STATES, trooperWeekCell, weekLabel } from '@/lib/roster';
 import RankBadge from './RankBadge.vue';
 import StaffPracticeList from './StaffPracticeList.vue';
 import TransferList from './TransferList.vue';
@@ -68,7 +68,7 @@ const cells = computed(() =>
         week,
         index,
         mark: trooper.value.weeks[index],
-        ...weekCell(trooper.value.weeks[index], week, { current: week === current.value, joined: trooper.value.joined, departedAt: trooper.value.departedAt, departed: trooper.value.departed, inSection: trooper.value.inSection?.[index], excused: trooper.value.excusedWeeks?.[week] ?? null }),
+        ...trooperWeekCell(trooper.value, index, week, current.value),
     })),
 );
 // Only a section has a roll call (#622): a trooper placed in a platoon, company, ELOA or the Reservists has none.
@@ -112,8 +112,8 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                 <SheetHeader class="flex-row items-start gap-3 border-b border-border p-5 pr-12">
                     <RankBadge :rank="trooper.rank" :title="trooper.rankFull" large />
                     <div class="min-w-0">
-                        <SheetDescription class="text-xs">
-                            {{ trooper.billet ?? 'No billet on record' }}, {{ trooper.section.callsign ?? trooper.section.name }}
+                        <SheetDescription class="text-xs" data-testid="sheet-billet">
+                            {{ billetLine(trooper.billet, sectionLabel) }}
                         </SheetDescription>
                         <SheetTitle class="text-base leading-snug">{{ trooper.displayName }}</SheetTitle>
                         <Badge v-if="leaveFrom" variant="outline" class="mt-1" title="Leave starting next Cav week, from LOA records" data-testid="leave-from">Leave from {{ leaveFrom }}</Badge>

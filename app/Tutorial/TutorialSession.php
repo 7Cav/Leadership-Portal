@@ -5,7 +5,8 @@ namespace App\Tutorial;
 use Illuminate\Contracts\Session\Session;
 
 /**
- * The tutorial flag in the person's session: on or off, who it belongs to, who they play and where they came from.
+ * The tutorial flag in the person's session: on or off, who it belongs to, who they play, which tutorial
+ * ({@see TutorialTrack}) and where they came from.
  * Nothing else about the tutorial is kept in the session. The practice data is in their own practice copy.
  */
 final class TutorialSession
@@ -14,9 +15,15 @@ final class TutorialSession
 
     public function __construct(private readonly Session $session) {}
 
-    public function start(int $userId, TutorialPersona $persona, string $returnTo): void
+    public function start(int $userId, TutorialPersona $persona, string $returnTo, TutorialTrack $track = TutorialTrack::Basics): void
     {
-        $this->session->put(self::KEY, ['user' => $userId, 'persona' => $persona->toArray(), 'return' => $returnTo]);
+        $this->session->put(self::KEY, ['user' => $userId, 'persona' => $persona->toArray(), 'return' => $returnTo, 'track' => $track->value]);
+    }
+
+    /** The tutorial being run: the basics for a flag set before there were two. */
+    public function track(): TutorialTrack
+    {
+        return TutorialTrack::tryFrom((string) $this->session->get(self::KEY.'.track')) ?? TutorialTrack::Basics;
     }
 
     /** Turn it off. Returns the page the person started from. */

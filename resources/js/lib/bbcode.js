@@ -29,6 +29,9 @@ export const ROW_STRINGS = ['n', 'role', 'rank', 'rank_short', 'rank_icon', 'ran
  */
 export const ROW_FLAGS = ['sp_present', 'sp_missed', 'sp_excused', 'sp_makeup', 'sp_attached', 'sp_loa', 'sp_unmarked', 'rc_yes', 'rc_no', 'rc_makeup_requested', 'rc_excused', 'rc_unsigned', 'is_sl', 'is_asl', 'is_ftl'];
 export const FILTERS = ['upper', 'lower'];
+// The word between the two dates of {{week}}. A filter changes the dates, never this word: {{week|upper}} prints
+// 16MAY26 to 22MAY26, the house style for a week.
+export const WEEK_JOIN = ' to ';
 
 // What each name means, and an example: what a value prints, or how a section or filter is written. For the legend on
 // Settings > Templates, which is built from the lists above; a test checks every listed name has an entry here and no
@@ -36,7 +39,7 @@ export const FILTERS = ['upper', 'lower'];
 const MEANINGS = {
     unit: ["The section's callsign", '1/E/2-7'],
     unit_name: ["The section's name", '1st Section'],
-    week: ['The Cav week, Saturday to Friday', '16May26 – 22May26'],
+    week: ['The Cav week, Saturday to Friday', `16May26${WEEK_JOIN}22May26`],
     week_start: ['The Saturday the week starts', '16May26'],
     week_end: ['The Friday the week ends', '22May26'],
     training_date: ["When this week's practice starts: the section's slot, or this week's own time when it was moved. Empty when there is no practice this week", 'Wed 20May26 2300Z'],
@@ -88,6 +91,8 @@ const LABELS = {
     week: 'Week',
     week_start: 'Week start',
     week_end: 'Week end',
+    training_date: 'Practice time',
+    training_topic: 'Training topic',
     count: 'Trooper count',
     signed: 'Signed count',
     attended: 'Attended count',
@@ -331,7 +336,10 @@ function renderNodes(nodes, scopes) {
         if (node.type === 'text') {
             out += node.value;
         } else if (node.type === 'value') {
-            out += print(find(node.name), node.filter);
+            const value = find(node.name);
+            out += node.name === 'week' && node.filter !== undefined
+                ? String(value ?? '').split(WEEK_JOIN).map((date) => print(date, node.filter)).join(WEEK_JOIN)
+                : print(value, node.filter);
         } else if (node.name === 'troopers') {
             const rows = find('troopers') ?? [];
             if (node.inverted) {

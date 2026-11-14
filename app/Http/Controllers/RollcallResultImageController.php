@@ -56,7 +56,7 @@ final class RollcallResultImageController extends Controller
             'excused' => $excused[$row['id']] ?? null,
         ], $troopers), (bool) $this->fireteams->options($section, false, false)['show']);
 
-        $title = ($section->callsign ?? $section->name).' | '.$this->forumDate($weekStart).' – '.$this->forumDate($weekStart->addWeek()->subMinute());
+        $title = ($section->callsign ?? $section->name).' | '.$this->forumDate($weekStart).' to '.$this->forumDate($weekStart->addWeek()->subMinute());
 
         $response = response()->make(ResultImage::render($kind, $title, $rows), 200, [
             'Content-Type' => 'image/png',

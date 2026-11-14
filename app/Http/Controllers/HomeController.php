@@ -19,6 +19,7 @@ use App\Kpi\UnitKpis;
 use App\Loa\LoaCover;
 use App\Loa\LoaCoverage;
 use App\Loa\LoaProvenance;
+use App\Loa\LoaReviewQueue;
 use App\Milpac\RosterProvenance;
 use App\Models\Unit;
 use App\Models\WeeklyReport;
@@ -72,6 +73,7 @@ class HomeController extends Controller
         private readonly KpiService $kpis,
         private readonly ReportChain $chain,
         private readonly LoaCoverage $loaCoverage,
+        private readonly LoaReviewQueue $loaReviewQueue,
         private readonly Headcount $headcount,
         private readonly StaffReportAccess $staffReports,
         private readonly StaffReportRepository $sentStaffReports,
@@ -356,7 +358,8 @@ class HomeController extends Controller
             ->values();
 
         $sections = $this->units->sectionsAmong($scope)->keyBy('id');
-        $review = $this->loaReview($attendance, $chains, $sections, $weekStart);
+        // The one list of leave posts that need review ({@see LoaReviewQueue}), which the roster's leave sync note counts too.
+        $review = $this->loaReviewQueue->forSections($sections->keys()->all(), $weekStart);
         $troopers = $this->troopers->byIds([...$atRisk->pluck('trooperId')->all(), ...array_keys($review), ...$owed->pluck('trooperId')->all()]);
         $atRisk = $atRisk
             ->filter(fn (array $row) => $troopers->has($row['trooperId']))
@@ -456,68 +459,6 @@ class HomeController extends Controller
     }
 
     /**
-     * The troopers with a leave post that needs review in the reporting week, or in the running week when that is a
-     * later one (a post made since the closing week ended), by trooper id. Each week is checked against its own roster
-     * in the scope (the 2026-10-29 audit): the reporting week's rows for that week, and the running week's rollcalls of
-     * the scope's sections under the same roots, so a trooper who has left the scope since is not checked for the
-     * running week, and one who joined it this week is. Read from the one LOA definition (AD-21): its own rule decides
-     * which weeks such a post bears on. Each comes with the section and week to open their rollcall card on: the
-     * reporting week's when they are on it, else the running week's.
-     *
-     * @param  Collection<int, Collection<int, TrooperAttendance>>  $attendance
-     * @param  Collection<int, ChainNode>  $chains
-     * @param  Collection<int, Unit>  $sections  the scope's sections, by id
-     * @return array<int, array{cover: LoaCover, section: int, week: string}>
-     */
-    private function loaReview(Collection $attendance, Collection $chains, Collection $sections, CarbonImmutable $weekStart): array
-    {
-        $date = $weekStart->toDateString();
-        $running = WeekOf::start(CarbonImmutable::now());
-        $later = $running->greaterThan($weekStart) ? $running->toDateString() : null;
-        // trooper id => their section, on each week's roster.
-        $rosters = [$date => []];
-
-        foreach ($attendance as $rows) {
-            foreach ($rows as $row) {
-                if ($row->sectionId !== null) {
-                    $rosters[$date][$row->trooperId] = $row->sectionId;
-                }
-            }
-        }
-
-        if ($later !== null) {
-            $roots = $chains->map(fn (ChainNode $chain) => $chain->unit->path);
-            $under = $sections
-                ->filter(fn (Unit $section) => $roots->contains(fn (string $path) => str_starts_with($section->path, $path)))
-                ->keys()
-                ->all();
-            $rosters[$later] = $this->troopers->onRollcalls($under, $running)->sections;
-        }
-
-        $ids = array_keys(array_replace(...array_values($rosters)));
-
-        if ($ids === []) {
-            return [];
-        }
-
-        $review = [];
-
-        foreach ($this->loaCoverage->forTroopersOverWeeks($ids, $weekStart, count($rosters)) as $trooperId => $covers) {
-            // The later week's post first: it is the one a leader can still act on. A week counts only for a trooper
-            // on that week's roster.
-            $cover = collect(array_reverse($covers, true))
-                ->first(fn (LoaCover $cover, string $week) => isset($rosters[$week][$trooperId]) && $cover->needsReviewState());
-
-            if ($cover !== null) {
-                $week = isset($rosters[$date][$trooperId]) ? $date : $later;
-                $review[$trooperId] = ['cover' => $cover, 'section' => $rosters[$week][$trooperId], 'week' => $week];
-            }
-        }
-
-        return $review;
-    }
-
-    /**
      * The reports actually holding the chain up: each unsent child of a holding unit, except one
      * that is itself held up by its own children, since the blame sits deeper (AD-13).
      *
@@ -549,8 +490,12 @@ class HomeController extends Controller
      * practice held, attendance marked and report sent, each with the screen and step that does it. Counts
      * are over the troopers on the section's rollcall for the week (assigned to it now, or for a week that has
      * ended, the ones it ended with, {@see TrooperRepository::onRollcalls()}), and a trooper on leave for the week
-     * counts as signed and marked, since there is nothing to sign or mark for them; a step nobody has started is simply
-     * not done, never an invented deadline miss.
+     * counts as marked, since there is nothing to mark for them; a step nobody has started is simply not done, never an
+     * invented deadline miss.
+     *
+     * `signed` is the troopers who signed, of `due`: everyone on the rollcall less those on leave (`onLoa`) and those
+     * excused automatically (`excused`), who have nothing to sign. That is how RC leaves them out on the reports, so a
+     * section with two on leave and nobody signed reads "0 of 3 signed, 2 on LOA", never "2 of 5".
      *
      * The sections are those that take part in the week ({@see Headcount::reportingLineUnits()}): placed in during it
      * (for the running week, placed in now too) or sent its report, the same ones Needs attention and the unit table
@@ -570,23 +515,33 @@ class HomeController extends Controller
         $rollcalls = $this->troopers->onRollcalls($ids, $weekStart);
         // A trooper whose leave covers the week has no mark to make (3.4): the one LOA definition says who (AD-21).
         // An automatic Excused (a first week after a transfer or joining) has nothing to chase either.
-        $covered = [...array_keys(array_filter(
+        $onLeave = array_keys(array_filter(
             $this->loaCoverage->forTroopers(array_keys($rollcalls->sections), $weekStart),
             fn (LoaCover $cover) => $cover->isCovered(),
-        )), ...array_keys($this->autoExcused->forTroopers(array_keys($rollcalls->sections), $weekStart))];
-        $progress = $this->attendance->weekProgress($ids, $weekStart, $covered, $rollcalls->asPlaced ? $rollcalls->sections : null);
+        ));
+        $autoExcused = array_diff(array_keys($this->autoExcused->forTroopers(array_keys($rollcalls->sections), $weekStart)), $onLeave);
+        $progress = $this->attendance->weekProgress($ids, $weekStart, [...$onLeave, ...$autoExcused], $rollcalls->asPlaced ? $rollcalls->sections : null);
+        // Per section, those excused automatically and not on leave: the rest of the week's `onLoa` is leave (3.4).
+        $excusedIn = collect($autoExcused)->countBy(fn (int $trooperId) => $rollcalls->sections[$trooperId] ?? null);
         $date = $weekStart->toDateString();
 
-        return $sections->map(function (Unit $section) use ($practices, $progress, $reports, $date) {
+        return $sections->map(function (Unit $section) use ($practices, $progress, $reports, $date, $excusedIn) {
             $week = $progress->get($section->id);
             $report = $reports->get($section->id);
+            // `onLoa` counts everyone with nothing to sign or mark; `unsigned` those left who have not signed.
+            $away = $week?->onLoa ?? 0;
+            $excused = min($away, (int) $excusedIn->get($section->id, 0));
+            $due = max(0, ($week?->strength ?? 0) - $away);
 
             return [
                 ...self::unitProps($section),
                 'platoon' => $section->parent ? ($section->parent->callsign ?? $section->parent->name) : null,
                 'strength' => $week?->strength ?? 0,
                 'postedAt' => $practices->get($section->id)?->rollcall_posted_at?->toIso8601String(),
-                'signed' => $week?->signed ?? 0,
+                'signed' => max(0, $due - ($week?->unsigned ?? 0)),
+                'due' => $due,
+                'onLoa' => $away - $excused,
+                'excused' => $excused,
                 'held' => $week?->held ?? false,
                 'marked' => $week?->marked ?? 0,
                 'report' => match ($report?->status) {

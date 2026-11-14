@@ -53,7 +53,7 @@ const LEGEND = [
 
         <Card class="gap-0 overflow-hidden py-0" data-testid="matrix">
             <EmptyState v-if="!courses.length" :icon="PhUsersThree" title="No courses in the catalog yet" class="py-14" data-testid="matrix-no-courses">
-                Courses appear as columns once an Admin adds them to the catalog.
+                Courses appear as columns once developed by S6.
             </EmptyState>
 
             <TooltipProvider v-else :delay-duration="200">

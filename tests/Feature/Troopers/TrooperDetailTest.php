@@ -144,7 +144,7 @@ describe('the ID block (6.3)', function () {
             ->where('trooper.tig', '2026-04-08')
             ->where('trooper.tigMonths', 6)
             ->where('trooper.section', ['id' => $this->section1->id, 'name' => '1st Section', 'callsign' => '1/1/A/1-7', 'type' => 'section'])
-            ->where('trooper.milpacUrl', 'https://7cav.us/rosters/profile?uniqueid='.$trooper->cav_id));
+            ->where('trooper.milpacUrl', "https://7cav.us/rosters/profile/{$trooper->cav_id}/"));
     });
 
     it('counts time on the server\'s UTC day, whole months only', function () {

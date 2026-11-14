@@ -25,6 +25,27 @@ describe('TrendChart', () => {
     });
 });
 
+describe('TrendChart ticks', () => {
+    it("names each week by its end date on the axis, and gives the whole week in the tooltip and the table", async () => {
+        const wrapper = mount(TrendChart, {
+            props: {
+                points: [
+                    point('2026-09-19T00:00:00+00:00', true, { numerator: 6, denominator: 8 }),
+                    point('2026-09-26T00:00:00+00:00', true, { numerator: 7, denominator: 8 }),
+                    point('2026-11-07T00:00:00+00:00', true, { numerator: 8, denominator: 8 }, undefined, true),
+                ],
+            },
+        });
+        const ticks = wrapper.findAll('svg text').map((t) => t.text()).filter((t) => /[A-Z]/.test(t));
+
+        expect(ticks).toEqual(['25SEP', '02OCT', '13NOV']);
+        expect(wrapper.findAll('tbody th').map((th) => th.text())[0]).toBe('19SEP26 to 25SEP26');
+
+        await wrapper.get('svg[role="img"]').trigger('pointermove', { clientX: 30 });
+        expect(wrapper.get('.pointer-events-none').text()).toContain('19SEP26 to 25SEP26');
+    });
+});
+
 describe('Home Sparkline', () => {
     it('says "no data" for a reported week with no value', () => {
         const wrapper = mount(Sparkline, {

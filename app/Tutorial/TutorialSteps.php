@@ -2,14 +2,17 @@
 
 namespace App\Tutorial;
 
+use App\Models\Unit;
 use App\Models\UnitType;
 use App\Repositories\TutorialPracticeRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 
 /**
- * The guided steps of the tutorial, picked by who the person plays ({@see TutorialPersona}), and how far they got in
- * each, read from their own practice copy. Each step names the getting started guide step it ticks when done.
+ * The guided steps of a tutorial ({@see TutorialTrack}), picked by who the person plays ({@see TutorialPersona}), and
+ * how far they got in each, read from their own practice copy. Each step names the getting started guide step it ticks
+ * when done. A checklist item can also be ticked in the browser by a click (`click`, a selector), for an action that
+ * leaves nothing on the server, such as copying a reminder.
  */
 final class TutorialSteps
 {
@@ -21,8 +24,15 @@ final class TutorialSteps
      *
      * @return list<string>
      */
-    public static function idsFor(TutorialPersona $persona): array
+    public static function idsFor(TutorialPersona $persona, TutorialTrack $track = TutorialTrack::Basics): array
     {
+        if ($track === TutorialTrack::FixProblems) {
+            // A missing report is chased from above the sections.
+            $above = in_array($persona->leads, [UnitType::Platoon, UnitType::Company, UnitType::Battalion], true);
+
+            return array_values(array_filter(['makeup', 'guest', 'blocked-report', $above ? 'missing-report' : null]));
+        }
+
         return array_values(array_filter([
             $persona->leadsUnit() ? 'rollcall' : null,
             $persona->leadsUnit() ? 'weekly-report' : null,
@@ -55,7 +65,7 @@ final class TutorialSteps
      *
      * @return list<array<string, mixed>>
      */
-    public function describe(int $userId, TutorialPersona $persona, ?CarbonImmutable $now = null): array
+    public function describe(int $userId, TutorialPersona $persona, ?CarbonImmutable $now = null, TutorialTrack $track = TutorialTrack::Basics): array
     {
         $week = WeekOf::reporting($now ?? CarbonImmutable::now('UTC'));
         $section = $this->practice->unitByCallsign(PracticeWorld::SECTION);
@@ -122,7 +132,7 @@ final class TutorialSteps
                 // On the roll-up, the unit's row, then Open report beside it; on the report, the subject (a section's
                 // training subject, a platoon's topic for its sections), then the notes, then Send.
                 'highlight' => match (true) {
-                    $reportUnit !== null && ! $opened($report) => '[data-row-id="'.$reportUnit->id.'"]:not([aria-selected="true"]), [data-report-unit="'.$reportUnit->id.'"] [data-testid="open-report"]',
+                    $reportUnit !== null && ! $opened($report) => '[data-row-id="'.$reportUnit->id.'"]:not([aria-selected="true"]), [data-report-unit="'.$reportUnit->id.'"] [data-testid="open-report"], '.$this->expandTo($reportUnit),
                     $hasSubject && ! $facts['subject'] => '#training-subject, #platoon-topic',
                     ! $facts['note'] => '#report-notes',
                     ! $facts['sent'] => '[data-testid="send-button"], [data-testid="send-anyway"]',
@@ -194,10 +204,137 @@ final class TutorialSteps
             ],
         ];
 
+        if ($track === TutorialTrack::FixProblems) {
+            $steps = $this->fixSteps($week, $section, $opened, $rollcall, $facts['confirmed']);
+        }
+
         return array_map(function (string $id) use ($steps) {
             $step = $steps[$id];
 
             return ['id' => $id, 'highlight' => null, 'nav' => null, 'area' => null, ...$step, 'done' => collect($step['checklist'])->every(fn (array $item) => $item['done'])];
-        }, self::idsFor($persona));
+        }, self::idsFor($persona, $track));
+    }
+
+    /**
+     * The fixing problems tutorial's steps: a make-up, a guest, the report they block, and a section's report still out.
+     *
+     * @param  callable(string): bool  $opened
+     * @return array<string, array<string, mixed>>
+     */
+    /**
+     * The roll-up opens two levels deep, so for a battalion leader or an Admin the row to click sits inside a collapsed
+     * one: the caret of each collapsed practice unit above `$unit` is pointed at until the row shows.
+     */
+    private function expandTo(?Unit $unit): string
+    {
+        $above = match ($unit?->type) {
+            UnitType::Section => [PracticeWorld::REGIMENT, PracticeWorld::BATTALION, PracticeWorld::COMPANY, PracticeWorld::PLATOON],
+            UnitType::Platoon => [PracticeWorld::REGIMENT, PracticeWorld::BATTALION, PracticeWorld::COMPANY],
+            UnitType::Company => [PracticeWorld::REGIMENT, PracticeWorld::BATTALION],
+            UnitType::Battalion => [PracticeWorld::REGIMENT],
+            default => [],
+        };
+
+        return implode(', ', array_map(
+            fn (string $callsign) => '[data-row-id="'.($this->practice->unitByCallsign($callsign)?->id ?? 0).'"][aria-expanded="false"] .rt-caret',
+            $above,
+        )) ?: '[data-row-id="0"]';
+    }
+
+    private function fixSteps(CarbonImmutable $week, ?Unit $section, callable $opened, string $rollcall, bool $confirmed): array
+    {
+        $other = $this->practice->unitByCallsign(PracticeWorld::OTHER_SECTION);
+        $madeUp = $this->practice->trooperByUsername(PracticeWorld::MADE_UP);
+        $guest = $this->practice->trooperByUsername(PracticeWorld::GUEST);
+        $facts = $this->practice->fixProgress($section?->id, $madeUp?->id, $guest?->id, $week);
+        $report = '/reports/'.($section?->id ?? '').'/'.$week->toDateString();
+        $otherRollcall = '/rollcall/'.($other?->id ?? '');
+
+        return [
+            'makeup' => [
+                'title' => 'Add a make-up',
+                'body' => 'CPL Sample.R missed this week\'s practice and made it up at another unit\'s practice. On the Sign and mark step, mark them Make-up complete.',
+                'href' => $rollcall,
+                'note' => 'A mark you set by hand always wins over the game server.',
+                'guide' => null,
+                'nav' => self::nav('Roll call'),
+                'highlight' => $facts['madeUp'] || $madeUp === null ? null : self::onRollcallStep(3, '[data-kind="practice"] [data-trooper="'.$madeUp->id.'"]'),
+                'checklist' => [
+                    ['label' => 'Open the roll call of 1st Section', 'done' => $opened($rollcall)],
+                    ['label' => 'Mark CPL Sample.R Make-up complete', 'done' => $facts['madeUp']],
+                ],
+            ],
+            'guest' => [
+                'title' => 'Add a guest',
+                'body' => 'PFC Model.G of 2nd Section played at your practice on a console, so the game server did not see them. Add them under Guests on the Sign and mark step.',
+                'href' => $rollcall,
+                'note' => 'A guest gets a make-up on their own section\'s roll call, which their leader can change.',
+                'guide' => null,
+                'nav' => self::nav('Roll call'),
+                'highlight' => $facts['guestAdded'] ? null : self::onRollcallStep(3, implode(', ', [
+                    '[data-testid="guest-add"]',
+                    '[data-testid="guest-search"]',
+                    '[data-testid="guest-result-'.($guest?->id ?? 0).'"]',
+                ])),
+                'checklist' => [
+                    ['label' => 'Add PFC Model.G as a guest', 'done' => $facts['guestAdded']],
+                ],
+            ],
+            'blocked-report' => [
+                'title' => 'Fix what blocks the report',
+                'body' => '1st Section\'s report cannot be sent yet. Follow its checks: confirm the practice on the roll call, give PVT Trial.B\'s miss a reason, then send it and say whether Trial.B made up the practice.',
+                'href' => $report,
+                // The practice is confirmed on the roll call, so the step's blue follows the reader there.
+                'area' => ['/reports', '/rollcall'],
+                'note' => 'Send anyway skips a check, but never an unconfirmed practice.',
+                'guide' => null,
+                'nav' => self::nav('Reports'),
+                'highlight' => match (true) {
+                    ! $confirmed => '[data-check="confirmed"] a, [data-testid="confirm-practice"]',
+                    // Confirmed: from the roll call to Reports, on the roll-up to the section's row and Open report,
+                    // on the report to Trial.B's reason first and then the send.
+                    ! $facts['sectionSent'] => implode(', ', [
+                        'body:has([data-step]) [data-testid="nav-Reports"]',
+                        '[data-row-id="'.($section?->id ?? 0).'"]:not([aria-selected="true"])',
+                        $this->expandTo($section),
+                        '[data-report-unit="'.($section?->id ?? 0).'"] [data-testid="open-report"]',
+                        '[data-check="unaccounted"]:not([data-done])',
+                        'body:has([data-check="unaccounted"][data-done]) :is([data-testid="send-button"], [data-testid="send-anyway"])',
+                        '[data-testid="makeup-checks"]',
+                        '[data-testid="send-confirm"]',
+                    ]),
+                    default => null,
+                },
+                'checklist' => [
+                    ['label' => 'Confirm the practice', 'done' => $confirmed],
+                    ['label' => 'Open 1st Section\'s report', 'done' => $opened($report)],
+                    ['label' => 'Send the report, with PVT Trial.B\'s make-up answered', 'done' => $facts['sectionSent']],
+                ],
+            ],
+            'missing-report' => [
+                'title' => 'Chase a missing report',
+                'body' => '2nd Section has not sent its report. Find it on the roll-up, copy the reminder for its leader, then choose Open roll call to see what is left.',
+                'href' => '/reports',
+                'area' => ['/reports', '/rollcall'],
+                'note' => 'Here the reminder goes nowhere. In the portal, paste it to the section leader.',
+                'guide' => null,
+                'nav' => self::nav('Reports'),
+                // Until both items are done: the copy is ticked in the browser, so the coach drops the blue once it is.
+                'highlight' => $other === null ? null : implode(', ', [
+                    // On a sent report (1st Section's, where the step before ends): back to the roll-up.
+                    'body:not(:has([data-check])) nav[aria-label="Report mode"] a[href="/reports"]',
+                    '[data-row-id="'.$other->id.'"]:not([aria-selected="true"])',
+                    $this->expandTo($other),
+                    '[data-report-unit="'.$other->id.'"] :is([data-testid="copy-reminder"], [data-testid="open-rollcall"])',
+                    '[data-reminder-unit="'.$other->id.'"]',
+                    '[data-check="confirmed"] a',
+                ]),
+                'checklist' => [
+                    // Its own panel's Copy reminder, or the one beside it on its platoon's panel.
+                    ['label' => 'Copy the reminder for 2nd Section', 'done' => false, 'click' => '[data-report-unit="'.($other?->id ?? 0).'"] [data-testid="copy-reminder"], [data-reminder-unit="'.($other?->id ?? 0).'"]'],
+                    ['label' => 'Open 2nd Section\'s roll call', 'done' => $opened($otherRollcall)],
+                ],
+            ],
+        ];
     }
 }

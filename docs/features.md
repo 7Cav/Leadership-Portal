@@ -788,6 +788,13 @@ checks, messages, layout and theme toggle). Only the data and the consequences d
   a Platoon Leader 1st Platoon, HQ staff sit on that HQ, an Admin keeps Admin.
 - Private: each person has their own practice copy. **Start over** replaces it with fresh data. **Exit tutorial**
   removes it and goes back to the guides home.
+- A second tutorial, Fixing problems (`TutorialTrack::FixProblems`, `track` on `POST /tutorial`), for anyone who leads a
+  unit and Admins, started from its own card on the guides home. The practice week has CPL Sample.R not seen (mark
+  Make-up complete), PFC Model.G of 2nd Section at 1st Section's practice unseen (add as a guest, which writes their
+  make-up), PVT Trial.B who asked for a make-up and missed (1st Section's report waits on the confirmed practice, his
+  reason and his make-up answer), and, for a Platoon Leader and above, 2nd Section's report not sent (copy the reminder,
+  open its roll call). Copying leaves nothing on the server, so that item has a `click` selector and is ticked in the
+  browser for the tab. Start over keeps the tutorial being run.
 - Not in the tutorial: View as and Act as (refused while it is on; the start is refused while either is on).
 
 ### How the isolation works

@@ -5,7 +5,7 @@ import { useTutorial } from '@/composables/useTutorial';
 
 // The tutorial bar: the --changelog blue, shaped like the act-as bar, on every page while the request runs on the
 // person's practice copy. The step dots and label follow the coach card.
-const { active, steps, index, restart, exit } = useTutorial();
+const { active, title, steps, index, restart, exit } = useTutorial();
 </script>
 
 <template>
@@ -17,7 +17,7 @@ const { active, steps, index, restart, exit } = useTutorial();
     >
         <PhGraduationCap class="size-4 shrink-0" weight="bold" aria-hidden="true" />
         <p class="min-w-0 truncate">
-            <b class="font-semibold">Tutorial</b><span class="hidden lg:inline">. Works like the portal, with practice data. Nothing you do here counts.</span>
+            <b class="font-semibold">{{ title }}</b><span class="hidden lg:inline">. Works like the portal, with practice data. Nothing you do here counts.</span>
         </p>
         <div class="hidden items-center gap-1 sm:flex" :aria-label="stepLabel(steps, index)" data-testid="tutorial-dots">
             <i

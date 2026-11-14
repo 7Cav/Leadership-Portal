@@ -77,15 +77,26 @@ describe('TimeAgo', () => {
         expect(tip.textContent).toContain(`Your time: ${localTime(AT)}`);
     });
 
-    it('is named by its own text when focused, so a screen reader reads the time, and quiet leaves the relative part out', async () => {
+    it('is named by its stamp when focused, so a screen reader reads the time, quiet or not', async () => {
         const wrapper = stamp();
         await nextTick();
-        expect(wrapper.get('[data-time-ago]').attributes('aria-label')).toBe('16OCT26 22 16Z (1 h ago)'.replace('(1 h ago)', wrapper.get('[data-relative]').text()));
+        // The stamp alone: how long ago would change the name every minute while focused.
+        expect(wrapper.get('[data-time-ago]').attributes('aria-label')).toBe('16OCT26 22 16Z');
 
         const quiet = mount(TimeAgo, { props: { at: AT, quiet: true }, slots: { default: '16OCT26 22 16Z' } });
         await nextTick();
         expect(quiet.get('[data-time-ago]').attributes('aria-label')).toBe('16OCT26 22 16Z');
         quiet.unmount();
+    });
+
+    it('keeps the time as readable text inside a time role, never hidden, so the sentence around it reads whole', async () => {
+        const wrapper = stamp();
+        await nextTick();
+        const time = wrapper.get('[data-time-ago]');
+
+        expect(time.attributes('role')).toBe('time');
+        expect(time.attributes('aria-hidden')).toBeUndefined();
+        expect(time.text()).toContain('16OCT26 22 16Z');
     });
 
     it('leaves the tooltip to its host when told to', () => {
