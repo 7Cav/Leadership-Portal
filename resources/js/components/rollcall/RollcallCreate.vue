@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
+import ZuluTimeInput from '@/components/ZuluTimeInput.vue';
 import { messageFor, unreachable } from '@/composables/useRollcallAutosave';
 import { forumDate } from '@/lib/forumDate';
 import { postJson } from '@/lib/postJson';
@@ -50,18 +51,26 @@ const start = computed(() => (props.slot?.week?.cancelled ? null : (props.slot?.
 const cancelled = computed(() => Boolean(props.slot?.week?.cancelled));
 const day = ref('3');
 const time = ref('23:00');
-const topic = ref('');
-function prefill() {
+const topic = ref(props.training.subject ?? '');
+function prefillDate() {
     const at = start.value ? new Date(start.value) : null;
     day.value = String(at ? at.getUTCDay() : (props.slot?.weekday ?? 3));
     time.value = at ? minuteToTime(at.getUTCHours() * 60 + at.getUTCMinutes()) : minuteToTime(props.slot?.startMinute ?? 1380);
-    topic.value = props.training.subject ?? '';
 }
-prefill();
-watch(() => [props.slot, props.training], prefill);
+prefillDate();
+// Setting the practice slot reloads the slot only: the date follows it, and a topic the leader typed stays.
+watch(() => props.slot, prefillDate);
 
 const slotHint = computed(() => (props.slot ? `${slotLabel(props.slot)}, ${localLabel(start.value ?? Date.now())} your time` : null));
 const topicLocked = computed(() => props.training.enforced || !props.training.canEdit);
+// A new topic from the server (one the platoon set or enforces) replaces the field, unless the leader typed their own:
+// a reload that brings the same subject back leaves what they typed alone. A locked topic always shows the server's.
+watch(
+    () => [props.training.subject ?? '', topicLocked.value],
+    ([subject, locked], [before]) => {
+        if (locked || topic.value.trim() === before.trim()) topic.value = subject;
+    },
+);
 const creating = ref(false);
 const disabled = computed(() => !props.editable || creating.value);
 
@@ -116,7 +125,7 @@ async function create(notHeld = false) {
                             <NativeSelect id="create-day" v-model="day" :disabled="disabled" data-testid="create-day">
                                 <option v-for="d in days" :key="d.weekday" :value="String(d.weekday)">{{ d.label }}</option>
                             </NativeSelect>
-                            <Input v-model="time" type="time" aria-label="Start (Zulu)" :disabled="disabled" data-testid="create-time" />
+                            <ZuluTimeInput v-model="time" aria-label="Start (Zulu)" :disabled="disabled" data-testid="create-time" />
                         </div>
                         <p class="text-xs text-muted-foreground">From your section's practice slot ({{ slotHint }}). Changing it affects this week only.</p>
                     </template>
