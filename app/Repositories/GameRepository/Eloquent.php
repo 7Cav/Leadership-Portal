@@ -59,6 +59,13 @@ class Eloquent implements GameRepository
         return $game;
     }
 
+    public function setEventTags(Game $game, array $tags): Game
+    {
+        $game->update(['event_tags' => $tags === [] ? null : array_values($tags)]);
+
+        return $game;
+    }
+
     public function setRetired(Game $game, bool $retired): Game
     {
         if ($game->isRetired() !== $retired) {

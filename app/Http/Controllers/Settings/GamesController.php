@@ -10,6 +10,7 @@ use App\Commands\Games\ApplySharedAccountLinks;
 use App\Commands\Games\DeleteGame;
 use App\Commands\Games\InvalidGameException;
 use App\Commands\Games\RetireGame;
+use App\Commands\Games\SetGameEventTags;
 use App\Commands\Games\UpdateGame;
 use App\Http\Controllers\Controller;
 use App\Models\Game;
@@ -34,6 +35,9 @@ use Inertia\Response;
  * it. Reads `GameRepository` directly; every write is an audited Command (AD-16). Viewing is open to anyone signed
  * in, matching the other Settings screens; every write is Admin-only, checked here against the real Admin rule (`ScopeResolver::isAdmin()`)
  * flag (AD-6) before anything else, so a non-Admin gets a 403 whether or not the game exists.
+ *
+ * Each game also has the calendar title tags that mark its events on the 7Cav calendar (#751), set with the rest of
+ * the game in the same form and saved as their own audited action ({@see SetGameEventTags}) when they change.
  *
  * An Admin also sees the identities saved before the rules of #450 that break them (an ID without its kind's shape,
  * hidden characters, a name that mixes alphabets), to fix on Game identities. Listing them changes nothing.
@@ -64,6 +68,8 @@ class GamesController extends Controller
                 // The kinds whose IDs are checked for a shape (#450); the others take any value.
                 'checkedKinds' => array_values(array_filter($game->id_kinds, fn (string $kind) => IdKindFormat::for($kind) !== null)),
                 'interface' => $game->interface->value,
+                // The text in a calendar event's title that marks it as this game's, for the roll call's events (#751).
+                'eventTags' => $game->eventTags(),
                 'retired' => $game->isRetired(),
                 // A game in use can be retired, not deleted: the page offers only what the server would accept.
                 'inUse' => isset($inUse[$game->id]),
@@ -94,22 +100,24 @@ class GamesController extends Controller
         ]);
     }
 
-    public function store(Request $request, AddGame $command): RedirectResponse
+    public function store(Request $request, AddGame $command, SetGameEventTags $setTags): RedirectResponse
     {
         $this->authorizeAdmin($request);
 
         $data = $request->validate($this->rules());
 
         try {
-            $command->handle($request->user(), $data['name'], $data['id_kinds'], TelemetryInterface::from($data['interface']), $data['abbreviation'] ?? null);
+            $game = $command->handle($request->user(), $data['name'], $data['id_kinds'], TelemetryInterface::from($data['interface']), $data['abbreviation'] ?? null);
         } catch (InvalidGameException $e) {
             throw ValidationException::withMessages(['name' => $e->getMessage()]);
         }
 
+        $this->saveEventTags($request, $data, $game, $setTags);
+
         return redirect()->route('settings.games');
     }
 
-    public function update(Request $request, int $game, UpdateGame $command): RedirectResponse
+    public function update(Request $request, int $game, UpdateGame $command, SetGameEventTags $setTags): RedirectResponse
     {
         $this->authorizeAdmin($request);
         $game = $this->games->find($game) ?? abort(404);
@@ -117,12 +125,29 @@ class GamesController extends Controller
         $data = $request->validate($this->rules($game));
 
         try {
-            $command->handle($request->user(), $game, $data['name'], $data['id_kinds'], TelemetryInterface::from($data['interface']), $data['abbreviation'] ?? null);
+            $game = $command->handle($request->user(), $game, $data['name'], $data['id_kinds'], TelemetryInterface::from($data['interface']), $data['abbreviation'] ?? null);
         } catch (InvalidGameException $e) {
             throw ValidationException::withMessages(['id_kinds' => $e->getMessage()]);
         }
 
+        $this->saveEventTags($request, $data, $game, $setTags);
+
         return redirect()->route('settings.games');
+    }
+
+    /**
+     * The calendar title tags, when the form sent them (#751). A blank row of the form arrives as null and is dropped,
+     * like a blank tag.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function saveEventTags(Request $request, array $data, Game $game, SetGameEventTags $setTags): void
+    {
+        if (! array_key_exists('event_tags', $data)) {
+            return;
+        }
+
+        $setTags->handle($request->user(), $game, array_values(array_filter($data['event_tags'] ?? [], 'is_string')));
     }
 
     public function retire(Request $request, int $game, RetireGame $command): RedirectResponse
@@ -194,6 +219,10 @@ class GamesController extends Controller
             'id_kinds' => ['required', 'array', 'min:1', 'max:8'],
             'id_kinds.*' => ['required', 'string', 'max:50', 'distinct:ignore_case'],
             'interface' => ['required', Rule::enum(TelemetryInterface::class)],
+            // The text in a 7Cav calendar event's title that marks it as this game's (#751). Optional: a request without
+            // it leaves the tags as they are.
+            'event_tags' => ['sometimes', 'nullable', 'array', 'max:'.Game::MAX_EVENT_TAGS],
+            'event_tags.*' => ['nullable', 'string', 'max:'.Game::MAX_EVENT_TAG_LENGTH],
         ];
     }
 }
