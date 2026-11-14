@@ -41,7 +41,7 @@ function props(over = {}) {
         sync: { source: 'milpac', lastSuccessAt: '2026-10-08T09:14:00+00:00', stale: false, lastAttempt: null },
         loaSync: { source: 'Forum thread', lastSyncedAt: '2026-10-08T09:14:00+00:00', stale: false, neverSynced: false, latestStatus: 'success', latestFinishedAt: '2026-10-08T09:14:00+00:00' },
         can: { sync: false },
-        links: { milpac: 'https://7cav.us/rosters/profile?uniqueid=', rollcall: '/rollcall/' },
+        links: { rollcall: '/rollcall/' },
         ...over,
     };
 }

@@ -33,6 +33,14 @@ describe('RollcallCreate (#703)', () => {
         expect(wrapper.text()).toContain('Changing it affects this week only.');
     });
 
+    it('names the topic field in its placeholder, with no label above it', () => {
+        const input = factory().get('[data-testid="create-topic"]');
+
+        expect(input.attributes('placeholder')).toBe("Type this week's training topic");
+        expect(input.attributes('aria-label')).toBe('Training topic');
+        expect(factory().find('label[for="create-topic"]').exists()).toBe(false);
+    });
+
     it('creates the roll call with the date as offered and the typed topic', async () => {
         const wrapper = factory();
 

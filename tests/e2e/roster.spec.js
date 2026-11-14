@@ -31,7 +31,7 @@ test('a section leader reads their section in both views and opens a trooper', a
     await grid.locator('tbody [data-open]').first().click();
     const sheet = page.getByTestId('trooper-sheet');
     await expect(sheet.getByTestId('sheet-recent').locator('tbody tr')).toHaveCount(8);
-    await expect(sheet.getByTestId('sheet-milpac')).toHaveAttribute('href', /^https:\/\/7cav\.us\/rosters\/profile\?uniqueid=\d+$/);
+    await expect(sheet.getByTestId('sheet-milpac')).toHaveAttribute('href', /^https:\/\/7cav\.us\/rosters\/profile\/\d+\/$/);
     await expect(page).toHaveURL(/trooper=\d+/);
 });
 
