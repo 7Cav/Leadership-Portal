@@ -6,6 +6,7 @@ import {
     formatKpi,
     highlights,
     kpiChange,
+    onLeave,
     percent,
     readinessChecks,
     sentenceDiff,
@@ -84,7 +85,7 @@ describe('readinessChecks', () => {
         expect(checks.every((c) => c.done)).toBe(true);
     });
 
-    it('flags unsigned, unmarked and unexplained troopers, counting LOA as accounted', () => {
+    it('flags unsigned, unmarked and unexplained troopers, leaving LOA out of the roll call count', () => {
         const troopers = [
             trooper(1, { rollcall: 'unsigned' }),
             trooper(2, { status: null }),
@@ -95,7 +96,7 @@ describe('readinessChecks', () => {
             readinessChecks({ isLeaf: true, troopers, content: { trainingSubject: 'ab', unaccounted: [] }, reviewed: false }).map((c) => [c.id, c]),
         );
 
-        expect(checks.rollcall).toMatchObject({ done: false, count: '3/4' });
+        expect(checks.rollcall).toMatchObject({ done: false, count: '2/3', detail: '1 not signed yet, 1 on LOA.' });
         expect(checks.practice).toMatchObject({ done: false, count: '2/3' });
         expect(checks.unaccounted).toMatchObject({ done: false, count: '0/1' });
         expect(checks.subject.done).toBe(false);
@@ -152,6 +153,39 @@ describe('highlights', () => {
         expect(text).toContain('SP up 5 pts to 75% over 30 days, 0 makeups this week.');
         expect(text).toContain('PFC T2 has missed 2 practices in 30 days and is at-risk. Reason: sick.');
         expect(text).toContain('Roll call signed by 2 of 2');
+    });
+
+    it('never counts leave as signed: two on LOA and nobody signed reads 0 of 3, 2 on LOA', () => {
+        const kpis = { strength: 5, rc: { numerator: 0, denominator: 0 }, sp: { numerator: 0, denominator: 0 }, atRisk: 0, onLoa: 2, makeups: 0 };
+        const troopers = [
+            ...[1, 2, 3].map((id) => trooper(id, { rollcall: 'unsigned', status: null })),
+            ...[4, 5].map((id) => trooper(id, { rollcall: 'unsigned', status: 'loa', onLoa: true })),
+        ];
+        const rc = (rows) => highlights({ kpis, delta: null, troopers: rows, reasons: new Map(), reasonLabels: {}, isLeaf: true }).find((h) => h.id === 'rc');
+
+        expect(rc(troopers)).toMatchObject({ tone: 'neutral', text: 'Roll call signed by 0 of 3, 2 on LOA.' });
+        expect(rc([...troopers.slice(3), trooper(6, { rollcall: 'excused' }), trooper(7)])).toMatchObject({ tone: 'good', text: 'Roll call signed by 1 of 1, 2 on LOA, 1 excused.' });
+        expect(rc(troopers.slice(3)).text).toBe('Nobody due to sign the roll call, 2 on LOA.');
+    });
+
+    it('reads leave by the covering LOA too, so a signed or captured week on leave raises no miss or not marked line', () => {
+        const kpis = { strength: 2, rc: { numerator: 1, denominator: 1 }, sp: { numerator: 1, denominator: 1 }, atRisk: 0, onLoa: 1, makeups: 0 };
+        const covered = trooper(2, { rollcall: 'will_attend', status: 'missed', source: 'auto', loa: { state: 'covered' } });
+        const text = highlights({ kpis, delta: null, troopers: [trooper(1), covered], reasons: new Map(), reasonLabels: {}, isLeaf: true })
+            .map((h) => h.text)
+            .join(' | ');
+
+        expect(onLeave(covered)).toBe(true);
+        expect(onLeave(trooper(3, { loa: { state: 'needs_review' } }))).toBe(false);
+        expect(text).not.toContain('PFC T2 missed practice');
+        expect(text).toContain('Roll call signed by 1 of 1, 1 on LOA, RC 100% over 30 days.');
+    });
+
+    it('reads the readiness roll call check over those due as well', () => {
+        const troopers = [trooper(1), trooper(2, { rollcall: 'unsigned', status: 'loa', onLoa: true })];
+        const check = readinessChecks({ isLeaf: true, troopers, content: { trainingSubject: 'ab', unaccounted: [] }, reviewed: true }).find((c) => c.id === 'rollcall');
+
+        expect(check).toMatchObject({ done: true, count: '1/1', detail: 'Everyone due signed, 1 on LOA.' });
     });
 
     it('writes nothing when there are no KPIs', () => {

@@ -4,6 +4,7 @@ summary: Choose what counts for a battalion, company or platoon HQ staff report,
 section: your-troopers
 order: 7
 audience: leader
+updated: 2026-11-12
 ---
 
 > [!why] HQ staff owe one accountability each Cav week, and a trooper who misses their own section practice can make it up at another one. Each battalion, company, platoon and section can set what counts for that, so the staff report and the automatic makeups follow your unit's rules.
@@ -35,7 +36,7 @@ On a battalion, company or platoon the options say what counts for its HQ staff 
 
 1. Open the unit's **Roster** and choose the **Admin** tab. It shows only to those who may change something on it.
 2. Under **What counts for Company HQ accountability** (or Platoon HQ, or **What counts as a makeup** on a section), tick the options and choose **Save**, or **Use the default**. The list offers only what the battalion allows.
-3. On a company or platoon, the **Platoon HQ** and **Sections** cards below list the units under it. Open one to set it the same way.
+3. On a company or platoon, the **Platoon HQ** and **Sections** cards below list the units under it. Open one to set it the same way. A unit with nobody in it or under it is left out, as in the order of battle; it comes back once someone is placed in it.
 
 The battalion's HQ staff (those placed on the battalion itself), Admins and Regimental HQ staff can change the units under a battalion. The battalion's own set is changed only on Org structure. Every change is in the audit log. View as never changes anything. Act as can, as the person acted as.
 

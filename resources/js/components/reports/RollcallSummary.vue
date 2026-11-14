@@ -27,7 +27,8 @@ const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const training = computed(() =>
     props.rollcall.trainingStart ? `${WEEKDAYS[new Date(props.rollcall.trainingStart).getUTCDay()]} ${forumDateTime(props.rollcall.trainingStart)}Z` : 'No practice this week',
 );
-const counts = computed(() => countsOf(props.troopers));
+// A report's own trooper rows say leave as `onLoa`; the roll call's as `loa`, which `countsOf` reads.
+const counts = computed(() => countsOf(props.troopers.map((t) => (t.onLoa && !t.loa ? { ...t, loa: { state: 'covered' } } : t))));
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const signatures = computed(() =>
     [
@@ -35,6 +36,9 @@ const signatures = computed(() =>
         counts.value.cannotAttend && `${counts.value.cannotAttend} will not attend`,
         counts.value.makeupRequested && `${counts.value.makeupRequested} make-up requested`,
         counts.value.unsigned && `${counts.value.unsigned} unsigned`,
+        // Nothing to sign, so not in the counts above: named apart, as the report's highlight and Home do.
+        counts.value.excusedSignature && `${counts.value.excusedSignature} excused`,
+        counts.value.loa && `${counts.value.loa} on LOA`,
     ]
         .filter(Boolean)
         .join(' · ') || 'None yet',

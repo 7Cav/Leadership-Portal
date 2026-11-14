@@ -58,16 +58,10 @@ export function weekTick(value) {
     return start.slice(2) === end.slice(2) ? `${start.slice(0, 2)} to ${end}` : `${start} to ${end}`;
 }
 
-// A week's end date alone, no year: `30OCT`. For a row of week columns, where a range per column is too busy; a week
-// is named by its end, as the Google Form does.
+// A week's end date alone, no year: `30OCT`. For a row of week columns or the ends of the roster's eight week strip,
+// where a range is too busy; a week is named by its end, as the Google Form and the reports do.
 export function weekEndTick(value) {
     return forumDate(weekBounds(value)[1]).slice(0, 5);
-}
-
-// A week's start date alone, no year: `24OCT`. For a spot too narrow for weekTick's range, like the ends of the
-// roster's eight week strip.
-export function weekStartTick(value) {
-    return forumDate(weekBounds(value)[0]).slice(0, 5);
 }
 
 // The gap inside a Zulu time on screen: a hair space (U+200A), so `2359` reads as `23 59` without a colon.

@@ -1,5 +1,5 @@
 import { forumDate, weekPhrase, zuluTime } from '@/lib/forumDate';
-import { owesMakeup, practiceOf, signatureOf } from '@/lib/rollcall';
+import { isLocked, owesMakeup, practiceOf, signatureOf } from '@/lib/rollcall';
 
 // Presentation rules for the weekly report screen (Stories 5.3–5.5, mockups/v2/report-p3.html).
 // The numbers themselves come from the server (KpiService, AD-21); this file only formats them,
@@ -86,9 +86,24 @@ export function baselineText(baseline) {
     return 'First report: no earlier sent report to compare with.';
 }
 
-const isLoa = (t) => t.onLoa || t.status === 'loa';
-// Excused (by a leader or automatically in a first week, 2026-10-30) is accounted, like leave: nothing to chase.
-const signedOrOut = (t) => signatureOf(t) !== 'unsigned' || isLoa(t);
+// On leave for the week by the one LOA rule (`LoaCoverage`): the KPI reading's `onLoa`, the covering leave (`loa`), or an
+// older stored LOA mark. Such a week reads LOA on both halves whatever was signed or captured, as the roll call shows it.
+export const onLeave = (t) => Boolean(t.onLoa) || isLocked(t);
+const isLoa = onLeave;
+
+// The week's roll call as RC counts it: signed means signed, of those due. Troopers on leave and those excused (by a
+// leader or automatically in a first week, 2026-10-30) have nothing to sign, so they are left out of both numbers and
+// named after them, as Home's Roll call signed does: "3 of 5, 2 on LOA".
+export function rollcallTally(troopers) {
+    const rows = troopers ?? [];
+    const loa = rows.filter(isLoa).length;
+    const excused = rows.filter((t) => !isLoa(t) && signatureOf(t) === 'excused').length;
+    const due = rows.filter((t) => !isLoa(t) && signatureOf(t) !== 'excused');
+    const signed = due.filter((t) => signatureOf(t) !== 'unsigned').length;
+    const away = [loa ? `${loa} on LOA` : null, excused ? `${excused} excused` : null].filter(Boolean).join(', ');
+
+    return { signed, due: due.length, loa, excused, away: away ? `, ${away}` : '' };
+}
 const practiceOut = (t) => isLoa(t) || practiceOf(t) === 'excused';
 
 // The week's unaccounted troopers: marked missed with no makeup. Each needs a reason (5.5).
@@ -130,7 +145,7 @@ export function readinessChecks({ isLeaf, troopers, children, content, reviewed,
     }
 
     const roster = troopers ?? [];
-    const signed = roster.filter(signedOrOut).length;
+    const tally = rollcallTally(roster);
     const eligible = roster.filter((t) => !practiceOut(t));
     const marked = eligible.filter((t) => t.status !== null).length;
     const unmarked = eligible.filter((t) => t.status === null);
@@ -149,9 +164,9 @@ export function readinessChecks({ isLeaf, troopers, children, content, reviewed,
             {
                 id: 'rollcall',
                 title: 'Roll call complete',
-                done: signed === roster.length,
-                count: `${signed}/${roster.length}`,
-                detail: signed === roster.length ? 'Everyone signed, is excused or is on LOA.' : `${roster.length - signed} not signed yet.`,
+                done: tally.signed === tally.due,
+                count: `${tally.signed}/${tally.due}`,
+                detail: tally.signed === tally.due ? `Everyone due signed${tally.away}.` : `${tally.due - tally.signed} not signed yet${tally.away}.`,
                 next: 'Chase the unsigned troopers in roll call',
             },
             {
@@ -274,7 +289,7 @@ export function highlights({ kpis, delta, troopers, reasons, reasonLabels, child
     rows.filter((t) => t.atRisk).forEach((t) =>
         list.push({ id: `risk-${t.id}`, icon: 'warning', tone: 'bad', text: `${t.name} has missed ${t.missed} practices in 30 days and is at-risk. ${reasonText(t.id)}` }),
     );
-    rows.filter((t) => t.status === 'missed' && !t.atRisk).forEach((t) =>
+    rows.filter((t) => t.status === 'missed' && !t.atRisk && !isLoa(t)).forEach((t) =>
         list.push({ id: `miss-${t.id}`, icon: 'miss', tone: 'bad', text: `${t.name} missed practice with no makeup. ${reasonText(t.id)}` }),
     );
 
@@ -284,13 +299,14 @@ export function highlights({ kpis, delta, troopers, reasons, reasonLabels, child
     }
 
     if (rows.length) {
-        const signed = rows.filter(signedOrOut).length;
+        const tally = rollcallTally(rows);
         const rc = percent(kpis.rc);
+        const signedText = tally.due ? `Roll call signed by ${tally.signed} of ${tally.due}` : 'Nobody due to sign the roll call';
         list.push({
             id: 'rc',
             icon: 'signature',
-            tone: signed === rows.length ? 'good' : 'neutral',
-            text: `Roll call signed by ${signed} of ${rows.length}${rc === null ? '' : `, RC ${rc}% over 30 days`}.`,
+            tone: tally.signed === tally.due ? 'good' : 'neutral',
+            text: `${signedText}${tally.away}${rc === null ? '' : `, RC ${rc}% over 30 days`}.`,
         });
     }
 
