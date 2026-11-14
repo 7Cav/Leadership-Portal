@@ -19,6 +19,7 @@ require_once __DIR__.'/../StaffPractices/fixture.php';
 // check reads the same to the staff member, the overview and the unit report.
 
 beforeEach(function () {
+    everyPracticeHeld();
     $this->tree = staffPracticeTree();
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-10 12:00:00', 'UTC'));
     $this->psg = $this->tree['troopers']['psg'];
@@ -61,7 +62,7 @@ it('flags a report whose captured practice did not see them, names CRCON for an 
 
     $presence = ['check' => 'conflict', 'source' => 'CRCON'];
     $this->actingAs($this->tree['users']['psg'])->get($this->pageUrl)->assertInertia(fn (AssertableInertia $page) => $page->where('report.presence', $presence));
-    $groups = $this->actingAs($this->tree['users']['co'])->get('/staff-reports')->assertOk()->viewData('page')['props']['groups'];
+    $groups = $this->actingAs($this->tree['users']['co'])->get('/staff-reports?week=2026-10-03')->assertOk()->viewData('page')['props']['groups'];
     expect(collect($groups)->flatMap(fn (array $group) => $group['rows'])->firstWhere('trooperId', $this->psg->id)['presence'])->toBe($presence);
     $this->actingAs($this->tree['users']['co'])->get(route('reports.show', ['unit' => $this->tree['units']['platoon']->id, 'week' => '2026-10-03']))
         ->assertInertia(fn (AssertableInertia $page) => $page->where('staffReports', fn ($rows) => collect($rows)->firstWhere('trooperId', $this->psg->id)['presence'] === $presence));

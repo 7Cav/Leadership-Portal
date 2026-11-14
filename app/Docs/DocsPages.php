@@ -10,6 +10,21 @@ final class DocsPages
 {
     public function __construct(private readonly GuideLibrary $library) {}
 
+    /** Whether the docs are on (DOCS_ENABLED): every docs page is a 404 while they are off. */
+    public static function enabled(): bool
+    {
+        return (bool) config('portal.docs');
+    }
+
+    /**
+     * The guide at `/docs/{section}/{slug}` when `$reader` may read it, else null (its page is a 404): the one rule the
+     * guide page and the sidebar's bookmarks read.
+     */
+    public function readable(Audience $reader, string $section, string $slug): ?Guide
+    {
+        return $this->library->find($reader, $section, $slug);
+    }
+
     /**
      * @param  list<string>  $facts  what the portal knows the reader has done ({@see PortalProgress})
      * @return array<string, mixed>
@@ -44,7 +59,7 @@ final class DocsPages
      */
     public function guide(Audience $reader, string $section, string $slug, array $facts = []): ?array
     {
-        $guide = $this->library->find($reader, $section, $slug);
+        $guide = $this->readable($reader, $section, $slug);
         if ($guide === null) {
             return null;
         }

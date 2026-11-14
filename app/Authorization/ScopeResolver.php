@@ -454,7 +454,7 @@ class ScopeResolver
      */
     private function battalionPlacing(Trooper $trooper): ?Unit
     {
-        $placed = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
+        $placed = $trooper->primary_section_id === null ? null : $this->units->findActive($trooper->primary_section_id);
 
         return $placed?->type === UnitType::Battalion ? $placed : null;
     }
@@ -465,7 +465,7 @@ class ScopeResolver
      */
     private function regimentPlacing(Trooper $trooper): ?Unit
     {
-        $placed = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
+        $placed = $trooper->primary_section_id === null ? null : $this->units->findActive($trooper->primary_section_id);
         if (! self::isRegimentalHqPlacement($placed)) {
             return null;
         }
@@ -762,12 +762,17 @@ class ScopeResolver
      * narrows (AD-9). A trooper the sync has not placed anywhere belongs to no scope, so only an Admin (as the
      * view-as preview allows) sees them, the same people who can place them. Callers answer 404 when this is
      * false, so a viewer cannot tell an out-of-scope trooper from one that does not exist.
+     *
+     * `$scope` is {@see resolve()} for this user when the caller already holds it, so checking several troopers reads
+     * it once (the sidebar's bookmarks).
+     *
+     * @param  ?Collection<int, int>  $scope
      */
-    public function canSee(User $user, Trooper $trooper): bool
+    public function canSee(User $user, Trooper $trooper, ?Collection $scope = null): bool
     {
         return $trooper->primary_section_id === null
             ? $this->actsAsAdmin($user)
-            : $this->resolve($user)->contains($trooper->primary_section_id);
+            : ($scope ?? $this->resolve($user))->contains($trooper->primary_section_id);
     }
 
     /**

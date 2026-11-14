@@ -266,3 +266,31 @@ describe('units placed week by week', function () {
         ]);
     });
 });
+
+describe('units of given troopers week by week', function () {
+    it('gives the section a trooper ended each week in, else the HQ or group, and skips a week placed nowhere', function () {
+        $trooper = Trooper::factory()->create(['primary_section_id' => null]);
+        $this->travelTo(CarbonImmutable::parse('2026-10-05 18:00:00', 'UTC'));
+        app(TrooperRepository::class)->updatePrimarySections([$trooper->cav_id => $this->sectionA->id]);
+        $this->travelTo(CarbonImmutable::parse('2026-10-19 18:00:00', 'UTC'));
+        app(TrooperRepository::class)->updatePrimarySections([$trooper->cav_id => $this->eloa->id], [$this->eloa->id]);
+        $plain = Trooper::factory()->create();
+        $plain->forceFill(['primary_section_id' => $this->eloa->id])->save();
+
+        $weeks = app(TrooperPlacementRepository::class)
+            ->unitsOfTroopersByWeek([$trooper->id, $plain->id], CarbonImmutable::parse('2026-09-26', 'UTC'), CarbonImmutable::parse('2026-10-24', 'UTC'));
+
+        expect($weeks[$trooper->id])->toBe([
+            '2026-10-03' => $this->sectionA->id,
+            '2026-10-10' => $this->sectionA->id,
+            // The week of the move to ELOA still ends in the section, as its roll call reads it.
+            '2026-10-17' => $this->sectionA->id,
+            '2026-10-24' => $this->eloa->id,
+        ])->and($weeks[$plain->id])->toHaveCount(5)
+            ->and(array_unique($weeks[$plain->id]))->toBe(['2026-09-26' => $this->eloa->id]);
+    });
+
+    it('reads nothing for no troopers', function () {
+        expect(app(TrooperPlacementRepository::class)->unitsOfTroopersByWeek([], CarbonImmutable::parse('2026-10-03', 'UTC'), CarbonImmutable::parse('2026-10-10', 'UTC')))->toBe([]);
+    });
+});

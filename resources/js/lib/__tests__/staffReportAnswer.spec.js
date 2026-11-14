@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { attendedText, confirmedText, namedSentence, presenceAnswer, presenceText } from '@/lib/staffReport';
+import { attendedText, confirmedText, namedSentence, presenceAnswer, presenceText, selfReportedText } from '@/lib/staffReport';
 
 describe('attendedText', () => {
     it('reads each named type by its name and date', () => {
@@ -34,7 +34,7 @@ describe('presenceAnswer', () => {
 
     it('names the public server in its check', () => {
         expect(presenceText({ check: 'no_data', source: 'public server', minutes: null })).toBe('No public server data');
-        expect(presenceText({ check: 'no_data', source: 'public server', minutes: null, reason: 'no_server' }, 'Brandt.L')).toBe('No game server data: no public server is set up');
+        expect(presenceText({ check: 'no_data', source: 'public server', minutes: null, reason: 'no_server' }, 'Brandt.L')).toBe('No game server data: no public server is set up yet');
         expect(presenceText({ check: 'no_data', source: 'public server', minutes: null, reason: 'no_identity' }, 'Brandt.L')).toBe('No game server data: no game account linked for Brandt.L');
         expect(presenceText({ check: 'no_data', source: 'public server', minutes: null, reason: 'unreadable' }, 'Brandt.L')).toBe(
             'No game server data: the public servers could not be read this week',
@@ -47,5 +47,16 @@ describe('presenceAnswer', () => {
         expect(confirmedText({ check: 'confirmed', source: 'CRCON' })).toBe('Seen on CRCON');
         expect(confirmedText({ check: 'conflict', source: 'public server', minutes: 43 })).toBe('');
         expect(confirmedText(null)).toBe('');
+    });
+
+    it('says a section practice check is not set up yet when no system reads the game', () => {
+        expect(presenceText({ check: 'no_data', source: 'game server' })).toBe('No game server data: not set up for this game yet');
+        expect(presenceText({ check: 'no_data', source: 'CRCON' })).toBe('No CRCON data');
+    });
+});
+
+describe('selfReportedText', () => {
+    it('says once that a game that can never be read is self-reported', () => {
+        expect(selfReportedText('Battlefield 6')).toBe("Server data can't be read automatically for Battlefield 6. All attendance is self-reported.");
     });
 });

@@ -183,7 +183,7 @@ it('never reads the env server of another game for a game added with no server s
         ->where('telemetry.state', 'not_configured')
         ->where('telemetry.platformLabel', 'Squad')
         ->where('telemetry.detail', 'no_server'));
-    tryAgain($this)->assertStatus(422)->assertJsonPath('message', 'Capture is not set up for Squad. Mark attendance by hand.');
+    tryAgain($this)->assertStatus(422)->assertJsonPath('message', 'Capture is not set up yet for Squad. Mark attendance by hand.');
 });
 
 it('follows an Admin changing the game\'s interface: set to none, the game is not configured and cannot be retried (#388)', function () {
@@ -193,7 +193,20 @@ it('follows an Admin changing the game\'s interface: set to none, the game is no
     captureRun($this, SyncRunStatus::Failure);
 
     telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry.state', 'not_configured')->where('telemetry.platformLabel', 'Hell Let Loose (WW2)'));
-    tryAgain($this)->assertStatus(422)->assertJsonPath('message', 'Capture is not set up for Hell Let Loose (WW2). Mark attendance by hand.');
+    tryAgain($this)->assertStatus(422)->assertJsonPath('message', 'Capture is not set up yet for Hell Let Loose (WW2). Mark attendance by hand.');
+});
+
+it('says a game set to none (impossible) can never be read, and offers no retry', function () {
+    $this->actingAs(User::factory()->admin()->create())
+        ->patch('/settings/games/'.game('hll')->id, ['name' => 'Hell Let Loose (WW2)', 'id_kinds' => ['Steam ID'], 'interface' => 'impossible'])
+        ->assertRedirect();
+    captureRun($this, SyncRunStatus::Failure);
+
+    telemetryOf($this)->assertInertia(fn (Assert $page) => $page
+        ->where('telemetry.state', 'not_configured')
+        ->where('telemetry.detail', 'impossible')
+        ->where('telemetry.canRetry', false));
+    tryAgain($this)->assertStatus(422)->assertJsonPath('message', "Server data can't be read automatically for Hell Let Loose (WW2). Mark attendance by hand.");
 });
 
 it('still reads a retired game: retiring stops new links, not the capture of the ones made (#388)', function () {
@@ -240,7 +253,7 @@ it('reads the game of the nearest unit above a section that has none of its own'
     // Arma reads BattleMetrics only, which has no keys here: not configured, named for Arma, though the section's only
     // link is on Hell Let Loose.
     telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry.state', 'not_configured')->where('telemetry.platformLabel', 'Arma Reforger'));
-    tryAgain($this)->assertStatus(422)->assertJsonPath('message', 'Capture is not set up for Arma Reforger. Mark attendance by hand.');
+    tryAgain($this)->assertStatus(422)->assertJsonPath('message', 'Capture is not set up yet for Arma Reforger. Mark attendance by hand.');
 });
 
 it('still reads a unit game that has been retired, as it reads a retired linked game', function () {
@@ -370,7 +383,7 @@ it('refuses a retry when the game has no keys set, saying so', function () {
     config(['services.crcon' => []]);
     app()->forgetInstance(CaptureSources::class);
 
-    tryAgain($this)->assertStatus(422)->assertJsonPath('message', 'Capture is not set up for Hell Let Loose (WW2). Mark attendance by hand.');
+    tryAgain($this)->assertStatus(422)->assertJsonPath('message', 'Capture is not set up yet for Hell Let Loose (WW2). Mark attendance by hand.');
 
     Queue::assertNothingPushed();
 });

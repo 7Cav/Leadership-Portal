@@ -2,6 +2,8 @@
 
 use App\Commands\Units\ImportOrgStructure;
 use App\Commands\Units\MoveUnit;
+use App\Commands\Units\SetUnitActive;
+use App\Commands\Units\StaffBillet;
 use App\Integration\Cav\CavApi;
 use App\Models\AdminBillet;
 use App\Models\AdminBilletStatus;
@@ -100,8 +102,11 @@ it('builds the default portfolio tree, nesting portfolios, with each group of it
 
     expect(isgGroup('ELOA')->parent_id)->toBe($regiment->id)
         ->and(isgGroup('NR')->parent_id)->toBe($regiment->id)
+        // Office of the Commanding Officer → Executive Officer (2026-11-12).
+        ->and(isgGroup('CO')->parent_id)->toBe($regiment->id)
+        ->and(isgGroup('CO')->name)->toBe('Office of the Commanding Officer')
         // Executive Officer → Reserve & Development Command → DEVCOM staff, Reservists; JAG (oversight chart, 2026-11-10).
-        ->and(isgGroup('XO')->parent_id)->toBe($regiment->id)
+        ->and(isgGroup('XO')->parent_id)->toBe(isgGroup('CO')->id)
         ->and(isgGroup('RDC')->parent_id)->toBe(isgGroup('XO')->id)
         ->and(isgGroup('DEVCOM STAFF')->parent_id)->toBe(isgGroup('RDC')->id)
         ->and(isgGroup('RES')->parent_id)->toBe(isgGroup('RDC')->id)
@@ -136,7 +141,8 @@ it('names each portfolio\'s lead billet', function () {
     isgImport();
     $fixture = collect(isgGroups()['groups'])->flatMap(fn ($g) => $g['positions'])->pluck('positionId', 'positionTitle');
 
-    expect(isgGroup('XO')->lead_position_id)->toBe((int) $fixture['Regimental Executive Officer'])
+    expect(isgGroup('CO')->lead_position_id)->toBe((int) $fixture['Regimental Commanding Officer'])
+        ->and(isgGroup('XO')->lead_position_id)->toBe((int) $fixture['Regimental Executive Officer'])
         ->and(isgGroup('RDC')->lead_position_id)->toBe(9027)
         ->and(isgGroup('COS')->lead_position_id)->toBe(9010)
         ->and(isgGroup('CSM')->lead_position_id)->toBe((int) $fixture['Regimental Command Sergeant Major'])
@@ -192,9 +198,51 @@ it('maps every staff billet to where it places its holder', function () {
         // DEVCOM Lead: placed with DEVCOM staff, commanding nothing by billet (acting leads are assigned by hand).
         ->and($placements[9023])->toBe('group|DEVCOM STAFF')
         ->and($commands)->not->toHaveKey(9023)
-        // Command billets keep their command mapping and get no placement row: the sync places them by it.
-        ->and($placements)->not->toHaveKey((int) $fixture['Regimental Commanding Officer'])
+        // The regimental commander leads the Office of the Commanding Officer, so like the XO they are placed on the
+        // regiment, and they keep commanding the regiment: leading the office changes nobody's scope.
+        ->and($placements[(int) $fixture['Regimental Commanding Officer']])->toBe('regiment|7CAV')
         ->and($commands[(int) $fixture['Regimental Commanding Officer']])->toBe('regiment|7CAV');
+});
+
+it('creates every department and portfolio of the staff tree, even one no Cav billet maps to', function () {
+    // Cav lists no JAG billet: no `JAG ...` or `Judge Advocate ...` title and no JAG group.
+    $groups = isgGroups();
+    $groups['groups'] = array_values(array_filter($groups['groups'], fn (array $group) => $group['groupTitle'] !== 'JAG'));
+    MockClient::destroyGlobal();
+    MockClient::global(['api.7cav.us/api/v1/milpacs/position/groups' => MockResponse::make($groups)]);
+    app(ImportOrgStructure::class)->handle(User::factory()->admin()->create());
+
+    expect(isgGroup('JAG')->parent_id)->toBe(isgGroup('XO')->id)
+        ->and(isgGroup('JAG')->kind)->toBe(UnitKind::Staff)
+        ->and(UnitBilletMapping::query()->where('unit_id', isgGroup('JAG')->id)->exists())->toBeFalse();
+
+    $regiment = Unit::query()->where('type', UnitType::Regiment)->sole();
+
+    foreach (StaffBillet::PORTFOLIOS as $callsign => [, , $parent]) {
+        expect(isgGroup($callsign)->parent_id)->toBe($parent === null ? $regiment->id : isgGroup($parent)->id);
+    }
+
+    foreach (StaffBillet::DEPARTMENT_PORTFOLIO as $code => $portfolio) {
+        expect(isgGroup($code === 'DEVCOM' ? 'DEVCOM STAFF' : $code)->parent_id)->toBe(isgGroup($portfolio)->id);
+    }
+});
+
+it('adds a missing department to a tree imported before, without moving any group already there', function () {
+    isgImport();
+    $admin = User::factory()->admin()->create();
+    // An older tree: no JAG group, and the Executive Officer on the regiment, where it sat before the Office of the
+    // Commanding Officer existed.
+    UnitBilletMapping::query()->where('cav_position_id', 9040)->delete();
+    isgGroup('JAG')->delete();
+    $regiment = Unit::query()->where('type', UnitType::Regiment)->sole();
+    app(MoveUnit::class)->handle($admin, isgGroup('XO'), $regiment->id);
+
+    isgImport();
+
+    expect(isgGroup('JAG')->parent_id)->toBe(isgGroup('XO')->id)
+        ->and(isgGroup('XO')->parent_id)->toBe($regiment->id)
+        ->and(Unit::query()->where('callsign', 'JAG')->count())->toBe(1)
+        ->and(isgPlacements()[9040])->toBe('group|JAG');
 });
 
 it('is idempotent: a re-run creates no group and no mapping', function () {
@@ -206,6 +254,19 @@ it('is idempotent: a re-run creates no group and no mapping', function () {
 
     expect(Unit::query()->orderBy('id')->get()->map->getAttributes()->all())->toBe($units)
         ->and(UnitBilletMapping::query()->orderBy('id')->get()->map->getAttributes()->all())->toBe($placements);
+});
+
+it('leaves a deactivated group inactive on the next import, never making it again, and keeps its billets mapped there', function () {
+    isgImport();
+    $admin = User::factory()->admin()->create();
+    app(SetUnitActive::class)->deactivate($admin, isgGroup('S7'), 'Merged into S3');
+    $mapping = UnitBilletMapping::query()->where('unit_id', isgGroup('S7')->id)->sole();
+
+    isgImport();
+
+    expect(Unit::query()->where('callsign', 'S7')->count())->toBe(1)
+        ->and(isgGroup('S7')->deactivated_at)->not->toBeNull()
+        ->and(UnitBilletMapping::query()->whereKey($mapping->id)->value('unit_id'))->toBe(isgGroup('S7')->id);
 });
 
 it('keeps an Admin\'s move of a department to another portfolio on the next import', function () {

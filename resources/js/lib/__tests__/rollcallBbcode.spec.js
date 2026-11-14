@@ -19,7 +19,7 @@ describe('rollcallContext (3.11)', () => {
     const context = rollcallContext(input());
 
     it('describes the section and the week in forum convention', () => {
-        expect(context).toMatchObject({ unit: '2/1/A/1-7', unit_name: '2nd Section', week: '03Oct26 – 09Oct26', week_start: '03Oct26', week_end: '09Oct26' });
+        expect(context).toMatchObject({ unit: '2/1/A/1-7', unit_name: '2nd Section', week: '03Oct26 to 09Oct26', week_start: '03Oct26', week_end: '09Oct26' });
     });
 
     it('prints the training date in the post date form and the topic as set, empty when the week has neither (#703)', () => {

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Authorization\PageAccess;
 use App\Authorization\ScopeResolver;
 use App\Commands\Capture\CaptureServer;
 use App\Commands\Capture\CaptureSource;
@@ -47,13 +48,12 @@ class ServersController extends Controller
         private readonly GameRepository $games,
         private readonly TelemetryCredentials $credentials,
         private readonly ScopeResolver $scope,
+        private readonly PageAccess $pages,
     ) {}
 
     public function index(Request $request, ScopeResolver $scope, CaptureSources $sources, TelemetryConnectionRepository $connections): Response
     {
-        if (! $scope->actsAsAdmin($request->user())) {
-            abort(403, 'Only an Admin may manage game servers.');
-        }
+        $this->pages->adminSetting($request->user(), 'Only an Admin may manage game servers.')->orAbort();
 
         $recorded = $connections->allByGame();
         $servers = $this->servers->all();
@@ -100,7 +100,7 @@ class ServersController extends Controller
                 'value' => $interface->value,
                 'label' => $interface->label(),
                 'credentialsSet' => $this->credentials->areSet($interface),
-            ], array_filter(TelemetryInterface::cases(), fn (TelemetryInterface $interface) => $interface !== TelemetryInterface::None))),
+            ], array_filter(TelemetryInterface::cases(), fn (TelemetryInterface $interface) => $interface->reads()))),
             'types' => array_map(fn (GameServerType $type) => ['value' => $type->value, 'label' => $type->label()], GameServerType::cases()),
             'fetchResult' => $request->session()->get('servers_fetch'),
             'testResult' => $request->session()->get('connection_test'),

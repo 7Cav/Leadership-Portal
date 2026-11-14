@@ -3,6 +3,7 @@
 namespace App\Commands\Capture;
 
 use App\Models\Game;
+use App\Models\TelemetryInterface;
 use DateTimeImmutable;
 
 /**
@@ -16,7 +17,8 @@ use DateTimeImmutable;
  * read as nobody having been online (#176). Empty when the game is unknown or has no source set up.
  *
  * `detail` says more when there is more to say: `no_server` on a game that is not set up because no training server
- * is selected for it and the env server belongs to another game (#389); `internal_error` on a failure inside the portal
+ * is selected for it and the env server belongs to another game (#389); `impossible` on a game whose attendance can
+ * never be read (its interface is `impossible`); `internal_error` on a failure inside the portal
  * (a database error, a bug), which names no feed, since every one that was read answered.
  */
 final readonly class CaptureTelemetry
@@ -35,7 +37,13 @@ final readonly class CaptureTelemetry
 
     public static function notConfigured(Game $game, bool $noServer = false): self
     {
-        return new self(CaptureTelemetryState::NotConfigured, $game, null, false, detail: $noServer ? 'no_server' : null);
+        $detail = match (true) {
+            $game->interface === TelemetryInterface::Impossible => 'impossible',
+            $noServer => 'no_server',
+            default => null,
+        };
+
+        return new self(CaptureTelemetryState::NotConfigured, $game, null, false, detail: $detail);
     }
 
     /**

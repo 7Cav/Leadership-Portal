@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Authorization\CounselingAccess;
 use App\Authorization\CounselingPermissions;
+use App\Authorization\PageAccess;
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffPracticeAccess;
 use App\Commands\Counseling\CounselingFormParties;
@@ -57,6 +58,7 @@ class TrooperDetailController extends Controller
         private readonly Headcount $headcount,
         private readonly CounselingFormParties $formParties,
         private readonly UnitGuidonRepository $guidons,
+        private readonly PageAccess $pages,
     ) {}
 
     /**
@@ -69,8 +71,8 @@ class TrooperDetailController extends Controller
     {
         $user = $request->user();
 
-        $inScope = $this->scope->canSee($user, $trooper);
-        abort_unless($inScope || $this->scope->isOwnTrooper($user, $trooper), 404);
+        // The subject says whether it opens only as the viewer's own page.
+        $inScope = ! $this->pages->milpac($user, $trooper)->orAbort();
 
         return Inertia::render('TrooperDetail', [
             ...$this->milpac->for($trooper, $this->scope->resolve($user), $this->missedWeeks($trooper)),
@@ -91,7 +93,7 @@ class TrooperDetailController extends Controller
      */
     private function unitGuidon(Trooper $trooper): ?array
     {
-        $section = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
+        $section = $trooper->primary_section_id === null ? null : $this->units->findActive($trooper->primary_section_id);
 
         return $section === null ? null : $this->guidons->designsFor([$section], inherit: true)[$section->id];
     }
@@ -191,7 +193,7 @@ class TrooperDetailController extends Controller
      */
     private function missedWeeks(Trooper $trooper): array
     {
-        $section = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
+        $section = $trooper->primary_section_id === null ? null : $this->units->findActive($trooper->primary_section_id);
 
         if ($section === null) {
             return [];

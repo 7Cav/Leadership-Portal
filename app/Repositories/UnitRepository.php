@@ -67,11 +67,44 @@ interface UnitRepository
      * order (creation order, which the org import sets to Cav's display order). Paths are compared
      * segment by segment as numbers ({@see UnitPath::compare()}), so "1/2/" sorts before "1/145/".
      *
+     * Inactive units, and everything under one, are left out ({@see Unit::active()}), here and in every other list
+     * this repository reads: the subtree, the children, the sections and every unit id.
+     *
      * @return Collection<int, Unit>
      */
     public function tree(): Collection;
 
+    /**
+     * {@see tree()} with the inactive units kept, for the two readers that must see them: Org structure, which lists
+     * them greyed behind Show inactive, and the org import, which must find an inactive unit rather than make it again.
+     *
+     * @return Collection<int, Unit>
+     */
+    public function treeWithInactive(): Collection;
+
+    /**
+     * The ids of every inactive unit: each one an Admin deactivated and everything under it.
+     *
+     * @return ScalarCollection<int, int>
+     */
+    public function inactiveIds(): ScalarCollection;
+
+    /**
+     * Deactivate the unit (`$at` and `$by` set) or reactivate it (both null). Only its own row is written: the units
+     * under it are inactive through it, and come back with it.
+     */
+    public function setDeactivated(Unit $unit, ?\DateTimeInterface $at, ?int $by): Unit;
+
+    /**
+     * Any unit by id, inactive or not: what a write on Org structure acts on.
+     */
     public function find(int $id): ?Unit;
+
+    /**
+     * {@see find()}, but null for an inactive unit: where a trooper's placement is shown or gives anything, someone
+     * placed in an inactive unit reads as unplaced.
+     */
+    public function findActive(int $id): ?Unit;
 
     /**
      * The unit whose roll call result image URLs carry `$token` (#641), or null for any other value.

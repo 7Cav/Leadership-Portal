@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import TimeAgo from '@/components/TimeAgo.vue';
 import { weekPhrase } from '@/lib/forumDate';
 import { dayTime, displayStatus, percent, points, TYPE_LABEL, unitLabel } from '@/lib/reportRollup';
+import SelfReportedNotice from '@/components/reports/SelfReportedNotice.vue';
 import StatusPill from './StatusPill.vue';
 
 // The selected unit's report in the roll-up workspace (report-p2.html's right panel). A sent
@@ -32,6 +33,8 @@ const emit = defineEmits(['select', 'copy-reminder']);
 const status = computed(() => displayStatus(props.node));
 const leaf = computed(() => props.node.children.length === 0);
 const missing = computed(() => (props.node.coverage?.missing ?? []).map((id) => props.byId.get(id)?.node).filter(Boolean));
+// Only a section has a roll call: the same week's, so a reviewer chasing a report sees what is left without the report in between.
+const rollcallUrl = computed(() => (props.node.type === 'section' ? `/rollcall/${props.node.id}?week=${props.week.start.slice(0, 10)}` : null));
 
 // The status line around its time: `{ before, at, after }`; `at` is null when there is no time.
 const meta = computed(() => {
@@ -111,6 +114,8 @@ function ratioLine(child) {
                 {{ liveNote }}
             </p>
 
+            <SelfReportedNotice v-if="node.selfReported" :game="node.selfReported" />
+
             <div
                 v-if="node.status !== 'sent' && missing.length"
                 class="space-y-2 rounded-md border border-warning/40 bg-warning/6 p-3"
@@ -129,7 +134,7 @@ function ratioLine(child) {
                             {{ unitLabel(child) }}
                         </button>
                         <StatusPill :status="displayStatus(child)" />
-                        <Button variant="ghost" size="xs" class="ml-auto" @click="emit('copy-reminder', child)">
+                        <Button variant="ghost" size="xs" class="ml-auto" data-testid="copy-reminder-child" :data-reminder-unit="child.id" @click="emit('copy-reminder', child)">
                             <PhCopy />Copy reminder
                         </Button>
                     </li>
@@ -207,6 +212,9 @@ function ratioLine(child) {
         <div class="flex flex-wrap items-center gap-2 border-t border-border p-3">
             <Button as-child :variant="node.status === 'sent' ? 'outline' : 'default'">
                 <Link :href="node.reportUrl" data-testid="open-report"><PhArrowSquareOut />Open report</Link>
+            </Button>
+            <Button v-if="rollcallUrl" as-child variant="outline">
+                <Link :href="rollcallUrl" data-testid="open-rollcall"><PhArrowSquareOut />Open roll call</Link>
             </Button>
             <Button v-if="node.status !== 'sent'" variant="outline" data-testid="copy-reminder" @click="emit('copy-reminder', node)">
                 <PhCopy />Copy reminder

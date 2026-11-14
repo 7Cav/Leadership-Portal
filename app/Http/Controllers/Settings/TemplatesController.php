@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Authorization\PageAccess;
 use App\Authorization\ScopeResolver;
 use App\Commands\Templates\ActivateTemplateVersion;
 use App\Commands\Templates\AuthorTemplateVersion;
@@ -75,10 +76,13 @@ class TemplatesController extends Controller
         private readonly UnitCommandMappingRepository $commands,
         private readonly TemplateAuthority $authority,
         private readonly ScopeResolver $scopeResolver,
+        private readonly PageAccess $pages,
     ) {}
 
     public function index(Request $request, ScopeResolver $scope): Response
     {
+        // Open to everyone signed in (PageAccess::openSetting); the page shows a non-Admin only what is theirs.
+        $this->pages->openSetting($request->user())->orAbort();
         $user = $request->user();
         $tree = $this->units->tree();
         $companies = $this->visibleCompanies($user, $scope, $tree);

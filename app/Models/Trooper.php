@@ -41,8 +41,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable(['cav_id', 'username', 'forum_user_id', 'rank', 'rank_short', 'rank_image_url', 'billet', 'mos', 'tis', 'tig', 'status', 'cav_position_id'])]
 class Trooper extends Model
 {
-    /** The Cav milpac page for a trooper, keyed by their milpac id (`cav_id`). The one definition every screen links through. */
-    public const MILPAC_PROFILE_URL = 'https://7cav.us/rosters/profile?uniqueid=';
+    /** Where Cav's milpac pages live; {@see milpacUrlFor()} adds the milpac id (`cav_id`) and the closing slash. */
+    private const MILPAC_PROFILE_BASE = 'https://7cav.us/rosters/profile/';
 
     /**
      * The tutorial's practice troopers have made-up milpac ids in this range (`App\Tutorial\PracticeWorld`); no real
@@ -69,7 +69,17 @@ class Trooper extends Model
             $id = self::MAINTAINER_MILPACS[$this->username] ?? array_values(self::MAINTAINER_MILPACS)[$id % 2];
         }
 
-        return self::MILPAC_PROFILE_URL.$id;
+        return self::milpacUrlFor($id);
+    }
+
+    /**
+     * The 7cav.us milpac page for a milpac id (`cav_id`): `https://7cav.us/rosters/profile/3099/`. The one place the
+     * address is built; every link the portal hands out comes from here or {@see milpacUrl()}. The old
+     * `profile?uniqueid=` form 404s on 7cav.us.
+     */
+    public static function milpacUrlFor(int $cavId): string
+    {
+        return self::MILPAC_PROFILE_BASE.$cavId.'/';
     }
 
     protected function casts(): array
@@ -140,7 +150,7 @@ class Trooper extends Model
     protected function assignedWithin(Builder $query, Unit $unit): void
     {
         $query->whereIn('troopers.status', TrooperStatus::servingValues())
-            ->whereIn('troopers.primary_section_id', Unit::query()->select('id')
+            ->whereIn('troopers.primary_section_id', Unit::query()->active()->select('id')
                 ->where('path', 'like', "{$unit->path}%")
                 ->where('type', UnitType::Section->value));
     }
@@ -155,6 +165,6 @@ class Trooper extends Model
     protected function placedWithin(Builder $query, Unit $unit): void
     {
         $query->whereIn('troopers.status', TrooperStatus::servingValues())
-            ->whereIn('troopers.primary_section_id', Unit::query()->select('id')->where('path', 'like', "{$unit->path}%"));
+            ->whereIn('troopers.primary_section_id', Unit::query()->active()->select('id')->where('path', 'like', "{$unit->path}%"));
     }
 }

@@ -105,6 +105,7 @@ const oversightText = computed(() => {
             class="group relative flex min-h-8 cursor-pointer flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-md px-1.5 py-1 text-[13px] transition-shadow duration-700 hover:bg-accent/70"
             :class="{
                 'text-muted-foreground': node.empty,
+                'opacity-60': node.inactive,
                 'bg-accent font-medium shadow-[inset_2px_0_0_var(--primary)]': node.id === selectedId,
                 'ring-2 ring-primary ring-inset duration-150': node.id === highlightId,
             }"
@@ -132,6 +133,13 @@ const oversightText = computed(() => {
                 <span class="break-words sm:shrink-0 sm:min-w-(--name-ch)" :style="nameStyle">{{ node.name }}</span>
                 <span v-if="node.callsign" class="font-mono text-[11px] break-all text-muted-foreground sm:ml-1.5">{{ node.callsign }}</span>
             </span>
+            <!-- Deactivated by an Admin; a unit under it is greyed with it, without the tag. -->
+            <span
+                v-if="node.deactivated_at"
+                :data-testid="`unit-inactive-${node.id}`"
+                class="shrink-0 rounded-sm border border-border px-1 text-[10px] font-medium text-muted-foreground"
+                >Inactive</span
+            >
             <span v-if="hasMeta" class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 max-sm:order-last max-sm:basis-full max-sm:pl-[1.625rem] sm:ml-1.5">
             <!-- The game chip, on the unit that set it: the game's short code, its full name on hover. -->
             <span
@@ -181,7 +189,7 @@ const oversightText = computed(() => {
                     <PhPencilSimple class="size-3.5" />
                 </button>
                 <button
-                    v-if="childType && !isRoot && (isAdmin || node.can_add_child)"
+                    v-if="childType && !isRoot && !node.inactive && (isAdmin || node.can_add_child)"
                     type="button"
                     :data-testid="`tool-add-${node.id}`"
                     :aria-label="`Add ${childType} under ${node.name}`"

@@ -3,7 +3,7 @@ title: Glossary
 summary: What the words on the portal's screens mean.
 section: basics
 order: 7
-updated: 2026-10-31
+updated: 2026-11-12
 audience: everyone
 ---
 
@@ -25,7 +25,7 @@ audience: everyone
 - Echelon: a level of the chain of command: regiment, battalion, company, platoon, section.
 - Section: the smallest line unit, led by a Section Leader and an Assistant Section Leader.
 - Platoon: two or more sections, led by a Platoon Leader and a Platoon Sergeant.
-- Headcount: everyone serving placed in a unit or under it, HQ staff and staff departments included. New Recruits, ELOA and Reservists count only on their own group. Home and the weekly report show it beside In roll call, the troopers in sections that the rates are counted over. The roster and Org structure label it Headcount too. It never changes that number or any rate. A report counts it for its own week: an earlier week's report counts who was placed there that week, the same people as that week's roll call.
+- Headcount: everyone serving placed in a unit or under it, HQ staff and staff departments included. New Recruits, ELOA and Reservists never count on a line unit above them: they count on their own group, and on a staff group that holds one (the Reservists count on Reserve & Development Command and the Executive Officer's office). Home and the weekly report show it beside In roll call, the troopers in sections that the rates are counted over. The roster and Org structure label it Headcount too. It never changes that number or any rate. A report counts it for its own week: an earlier week's report counts who was placed there that week, the same people as that week's roll call.
 - Billet: a position on the Cav roster, such as Section Leader 1/1/A/1-7. Your billet decides what you can see and change.
 - Acting lead: a trooper an Admin has put in charge of a unit without the billet.
 - View as: a read-only preview of the portal as a unit's leader, or for an Admin as a person.

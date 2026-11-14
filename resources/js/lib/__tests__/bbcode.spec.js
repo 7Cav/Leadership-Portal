@@ -33,7 +33,7 @@ const row = (overrides = {}) => ({
 const context = (overrides = {}) => ({
     unit: '1/E/2-7',
     unit_name: 'Jaegers',
-    week: '16May26 – 22May26',
+    week: '16May26 to 22May26',
     week_start: '16May26',
     week_end: '22May26',
     count: '1',
@@ -181,7 +181,7 @@ describe('render', () => {
     it('prints values and leaves everything else exactly as written, BBCode included', () => {
         const out = render('[CENTER][B]{{unit}} ROLL CALL | {{week}}[/B][/CENTER]', context());
 
-        expect(out).toEqual({ ok: true, text: '[CENTER][B]1/E/2-7 ROLL CALL | 16May26 – 22May26[/B][/CENTER]' });
+        expect(out).toEqual({ ok: true, text: '[CENTER][B]1/E/2-7 ROLL CALL | 16May26 to 22May26[/B][/CENTER]' });
     });
 
     it('repeats a trooper block once per trooper, in order, with the row values', () => {
@@ -262,7 +262,12 @@ describe('render', () => {
     });
 
     it('applies filters', () => {
-        expect(render('{{week|upper}} {{unit|lower}} {{#troopers}}{{name | upper}}{{/troopers}}', context()).text).toBe('16MAY26 – 22MAY26 1/e/2-7 JAY.JH');
+        expect(render('{{week|upper}} {{unit|lower}} {{#troopers}}{{name | upper}}{{/troopers}}', context()).text).toBe('16MAY26 to 22MAY26 1/e/2-7 JAY.JH');
+    });
+
+    it('writes the week as two dates joined by "to", which no filter changes and no dash replaces', () => {
+        expect(render('{{week}}|{{week|upper}}|{{week|lower}}', context()).text).toBe('16May26 to 22May26|16MAY26 to 22MAY26|16may26 to 22may26');
+        expect(render('{{week|upper}}', context()).text).not.toMatch(/[–—-]/);
     });
 
     it('reports a malformed template instead of emitting broken BBCode', () => {

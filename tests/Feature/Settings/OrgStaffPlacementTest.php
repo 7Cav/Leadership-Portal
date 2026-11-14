@@ -68,6 +68,28 @@ it('counts HQ staff in their unit and every ancestor, and New Recruits only on t
         ->and($units[$this->recruits->id]['kind'])->toBe('recruit');
 });
 
+it('rolls a staff portfolio up over the groups under it, the Reservists included', function () {
+    $repo = app(UnitRepository::class);
+    $xo = $repo->create(UnitType::Group, 'Executive Officer', 'XO', $this->regiment->id, UnitKind::Staff);
+    $rdc = $repo->create(UnitType::Group, 'Reserve & Development Command', 'RDC', $xo->id, UnitKind::Staff);
+    $reserve = $repo->create(UnitType::Group, 'Reservists', 'RES', $rdc->id, UnitKind::Reserve);
+    $devcom = $repo->create(UnitType::Group, 'DEVCOM Staff', 'DEVCOM STAFF', $rdc->id, UnitKind::Staff);
+    ospPlace($rdc, ['billet' => 'RDC Commander']);
+    ospPlace($reserve, ['status' => TrooperStatus::Reserve]);
+    ospPlace($reserve, ['status' => TrooperStatus::Reserve]);
+    ospPlace($devcom);
+
+    $units = ospUnits($this->actingAs($this->admin)->get('/settings/org-structure')->assertOk());
+
+    expect($units[$rdc->id]['own_count'])->toBe(1)
+        ->and($units[$rdc->id]['trooper_count'])->toBe(4)
+        ->and($units[$xo->id]['trooper_count'])->toBe(4)
+        ->and($units[$reserve->id]['trooper_count'])->toBe(2)
+        ->and($units[$devcom->id]['trooper_count'])->toBe(1)
+        // The regiment counts the RDC Commander and DEVCOM staff, never the Reservists.
+        ->and($units[$this->regiment->id]['trooper_count'])->toBe(5);
+});
+
 it('shows a held lead by name and an unheld one as vacant, with no previous holder', function () {
     ospPlace($this->company, ['username' => 'Cole.D', 'billet' => 'Commander A/1-7', 'cav_position_id' => 720]);
     $units = ospUnits($this->actingAs($this->admin)->get('/settings/org-structure'));

@@ -32,7 +32,9 @@ use Illuminate\Support\Facades\Log;
  * ({@see StaffBillet}). Those groups (`UnitType::Group`) are created on first sight, a department or holding group
  * under its default portfolio (portfolios nest), the rest under the regiment, and found again by callsign on every
  * later run, never moved, so an Admin's move of a department to another portfolio stands. Re-running the import never
- * duplicates a group. Each portfolio's `lead_position_id` (its officer's billet) is kept current on every run.
+ * duplicates a group. Each portfolio's `lead_position_id` (its officer's billet) is kept current on every run. Since
+ * 2026-11-12 every portfolio and department of the default staff tree is created even when no Cav billet maps to it
+ * ({@see StaffBillet::defaultGroups()}): JAG was missing because Cav listed no billet that places anyone there.
  *
  * Every leadership billet — in a line company, a `<bn> Command` group or Regimental HQ — is also
  * mapped to the unit it commands (story 1.16, {@see CommandBillet}), the input to the
@@ -428,6 +430,12 @@ class ImportOrgStructure
             }
         }
 
+        // The rest of the default staff tree, after the groups the billets named so those keep their order: a portfolio
+        // or department no billet maps to (JAG while Cav lists no JAG billet) still exists, empty, where the tree puts it.
+        foreach (StaffBillet::defaultGroups() as $group) {
+            $this->addGroup($groupNodes, $group);
+        }
+
         return [$designations, $sectionByPositionId, $commandByPositionId, $skippedTitles, $ignoredGroups, $groupNodes, $leadPositions];
     }
 
@@ -524,7 +532,10 @@ class ImportOrgStructure
         $index = [];
         $rootRegiment = null;
 
-        foreach ($this->units->tree()->sortBy('id') as $unit) {
+        // Inactive units too: one an Admin deactivated is found here and left as it is, never made again or reactivated.
+        // Billets Cav still maps into it keep their mapping, so whoever the roster sync places there shows on Org
+        // structure's list of people in inactive units.
+        foreach ($this->units->treeWithInactive()->sortBy('id') as $unit) {
             if ($unit->type === UnitType::Regiment && $unit->parent_id === null) {
                 $rootRegiment ??= $unit;
             }

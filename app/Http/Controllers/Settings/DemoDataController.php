@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Authorization\PageAccess;
 use App\Authorization\ScopeResolver;
 use App\Commands\Demo\GenerateDemoHistory;
 use App\Commands\Demo\GenerateDemoHistoryHandler;
@@ -35,15 +36,12 @@ class DemoDataController extends Controller
         private readonly ScopeResolver $scope,
         private readonly UnitRepository $units,
         private readonly DemoHistoryRepository $demo,
+        private readonly PageAccess $pages,
     ) {}
 
     public function index(Request $request): Response
     {
-        $this->ensureEnabled();
-
-        if (! $this->scope->actsAsAdmin($request->user())) {
-            abort(403, 'Only an Admin may manage demo data.');
-        }
+        $this->pages->demoData($request->user())->orAbort();
 
         $inScope = $this->scope->resolve($request->user())->flip();
         $tree = $this->units->tree();

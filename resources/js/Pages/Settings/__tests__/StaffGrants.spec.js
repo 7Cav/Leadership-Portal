@@ -65,6 +65,15 @@ describe('Settings/StaffGrants', () => {
         expect(wrapper.find('[data-testid="lapsed-100"]').exists()).toBe(false);
     });
 
+    it('tags a grant on an inactive unit, still listed', () => {
+        const inactive = { ...GRANTS[0], id: 102, unit_inactive: true };
+        const wrapper = mount(StaffGrants, { props: { grants: [...GRANTS, inactive], units: UNITS, users: USERS, isAdmin: true } });
+
+        expect(wrapper.find('[data-testid="unit-inactive-102"]').text()).toContain('Inactive unit');
+        expect(wrapper.find('[data-testid="unit-inactive-102"] .sr-only').text()).toContain('gives no scope while its unit is inactive');
+        expect(wrapper.find('[data-testid="unit-inactive-100"]').exists()).toBe(false);
+    });
+
     it('marks a grant whose holder is not serving as lapsed, still listed and revocable', () => {
         const lapsed = { ...GRANTS[0], id: 101, username: 'gone.k', holder_serving: false };
         const wrapper = mount(StaffGrants, { props: { grants: [...GRANTS, lapsed], units: UNITS, users: USERS, isAdmin: true } });
