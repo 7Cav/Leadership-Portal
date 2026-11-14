@@ -69,6 +69,14 @@ describe('Settings/Games', () => {
         expect(wrapper.find('[data-testid="retired-hll"]').exists()).toBe(false);
     });
 
+    it('lets every games cell wrap, so the table fits its card without a sideways scroll', () => {
+        const wrapper = factory();
+        const cells = wrapper.get('[data-testid="game-row-hll"]').findAll('td');
+
+        expect(cells.length).toBeGreaterThan(0);
+        for (const cell of cells) expect(cell.classes()).toContain('whitespace-normal');
+    });
+
     it('offers delete only for a game nothing uses, and bring back only for a retired one', () => {
         const wrapper = factory();
 
@@ -195,6 +203,13 @@ describe('Settings/Games', () => {
         await wrapper.get('[data-testid="game-form"]').trigger('submit');
 
         expect(post.mock.lastCall[2].abbreviation).toBe('SQ44');
+    });
+
+    it('says the abbreviation shows on the highest line unit in an AO, not only a battalion', () => {
+        const help = factory().get('#game-abbreviation-help').text();
+
+        expect(help).toContain('Org structure shows it on the highest line unit in an AO that plays the game, usually a battalion.');
+        expect(help).not.toContain("battalion's row");
     });
 
     it('is in the Settings navigation', () => {

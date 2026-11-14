@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { messageFor, unreachable } from '@/composables/useRollcallAutosave';
 import { forumDateTime } from '@/lib/forumDate';
 import { postJson } from '@/lib/postJson';
@@ -88,9 +87,9 @@ async function save() {
                 </p>
             </div>
             <div class="min-w-0">
-                <p class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <Label v-if="topicEditable" for="training-topic" class="text-xs font-normal text-muted-foreground">Training topic</Label>
-                    <span v-else>Training topic</span>
+                <!-- The input's placeholder names it, so only the read-only topic has a caption. An enforced topic is never editable. -->
+                <p v-if="!topicEditable" class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span>Training topic</span>
                     <Badge
                         v-if="training.platoon && training.enforced"
                         variant="outline"
@@ -100,8 +99,16 @@ async function save() {
                         Set by {{ training.platoon }}
                     </Badge>
                 </p>
-                <form v-if="topicEditable" class="mt-1 flex gap-2" @submit.prevent="save">
-                    <Input id="training-topic" v-model="topic" maxlength="255" placeholder="Type this week's topic" class="h-8 text-[13px]" data-testid="training-topic-input" />
+                <form v-if="topicEditable" class="flex gap-2" @submit.prevent="save">
+                    <Input
+                        id="training-topic"
+                        v-model="topic"
+                        maxlength="255"
+                        aria-label="Training topic"
+                        placeholder="Type this week's training topic"
+                        class="h-8 text-[13px]"
+                        data-testid="training-topic-input"
+                    />
                     <Button type="submit" size="sm" variant="outline" :disabled="!changed || saving" data-testid="training-topic-save">Save</Button>
                 </form>
                 <p v-else class="mt-0.5 flex items-center gap-1.5 font-medium" data-testid="training-topic">

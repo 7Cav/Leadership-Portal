@@ -35,15 +35,35 @@ it('leaves a rate\'s delta null when either week had nothing eligible, never a f
     'nothing eligible last week' => [new Ratio(1, 2), new Ratio(0, 0)],
 ]);
 
-it('rounds a rate change to the nearest basis point, so the snapshot holds no float', function () {
+it('takes a rate change between the whole percents shown, so the snapshot holds no float', function () {
     $delta = KpiDelta::between(
         deltaKpis(3, new Ratio(1, 3), new Ratio(2, 3)),
         deltaKpis(3, new Ratio(0, 3), new Ratio(1, 11)),
     );
 
-    expect($delta->rc30dBp)->toBe(3333)  // +33.33 points
-        ->and($delta->sp30dBp)->toBe(5758); // 2/3 − 1/11 = 0.57575…
+    expect($delta->rc30dBp)->toBe(3300)  // 33% − 0%
+        ->and($delta->sp30dBp)->toBe(5800); // 67% − 9%
 });
+
+it('matches the change to the two percents shown, never the unrounded rates', function () {
+    // 92.6% shows as 93% and 89.4% as 89%: the change reads -4 points, not the -3.2 between the raw rates.
+    $delta = KpiDelta::between(
+        deltaKpis(10, new Ratio(894, 1000), new Ratio(894, 1000)),
+        deltaKpis(10, new Ratio(926, 1000), new Ratio(926, 1000)),
+    );
+
+    expect($delta->rc30dBp)->toBe(-400)->and($delta->sp30dBp)->toBe(-400);
+});
+
+it('shows a rate as a whole percent, halves up, worked in integers', function (Ratio $ratio, ?int $percent) {
+    expect($ratio->percent())->toBe($percent);
+})->with([
+    'a half rounds up' => [new Ratio(37, 40), 93],
+    'just under a half rounds down' => [new Ratio(1, 3), 33],
+    'two thirds' => [new Ratio(2, 3), 67],
+    'all' => [new Ratio(12, 12), 100],
+    'nothing eligible' => [new Ratio(0, 0), null],
+]);
 
 it('refuses a rate delta no two fractions in [0, 1] could produce', function () {
     new KpiDelta(strength: 0, rc30dBp: 10_001, sp30dBp: null, atRisk: 0, onLoa: 0, makeups: 0);

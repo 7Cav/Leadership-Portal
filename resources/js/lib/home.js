@@ -57,17 +57,27 @@ export const STEPS = ['Roll call posted', 'Roll call signed', 'SP held', 'Attend
 
 const weekday = (value) => WEEKDAYS[new Date(value).getUTCDay()];
 
+// Those on the roll call with nothing to sign: on LOA, or excused automatically. Left out of both numbers, as RC
+// leaves them out on the reports, and named after them.
+function awayText(step) {
+    const parts = [step.onLoa ? `${step.onLoa} on LOA` : null, step.excused ? `${step.excused} excused` : null].filter(Boolean);
+
+    return parts.length ? `, ${parts.join(', ')}` : '';
+}
+
 // One section's five cells: `{ state: ok | wait | none, text }`, and for the signed step a
-// `percent` (null when the section has no troopers, so there is nothing to sign).
+// `percent` (null when the section has no troopers, or nobody due to sign). Signed is of `due`, the
+// troopers who have something to sign; `strength` stands in for it where a step carries no `due`.
 export function stepCells(step) {
     const hasTroopers = step.strength > 0;
+    const due = step.due ?? step.strength;
 
     return {
         posted: step.postedAt ? { state: 'ok', text: weekday(step.postedAt) } : { state: 'wait', text: 'Not posted' },
         signed: {
-            state: !hasTroopers ? 'none' : step.signed === step.strength ? 'ok' : 'wait',
-            text: !hasTroopers ? 'No troopers' : `${step.signed} of ${step.strength} signed`,
-            percent: hasTroopers ? Math.round((step.signed / step.strength) * 100) : null,
+            state: !hasTroopers ? 'none' : step.signed >= due ? 'ok' : 'wait',
+            text: !hasTroopers ? 'No troopers' : `${due ? `${step.signed} of ${due} signed` : 'Nobody to sign'}${awayText(step)}`,
+            percent: hasTroopers && due ? Math.round((step.signed / due) * 100) : null,
         },
         held: step.held ? { state: 'ok', text: 'Held' } : { state: 'wait', text: 'Not held' },
         marked: !hasTroopers
@@ -87,12 +97,13 @@ export function laneTotals(steps) {
     const sum = (key) => steps.reduce((total, step) => total + step[key], 0);
     const lane = (label, done, of, text) => ({ label, done, of, text, fill: of ? done / of : 0, complete: of > 0 && done === of });
 
+    const due = steps.reduce((total, step) => total + (step.due ?? step.strength), 0);
     const sent = count((step) => step.report === 'sent');
     const draft = count((step) => step.report === 'draft');
 
     return [
         lane('Roll call posted', count((step) => step.postedAt), steps.length, `${count((step) => step.postedAt)} of ${steps.length} posted`),
-        lane('Roll call signed', sum('signed'), sum('strength'), `${sum('signed')} of ${sum('strength')} signed`),
+        lane('Roll call signed', sum('signed'), due, `${sum('signed')} of ${due} signed`),
         lane('SP held', count((step) => step.held), steps.length, `${count((step) => step.held)} of ${steps.length} held`),
         lane('Attendance marked', sum('marked'), sum('strength'), `${sum('marked')} of ${sum('strength')} marked`),
         lane('Report sent', sent, steps.length, `${sent} sent, ${draft} draft, ${steps.length - sent - draft} not started`),
