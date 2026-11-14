@@ -156,17 +156,6 @@ class ForumApi
     }
 
     /**
-     * Whether a thread's replies can be read at all: a forum API key is set. The roll call reply reader is scheduled
-     * only then.
-     */
-    public function canReadThreads(): bool
-    {
-        $key = $this->config['api_key'] ?? null;
-
-        return is_string($key) && trim($key) !== '';
-    }
-
-    /**
      * One page of a thread's posts, oldest first, each with its author. The caller walks the pages with
      * {@see ForumPostPage::hasMore()}.
      *
