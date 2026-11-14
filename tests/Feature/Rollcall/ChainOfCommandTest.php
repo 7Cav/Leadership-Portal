@@ -9,6 +9,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\UnitRepository;
 use App\Rollcall\ChainOfCommand;
+use App\Support\Time\WeekOf;
 use Inertia\Testing\AssertableInertia as Assert;
 
 // The chain a template prints as `{{coc}}`: the section's command billets and those of each unit above it up to its
@@ -176,7 +177,8 @@ it('sends the chain to the rollcall page as chainOfCommand', function () {
     cocHolder(2, 'Vasquez.R', 'Sergeant', 'Section Leader 1/1/A/1-7', $this->section);
     $admin = User::factory()->admin()->create();
 
-    $this->actingAs($admin)->get("/rollcall/{$this->section->id}")->assertInertia(fn (Assert $page) => $page
+    // An explicit week: on a Saturday the bare URL redirects to the closing week while its report is due.
+    $this->actingAs($admin)->get("/rollcall/{$this->section->id}?week=".WeekOf::start(now())->toDateString())->assertInertia(fn (Assert $page) => $page
         ->has('chainOfCommand', 10)
         ->where('chainOfCommand.1', ['role' => 'Section Leader', 'holders' => [['rank' => 'Sergeant', 'name' => 'Vasquez.R', 'url' => cocMilpac(2)]], 'acting' => false]));
 });
