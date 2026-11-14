@@ -23,7 +23,7 @@ page: /roster
 3. **Strength** shows the unit's strength over time (see below).
 4. Filter by name, rank or billet with the box above the list.
 5. A section's row in the matrix counts its week's roll call: signed of everyone in it, unsigned ones included while the roll call is still open. Troopers on leave or excused are left out of both numbers.
-6. **Headcount** under the unit's name and on each unit in the order of battle is its headcount: everyone serving placed in the unit or under it, HQ staff and staff departments included. New Recruits, ELOA and Reservists count only on their own group. RC and SP are counted over the troopers in sections only, so the headcount never changes them.
+6. **Headcount** under the unit's name and on each unit in the order of battle is its headcount: everyone serving placed in the unit or under it, HQ staff and staff departments included. New Recruits, ELOA and Reservists never count on a line unit above them: they count on their own group, and on a staff group that holds one (the Reservists count on Reserve & Development Command and the Executive Officer's office). RC and SP are counted over the troopers in sections only, so the headcount never changes them.
 
 7. A warning icon next to a section means it has no practice slot set (point at it to read why). When a unit you lead has such sections, a warning above the views lists them, each linking to its roll call where the slot is set.
 
