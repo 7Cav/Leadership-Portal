@@ -67,6 +67,7 @@ use App\Repositories\GameIdentityLinkException;
 use App\Repositories\GameRepository;
 use App\Repositories\PracticeCapturePlayerRepository;
 use App\Repositories\PracticeTiming;
+use App\Repositories\ReportEditWindow;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\TrooperGameIdentityRepository;
 use App\Repositories\TrooperRepository;
@@ -83,6 +84,7 @@ use App\Rollcall\RollcallGuests;
 use App\Rollcall\RollcallRoster;
 use App\Rollcall\SectionFireteams;
 use App\Rollcall\TemplateResolver;
+use App\Rollcall\WeekEvents;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -166,6 +168,7 @@ class RollcallController extends Controller
         private readonly RollcallCycleProps $cycle,
         private readonly PageAccess $pages,
         private readonly ChainOfCommand $chainOfCommand,
+        private readonly WeekEvents $weekEvents,
     ) {}
 
     /**
@@ -252,6 +255,9 @@ class RollcallController extends Controller
             'resultImages' => ResultImageUrls::for($section, $weekStart),
             // The section's chain of command up to its battalion, which the post prints as `{{coc}}`.
             'chainOfCommand' => $this->chainOfCommand->lines($section),
+            // The week's events on the 7Cav calendar for the section's game (#751), read from the cache, which the post
+            // prints as `{{events}}`: as the report froze them once it is sent.
+            'events' => $this->eventsProps($section, $weekStart),
             'report' => $this->reportProps($section, $weekStart),
             // Which roll call flow the week follows and whether its roll call was created (#703).
             'flow' => $this->cycle->flow($section, $weekStart),
@@ -759,6 +765,24 @@ class RollcallController extends Controller
             'sent' => $this->reports->find($section->id, $weekStart)?->status === WeeklyReportStatus::Sent,
             'href' => route('reports.show', ['unit' => $section->id, 'week' => $weekStart->toDateString()]),
         ];
+    }
+
+    /**
+     * The week's calendar events ({@see WeekEvents::forSection()}), with `frozen` set once the week's report is sent and
+     * keeps the ones it had, so a change on the calendar after the send does not change the post. A report sent before
+     * it kept them, and a reopened one, lists them as they are now.
+     *
+     * @return array<string, mixed>
+     */
+    private function eventsProps(Unit $section, CarbonImmutable $weekStart): array
+    {
+        $report = $this->reports->find($section->id, $weekStart);
+
+        if (ReportEditWindow::isFrozen($report) && is_array($report->calendar_events)) {
+            return [...$report->calendar_events, 'frozen' => true];
+        }
+
+        return [...$this->weekEvents->forSection($section, $weekStart), 'frozen' => false];
     }
 
     /**
