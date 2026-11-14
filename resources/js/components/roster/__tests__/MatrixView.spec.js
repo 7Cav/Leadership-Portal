@@ -77,6 +77,40 @@ describe('Attendance matrix (roster-s3)', () => {
         expect(gone[19].attributes('aria-label')).toContain('Roll call: Left the Cav. SP: Left the Cav.');
     });
 
+    it("reads a line HQ staff member's weeks from their staff reports, with the reports in place of at-risk", async () => {
+        const { units, troopers } = roster();
+        const report = { attended: true, practiceType: 'sp', presenceType: 'office_hour', officeHour: { date: '2026-09-29' }, practices: ['1/1/A/1-7'] };
+        const at = (i) => (i === 19 ? { state: 'open', hq: '1/A/1-7', sent: false, report: null } : i === 18 ? { state: 'met', hq: '1/A/1-7', sent: true, report } : i === 17 ? { state: 'loa', hq: '1/A/1-7', sent: false, report: null } : { state: 'notSent', hq: '1/A/1-7', sent: false, report: null });
+        const staff = { ...troopers[2], kpis: null, weeks: WEEKS.map(() => null), inSection: WEEKS.map(() => false), staffWeeks: WEEKS.map((w, i) => at(i)), staffReports: { met: 1, due: 3, weeks: 4 } };
+        const wrapper = mount(MatrixView, { props: { units, troopers: [troopers[0], troopers[1], staff, troopers[3]], weeks: WEEKS, currentWeek: CURRENT, query: '', filter: 'all' }, attachTo: document.body });
+        const row = wrapper.find('[data-testid="matrix-trooper-12"]');
+        const cells = row.findAll('.cc-focus');
+
+        const halves = (i) => cells[i].findAll('.roster-h').map((h) => h.classes().find((c) => c.startsWith('roster-h--')));
+
+        expect(cells[18].attributes('aria-label')).toContain('Staff report from 1/A/1-7: Sent. Accountability: Met the rule.');
+        expect(cells[16].attributes('aria-label')).toContain('Staff report from 1/A/1-7: Not sent. Accountability: Not met, no report sent.');
+        expect(halves(18)).toEqual(['roster-h--staff-sent', 'roster-h--staff-met']);
+        expect(halves(16)).toEqual(['roster-h--staff-notSent', 'roster-h--staff-short']);
+        expect(halves(19)).toEqual(['roster-h--staff-open', 'roster-h--staff-na']);
+        expect(halves(17)).toEqual(['roster-h--loa', 'roster-h--staff-na']);
+        expect(cells[18].find('[data-testid="staff-sent"]').exists()).toBe(true);
+        expect(cells[18].find('[data-testid="staff-accountability"]').exists()).toBe(true);
+        expect(row.find('[data-testid="matrix-staff-reports"]').text()).toBe('Reports1 of 3 met');
+        expect(wrapper.find('[data-testid="legend-staff-sent"]').text()).toContain('Not sent');
+        expect(wrapper.find('[data-testid="legend-staff-met"]').text()).toContain('Not applicable');
+
+        await nextTick();
+        wrapper.find('[data-tip="m:12:18"]').element.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+        await nextTick();
+        const tip = document.body.querySelector('[data-testid="roster-tip"]').textContent;
+        expect(tip).toContain('Sent');
+        expect(tip).toContain('Met the rule');
+        expect(tip).toContain('Yes: 1/1/A/1-7');
+        expect(tip).toContain('Office hour (29SEP26)');
+        wrapper.unmount();
+    });
+
     it('narrows to 8 weeks', async () => {
         const wrapper = factory();
         await wrapper.find('[data-testid="window-8"]').trigger('click');

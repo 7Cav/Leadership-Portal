@@ -287,6 +287,33 @@ class Eloquent implements TrooperPlacementRepository
         return $byWeek;
     }
 
+    public function unitsOfTroopersByWeek(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek): array
+    {
+        $first = WeekOf::requireStart($firstWeek);
+        $weeks = self::weeks($first, WeekOf::requireStart($lastWeek));
+        $ids = array_values(array_unique(array_map('intval', $trooperIds)));
+        $out = [];
+
+        if ($ids === []) {
+            return $out;
+        }
+
+        foreach ($this->rowsOf($ids, $first, null) as $trooperId => $history) {
+            $placed = self::placedWeeks($history, (int) $history->first()->current_unit, $weeks);
+
+            foreach ($weeks as $week) {
+                $date = $week->toDateString();
+                $units = $placed['sections'][$date] ?? $placed['others'][$date] ?? [];
+
+                if ($units !== []) {
+                    $out[(int) $trooperId][$date] = $units[array_key_last($units)];
+                }
+            }
+        }
+
+        return $out;
+    }
+
     /**
      * Whether a trooper (their open row, from {@see rowsOf()}) served the Cav week starting `$date`, as a past week's
      * rollcall reads it: they had joined by its end (`tis`), and had not left before it opened.

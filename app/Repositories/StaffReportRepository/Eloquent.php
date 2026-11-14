@@ -43,6 +43,20 @@ class Eloquent implements StaffReportRepository
             ->toBase();
     }
 
+    public function forTroopersBetween(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
+    {
+        if ($trooperIds === []) {
+            return collect();
+        }
+
+        return StaffReport::query()
+            ->whereIn('trooper_id', $trooperIds)
+            ->whereBetween('week_start', [WeekOf::requireStart($firstWeek), WeekOf::requireStart($lastWeek)])
+            ->orderBy('week_start')
+            ->get()
+            ->toBase();
+    }
+
     public function send(int $trooperId, ?int $unitId, CarbonInterface $weekStart, bool $attended, array $practices, int $sentBy, array $fields = []): ?StaffReport
     {
         $fields = array_intersect_key($fields, array_flip(['practice_type', 'ftx_name', 'ftx_date', 'office_hour_date', 'office_hour_note', 'presence_type', 'other_events', 'notes', 'presence_check', 'presence_source', 'public_server_check', 'public_server_minutes', 'public_server_reason']));

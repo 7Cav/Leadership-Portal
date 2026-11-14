@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { forumDate } from '@/lib/forumDate';
 import { makeupPmUrl } from '@/lib/makeupPm';
 import { billetLine, percentLabel, percentTone, RC_STATES, sourceLabel, SP_STATES, trooperWeekCell, weekLabel } from '@/lib/roster';
+import { staffMetText, staffReportsText, staffReportsTone, staffSentText, staffTipRows, staffWeekText, withStaffWeek } from '@/lib/staffWeeks';
 import RankBadge from './RankBadge.vue';
 import StaffPracticeList from './StaffPracticeList.vue';
 import TransferList from './TransferList.vue';
@@ -68,9 +69,16 @@ const cells = computed(() =>
         week,
         index,
         mark: trooper.value.weeks[index],
-        ...trooperWeekCell(trooper.value, index, week, current.value),
+        // A line HQ staff member's week reads their staff report instead of "No section that week".
+        ...withStaffWeek(trooperWeekCell(trooper.value, index, week, current.value), trooper.value.staffWeeks?.[index]),
     })),
 );
+// The tooltip rows past the two states (practices, presence), as one line each under the rule badge.
+const staffDetails = (entry) => staffTipRows(entry).slice(2).map(([label, value]) => `${label}: ${value}`);
+const cellTitle = (cell) =>
+    cell.staff
+        ? `${weekLabel(cell.week)}. ${staffWeekText(cell.staff)}.`
+        : `${weekLabel(cell.week)}${elsewhere(cell.mark) ? ` at ${elsewhere(cell.mark)}` : ''}. Roll call: ${RC_STATES[cell.rc]}. SP: ${SP_STATES[cell.sp]}.`;
 // Only a section has a roll call (#622): a trooper placed in a platoon, company, ELOA or the Reservists has none.
 const rollcallHref = computed(() =>
     props.links.rollcall && trooper.value?.section?.type === 'section' ? `${props.links.rollcall}${trooper.value.section.id}` : null,
@@ -102,6 +110,8 @@ const FAILURES = {
 
 const RC_TONE = { ok: 'success', cn: 'warning', mr: 'info', ex: 'warning', bad: 'danger' };
 const SP_TONE = { ok: 'success', mk: 'success', ex: 'warning', bad: 'danger' };
+const STAFF_SENT_TONE = { met: 'success', short: 'success', notSent: 'danger' };
+const STAFF_MET_TONE = { met: 'success', short: 'danger' };
 const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted: 'text-muted-foreground' };
 </script>
 
@@ -154,6 +164,13 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                             <dd class="text-[11px] text-muted-foreground">section practices</dd>
                         </div>
                     </dl>
+                    <dl v-else-if="staffReportsText(trooper.staffReports)" class="overflow-hidden rounded-md border border-border bg-card p-3" data-testid="sheet-staff-reports">
+                        <dt class="text-xs text-muted-foreground">Staff reports, last {{ trooper.staffReports.weeks }} weeks</dt>
+                        <dd class="text-lg font-semibold tabular-nums" :class="toneClass[staffReportsTone(trooper.staffReports)]">
+                            {{ trooper.staffReports.met }} of {{ trooper.staffReports.due }} met
+                        </dd>
+                        <dd class="text-[11px] text-muted-foreground">On HQ staff, so accountable through the weekly staff report, not a roll call</dd>
+                    </dl>
                     <LoaSyncNote v-if="trooper.kpis && loaSync" :sync="loaSync" class="-mt-3" />
 
                     <div>
@@ -162,10 +179,10 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                             <span
                                 v-for="cell in cells"
                                 :key="cell.week"
-                                :title="`${weekLabel(cell.week)}${elsewhere(cell.mark) ? ` at ${elsewhere(cell.mark)}` : ''}. Roll call: ${RC_STATES[cell.rc]}. SP: ${SP_STATES[cell.sp]}.`"
+                                :title="cellTitle(cell)"
                                 :class="cell.week === current && 'rounded-[4px] outline outline-[1.5px] outline-offset-2 outline-primary'"
                             >
-                                <WeekCell :rc="cell.rc" :sp="cell.sp" size="xs" />
+                                <WeekCell :rc="cell.rc" :sp="cell.sp" :staff="cell.staff" size="xs" />
                             </span>
                         </div>
                         <div class="mt-1 flex justify-between text-[11px] text-muted-foreground"><span>{{ weekLabel(weeks[0]) }}</span><span>This week</span></div>
@@ -207,7 +224,7 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                         <h3 class="mb-1 text-xs text-muted-foreground">Last 8 weeks, newest first</h3>
                         <table class="w-full text-left" data-testid="sheet-recent">
                             <thead class="sr-only">
-                                <tr><th>Week</th><th>Roll call</th><th>Section practice</th></tr>
+                                <tr><th>Week</th><th>{{ recent.some((c) => c.staff) ? 'Roll call or staff report' : 'Roll call' }}</th><th>{{ recent.some((c) => c.staff) ? 'Section practice or accountability' : 'Section practice' }}</th></tr>
                             </thead>
                             <tbody>
                                 <tr v-for="cell in recent" :key="cell.week" class="border-b border-border align-top last:border-0">
@@ -216,11 +233,23 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                                         <span v-if="cell.week === current" class="block text-[11px] text-muted-foreground">This week</span>
                                         <span v-if="elsewhere(cell.mark)" class="block text-[11px] text-muted-foreground" data-testid="sheet-week-section">At {{ elsewhere(cell.mark) }}</span>
                                     </td>
-                                    <td class="py-2 pr-3"><Badge :variant="RC_TONE[cell.rc] ?? 'outline'">{{ RC_STATES[cell.rc] }}</Badge></td>
-                                    <td class="py-2">
-                                        <Badge :variant="SP_TONE[cell.sp] ?? 'outline'">{{ SP_STATES[cell.sp] }}</Badge>
-                                        <span v-if="sourceLabel(cell.mark)" class="mt-1 block text-[11px] text-muted-foreground">{{ sourceLabel(cell.mark) }}</span>
-                                    </td>
+                                    <template v-if="cell.staff">
+                                        <td class="py-2 pr-3" data-testid="sheet-staff-sent">
+                                            <Badge :variant="STAFF_SENT_TONE[cell.staff.state] ?? 'outline'">{{ staffSentText(cell.staff) }}</Badge>
+                                            <span class="mt-1 block text-[11px] text-muted-foreground">Staff report{{ cell.staff.hq ? `, ${cell.staff.hq}` : '' }}</span>
+                                        </td>
+                                        <td class="py-2" data-testid="sheet-staff-met">
+                                            <Badge :variant="STAFF_MET_TONE[cell.staff.state] ?? 'outline'">{{ staffMetText(cell.staff) }}</Badge>
+                                            <span v-for="line in staffDetails(cell.staff)" :key="line" class="mt-1 block text-[11px] text-muted-foreground">{{ line }}</span>
+                                        </td>
+                                    </template>
+                                    <template v-else>
+                                        <td class="py-2 pr-3"><Badge :variant="RC_TONE[cell.rc] ?? 'outline'">{{ RC_STATES[cell.rc] }}</Badge></td>
+                                        <td class="py-2">
+                                            <Badge :variant="SP_TONE[cell.sp] ?? 'outline'">{{ SP_STATES[cell.sp] }}</Badge>
+                                            <span v-if="sourceLabel(cell.mark)" class="mt-1 block text-[11px] text-muted-foreground">{{ sourceLabel(cell.mark) }}</span>
+                                        </td>
+                                    </template>
                                 </tr>
                             </tbody>
                         </table>

@@ -141,6 +141,29 @@ describe('Trooper sheet', () => {
         expect(document.body.querySelector('[data-testid="sheet-staff-practices"]')).toBeNull();
     });
 
+    it("shows a line HQ staff member's weeks and reports summary from their staff reports", async () => {
+        const report = { attended: true, practiceType: 'sp', presenceType: 'public_server', practices: ['1/1/A/1-7'] };
+        const at = (i) => (i === 18 ? { state: 'met', hq: '1/A/1-7', sent: true, report } : { state: 'notSent', hq: '1/A/1-7', sent: false, report: null });
+        respond(200, detail({ kpis: null, weeks: WEEKS.map(() => null), inSection: WEEKS.map(() => false), staffWeeks: WEEKS.map((w, i) => at(i)), staffReports: { met: 1, due: 4, weeks: 4 }, section: { id: 1, type: 'platoon', name: '1st Platoon', callsign: '1/A/1-7' } }));
+        factory();
+        await flushPromises();
+
+        expect(document.body.querySelector('[data-testid="sheet-staff-reports"]').textContent).toContain('1 of 4 met');
+        const sent = document.body.querySelectorAll('[data-testid="sheet-staff-sent"]');
+        const met = document.body.querySelectorAll('[data-testid="sheet-staff-met"]');
+        expect(sent).toHaveLength(8);
+        expect(met).toHaveLength(8);
+        expect(sent[1].textContent).toContain('Sent');
+        expect(sent[1].textContent).toContain('Staff report, 1/A/1-7');
+        expect(met[1].textContent).toContain('Met the rule');
+        expect(met[1].textContent).toContain('Practices: Yes: 1/1/A/1-7');
+        expect(met[1].textContent).toContain('Presence: Public server hour');
+        expect(sent[0].textContent).toContain('Not sent');
+        expect(met[0].textContent).toContain('Not met, no report sent');
+        expect(document.body.querySelector('[data-testid="sheet-recent"] thead').textContent).toContain('Roll call or staff report');
+        expect(document.body.querySelectorAll('[data-testid="staff-sent"]')).toHaveLength(20);
+    });
+
     it('links to the section rollcall and to milpac in a new tab', async () => {
         respond(200, detail());
         factory();
