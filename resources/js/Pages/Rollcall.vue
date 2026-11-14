@@ -79,6 +79,7 @@ import {
     signatureLabel,
     stepsOf,
     unlinkedLabel,
+    unrecognisedReplies,
     weeksNeedingWork,
 } from '@/lib/rollcall';
 import { cn } from '@/lib/utils';
@@ -300,6 +301,8 @@ function set(trooper, kind, value, options = {}) {
 
     trooper[field] = value;
     edits++;
+    // A signature set by hand is the leader's: the thread's replies never overwrite it.
+    if (field === 'rollcall') trooper.rollcallSource = 'manual';
     if (field === 'status') {
         trooper.source = 'manual';
         practiceEdits.set(trooper.id, (practiceEdits.get(trooper.id) ?? 0) + 1);
@@ -1085,6 +1088,8 @@ const pickerOpen = ref(false);
 const practiceFilter = ref('all');
 
 const signatureView = computed(() => signatureGroups(orderedRows.value));
+// Replies on the thread whose answer the reader did not recognise: listed on the signatures step for the leader to read.
+const unreadReplies = computed(() => unrecognisedReplies(orderedRows.value.filter((t) => !isLocked(t) && t.rollcall === 'unsigned')));
 const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFilter.value === 'open'));
 
 // When the last trooper not on LOA is marked Attended, a wave runs down the practice list (`.attended-wave`, app.css):
@@ -1503,8 +1508,24 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                         </h2>
                         <h3 v-else class="mt-2 text-[15px] font-semibold">Signatures</h3>
                         <p class="mt-0.5 max-w-[62ch] text-[13px] text-muted-foreground">
-                            You can record a signature for a trooper who told you directly.
+                            Signatures are read from the replies in the roll call thread every hour. Set one by hand for a trooper who told you directly; a reply never overwrites it.
                         </p>
+                    </div>
+                    <div v-if="unreadReplies.length" class="mt-3 rounded-lg border border-warning/40 bg-warning/5 p-3 text-[13px]" data-testid="unread-replies">
+                        <p class="font-semibold">Replied, but no answer recognised</p>
+                        <ul class="mt-1.5 space-y-1">
+                            <li v-for="trooper in unreadReplies" :key="trooper.id" class="flex flex-wrap items-baseline gap-x-2">
+                                <span>{{ displayName(trooper) }}</span>
+                                <a
+                                    v-if="trooper.reply.url"
+                                    :href="trooper.reply.url"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                                    >Read the reply</a
+                                >
+                            </li>
+                        </ul>
                     </div>
                     <p v-if="editable" class="mt-2 hidden items-center gap-2 text-xs text-muted-foreground pointer-coarse:flex">
                         <PhHandSwipeRight class="size-4" aria-hidden="true" />Swipe a card right for will attend, left for will not attend.
