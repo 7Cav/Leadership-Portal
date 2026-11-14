@@ -601,15 +601,15 @@ class Eloquent implements TrooperPlacementRepository
         $from = CarbonImmutable::instance($from)->utc();
         $until = CarbonImmutable::instance($until)->utc();
 
-        // Placed into a section in the span: a placement row whose start is known (one from before the history began
-        // has none) in a unit of type section.
-        $entered = DB::table('trooper_placements')
+        // Every section placement of these troopers that overlaps the span, in the same query as the joins: the ones
+        // that start in it are the candidate transfers (a row from before the history began has no start, so is
+        // none), and the rest say which section each trooper was already in when a week began.
+        $placed = DB::table('trooper_placements')
             ->join('units', 'units.id', '=', 'trooper_placements.unit_id')
             ->where('units.type', UnitType::Section->value)
             ->whereIn('trooper_placements.trooper_id', $trooperIds)
-            ->whereNotNull('trooper_placements.placed_from')
-            ->where('trooper_placements.placed_from', '>=', $from)
-            ->where('trooper_placements.placed_from', '<', $until)
+            ->where(fn ($query) => $query->whereNull('trooper_placements.placed_from')->orWhere('trooper_placements.placed_from', '<', $until))
+            ->where(fn ($query) => $query->whereNull('trooper_placements.placed_until')->orWhere('trooper_placements.placed_until', '>', $from))
             ->select(['trooper_placements.id', 'trooper_placements.unit_id', 'trooper_placements.placed_until', 'trooper_placements.trooper_id', 'trooper_placements.placed_from as at'])
             ->selectRaw("'transfer' as kind");
 
@@ -622,16 +622,20 @@ class Eloquent implements TrooperPlacementRepository
             // The same columns as the placements, in the same order, for the union; a join has no placement row.
             ->selectRaw("null as id, null as unit_id, null as placed_until, troopers.id as trooper_id, troopers.tis as at, 'recruit' as kind");
 
-        $rows = $entered->unionAll($joined)->get();
-        $alreadyThere = $this->inSectionAtWeekStart($rows->whereNotNull('id')->values());
+        $rows = $placed->unionAll($joined)->get();
+        $placements = $rows->whereNotNull('id')->groupBy(fn (object $row) => "{$row->trooper_id}:{$row->unit_id}");
         $events = [];
 
         foreach ($rows as $row) {
-            // Out and straight back inside one week (most likely a wrong milpac edit put right) is no transfer either
-            // way: neither the move back into the section they began the week in, nor the stay they had left again
-            // before the week was over.
-            if ($row->id !== null && (isset($alreadyThere[(int) $row->id]) || self::leftWithinWeek($row))) {
-                continue;
+            if ($row->id !== null) {
+                $at = $row->at === null ? null : CarbonImmutable::parse($row->at, 'UTC');
+
+                // Only a placement that starts in the span is a transfer. Out and straight back inside one week (most
+                // likely a wrong milpac edit put right) is none either way: neither the move back into the section
+                // they began the week in, nor the stay they had left again before the week was over.
+                if ($at === null || $at->lt($from) || $at->gte($until) || self::leftWithinWeek($row) || self::inSectionAtWeekStart($row, $at, $placements)) {
+                    continue;
+                }
             }
 
             $events[(int) $row->trooper_id][] = ['at' => CarbonImmutable::parse($row->at, 'UTC'), 'kind' => $row->kind];
@@ -657,40 +661,25 @@ class Eloquent implements TrooperPlacementRepository
     }
 
     /**
-     * Which of these placement rows put a trooper back in the section they were already in when that Cav week began:
-     * a move out and straight back inside the week, most likely a wrong milpac edit put right. Such a trooper never
-     * left as far as the week is concerned, so it is no transfer. One query for all of them.
+     * Whether this placement row put a trooper back in the section they were already in when its Cav week began: a
+     * move out and straight back inside the week, most likely a wrong milpac edit put right. Read from the other rows
+     * of the same query, so it costs none.
      *
-     * @param  Collection<int, object{id: int, unit_id: int, trooper_id: int, at: string}>  $rows
-     * @return array<int, true> placement row id => true
+     * @param  Collection<string, Collection<int, object>>  $placements  "trooper id:unit id" => their section rows
      */
-    private function inSectionAtWeekStart(Collection $rows): array
+    private static function inSectionAtWeekStart(object $row, CarbonImmutable $at, Collection $placements): bool
     {
-        if ($rows->isEmpty()) {
-            return [];
-        }
+        $weekStart = WeekOf::start($at);
 
-        $others = DB::table('trooper_placements')
-            ->whereIn('trooper_id', $rows->pluck('trooper_id')->map(fn ($id) => (int) $id)->unique()->values()->all())
-            ->whereIn('unit_id', $rows->pluck('unit_id')->map(fn ($id) => (int) $id)->unique()->values()->all())
-            ->get(['id', 'trooper_id', 'unit_id', 'placed_from', 'placed_until'])
-            ->groupBy(fn (object $row) => "{$row->trooper_id}:{$row->unit_id}");
+        foreach ($placements->get("{$row->trooper_id}:{$row->unit_id}", collect()) as $other) {
+            $from = $other->at === null ? null : CarbonImmutable::parse($other->at, 'UTC');
+            $until = $other->placed_until === null ? null : CarbonImmutable::parse($other->placed_until, 'UTC');
 
-        $found = [];
-
-        foreach ($rows as $row) {
-            $weekStart = WeekOf::start(CarbonImmutable::parse($row->at, 'UTC'));
-
-            foreach ($others->get("{$row->trooper_id}:{$row->unit_id}", collect()) as $other) {
-                $from = $other->placed_from === null ? null : CarbonImmutable::parse($other->placed_from, 'UTC');
-                $until = $other->placed_until === null ? null : CarbonImmutable::parse($other->placed_until, 'UTC');
-
-                if ((int) $other->id !== (int) $row->id && ($from === null || $from->lte($weekStart)) && ($until === null || $until->gt($weekStart))) {
-                    $found[(int) $row->id] = true;
-                }
+            if ((int) $other->id !== (int) $row->id && ($from === null || $from->lte($weekStart)) && ($until === null || $until->gt($weekStart))) {
+                return true;
             }
         }
 
-        return $found;
+        return false;
     }
 }
