@@ -25,6 +25,8 @@ const iso = computed(() => (relative.value ? new Date(props.at).toISOString() : 
 
 // The stamp is focusable so a keyboard can open its tooltip. A focused element is read by its name, which a plain
 // element does not take from its text, so a screen reader landing on it heard nothing: it is named by its own text.
+// A bare <time> maps to the generic role, which may not carry a name, so the stamp says role="time" for the name to hold.
+// The text stays in the element itself, so it is read in line with the sentence around it too.
 const focusable = ref(null);
 const label = ref(null);
 // Quiet: the relative part, hidden from screen readers, stays out of the name too.
@@ -45,6 +47,7 @@ onUpdated(name);
                 <time
                     ref="focusable"
                     :datetime="iso"
+                    role="time"
                     :aria-label="label ?? undefined"
                     tabindex="0"
                     class="rounded-sm outline-none focus-visible:outline-2 focus-visible:outline-ring"

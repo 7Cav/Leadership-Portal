@@ -14,7 +14,7 @@ use LogicException;
  * exists: routes and requests name the game by it. A retired game stays on every identity and capture that uses it,
  * but cannot be newly linked to a trooper (and, once games are assigned to units, #390, newly assigned). The shape an ID
  * of each kind must have is listed in {@see IdKindFormat}, by kind name (#450). `abbreviation` is the game's short code
- * (HLL, HLLV, ARMA), shown as the game chip on a battalion's row of the org tree.
+ * (HLL, HLLV, ARMA), shown as the game chip on the row of the highest line unit in an AO that plays it (usually a battalion) in the org tree.
  */
 #[Fillable(['slug', 'name', 'abbreviation', 'id_kinds', 'interface', 'retired_at'])]
 class Game extends Model

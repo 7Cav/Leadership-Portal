@@ -119,7 +119,7 @@ const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id ===
 </script>
 
 <template>
-    <section class="overflow-hidden rounded-lg border border-border bg-card shadow-[var(--shadow-panel)]" aria-labelledby="preview-title" tabindex="-1" id="preview">
+    <section class="overflow-hidden rounded-lg border border-border bg-card shadow-[var(--shadow-panel)] lg:flex lg:flex-col" aria-labelledby="preview-title" tabindex="-1" id="preview">
         <div class="flex items-start gap-3 px-5 pt-4 pb-3.5">
             <div class="min-w-0 flex-1">
                 <p class="flex items-center gap-1.5 text-xs text-muted-foreground"><PhEye aria-hidden="true" />Preview, as {{ audience }} see it</p>
@@ -256,8 +256,9 @@ const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id ===
             </p>
         </div>
 
-        <p class="flex flex-wrap gap-x-4 gap-y-1 border-t border-border bg-muted/45 px-5 py-3 text-[11px] text-muted-foreground" data-testid="provenance">
-            <span v-if="unit.isLeaf" class="inline-flex items-center gap-1.5">
+        <p class="flex flex-wrap gap-x-4 gap-y-1 border-t border-border bg-muted/45 px-5 py-3 text-[11px] text-muted-foreground lg:mt-auto" data-testid="provenance">
+            <!-- The roster sync is today's, not the freeze's: a sent report leaves it out rather than pair a later sync with its freeze. -->
+            <span v-if="unit.isLeaf && !sent" class="inline-flex items-center gap-1.5" data-testid="roster-sync">
                 <PhArrowsClockwise aria-hidden="true" />
                 <span v-if="rosterSync.at">Roster from {{ rosterSync.source }}, synced <TimeAgo :at="rosterSync.at">{{ stamp(rosterSync.at) }}</TimeAgo></span>
                 <template v-else>Roster from {{ rosterSync.source }}, not synced yet</template>

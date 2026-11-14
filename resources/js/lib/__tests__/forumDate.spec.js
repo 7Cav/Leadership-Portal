@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { forumDate, forumDateTime, HAIR_SPACE, weekEnding, weekEndTick, weekLabel, weekTick, weekTitle, zuluTime } from '../forumDate';
+import { forumDate, forumDateTime, forumZulu, HAIR_SPACE, weekEnding, weekEndTick, weekLabel, weekTick, weekTitle, zuluTime } from '../forumDate';
 
 describe('forumDate', () => {
     it('formats an ISO timestamp as day + 3-letter month + 2-digit year', () => {
@@ -23,6 +23,13 @@ describe('forumDateTime', () => {
 
     it('drops the hair space for plain text', () => {
         expect(forumDateTime('2026-05-30T04:05:00Z', { plain: true })).toBe('30MAY26 0405');
+    });
+});
+
+describe('forumZulu', () => {
+    it('ends the date and clock with Z, a hair space between hours and minutes', () => {
+        expect(forumZulu('2026-11-12T16:49:00Z')).toBe('12NOV26 16\u200A49Z');
+        expect(forumZulu('2026-11-12T16:49:00Z', { plain: true })).toBe('12NOV26 1649Z');
     });
 });
 
