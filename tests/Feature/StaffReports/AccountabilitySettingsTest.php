@@ -219,6 +219,8 @@ it('lets the Admin tab of a company or platoon set the platoons and sections und
         return $response->status() === 403 ? null : $response->assertOk()->viewData('page')['props']['accountabilityUnits'];
     };
     $empty = ['platoons' => [], 'sections' => []];
+    // Someone in the second section too: an empty one is not listed (#442).
+    Trooper::factory()->create(['primary_section_id' => $u['other']->id]);
 
     // A company's tab: its platoon and both sections, each editable, with the right heading data.
     $got = $children($this->bnStaffUser, $u['company']);
@@ -246,6 +248,21 @@ it('lets the Admin tab of a company or platoon set the platoons and sections und
     $this->actingAs($otherStaffUser)->postJson("/roster/{$u['host']->id}/accountability", ['options' => [AccountabilityRules::SP_OWN_UNIT]])->assertForbidden();
     $this->actingAs($this->tree['users']['co'])->postJson("/roster/{$u['platoon']->id}/accountability", ['options' => [AccountabilityRules::FTX]])->assertForbidden();
     expect(AuditLogEntry::query()->where('action', SetAccountabilityOptions::ACTION)->count())->toBe($audited);
+});
+
+it('leaves an empty section off the Admin tab, as the order of battle leaves it out (#442)', function () {
+    $u = $this->tree['units'];
+    Trooper::factory()->create(['primary_section_id' => $u['other']->id]);
+    $empty = app(UnitRepository::class)->create(UnitType::Section, '5th Section', '5/1/A/1-7', $u['platoon']->id);
+    $listed = fn ($unit) => array_column($this->actingAs($this->admin)->get(route('roster.index', ['unit' => $unit->id, 'view' => 'admin']))
+        ->assertOk()->viewData('page')['props']['accountabilityUnits']['sections'], 'unitId');
+
+    expect($listed($u['company']))->toBe([$u['host']->id, $u['other']->id])
+        ->and($listed($u['platoon']))->not->toContain($empty->id);
+
+    // It comes back once someone is placed in it.
+    Trooper::factory()->create(['primary_section_id' => $empty->id]);
+    expect($listed($u['platoon']))->toContain($empty->id);
 });
 
 it('reads the tree and the stored options once for all the child panels', function () {

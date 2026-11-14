@@ -3,7 +3,7 @@ title: Read the roster
 summary: See your units and troopers by order of battle, by their attendance week by week, or your unit's strength over time.
 section: basics
 order: 3
-updated: 2026-11-01
+updated: 2026-11-12
 audience: everyone
 page: /roster
 ---
@@ -18,13 +18,14 @@ page: /roster
 
 ## Choose a view
 
-1. **Order of battle** lists the units and their troopers by billet.
-2. **Attendance matrix** shows each trooper's section practice mark for the last 20 Cav weeks. Weeks on leave are marked LOA. Weeks before a trooper joined read "Not in the unit yet", weeks on HQ staff or in a group "No section that week", and weeks from the one they left in "Left the Cav".
+1. **Order of battle** lists the units and their troopers by billet, each with a strip of their last 8 weeks. The dates over the strip are the first and last week's end dates; point at one to see its whole week.
+2. **Attendance matrix** shows each trooper's section practice mark for the last 20 Cav weeks, each week named by its end date. Weeks on leave read "On LOA" here, in the order of battle and on the trooper's details, the same weeks as on their milpac page, and never count for or against RC or SP. Weeks before a trooper joined read "Not in the unit yet", weeks on HQ staff or in a group "No section that week", and weeks from the one they left in "Left the Cav".
 3. **Strength** shows the unit's strength over time (see below).
 4. Filter by name, rank or billet with the box above the list.
-5. **Headcount** under the unit's name and on each unit in the order of battle is its headcount: everyone serving placed in the unit or under it, HQ staff and staff departments included. New Recruits, ELOA and Reservists count only on their own group. RC and SP are counted over the troopers in sections only, so the headcount never changes them.
+5. A section's row in the matrix counts its week's roll call: signed of everyone in it, unsigned ones included while the roll call is still open. Troopers on leave or excused are left out of both numbers.
+6. **Headcount** under the unit's name and on each unit in the order of battle is its headcount: everyone serving placed in the unit or under it, HQ staff and staff departments included. New Recruits, ELOA and Reservists never count on a line unit above them: they count on their own group, and on a staff group that holds one (the Reservists count on Reserve & Development Command and the Executive Officer's office). RC and SP are counted over the troopers in sections only, so the headcount never changes them.
 
-6. A warning icon next to a section means it has no practice slot set (point at it to read why). When a unit you lead has such sections, a warning above the views lists them, each linking to its roll call where the slot is set.
+7. A warning icon next to a section means it has no practice slot set (point at it to read why). When a unit you lead has such sections, a warning above the views lists them, each linking to its roll call where the slot is set.
 
 > [!good-to-know] A warning icon by a name means the trooper has no identity for their unit's game; the warning at the top of the page lists them all.
 

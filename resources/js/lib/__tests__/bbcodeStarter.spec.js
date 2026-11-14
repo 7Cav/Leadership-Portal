@@ -8,7 +8,7 @@ import { STARTER } from './templateStarter';
 const flags = (name) => ({ sp_present: false, sp_missed: false, sp_makeup: false, sp_attached: false, sp_loa: false, sp_unmarked: false, [name]: true });
 const CONTEXT = {
     unit: '1/E/2-7',
-    week: '16May26 – 22May26',
+    week: '16May26 to 22May26',
     troopers: [
         { n: '1', rank: 'Sergeant', rank_icon: 'https://7cav.us/data/roster_ranks/0/18.jpg', rank_icon_width: '11px', name: 'Jay.JH', rc_yes: true, rc_no: false, rc_unsigned: false, ...flags('sp_present') },
         { n: '2', rank: 'Specialist', rank_icon: '', rank_icon_width: '', name: 'Adams.P', rc_yes: false, rc_no: true, rc_unsigned: false, ...flags('sp_loa') },
@@ -23,7 +23,7 @@ describe('the starter template', () => {
     it('renders a post like the mockup, each status in its own mark', () => {
         const out = render(STARTER, CONTEXT).text;
 
-        expect(out).toContain('[B]1/E/2-7 ROLL CALL | 16MAY26 – 22MAY26[/B]');
+        expect(out).toContain('[B]1/E/2-7 ROLL CALL | 16MAY26 to 22MAY26[/B]');
         expect(out).toContain('[TR][TD]1[/TD][TD][IMG width="11px" height="auto"]https://7cav.us/data/roster_ranks/0/18.jpg[/IMG] Sergeant Jay.JH[/TD][TD]✓[/TD][TD]✓[/TD][/TR]');
         // No insignia from Cav: no empty [IMG] tag, just the name.
         expect(out).toContain('[TR][TD]2[/TD][TD]Specialist Adams.P[/TD][TD]✗[/TD][TD]LOA[/TD][/TR]');

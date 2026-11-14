@@ -31,4 +31,13 @@ final readonly class Ratio
     {
         return $this->denominator === 0 ? null : $this->numerator / $this->denominator;
     }
+
+    /**
+     * The whole percent the report shows, halves rounded up, or null when nothing was eligible. Worked in integers so
+     * it matches `percent()` in `resources/js/lib/report.js` exactly, a half included.
+     */
+    public function percent(): ?int
+    {
+        return $this->denominator === 0 ? null : intdiv(200 * $this->numerator + $this->denominator, 2 * $this->denominator);
+    }
 }

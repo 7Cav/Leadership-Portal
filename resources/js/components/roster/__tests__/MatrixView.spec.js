@@ -41,6 +41,17 @@ describe('Attendance matrix (roster-s3)', () => {
         expect(wrapper.find('[data-testid="matrix-trooper-10"]').exists()).toBe(false);
     });
 
+    it("counts everyone in the week's roll call on a section row, an open roll call's unsigned too, and leaves LOA out", () => {
+        const { units, troopers } = roster();
+        // Section 3 this week: Reyes.M has not signed yet, Tanaka.H signed, and a third trooper is on LOA.
+        const away = { ...troopers[3], id: 14, name: 'Okafor.B', displayName: 'PFC Okafor.B', loaWeeks: [CURRENT], weeks: WEEKS.map(() => ({ rollcall: 'unsigned', status: null, source: null, held: true })) };
+        const wrapper = mount(MatrixView, { props: { units, troopers: [...troopers, away], weeks: WEEKS, currentWeek: CURRENT, query: '', filter: 'all' }, attachTo: document.body });
+        const cells = wrapper.find('[data-testid="agg-3"]').findAll('.cc-focus');
+
+        expect(cells[19].attributes('aria-label')).toContain('Roll call 1 of 2 signed.');
+        expect(wrapper.find('[data-testid="matrix-trooper-14"]').findAll('.cc-focus')[19].attributes('aria-label')).toContain('Roll call: On LOA. SP: On LOA.');
+    });
+
     it('slashes missed and unsigned cells so colour is not the only cue', () => {
         const row = factory().find('[data-testid="matrix-trooper-12"]');
         // The state class on each half of a week's cell, top (rollcall) then bottom (SP).

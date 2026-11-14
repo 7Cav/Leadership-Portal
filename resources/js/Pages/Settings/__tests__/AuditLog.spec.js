@@ -59,7 +59,7 @@ describe('Settings/AuditLog', () => {
         expect(wrapper.text()).toContain('Unit#7');
         expect(wrapper.text()).toContain('Reorganizing the chain of command');
         expect(wrapper.text()).toContain('abc123');
-        expect(wrapper.text()).toContain('30MAY26');
+        expect(wrapper.text()).toContain('30MAY26 14\u200A22Z');
     });
 
     it('shows an empty state when there are no entries', () => {
