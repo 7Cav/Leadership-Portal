@@ -25,6 +25,8 @@ function playing(object $test, TelemetryInterface $interface): Game
 {
     $game = Game::factory()->create(['slug' => 'bf6', 'name' => 'Battlefield 6', 'interface' => $interface]);
     $test->tree['units']['company']->forceFill(['game_id' => $game->id])->save();
+    // A staff report claims only a practice that was held.
+    confirmPracticeHeld($test->tree['units']['host'], '2026-10-03');
 
     app(SendStaffReportHandler::class)->handle($test->tree['users']['psg'], new SendStaffReport(
         $test->psg->id, CarbonImmutable::parse('2026-10-03', 'UTC'), true, [$test->tree['units']['host']->id], presenceType: 'public_server',
