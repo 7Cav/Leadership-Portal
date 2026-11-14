@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Authorization\PageAccess;
 use App\Authorization\ScopeResolver;
 use App\Commands\AdminBillets\AdminBilletForbiddenException;
 use App\Commands\AdminBillets\DecideAdminBillet;
@@ -54,6 +55,7 @@ class StaffGrantsController extends Controller
         private readonly TrooperRepository $troopers,
         private readonly AdminBilletRepository $adminBillets,
         private readonly ScopeResolver $scope,
+        private readonly PageAccess $pages,
     ) {}
 
     /**
@@ -65,6 +67,8 @@ class StaffGrantsController extends Controller
      */
     public function index(Request $request, ScopeResolver $scope): Response
     {
+        // Open to everyone signed in (PageAccess::openSetting); the page shows a non-Admin only what is theirs.
+        $this->pages->openSetting($request->user())->orAbort();
         $isAdmin = $scope->actsAsAdmin($request->user());
         $all = $this->grants->all();
         $tree = $this->units->tree();

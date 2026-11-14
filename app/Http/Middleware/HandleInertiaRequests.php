@@ -6,6 +6,7 @@ use App\Authorization\ActAs;
 use App\Authorization\ChangelogAccess;
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffReportAccess;
+use App\Bookmarks\SidebarBookmarks;
 use App\Kpi\Headcount;
 use App\Repositories\AdminBilletRepository;
 use App\Repositories\NotificationRepository;
@@ -45,6 +46,7 @@ class HandleInertiaRequests extends Middleware
         private readonly WeeklyReportRepository $weeklyReports,
         private readonly StaffReportRepository $sentStaffReports,
         private readonly NotificationRepository $notifications,
+        private readonly SidebarBookmarks $bookmarks,
     ) {}
 
     /**
@@ -166,6 +168,12 @@ class HandleInertiaRequests extends Middleware
             'notificationsUnread' => fn () => $request->user() === null || $this->acting($request) || $this->sandbox->entered() || $this->scope->activeViewAs($request->user()) !== null
                 ? null
                 : $this->notifications->unreadCountFor($request->user()->id),
+            // The sidebar's Bookmarks section and the top bar's bookmark button: the user's own bookmarks they may still
+            // open (the rest are deleted as they are read), and the page on screen when it can be bookmarked. Null, which
+            // hides both, during a view-as preview, while an Admin acts as someone and in the tutorial, like the bell.
+            'bookmarks' => fn () => $request->user() === null || $this->acting($request) || $this->sandbox->entered() || $this->scope->activeViewAs($request->user()) !== null
+                ? null
+                : $this->bookmarks->for($request->user(), $request),
             // A one-line outcome a write flashed for the next render (`notice`), which the shell shows as a toast: what
             // happened to a request whose result is not on the page yet, like a leave sync queued behind a running one.
             'flash' => fn () => ['notice' => $request->hasSession() ? $request->session()->get('notice') : null],

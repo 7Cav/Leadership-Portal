@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Authorization\PageAccess;
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffPracticeAccess;
 use App\Authorization\StaffReportAccess;
+use App\Bookmarks\BookmarkablePages;
 use App\Commands\Capture\AutomaticAttendance;
 use App\Commands\Practices\PracticeSchedule;
 use App\Commands\Practices\PresenceMinimum;
@@ -106,6 +108,7 @@ class RosterController extends Controller
         private readonly LoaReviewQueue $loaReviewQueue,
         private readonly StaffReportWeeks $staffReportWeeks,
         private readonly StaffReportAccess $staffReports,
+        private readonly PageAccess $pages,
     ) {}
 
     /**
@@ -127,10 +130,12 @@ class RosterController extends Controller
         $shown = $this->headcount->withoutEmptyLineUnits($tree);
 
         // One answer for "no such unit" and "outside your scope" (AD-8), so unit ids cannot be probed.
-        $selected = $unit === null
-            ? $this->defaultUnit($user, $shown, $scope)
-            : ($scope->contains($unit) ? $tree->firstWhere('id', $unit) : null);
-        abort_if($unit !== null && $selected === null, 403, 'That unit is outside your scope.');
+        if ($unit !== null) {
+            $this->pages->roster($user, $unit, $scope)->orAbort();
+        }
+        $selected = $unit === null ? $this->defaultUnit($user, $shown, $scope) : $tree->firstWhere('id', $unit);
+        // `/roster` names no unit: the bookmark button keeps the one shown.
+        $request->attributes->set(BookmarkablePages::PAGE_UNIT, $selected?->id);
 
         $week = WeekOf::start(CarbonImmutable::now());
         // The unit sync is a write, and a view-as preview changes nothing (1.13), so a preview never offers it.

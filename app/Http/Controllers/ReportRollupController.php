@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Authorization\PageAccess;
 use App\Authorization\ScopeResolver;
 use App\Kpi\ChainNode;
 use App\Kpi\ChildReport;
@@ -50,6 +51,7 @@ class ReportRollupController extends Controller
         private readonly Headcount $headcount,
         private readonly WeeklyReportRepository $reports,
         private readonly UnitGuidonRepository $guidons,
+        private readonly PageAccess $pages,
     ) {}
 
     public function index(Request $request, SelfReportedGame $selfReported, ?int $unit = null): Response|RedirectResponse
@@ -59,10 +61,7 @@ class ReportRollupController extends Controller
         $scope = $this->scope->resolve($request->user());
 
         if ($unit !== null) {
-            $root = $this->units->find($unit);
-            abort_if($root === null, 404);
-            abort_unless($scope->contains($root->id), 403);
-            abort_unless($root->isLine(), 404);
+            $root = $this->pages->reports($request->user(), $unit, $scope)->orAbort();
             $roots = collect([$root]);
         } else {
             $roots = $this->topmost($scope, $week);

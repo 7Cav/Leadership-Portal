@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Authorization\PageAccess;
 use App\Authorization\ScopeResolver;
 use App\Commands\Units\AccountabilityRules;
 use App\Commands\Units\ActingLeadForbiddenException;
@@ -86,6 +87,7 @@ class OrgStructureController extends Controller
         private readonly UnitLeadRepository $leads,
         private readonly UnitActingLeadRepository $actingLeads,
         private readonly ScopeResolver $scope,
+        private readonly PageAccess $pages,
     ) {}
 
     /**
@@ -94,6 +96,8 @@ class OrgStructureController extends Controller
      */
     public function index(Request $request, ScopeResolver $scope, UnitGuidonRepository $guidons, Headcount $headcount, UnitOversightRepository $oversights, GameRepository $gameRepository, UnitCommandMappingRepository $commands, AccountabilityRules $accountability): Response
     {
+        // Open to everyone signed in (PageAccess::openSetting); the page shows a non-Admin only what is theirs.
+        $this->pages->openSetting($request->user())->orAbort();
         $tree = $this->units->tree();
         // The game each unit plays, its own or the nearest ancestor's, worked out once over the tree.
         $games = $gameRepository->all()->keyBy('id');

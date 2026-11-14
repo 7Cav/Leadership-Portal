@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ActAsController;
 use App\Http\Controllers\Auth\ForumAuthController;
+use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\CounselingController;
 use App\Http\Controllers\DocsController;
@@ -67,7 +68,7 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
 // route taking one of these ids cannot forget the constraint (RouteIdConstraintTest walks the
 // routes and fails on an id-like parameter missing from this list). Don't add `whereNumber()` or
 // `where()` for these on a route: it replaces the global pattern rather than adding to it.
-foreach (['unit', 'grant', 'trooper', 'version', 'game', 'server', 'counseling', 'template', 'billet', 'entry', 'editRequest'] as $id) {
+foreach (['unit', 'grant', 'trooper', 'version', 'game', 'server', 'counseling', 'template', 'billet', 'entry', 'editRequest', 'bookmark'] as $id) {
     Route::pattern($id, '[0-9]{1,18}');
 }
 
@@ -308,6 +309,12 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])->middleware('throttle:scope-units')->name('notifications.index');
     Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->middleware('throttle:audited-writes')->name('notifications.read-all');
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'read'])->middleware('throttle:audited-writes')->name('notifications.read');
+    // The sidebar's bookmarks: the signed-in user's own, for themselves only (never during view as or act as). Adding
+    // checks the page is on the allowlist and that they may open it (App\Bookmarks\BookmarkablePages); someone else's
+    // id is a 404. Not audited, but on the audited-writes throttle like every other write.
+    Route::post('/bookmarks', [BookmarkController::class, 'store'])->middleware('throttle:audited-writes')->name('bookmarks.store');
+    Route::patch('/bookmarks/{bookmark}', [BookmarkController::class, 'move'])->middleware('throttle:audited-writes')->name('bookmarks.move');
+    Route::delete('/bookmarks/{bookmark}', [BookmarkController::class, 'destroy'])->middleware('throttle:audited-writes')->name('bookmarks.destroy');
     Route::get('/scope/units', ScopeUnitsController::class)->middleware('throttle:scope-units')->name('scope.units');
     Route::post('/view-as', [ViewAsController::class, 'store'])->middleware('throttle:audited-writes')->name('view-as.store');
     Route::delete('/view-as', [ViewAsController::class, 'destroy'])->middleware('throttle:audited-writes')->name('view-as.destroy');

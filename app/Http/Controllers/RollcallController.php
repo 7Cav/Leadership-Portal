@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Authorization\PageAccess;
 use App\Authorization\ScopeResolver;
 use App\Commands\Attendance\AttendanceMark;
 use App\Commands\Attendance\ConfirmPracticeRefusedException;
@@ -57,7 +58,6 @@ use App\Models\RollcallSignature;
 use App\Models\SectionPractice;
 use App\Models\Trooper;
 use App\Models\Unit;
-use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReportStatus;
 use App\Repositories\AttendanceRepository;
@@ -163,6 +163,7 @@ class RollcallController extends Controller
         private readonly MissingGameIdentities $missingIdentities,
         private readonly AutomaticAttendance $automatic,
         private readonly RollcallCycleProps $cycle,
+        private readonly PageAccess $pages,
     ) {}
 
     /**
@@ -217,9 +218,7 @@ class RollcallController extends Controller
         }
 
         // Scope first, so a unit outside it is a 403 whether or not it exists (AD-8).
-        abort_unless($scope->contains($unit), 403, 'This section is outside your scope.');
-        $section = $this->units->find($unit);
-        abort_unless($section?->type === UnitType::Section, 404);
+        $section = $this->pages->rollcall($user, $unit, $scope)->orAbort();
 
         if (! $previewing) {
             Cookie::queue(self::REMEMBERED_SECTION_COOKIE.$user->id, (string) $section->id, self::REMEMBERED_SECTION_MINUTES);
