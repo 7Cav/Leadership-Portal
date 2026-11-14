@@ -5,7 +5,6 @@ namespace App\Repositories\RollcallReplyRepository;
 use App\Models\RollcallReply;
 use App\Models\SectionPractice;
 use App\Repositories\RollcallReplyRepository;
-use App\Repositories\RollcallReplyWrite;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
