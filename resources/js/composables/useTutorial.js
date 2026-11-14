@@ -1,6 +1,6 @@
 import { computed, ref, watch } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
-import { currentIndex, finishedGuides } from '@/lib/tutorial';
+import { currentIndex, finishedGuides, withClicks } from '@/lib/tutorial';
 import { useTutorialProgress } from '@/composables/useTutorialProgress';
 
 // The hands-on tutorial in the shell: whether this page runs in it (the shared `tutorial` prop, set only by the server
@@ -9,6 +9,41 @@ import { useTutorialProgress } from '@/composables/useTutorialProgress';
 
 const picked = ref(null);
 const STORAGE_KEY = 'portal-tutorial-step';
+// Checklist items ticked by a click in this tab (`step id:item index`), for actions the server never sees.
+const clicked = ref([]);
+const CLICKS_KEY = 'portal-tutorial-clicks';
+
+function readClicks() {
+    try {
+        const value = JSON.parse(sessionStorage.getItem(CLICKS_KEY) ?? '[]');
+
+        return Array.isArray(value) ? value : [];
+    } catch {
+        return [];
+    }
+}
+
+function writeClicks(keys) {
+    try {
+        if (keys.length) sessionStorage.setItem(CLICKS_KEY, JSON.stringify(keys));
+        else sessionStorage.removeItem(CLICKS_KEY);
+    } catch {
+        // Storage is unavailable: the ticks hold for this page only.
+    }
+}
+
+/** Tick every checklist item whose `click` selector matches `target` (a clicked element or one inside it). */
+export function recordClick(steps, target) {
+    const keys = new Set(clicked.value);
+    for (const step of steps ?? []) {
+        (step.checklist ?? []).forEach((item, i) => {
+            if (item.click && target?.closest?.(item.click)) keys.add(`${step.id}:${i}`);
+        });
+    }
+    if (keys.size === clicked.value.length) return;
+    clicked.value = [...keys];
+    writeClicks(clicked.value);
+}
 
 function readPicked() {
     try {
@@ -28,14 +63,16 @@ function writePicked(id) {
 }
 
 picked.value = typeof window === 'undefined' ? null : readPicked();
+clicked.value = typeof window === 'undefined' ? [] : readClicks();
 
 // Set once Exit is chosen, so the coach card stops reading practice pages while the real portal loads.
 export const leaving = ref(false);
 
 export function useTutorial() {
     const page = usePage();
-    const steps = computed(() => page.props.tutorialMode?.steps ?? []);
+    const steps = computed(() => withClicks(page.props.tutorialMode?.steps ?? [], clicked.value));
     const active = computed(() => page.props.tutorialMode != null);
+    const title = computed(() => page.props.tutorialMode?.title ?? 'Tutorial');
     const index = computed(() => currentIndex(steps.value, picked.value));
     const step = computed(() => steps.value[index.value] ?? null);
     // Next step waits until every item of this step is done; Skip moves on without them.
@@ -60,9 +97,15 @@ export function useTutorial() {
         router.visit(next.href);
     }
 
+    function forgetClicks() {
+        clicked.value = [];
+        writeClicks([]);
+    }
+
     function restart() {
         picked.value = null;
         writePicked(null);
+        forgetClicks();
         router.post('/tutorial/restart');
     }
 
@@ -70,11 +113,13 @@ export function useTutorial() {
         leaving.value = true;
         picked.value = null;
         writePicked(null);
+        forgetClicks();
         router.delete('/tutorial');
     }
 
     return {
         active,
+        title,
         steps,
         index,
         step,
@@ -90,5 +135,6 @@ export function useTutorial() {
 // For the tests: forget the picked step.
 export function resetTutorial() {
     picked.value = null;
+    clicked.value = [];
     leaving.value = false;
 }

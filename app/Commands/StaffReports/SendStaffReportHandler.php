@@ -7,7 +7,6 @@ use App\Commands\Units\AccountabilityRules;
 use App\Models\CrossSectionSighting;
 use App\Models\ReportEditRequest;
 use App\Models\StaffReport;
-use App\Models\TelemetryInterface;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
@@ -15,6 +14,7 @@ use App\Repositories\AuditedBatch;
 use App\Repositories\CrossSectionSightingRepository;
 use App\Repositories\GameRepository;
 use App\Repositories\PracticeCapturePlayerRepository;
+use App\Repositories\PracticeHeldState;
 use App\Repositories\ReportEditWindow;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\StaffReportRepository;
@@ -50,7 +50,8 @@ use Carbon\CarbonImmutable;
  * a practice type their HQ does not report (SP or FTX on a platoon or company HQ; SP, operation, class or event on a
  * battalion HQ), no presence answer or one other than public server, office hour or none, a named type without a name or with a date
  * outside the week, an office hour without a note or with a date outside the week, text over its limit, a
- * pick that is not a section or not under their HQ, a report already sent and past its deadline, and an edit with no reason. Then one audited transaction (`staff_report.sent`, AD-16, target the report,
+ * pick that is not a section or not under their HQ, a section practice picked whose time has not passed yet that week (or,
+ * for a section with no practice time or a cancelled week, one not held), a report already sent and past its deadline, and an edit with no reason. Then one audited transaction (`staff_report.sent`, AD-16, target the report,
  * digest over it and the week's entries): the report row is inserted under its UNIQUE key, so two sends at once land on
  * one and the second is told it was already sent. The game server check ({@see presenceCheck()}) and the public server
  * check ({@see PublicServerHour}) are computed before the transaction and frozen on the row. The HQ's own weekly report does not lock this: the staff member's
@@ -116,6 +117,9 @@ class SendStaffReportHandler
         $staff = $this->rules->staff($hq);
         $fields = $this->fields($command, $weekStart, $hq, $staff['types']);
         $sections = $this->pickedSections($command, $fields['practice_type'], $hq, $staff);
+        // Only a practice whose time has passed can be claimed: one still to come is refused by name. One the section
+        // marked as not held is taken, and the report reads as conflicting.
+        $this->onlyPast($fields['practice_type'], $sections, $weekStart);
 
         // Sent already: an edit until the deadline (or an approved unlock), with a reason; after it, locked.
         $sent = $this->reports->find($trooper->id, $weekStart);
@@ -234,7 +238,7 @@ class SendStaffReportHandler
         $gameId = (UnitGame::resolve($this->units->tree())[$sectionId] ?? null)?->gameId;
         $interface = $gameId === null ? null : $this->games->find($gameId)?->interface;
 
-        return $interface === null || $interface === TelemetryInterface::None ? 'game server' : $interface->label();
+        return $interface === null || ! $interface->reads() ? 'game server' : $interface->label();
     }
 
     /**
@@ -385,6 +389,32 @@ class SendStaffReportHandler
         $value = $value === null ? null : trim($value);
 
         return $value === null || $value === '' ? null : $value;
+    }
+
+    /**
+     * A section practice report claims only practices whose time has passed that week ({@see PracticeHeldState::claimable()}),
+     * marked held or not: the first pick still to come (or with no practice to claim) is refused, saying why. An FTX's sections name who took part, not a practice, so they are not
+     * checked. A report already sent is never rewritten for this; an edit of it must leave such a pick out.
+     *
+     * @param  list<Unit>  $sections
+     *
+     * @throws StaffReportRefusedException
+     */
+    private function onlyPast(?string $type, array $sections, CarbonImmutable $weekStart): void
+    {
+        if ($type !== StaffReport::SP || $sections === []) {
+            return;
+        }
+
+        $states = $this->practices->heldStates(array_map(fn (Unit $section) => $section->id, $sections), $weekStart);
+
+        foreach ($sections as $section) {
+            $state = $states[$section->id] ?? PracticeHeldState::NO_SLOT;
+
+            if (! PracticeHeldState::claimable($state)) {
+                throw StaffReportRefusedException::practiceNotOver($section->callsign ?? $section->name, $state);
+            }
+        }
     }
 
     /**

@@ -79,7 +79,7 @@ it('changes the image when a mark changes, and answers 304 while it has not', fu
 /** The image the route should serve for a section on the running week holding exactly `$rows`. */
 function expectedImage(Unit $section, string $kind, array $rows): string
 {
-    return ResultImage::render($kind, "{$section->callsign} | 03Oct26 – 09Oct26", $rows);
+    return ResultImage::render($kind, "{$section->callsign} | 03Oct26 to 09Oct26", $rows);
 }
 
 it('draws each column with the mark the roll call holds for it', function () {

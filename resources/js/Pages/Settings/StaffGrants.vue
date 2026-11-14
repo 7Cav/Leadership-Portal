@@ -228,7 +228,16 @@ function confirmDialog(reason) {
                                     </Badge>
                                 </span>
                             </TableCell>
-                            <TableCell><Badge variant="outline">{{ grant.unit_label }}</Badge></TableCell>
+                            <TableCell>
+                                <span class="flex flex-wrap items-center gap-1.5">
+                                    <Badge variant="outline">{{ grant.unit_label }}</Badge>
+                                    <!-- The unit is deactivated: the grant gives no scope until it is reactivated. -->
+                                    <Badge v-if="grant.unit_inactive" variant="warning" :data-testid="`unit-inactive-${grant.id}`">
+                                        Inactive unit
+                                        <span class="sr-only">. This grant gives no scope while its unit is inactive.</span>
+                                    </Badge>
+                                </span>
+                            </TableCell>
                             <TableCell :data-testid="`grant-status-${grant.id}`">
                                 <Badge v-if="grantStatus(grant).label" :variant="grantStatus(grant).tone">{{ grantStatus(grant).label }}</Badge>
                                 <span v-else class="text-xs text-muted-foreground">None</span>

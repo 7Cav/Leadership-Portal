@@ -10,16 +10,19 @@ use InvalidArgumentException;
  * report shows is against what was actually reported. Computed here, once, so the report screen
  * only renders it (AD-21).
  *
- * Counts are signed differences. A rate's delta is the change in its fraction in **basis points**
- * (1 bp = 0.01 percentage points; `2500` = up 25 points), rounded to the nearest point — an
- * integer, so the frozen snapshot carries no float a JSON column could re-round and so its
- * `content_digest` stays verifiable. Null when either week had nothing eligible: a rate that was
+ * Counts are signed differences. A rate's delta is the change in its **whole percent as shown**,
+ * in basis points (1 bp = 0.01 percentage points; `2500` = up 25 points): 93% to 89% is `-400`,
+ * whatever the unrounded rates were, so the change beside a KPI always matches the two numbers
+ * shown. An integer, so the frozen snapshot carries no float a JSON column could re-round and so
+ * its `content_digest` stays verifiable. Null when either week had nothing eligible: a rate that was
  * "—" has no change to report, never a misleading ±0. A unit-week whose prior week has no sent
  * report has no `KpiDelta` at all — the caller's null, not a zeroed delta.
  */
 final readonly class KpiDelta
 {
     private const BASIS_POINTS_PER_UNIT = 10_000;
+
+    private const BASIS_POINTS_PER_POINT = 100;
 
     /** The largest change between two fractions in [0, 1]: from 0 to 1. */
     private const MAX_BASIS_POINTS = self::BASIS_POINTS_PER_UNIT;
@@ -87,9 +90,9 @@ final readonly class KpiDelta
 
     private static function rateChange(Ratio $current, Ratio $prior): ?int
     {
-        $now = $current->value();
-        $then = $prior->value();
+        $now = $current->percent();
+        $then = $prior->percent();
 
-        return $now === null || $then === null ? null : (int) round(($now - $then) * self::BASIS_POINTS_PER_UNIT);
+        return $now === null || $then === null ? null : ($now - $then) * self::BASIS_POINTS_PER_POINT;
     }
 }

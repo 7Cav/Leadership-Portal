@@ -4,6 +4,7 @@ namespace App\Authorization;
 
 use App\Models\User;
 use App\Repositories\ChangelogRepository;
+use Carbon\CarbonImmutable;
 use Inertia\Inertia;
 
 /**
@@ -56,6 +57,18 @@ class ChangelogAccess
         return $this->scope->isAdmin($user)
             && $this->real->get() === null
             && $this->scope->activeViewAs($user) === null;
+    }
+
+    /**
+     * When the portal was last deployed, for the Admins' "Last deployed": the time the front end was built
+     * (`portal.changelog_deploy_marker`), or null when there is no build to read.
+     */
+    public function deployedAt(): ?CarbonImmutable
+    {
+        $marker = config('portal.changelog_deploy_marker');
+        $time = is_string($marker) && is_file($marker) ? @filemtime($marker) : false;
+
+        return $time === false ? null : CarbonImmutable::createFromTimestampUTC($time);
     }
 
     public function deployId(): ?string

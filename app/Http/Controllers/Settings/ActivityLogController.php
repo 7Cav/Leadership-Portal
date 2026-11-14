@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Authorization\PageAccess;
 use App\Authorization\ScopeResolver;
 use App\Http\Controllers\Controller;
 use App\Models\PageVisit;
@@ -21,15 +22,14 @@ class ActivityLogController extends Controller
     public function __construct(
         private readonly PageVisitRepository $visits,
         private readonly ScopeResolver $scope,
+        private readonly PageAccess $pages,
     ) {}
 
     public function index(Request $request): Response
     {
         // `actsAsAdmin`, not the raw flag: an Admin previewing a leader sees what that leader would, no activity log.
         // An Admin acting as someone is that person on this request, and refused the same way.
-        if (! $this->scope->actsAsAdmin($request->user())) {
-            abort(403, 'Only an Admin may review the activity log.');
-        }
+        $this->pages->adminSetting($request->user(), 'Only an Admin may review the activity log.')->orAbort();
 
         $filters = $request->validate([
             'user_id' => ['nullable', 'integer'],

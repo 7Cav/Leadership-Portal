@@ -34,6 +34,15 @@ interface StaffReportRepository
     public function forTroopers(array $trooperIds, CarbonInterface $weekStart): Collection;
 
     /**
+     * The sent staff reports of these troopers for every Cav week from `$firstWeek` to `$lastWeek`, in one query,
+     * oldest week first.
+     *
+     * @param  list<int>  $trooperIds
+     * @return Collection<int, StaffReport>
+     */
+    public function forTroopersBetween(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection;
+
+    /**
      * Write the sent report. Insert-or-find under the UNIQUE key: returns the new row, or null when one was already
      * sent for the trooper and week, which is left as it is.
      *

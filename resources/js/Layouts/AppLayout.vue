@@ -33,6 +33,7 @@ import ViewAsPicker from './partials/ViewAsPicker.vue';
 import TutorialBanner from './partials/TutorialBanner.vue';
 import TutorialCoach from './partials/TutorialCoach.vue';
 import NotificationBell from './partials/NotificationBell.vue';
+import BookmarkToggle from './partials/BookmarkToggle.vue';
 
 // The persistent app shell (Story 1.15, binding design: mockups/v2/shell-f.html). Set as the
 // default layout for every page outside Auth/ in app.js, so it survives Inertia visits: the
@@ -122,6 +123,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
                             </template>
                         </BreadcrumbList>
                     </Breadcrumb>
+                    <!-- Bookmark the page on screen, beside its name; only where it can be bookmarked. -->
+                    <BookmarkToggle />
 
                     <div class="ml-auto flex items-center gap-1.5">
                         <Button

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     aggregateWeek,
+    billetLine,
     compareBillet,
     compareOrbat,
     FILTERS,
@@ -24,6 +25,7 @@ import {
     sourceLabel,
     SP_STATES,
     transferLabel,
+    trooperWeekCell,
     weekCell,
     weekLabel,
     writeOrbatSort,
@@ -279,6 +281,81 @@ describe('aggregateWeek', () => {
         ];
 
         expect(aggregateWeek(members, 0, '2026-09-26', false)).toMatchObject({ signed: 1, due: 2, attended: 1, marked: 2 });
+    });
+});
+
+describe('LOA weeks on the roster, as the milpac shows them', () => {
+    // CPL Albright.J on production: an approved LOA for three weeks read "Unsigned" on the roster and "On LOA" on the
+    // milpac. The roster's row now carries the weeks his leave covers.
+    it('shows a week leave covers as On LOA on both halves, whatever the marks say', () => {
+        expect(weekCell(mark({ rollcall: 'unsigned', status: null }), '2026-10-24', { loa: true })).toEqual({ rc: 'loa', sp: 'loa' });
+        expect(weekCell(null, '2026-11-07', { current: true, loa: true })).toEqual({ rc: 'loa', sp: 'loa' });
+        expect(weekCell(null, '2026-10-24', { inSection: false, loa: true })).toEqual({ rc: 'loa', sp: 'loa' });
+    });
+
+    it('still shows a week before they joined, or after they left, as that', () => {
+        expect(weekCell(null, '2026-10-24', { joined: '2026-11-01', loa: true })).toEqual({ rc: 'out', sp: 'out' });
+        expect(weekCell(null, '2026-10-24', { departedAt: '2026-10-01', loa: true })).toEqual({ rc: 'left', sp: 'left' });
+    });
+
+    it('reads the loaWeeks of a trooper row for each week', () => {
+        const albright = { joined: '2024-01-01', weeks: [mark({ rollcall: 'unsigned', status: null }), mark()], loaWeeks: ['2026-10-24'] };
+
+        expect(trooperWeekCell(albright, 0, '2026-10-24', '2026-10-31')).toEqual({ rc: 'loa', sp: 'loa' });
+        expect(trooperWeekCell(albright, 1, '2026-10-31', '2026-10-31')).toEqual({ rc: 'ok', sp: 'ok' });
+        expect(trooperWeekCell({ ...albright, loaWeeks: undefined }, 0, '2026-10-24', '2026-10-31').rc).toBe('bad');
+    });
+
+    it('leaves an LOA week out of the section row, on both sides', () => {
+        const members = [
+            { weeks: [mark()] },
+            { weeks: [mark({ rollcall: 'unsigned', status: null, held: true })], loaWeeks: ['2026-10-24'] },
+        ];
+
+        expect(aggregateWeek(members, 0, '2026-10-24', false)).toMatchObject({ signed: 1, due: 1, attended: 1, marked: 1, loa: 1 });
+    });
+});
+
+describe('aggregateWeek counts everyone in the roll call (4/1/C/ACD read "4 of 4 signed" of 7)', () => {
+    it('counts an unsigned member as due while the roll call is still open', () => {
+        const open = mark({ rollcall: 'unsigned', status: null, held: false });
+        const members = [...Array(4).fill({ weeks: [mark({ status: null, held: false })] }), ...Array(3).fill({ weeks: [open] })];
+
+        expect(aggregateWeek(members, 0, '2026-11-07', true)).toMatchObject({ signed: 4, due: 7 });
+    });
+
+    it('counts a member with no row on a roll call the others are on, this week or an earlier one', () => {
+        const members = [{ weeks: [mark()] }, { weeks: [null] }];
+
+        expect(aggregateWeek(members, 0, '2026-11-07', true)).toMatchObject({ signed: 1, due: 2 });
+        expect(aggregateWeek(members, 0, '2026-10-31', false)).toMatchObject({ signed: 1, due: 2 });
+    });
+
+    it('has no roll call to count in a week nobody has a row for', () => {
+        expect(aggregateWeek([{ weeks: [null] }, { weeks: [null] }], 0, '2026-11-07', true)).toMatchObject({ due: 0, rc: 'open' });
+    });
+
+    it('leaves out a member placed in no section that week, or departed', () => {
+        const members = [{ weeks: [mark()] }, { weeks: [null], inSection: [false] }, { weeks: [null], departedAt: '2026-10-01', departed: true }];
+
+        expect(aggregateWeek(members, 0, '2026-10-31', false)).toMatchObject({ signed: 1, due: 1 });
+    });
+});
+
+describe('billetLine', () => {
+    it('names the unit after the billet', () => {
+        expect(billetLine('Rifleman', '1/1/C/ACD')).toBe('Rifleman, 1/1/C/ACD');
+        expect(billetLine(null, '1/1/C/ACD')).toBe('No billet on record, 1/1/C/ACD');
+    });
+
+    it('does not name the unit twice when the billet already does', () => {
+        expect(billetLine('Trooper 1/1/C/ACD', '1/1/C/ACD')).toBe('Trooper 1/1/C/ACD');
+        expect(billetLine('Squad Leader, 1/1/c/acd', '1/1/C/ACD')).toBe('Squad Leader, 1/1/c/acd');
+    });
+
+    it('still names the unit when the billet names another one, or only part of it', () => {
+        expect(billetLine('Trooper 2/1/C/ACD', '1/1/C/ACD')).toBe('Trooper 2/1/C/ACD, 1/1/C/ACD');
+        expect(billetLine('Platoon Sergeant 1/C/ACD', '1/1/C/ACD')).toBe('Platoon Sergeant 1/C/ACD, 1/1/C/ACD');
     });
 });
 

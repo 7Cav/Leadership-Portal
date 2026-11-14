@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Authorization\PageAccess;
 use App\Authorization\ScopeResolver;
 use App\Commands\Templates\ActivateTemplateVersion;
 use App\Commands\Templates\AuthorTemplateVersion;
@@ -23,6 +24,7 @@ use App\Repositories\TemplateVersionRepository;
 use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitDesignationOrder;
 use App\Repositories\UnitRepository;
+use App\Rollcall\ChainOfCommand;
 use App\Rollcall\ResultImageUrls;
 use App\Rollcall\RollcallRoster;
 use App\Rollcall\SectionFireteams;
@@ -74,10 +76,13 @@ class TemplatesController extends Controller
         private readonly UnitCommandMappingRepository $commands,
         private readonly TemplateAuthority $authority,
         private readonly ScopeResolver $scopeResolver,
+        private readonly PageAccess $pages,
     ) {}
 
     public function index(Request $request, ScopeResolver $scope): Response
     {
+        // Open to everyone signed in (PageAccess::openSetting); the page shows a non-Admin only what is theirs.
+        $this->pages->openSetting($request->user())->orAbort();
         $user = $request->user();
         $tree = $this->units->tree();
         $companies = $this->visibleCompanies($user, $scope, $tree);
@@ -166,7 +171,7 @@ class TemplatesController extends Controller
      * display goes along in the rollcall page's shape ({@see SectionFireteams::options()}), since it sets the post's
      * order and its FTL lines; the preview changes nothing, so it says the viewer may edit neither.
      */
-    public function previewSection(Request $request, int $unit, ScopeResolver $scope, LoaCoverage $loa, SectionFireteams $fireteams, AutoExcused $autoExcused): JsonResponse
+    public function previewSection(Request $request, int $unit, ScopeResolver $scope, LoaCoverage $loa, SectionFireteams $fireteams, AutoExcused $autoExcused, ChainOfCommand $chainOfCommand): JsonResponse
     {
         // Answered as JSON, like the rollcall page's own background calls: the page reads it with fetch, not a visit.
         $validator = Validator::make($request->query(), ['company' => ['required', 'integer']]);
@@ -197,6 +202,7 @@ class TemplatesController extends Controller
             'section' => $this->roster->section($section, $sections),
             'week' => [...$this->roster->week($week, $week), 'beforeFloor' => WeekOf::isBeforeFloor($week)],
             'resultImages' => ResultImageUrls::for($section, $week),
+            'chainOfCommand' => $chainOfCommand->lines($section),
             'troopers' => array_map(fn (array $row) => [
                 ...$row,
                 'loa' => $covers[$row['id']]->suppressesAtRisk() ? $covers[$row['id']]->toArray() : null,

@@ -64,6 +64,9 @@ const props = defineProps({
     // Each battalion's accountability options by unit id (`AccountabilityRules::props()`), editable by Admins and
     // Regimental HQ staff.
     battalionAccountability: { type: Object, default: () => ({}) },
+    // Serving troopers still placed in an inactive unit, `{ id, displayName, billet, unitId }`, for an Admin to move.
+    // Null for anyone else.
+    inactivePlaced: { type: Array, default: null },
 });
 
 // New Recruits are hidden until asked for: they are not yet part of any unit, and never in an ancestor's count.
@@ -73,17 +76,25 @@ const hasRecruits = computed(() => props.units.some((unit) => unit.kind === 'rec
 // to rename, move or delete one. Everything under an empty unit is empty as well.
 const showEmpty = ref(false);
 const hasEmpty = computed(() => props.units.some((unit) => unit.empty));
+// Inactive units (an Admin deactivated them, or a unit above them) are hidden everywhere else, and here until asked for:
+// Show inactive lists them greyed, to reactivate one.
+const showInactive = ref(false);
+const hasInactive = computed(() => props.units.some((unit) => unit.inactive));
 const recruitIds = computed(() => {
     const recruitPaths = props.units.filter((unit) => unit.kind === 'recruit').map((unit) => unit.path);
     return new Set(props.units.filter((unit) => recruitPaths.some((path) => unit.path.startsWith(path))).map((unit) => unit.id));
 });
 const hiddenIds = computed(() => {
     const hidden = new Set(showRecruits.value ? [] : recruitIds.value);
+    if (!showInactive.value) {
+        props.units.filter((unit) => unit.inactive).forEach((unit) => hidden.add(unit.id));
+    }
     if (!showEmpty.value) {
         // The selected unit and the units above it stay, empty or not, so a selection never vanishes from the tree.
         const selected = selectedUnit.value;
         const kept = new Set(selected ? [selected.id, ...ancestorIds(selected)] : []);
-        props.units.filter((unit) => unit.empty && !kept.has(unit.id)).forEach((unit) => hidden.add(unit.id));
+        // An inactive unit counts nobody, so it is always empty: Show inactive alone lists it.
+        props.units.filter((unit) => unit.empty && !unit.inactive && !kept.has(unit.id)).forEach((unit) => hidden.add(unit.id));
     }
     return hidden;
 });
@@ -414,6 +425,7 @@ function pickUnit(id) {
     // A unit picked from a reference row may be one the toggles hide: show its kind so its row is there to land on.
     if (unit.empty) showEmpty.value = true;
     if (recruitIds.value.has(id)) showRecruits.value = true;
+    if (unit.inactive) showInactive.value = true;
 
     for (const ancestorId of ancestorIds(unit)) {
         collapsed.delete(ancestorId);
@@ -587,11 +599,17 @@ const editLegalParents = computed(() => {
     if (selectedUnit.value.type === 'group') {
         const own = selectedUnit.value.path;
         return props.units.filter(
-            (unit) => (unit.type === 'regiment' || (unit.type === 'group' && unit.kind === 'staff')) && !unit.path.startsWith(own),
+            (unit) =>
+                (unit.type === 'regiment' || (unit.type === 'group' && unit.kind === 'staff')) &&
+                !unit.path.startsWith(own) &&
+                (!unit.inactive || unit.id === selectedUnit.value.parent_id),
         );
     }
 
-    return props.units.filter((unit) => RANK[unit.type] === RANK[selectedUnit.value.type] - 1);
+    // Never under an inactive unit, where it would vanish with it; the server refuses it too.
+    return props.units.filter(
+        (unit) => RANK[unit.type] === RANK[selectedUnit.value.type] - 1 && (!unit.inactive || unit.id === selectedUnit.value.parent_id),
+    );
 });
 
 // A move rebuilds the unit's designation from the new parent, and everything under it with it. Before it saves, the
@@ -676,7 +694,8 @@ defineExpose({ form });
 // a trooper: a section, an HQ node for its staff, or a group (a staff department, ELOA, Reservists, New Recruits).
 // Listed by `path` so they read in chain-of-command order.
 const sections = computed(() =>
-    [...props.units]
+    props.units
+        .filter((unit) => !unit.inactive)
         .sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true }))
         .map((unit) => ({ id: unit.id, label: sectionLabel(unit) })),
 );
@@ -780,6 +799,79 @@ function runImport() {
             }),
             onFinish: () => {
                 importing.value = false;
+            },
+        },
+    );
+}
+
+// Deactivating a unit hides it and everything under it everywhere but here; reactivating brings it back. Both are asked
+// for in the app's own dialog, with an optional reason for the audit log, and a refusal shows inside it.
+const activating = ref(null);
+const activateError = ref(null);
+const activateProcessing = ref(false);
+const unitsById = computed(() => new Map(props.units.map((unit) => [unit.id, unit])));
+// The deactivated unit an inactive one is inactive through: itself, or the nearest one above it.
+function inactiveThrough(unit) {
+    for (let at = unit; at; at = unitsById.value.get(at.parent_id)) {
+        if (at.deactivated_at) return at;
+    }
+    return null;
+}
+const placedInactive = computed(() =>
+    (props.inactivePlaced ?? []).map((trooper) => {
+        const unit = unitsById.value.get(trooper.unitId);
+        return { ...trooper, unitName: unit ? `${unit.name}${unit.callsign ? ` (${unit.callsign})` : ''}` : 'an inactive unit' };
+    }),
+);
+const activateDescription = computed(() => {
+    const unit = activating.value;
+    if (!unit) return null;
+    if (unit.deactivated_at) {
+        return 'It comes back on every page, with everything under it and the people placed there.';
+    }
+    const placed = unit.placed_count ?? 0;
+    const people =
+        placed === 0
+            ? 'Nobody is placed in it or under it.'
+            : `${placed} ${placed === 1 ? 'person is' : 'people are'} placed in it or under it. They count nowhere until you move them or reactivate it.`;
+    return `It and everything under it are hidden from every page but this one. Nothing is deleted. ${people}`;
+});
+
+function requestActivate(unit) {
+    activateError.value = null;
+    activating.value = unit;
+}
+
+function confirmActivate(reason) {
+    const unit = activating.value;
+    if (!unit || activateProcessing.value) return;
+    const reactivating = Boolean(unit.deactivated_at);
+
+    activateError.value = null;
+    router.patch(
+        `/settings/org-structure/${unit.id}/active`,
+        { active: reactivating, reason },
+        {
+            preserveScroll: true,
+            onStart: () => {
+                activateProcessing.value = true;
+            },
+            onSuccess: () => {
+                activating.value = null;
+                toast.success(reactivating ? `Reactivated ${unit.name}.` : `Deactivated ${unit.name}.`);
+                // A unit just deactivated is hidden unless Show inactive is on, so it is no longer selected.
+                if (!reactivating && !showInactive.value && selectedId.value === unit.id) {
+                    selectedId.value = null;
+                }
+            },
+            onError: (errors) => {
+                activateError.value = errors.active ?? Object.values(errors)[0] ?? 'Nothing changed. Try again.';
+            },
+            onHttpException: onHttpException(reactivating ? 'The unit was not reactivated' : 'The unit was not deactivated', (message) => {
+                activateError.value = message;
+            }),
+            onFinish: () => {
+                activateProcessing.value = false;
             },
         },
     );
@@ -917,6 +1009,15 @@ function confirmDelete() {
                             <Checkbox id="org-show-empty" v-model="showEmpty" data-testid="show-empty" />
                             Show empty units
                         </label>
+                        <label
+                            v-if="hasInactive"
+                            for="org-show-inactive"
+                            class="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground"
+                            :class="!hasEmpty && 'ml-auto'"
+                        >
+                            <Checkbox id="org-show-inactive" v-model="showInactive" data-testid="show-inactive" />
+                            Show inactive
+                        </label>
                     </div>
                     <div v-if="units.length" class="relative px-4 pb-2" data-testid="unit-search">
                         <label for="unit-search" class="sr-only">Find a unit by name or callsign</label>
@@ -1003,6 +1104,15 @@ function confirmDelete() {
                         <label v-if="hasRecruits" for="org-show-recruits" class="ml-auto flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
                             <Checkbox id="org-show-recruits" v-model="showRecruits" data-testid="show-recruits" />
                             Show New Recruits
+                        </label>
+                        <label
+                            v-if="hasInactive"
+                            for="org-show-inactive-staff"
+                            class="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground"
+                            :class="!hasRecruits && 'ml-auto'"
+                        >
+                            <Checkbox id="org-show-inactive-staff" v-model="showInactive" data-testid="show-inactive-staff" />
+                            Show inactive
                         </label>
                     </div>
                     <ul role="tree" aria-label="Regimental staff" class="px-2 pb-2">
@@ -1202,6 +1312,14 @@ function confirmDelete() {
                       Editable for an Admin (AC #1, #2); read-only otherwise. Echelon isn't editable:
                       see `UpdateUnit`'s docblock for why re-parenting is kept separate from a rank change.
                     -->
+                    <p
+                        v-if="selectedUnit.inactive"
+                        data-testid="inactive-note"
+                        class="mb-3 rounded-md border border-border bg-muted/50 px-3 py-2 text-[13px] text-muted-foreground"
+                    >
+                        Inactive{{ selectedUnit.deactivated_at ? '' : ` with ${inactiveThrough(selectedUnit)?.name ?? 'the unit above it'}` }}. Hidden from
+                        every other page, and nobody placed here counts.
+                    </p>
                     <form v-if="isAdmin" data-testid="edit-unit-form" class="space-y-3" @submit.prevent="submitEdit">
                         <div class="grid gap-1.5">
                             <Label for="edit-name">Name</Label>
@@ -1258,6 +1376,15 @@ function confirmDelete() {
                                 Delete {{ selectedUnit.type }}
                             </Button>
                             <span v-else></span>
+                            <Button
+                                v-if="selectedUnit.parent_id !== null && (selectedUnit.deactivated_at || !selectedUnit.inactive)"
+                                type="button"
+                                variant="outline"
+                                :data-testid="selectedUnit.deactivated_at ? 'reactivate-unit' : 'deactivate-unit'"
+                                @click="requestActivate(selectedUnit)"
+                            >
+                                {{ selectedUnit.deactivated_at ? 'Reactivate' : 'Deactivate' }}
+                            </Button>
                             <div class="flex flex-1 items-center justify-end gap-2">
                                 <Button type="button" variant="ghost" data-testid="cancel-edit" @click="cancelEdit">Cancel</Button>
                                 <Button type="submit" data-testid="save-unit" :disabled="editForm.processing">Save unit</Button>
@@ -1380,6 +1507,25 @@ function confirmDelete() {
                   per trooper. Shown only when the server sent the list, which it does for an Admin alone.
                   Read-only here; the "assign" action on each chip is Story 2.7.
                 -->
+                <!-- People still placed in an inactive unit: they count nowhere until an Admin moves them. Admin only. -->
+                <section
+                    v-if="placedInactive.length"
+                    data-testid="inactive-placed-panel"
+                    class="mt-4 rounded-lg border border-warning/40 bg-warning/5 p-3"
+                >
+                    <h3 class="text-[13px] font-semibold">
+                        {{ placedInactive.length }} {{ placedInactive.length === 1 ? 'person is' : 'people are' }} placed in an inactive unit
+                    </h3>
+                    <p class="mt-1 text-xs text-muted-foreground">They count nowhere and read as unplaced. Move each one, or reactivate the unit.</p>
+                    <ul class="mt-2 space-y-1 text-[13px]" aria-label="People placed in an inactive unit">
+                        <li v-for="trooper in placedInactive" :key="trooper.id" data-testid="inactive-placed-trooper">
+                            {{ trooper.displayName }}<span v-if="trooper.billet" class="text-muted-foreground">, {{ trooper.billet }}</span>
+                            <span class="text-muted-foreground"> in </span>
+                            <button type="button" class="underline-offset-2 hover:underline" @click="pickUnit(trooper.unitId)">{{ trooper.unitName }}</button>
+                        </li>
+                    </ul>
+                </section>
+
                 <section
                     v-if="unplacedTroopers !== null"
                     data-testid="unplaced-panel"
@@ -1675,6 +1821,21 @@ function confirmDelete() {
                 </form>
             </DialogContent>
         </Dialog>
+
+        <ReasonDialog
+            :open="activating !== null"
+            :title="activating?.deactivated_at ? `Reactivate ${activating?.name}?` : `Deactivate ${activating?.name ?? 'this unit'}?`"
+            :description="activateDescription"
+            :confirm-label="activating?.deactivated_at ? 'Reactivate' : 'Deactivate'"
+            :pending-label="activating?.deactivated_at ? 'Reactivating' : 'Deactivating'"
+            :require-reason="false"
+            optional-reason
+            :processing="activateProcessing"
+            :error="activateError"
+            testid="activate-dialog"
+            @update:open="(open) => !open && !activateProcessing && (activating = null)"
+            @confirm="confirmActivate"
+        />
 
         <ReasonDialog
             :open="deleting !== null"

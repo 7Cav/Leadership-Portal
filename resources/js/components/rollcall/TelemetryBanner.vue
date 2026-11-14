@@ -13,8 +13,9 @@ import TimeAgo from '@/components/TimeAgo.vue';
 const props = defineProps({
     // `{ state: 'failed' | 'not_configured', platformLabel, feeds, lastAttemptAt, canRetry, detail }`; `feeds` names the
     // game's sources that were tried (`crcon`, `battlemetrics`, `nightwatch`). `detail` is `no_server` when no training
-    // server is selected for the game (an env server belongs to one game only, #389), `internal_error` when the last capture
-    // broke on the portal's own error rather than a feed.
+    // server is selected for the game (an env server belongs to one game only, #389), `impossible` when the game's
+    // attendance can never be read automatically (its source is "None (impossible)"), `internal_error` when the last
+    // capture broke on the portal's own error rather than a feed.
     telemetry: { type: Object, required: true },
     // A "Try again" is in flight.
     retrying: { type: Boolean, default: false },
@@ -45,11 +46,14 @@ const lastTried = computed(() => (props.telemetry.lastAttemptAt ? `${forumDateTi
         <p v-else-if="failed" class="min-w-[14rem] flex-1">
             {{ feed }} could not be read<template v-if="lastTried">, last tried <TimeAgo :at="telemetry.lastAttemptAt" quiet>{{ lastTried }}</TimeAgo></template>. Nothing was pre-filled. Mark attendance by hand.
         </p>
+        <p v-else-if="telemetry.detail === 'impossible'" class="min-w-[14rem] flex-1">
+            Server data can't be read automatically for {{ telemetry.platformLabel }}. Mark attendance by hand.
+        </p>
         <p v-else-if="telemetry.detail === 'no_server'" class="min-w-[14rem] flex-1">
             No training server is selected for {{ telemetry.platformLabel }}, so nothing was read or pre-filled. Mark attendance by hand.
         </p>
         <p v-else class="min-w-[14rem] flex-1">
-            Capture is not set up<template v-if="telemetry.platformLabel"> for {{ telemetry.platformLabel }}</template>, so nothing was pre-filled. Mark attendance by hand.
+            Capture is not set up yet<template v-if="telemetry.platformLabel"> for {{ telemetry.platformLabel }}</template>, so nothing was pre-filled. Mark attendance by hand.
         </p>
         <Button v-if="telemetry.canRetry" variant="outline" size="sm" :disabled="!editable || retrying" data-testid="telemetry-retry" @click="$emit('retry')">
             <PhCircleNotch v-if="retrying" class="animate-spin" aria-hidden="true" />{{ retrying ? 'Trying' : 'Try again' }}

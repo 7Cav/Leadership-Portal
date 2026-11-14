@@ -77,9 +77,10 @@ export function discrepancyLines(discrepancy) {
 
 /**
  * The game server check frozen on a sent report, `{ check, source, minutes? }`: "Self-report conflicts with CRCON data" for a
- * conflict, "No CRCON data" when nothing was captured, and empty when it agreed or there was no check. A public server
- * check with no data says why, from its `reason`, naming the trooper (`name`); one frozen before reasons were kept
- * reads "No public server data".
+ * conflict, "No CRCON data" when nothing was captured, and empty when it agreed or there was no check. A section practice
+ * check on a game no system reads yet (source "game server") says it is not set up yet. A public server check with no
+ * data says why, from its `reason`, naming the trooper (`name`); one frozen before reasons were kept reads "No public
+ * server data".
  */
 export function presenceText(presence, name = null) {
     if (!presence) return '';
@@ -91,14 +92,23 @@ export function presenceText(presence, name = null) {
     if (presence.check === 'conflict') return `Self-report conflicts with ${source} data`;
     if (presence.check === 'no_data') {
         const who = name || 'them';
-        if (presence.reason === 'no_server') return 'No game server data: no public server is set up';
+        if (presence.reason === 'no_server') return 'No game server data: no public server is set up yet';
         if (presence.reason === 'no_identity') return `No game server data: no game account linked for ${who}`;
         if (presence.reason === 'unreadable') return 'No game server data: the public servers could not be read this week';
+        if (source === 'game server') return 'No game server data: not set up for this game yet';
 
         return `No ${source} data`;
     }
 
     return '';
+}
+
+/**
+ * The one notice a report shows for a game whose attendance can never be read automatically (its source is "None
+ * (impossible)", such as Battlefield 6), in place of a "No game server data" alert on every staff report.
+ */
+export function selfReportedText(game) {
+    return `Server data can't be read automatically for ${game}. All attendance is self-reported.`;
 }
 
 /**
@@ -183,4 +193,47 @@ export function pickerScopeText(hqType, scope) {
             : `in your ${unit}`;
 
     return `Sections ${where}${scope?.otherGames ? '' : ' that play its game'}.`;
+}
+
+/**
+ * Where a section's practice stands on a section practice report, from the picker's `held` state (`PracticeHeldState`
+ * on the server), or null when the server sent none. `short` shows next to the section, `long` on hover. `claimable`:
+ * it can be ticked, which is once its time has passed, marked held or not.
+ *
+ * @returns {{ short: string, long: string, claimable: boolean }|null}
+ */
+export function heldNote(state) {
+    switch (state) {
+        case undefined:
+        case null:
+            return null;
+        case 'held':
+            return { short: 'Held', long: 'The section marked this practice held.', claimable: true };
+        case 'unmarked':
+            return { short: 'Not marked yet', long: "Its time has passed. The section hasn't marked it held yet.", claimable: true };
+        case 'not_held':
+            return {
+                short: 'Marked not held',
+                long: 'The section marked this practice as not held. If you tick it, your report shows conflicting information.',
+                claimable: true,
+            };
+        case 'upcoming':
+            return { short: "Hasn't happened yet", long: "This practice hasn't happened yet. You can tick it once its time has passed.", claimable: false };
+        case 'no_slot':
+            return { short: 'No practice time set', long: 'This section has no practice time set yet, so there is no practice to pick.', claimable: false };
+        default:
+            return { short: 'No practice this week', long: "This week's practice was cancelled, so there is nothing to tick.", claimable: false };
+    }
+}
+
+/**
+ * The "Conflicting information" lines of a sent report: one per section whose practice it claims but the section
+ * marked as not held.
+ *
+ * @param {string} name who sent the report
+ * @param {string[]|null} sections the section labels, from the server's `conflict`
+ * @returns {string[]}
+ */
+export function conflictLines(name, sections) {
+    return (sections ?? []).map((section) => `${name} reports attending ${section}'s practice, but the section marked it as not held.`);
 }

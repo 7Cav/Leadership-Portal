@@ -18,6 +18,7 @@ require_once __DIR__.'/../StaffPractices/fixture.php';
 // the week), as a unit's weekly report can be edited. The version it replaces is kept.
 
 beforeEach(function () {
+    everyPracticeHeld();
     $this->tree = staffPracticeTree();
     $this->week = staffPracticeWeek();
     // The Saturday after the fixture's week: it has ended and its report is due tonight at 2359Z.

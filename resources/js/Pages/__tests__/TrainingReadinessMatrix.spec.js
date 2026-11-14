@@ -160,6 +160,8 @@ describe('TrainingReadinessMatrix', () => {
         const wrapper = page({ courses: [], coverage: [] });
 
         expect(wrapper.get('[data-testid="matrix-no-courses"]').text()).toContain('No courses in the catalog yet');
+        expect(wrapper.get('[data-testid="matrix-no-courses"]').text()).toContain('Courses appear as columns once developed by S6.');
+        expect(wrapper.get('[data-testid="matrix-no-courses"]').text()).not.toContain('Admin adds');
         expect(wrapper.find('table').exists()).toBe(false);
     });
 

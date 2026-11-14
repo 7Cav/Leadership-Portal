@@ -23,6 +23,8 @@ The page has two cards. **Chain of command** holds the regiment, its battalions 
 1. Open **Settings**, then **Org structure**.
 2. Choose **Import from Cav roster**. It adds units the roster has and the portal does not, and maps billets to units. When Cav has moved a billet to another unit, the import moves its mapping too, so the next roster sync places the holder in the new unit. A mapping someone corrected by hand is kept, and the import says how many it kept.
 
+The import also builds the whole regimental staff tree: every portfolio and department exists after it runs, even one no Cav billet maps to yet, such as JAG under the Executive Officer. The Office of the Commanding Officer, led by the Regimental Commanding Officer, holds the Executive Officer. A group that already exists stays where it is, so on a tree imported before the Office of the Commanding Officer existed, move the Executive Officer under it yourself.
+
 > [!good-to-know] What this changes, and how to undo it: the import adds units and maps billets; it never deletes a unit. To undo a unit it added, delete that unit while it is still empty.
 
 ## Billets
@@ -77,6 +79,19 @@ Billets in Cav groups for troopers who no longer serve, such as Retired or Disch
 > [!good-to-know] What this changes, and how to undo it: moving a unit moves everyone's access with it on the next page load. Move it back the same way. A unit with troopers, reports or anything else attached cannot be deleted.
 
 > [!good-to-know] Moving a platoon or section to another company copies the roll call templates its sections use into the new company, named like "Training (from A/1-7)", so their posts read the same. The new company owns the copies from then on; the old company's changes no longer reach them. Moving it back makes new copies the same way. A section's own templates belong to the section, so they move with it and are not copied.
+
+## Deactivate a unit
+
+Deactivate a unit or staff group that no longer exists in the real org, such as an office that was closed. Nothing is deleted, so it can come back.
+
+1. Select the unit and choose **Deactivate** in its details panel.
+2. The window says how many people are placed in it or under it. Give a reason if you like and choose **Deactivate**.
+
+The unit and everything under it are then hidden everywhere else: the roster and its unit pickers, Home, the reports and roll-ups (a roll-up no longer waits on it), staff reports, the Staff grants unit picker, the unit switcher and the headcounts. Reports already sent keep what they show. A staff grant on it stays on Staff grants for Admins, tagged **Inactive unit**, and gives no access until the unit is reactivated.
+
+> [!warning] People still placed in an inactive unit count nowhere, and their milpac page shows them as unplaced. Org structure lists them under the details panel, with the unit each one is in. Move each one, or reactivate the unit. If the roster sync places someone there, they show in that list too.
+
+> [!good-to-know] Only Admins see inactive units. Tick **Show inactive** to see them, greyed, with the one you deactivated tagged **Inactive**. To bring one back, select it and choose **Reactivate**. Everything under it comes back with it. A unit is never added or moved under an inactive one. **Import from Cav roster** does not reactivate a unit or make it again. Both changes are in the audit log.
 
 ## Make someone acting lead
 

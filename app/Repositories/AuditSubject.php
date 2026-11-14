@@ -401,19 +401,20 @@ final class AuditSubject
         };
     }
 
-    /** `28OCT26`, or `Wed 28OCT26 2359Z` for a moment with a time of day. */
+    /** `28OCT26`, or `Wed 28OCT26 23 59Z` (hair space, as the UI writes a Zulu time) for a moment with a time of day. */
     private static function moment(DateTimeInterface $value): string
     {
         $utc = CarbonImmutable::instance($value)->utc();
 
         return $utc->format('His') === '000000'
             ? WeekLabel::date($utc)
-            : $utc->format('D').' '.WeekLabel::date($utc).' '.$utc->format('Hi').'Z';
+            : $utc->format('D').' '.WeekLabel::date($utc).' '.WeekLabel::zulu($utc);
     }
 
+    /** A minute of the day as `23 59Z`, with the hair space the UI puts in a Zulu time. */
     private static function zulu(int $minute): string
     {
-        return sprintf('%02d%02dZ', intdiv($minute, 60), $minute % 60);
+        return sprintf("%02d\u{200A}%02dZ", intdiv($minute, 60), $minute % 60);
     }
 
     /** @param  \Closure(?Unit): string  $unit */

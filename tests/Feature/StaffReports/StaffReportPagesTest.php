@@ -21,6 +21,7 @@ require_once __DIR__.'/../StaffPractices/fixture.php';
 // how a platoon's or company's report shows whether its HQ staff sent theirs.
 
 beforeEach(function () {
+    everyPracticeHeld();
     $this->tree = staffPracticeTree();
     $this->psg = $this->tree['troopers']['psg'];
     $this->host = $this->tree['units']['host'];
@@ -39,8 +40,9 @@ function pageTrooperOf(User $user): Trooper
     return Trooper::query()->where('cav_id', $user->cav_id)->sole();
 }
 
-it('opens the viewer\'s own report for the week whose report is due', function () {
-    $this->actingAs($this->tree['users']['psg'])->get('/staff-report')->assertRedirect($this->url);
+it('opens the viewer\'s own report on the running week, even while last week\'s is owed', function () {
+    $this->actingAs($this->tree['users']['psg'])->get('/staff-report')
+        ->assertRedirect(route('staff-report.show', ['trooper' => $this->psg->id, 'week' => '2026-10-10']));
 });
 
 it('offers the staff member the picker, their own platoon\'s sections only, with the week\'s entries ticked and the game server\'s hint', function () {
@@ -65,8 +67,8 @@ it('offers the staff member the picker, their own platoon\'s sections only, with
         ->where('entries.0.selfReported', false)
         ->where('seen', [$this->tree['units']['other']->id])
         ->where('sections', [
-            ['id' => $this->host->id, 'label' => '1/1/A/1-7', 'own' => true, 'group' => '1/A/1-7', 'platoon' => '1/A/1-7'],
-            ['id' => $this->tree['units']['other']->id, 'label' => '2/1/A/1-7', 'own' => true, 'group' => '1/A/1-7', 'platoon' => '1/A/1-7'],
+            ['id' => $this->host->id, 'label' => '1/1/A/1-7', 'own' => true, 'group' => '1/A/1-7', 'platoon' => '1/A/1-7', 'held' => 'held'],
+            ['id' => $this->tree['units']['other']->id, 'label' => '2/1/A/1-7', 'own' => true, 'group' => '1/A/1-7', 'platoon' => '1/A/1-7', 'held' => 'held'],
         ]));
 });
 
@@ -180,9 +182,10 @@ it('lets the staff member send the running week before it ends', function () {
     $this->actingAs($this->tree['users']['psg'])->get(route('staff-report.show', ['trooper' => $this->psg->id, 'week' => '2026-10-10']))
         ->assertInertia(fn (AssertableInertia $page) => $page->where('canSend', false)->where('canEdit', true)->whereNot('report', null));
 
-    // Still the ended week from the sidebar after its deadline: it is the one owed.
+    // Still the running week from the sidebar after last week's deadline, with last week owed.
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-11 09:00:00', 'UTC'));
-    $this->actingAs($this->tree['users']['psg'])->get('/staff-report')->assertRedirect($this->url);
+    $this->actingAs($this->tree['users']['psg'])->get('/staff-report')
+        ->assertRedirect(route('staff-report.show', ['trooper' => $this->psg->id, 'week' => '2026-10-10']));
 });
 
 it('opens the running week from the sidebar once the ended week is sent', function () {

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Authorization\PageAccess;
 use App\Authorization\ScopeResolver;
 use App\Commands\Units\AccountabilityRules;
 use App\Commands\Units\ActingLeadForbiddenException;
@@ -12,6 +13,7 @@ use App\Commands\Units\CreateUnit;
 use App\Commands\Units\DeleteUnit;
 use App\Commands\Units\ImportOrgStructure;
 use App\Commands\Units\InvalidActingLeadException;
+use App\Commands\Units\InvalidUnitActivationException;
 use App\Commands\Units\InvalidUnitGameException;
 use App\Commands\Units\InvalidUnitOrdinalException;
 use App\Commands\Units\InvalidUnitOversightException;
@@ -19,6 +21,7 @@ use App\Commands\Units\InvalidUnitPlacementException;
 use App\Commands\Units\OrgStructureImportFailedException;
 use App\Commands\Units\RemoveActingLead;
 use App\Commands\Units\RemoveActingLeadHandler;
+use App\Commands\Units\SetUnitActive;
 use App\Commands\Units\SetUnitGame;
 use App\Commands\Units\SetUnitLabel;
 use App\Commands\Units\SetUnitOversight;
@@ -74,6 +77,9 @@ class OrgStructureController extends Controller
         'parent_id.exists' => 'That parent unit no longer exists. Reload the page and choose another.',
     ];
 
+    /** Refused when a unit would be added or moved under an inactive one, where it would vanish with it. */
+    private const INACTIVE_PARENT = 'That parent unit is inactive. Reactivate it first or choose another.';
+
     /** The audit reason on acting-lead changes, worded as the other audited Admin forms are. */
     private const REASON_MESSAGES = [
         'reason.required' => 'Give a reason for the record.',
@@ -86,6 +92,7 @@ class OrgStructureController extends Controller
         private readonly UnitLeadRepository $leads,
         private readonly UnitActingLeadRepository $actingLeads,
         private readonly ScopeResolver $scope,
+        private readonly PageAccess $pages,
     ) {}
 
     /**
@@ -94,7 +101,14 @@ class OrgStructureController extends Controller
      */
     public function index(Request $request, ScopeResolver $scope, UnitGuidonRepository $guidons, Headcount $headcount, UnitOversightRepository $oversights, GameRepository $gameRepository, UnitCommandMappingRepository $commands, AccountabilityRules $accountability): Response
     {
-        $tree = $this->units->tree();
+        // Open to everyone signed in (PageAccess::openSetting); the page shows a non-Admin only what is theirs.
+        $this->pages->openSetting($request->user())->orAbort();
+        // For an Admin, every unit, the inactive ones too: the page lists them greyed behind Show inactive, so they can
+        // reactivate one. Nothing else below counts them. Anyone else (an Admin previewing with view as included) gets
+        // the active tree only, and no inactive data at all.
+        $seesInactive = $scope->actsAsAdmin($request->user());
+        $tree = $seesInactive ? $this->units->treeWithInactive() : $this->units->tree();
+        $inactive = $this->units->inactiveIds()->flip();
         // The game each unit plays, its own or the nearest ancestor's, worked out once over the tree.
         $games = $gameRepository->all()->keyBy('id');
         $gameOf = collect(UnitGame::resolve($tree))
@@ -110,7 +124,10 @@ class OrgStructureController extends Controller
         // under its path, HQ staff on their HQ node and the groups included (2026-10-24, AD-18). New Recruits count on
         // their own group only, never in an ancestor's: they are not yet part of any unit. The prefix test relies on
         // the AD-18 convention that every `path` ends in "/", so "1/2/" can never match "1/20/".
-        $byUnit = $this->troopers->countsBySection();
+        // Troopers placed in an inactive unit count nowhere, so they are left out here; `placed_count` below still says
+        // how many are there.
+        $placedAnywhere = $this->troopers->countsBySection();
+        $byUnit = $placedAnywhere->reject(fn (int $count, int $id) => $inactive->has($id));
         $placedIn = $tree->whereIn('id', $byUnit->keys()->all())->keyBy('id');
         $leadable = $this->leads->leadableUnitIds()->flip();
         $leads = $this->leads->leadsOf($tree->modelKeys());
@@ -188,7 +205,7 @@ class OrgStructureController extends Controller
             'game_locked_by' => $lock === null ? null : ($lock->callsign ?? $lock->name),
             'can_set_game' => $mayGame($unit),
             // Whether the viewer may add a unit one echelon below this one (Add unit), by the same rule `store` applies.
-            'can_add_child' => $mayAddUnder($unit),
+            'can_add_child' => ! $inactive->has($unit->id) && $mayAddUnder($unit),
             // Whether a move that clashes with this unit may swap or renumber it, by the rule `MoveUnit` applies.
             'can_renumber' => $writable->has($unit->id),
             // Until when the viewer may undo adding this unit (Undo add), by the rule `destroy` applies: their own add,
@@ -198,9 +215,19 @@ class OrgStructureController extends Controller
             // The unit's saved guidon (#446), drawn next to its name; null when it has none.
             'guidon' => $guidonOf->get($unit->id)?->design(),
             'path' => $unit->path,
+            // Admin only. Inactive: deactivated by an Admin (`deactivated_at`), or under a unit that is. Hidden from
+            // every other page until reactivated. `placed_count` is everyone serving placed in it or under it, holding
+            // groups and inactive units included: what the deactivate dialog warns about.
+            ...($seesInactive ? [
+                'inactive' => $inactive->has($unit->id),
+                'deactivated_at' => $unit->deactivated_at?->toIso8601String(),
+                'placed_count' => $tree
+                    ->filter(fn (Unit $placed) => str_starts_with($placed->path, $unit->path))
+                    ->sum(fn (Unit $placed) => $placedAnywhere->get($placed->id, 0)),
+            ] : []),
             'own_count' => $byUnit->get($unit->id, 0),
-            // The headcount's own rule, so this page and the roster agree: New Recruits, ELOA and the Reservists count
-            // only on their own group.
+            // The headcount's own rule, so this page and the roster agree: New Recruits, ELOA and the Reservists never
+            // count on a line unit above them, only on their own group and a staff group that holds it.
             'trooper_count' => $byUnit
                 ->filter(fn (int $count, int $id) => Headcount::counts($placedIn->get($id), $unit))
                 ->sum(),
@@ -247,7 +274,7 @@ class OrgStructureController extends Controller
 
         // Follows a view-as preview (Story 1.13): authoring controls hide as they would for the
         // previewed leader. The write gates below keep reading the real flag.
-        $isAdmin = $scope->actsAsAdmin($request->user());
+        $isAdmin = $seesInactive;
         $visible = $scope->resolve($request->user())->flip();
         $groupIds = $tree->filter(fn (Unit $unit) => ! $unit->isLine() && $visible->has($unit->id))->modelKeys();
 
@@ -265,6 +292,14 @@ class OrgStructureController extends Controller
             'unplacedTroopers' => $isAdmin ? $this->troopers->unplaced(self::UNPLACED_LIMIT)->all() : null,
             // The true total, so the heading stays honest when the list above is capped.
             'unplacedTotal' => $isAdmin ? $this->troopers->unplacedCount() : null,
+            // Serving troopers still placed in an inactive unit, for an Admin to move. They count nowhere and read as
+            // unplaced meanwhile; someone the roster sync maps there shows up here too. Admin only, like the list above.
+            'inactivePlaced' => $isAdmin ? $this->troopers->servingPlacedIn($inactive->keys())->map(fn (Trooper $trooper) => [
+                'id' => $trooper->id,
+                'displayName' => $trooper->display_name,
+                'billet' => $trooper->billet,
+                'unitId' => $trooper->primary_section_id,
+            ])->values()->all() : null,
             // Who is in each group the viewer may see (2026-10-24), keyed by unit id: a staff department, ELOA with
             // each trooper's "was", Reservists, New Recruits. Scoped like every roster read (AD-8): a group outside
             // the viewer's scope is absent, not empty.
@@ -339,6 +374,9 @@ class OrgStructureController extends Controller
 
         $type = UnitType::from($data['type']);
         $parent = isset($data['parent_id']) ? $this->units->find((int) $data['parent_id']) : null;
+        if ($parent !== null && $this->units->findActive($parent->id) === null) {
+            throw ValidationException::withMessages(['parent_id' => self::INACTIVE_PARENT]);
+        }
         $allowed = $parent === null ? $this->scope->isAdmin($request->user()) : $this->scope->mayAddUnit($request->user(), $parent, $type);
         if (! $allowed) {
             abort(403, 'You may not add this unit here.');
@@ -384,6 +422,11 @@ class OrgStructureController extends Controller
             'clash_ordinal' => ['nullable', 'string', 'max:2'],
         ], self::UNIT_MESSAGES + ['clash.enum' => 'Choose how to settle the clash from the list.']);
 
+        $newParent = isset($data['parent_id']) ? (int) $data['parent_id'] : null;
+        if ($newParent !== null && $newParent !== $unit->parent_id && $this->units->findActive($newParent) === null) {
+            throw ValidationException::withMessages(['parent_id' => self::INACTIVE_PARENT]);
+        }
+
         try {
             $command->handle(
                 $request->user(),
@@ -420,6 +463,31 @@ class OrgStructureController extends Controller
         ], ['label.max' => 'Keep the team label to :max characters.']);
 
         $command->handle($request->user(), $unit, $data['label'] ?? null);
+
+        return redirect()->route('settings.org-structure');
+    }
+
+    /**
+     * Deactivate a unit, or reactivate one (`SetUnitActive`). Admin-only, server-side (AD-6); audited with an optional
+     * reason (AD-16). A refusal (the regiment, a unit already inactive, one not deactivated itself) comes back as a
+     * form error on `active`.
+     */
+    public function setActive(Request $request, int $unit, SetUnitActive $command): RedirectResponse
+    {
+        $unit = $this->adminUnit($request, $unit);
+
+        $data = $request->validate([
+            'active' => ['required', 'boolean'],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ], self::REASON_MESSAGES);
+
+        try {
+            $data['active']
+                ? $command->reactivate($request->user(), $unit, $data['reason'] ?? null)
+                : $command->deactivate($request->user(), $unit, $data['reason'] ?? null);
+        } catch (InvalidUnitActivationException $e) {
+            throw ValidationException::withMessages(['active' => $e->getMessage()]);
+        }
 
         return redirect()->route('settings.org-structure');
     }

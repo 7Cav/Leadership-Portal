@@ -244,8 +244,8 @@ Artisan::command('portal:admin {username? : The exact forum username; the match 
     $status = $user->cav_id === null ? null : $troopers->statusOf((int) $user->cav_id);
     $this->line("Matched {$user->username}, forum id {$user->forum_user_id}: ".match (true) {
         $user->cav_id === null => 'no Cav profile linked.',
-        $status === null => 'Cav profile '.Trooper::MILPAC_PROFILE_URL."{$user->cav_id}, not on the synced roster.",
-        default => 'Cav profile '.Trooper::MILPAC_PROFILE_URL."{$user->cav_id}, roster status {$status->value} (".($status->isServing() ? 'serving' : 'not serving').').',
+        $status === null => 'Cav profile '.Trooper::milpacUrlFor((int) $user->cav_id).', not on the synced roster.',
+        default => 'Cav profile '.Trooper::milpacUrlFor((int) $user->cav_id).", roster status {$status->value} (".($status->isServing() ? 'serving' : 'not serving').').',
     });
 
     $grant = ! $this->option('revoke');

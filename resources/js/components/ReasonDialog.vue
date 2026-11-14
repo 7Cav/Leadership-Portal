@@ -8,7 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 
 // The app's confirm step for an action that cannot be taken back (the same AlertDialog as Settings, Templates), in
 // place of the browser's own prompt() and confirm() boxes. With `requireReason` it asks for the reason the audit log
-// keeps (AD-16) and will not confirm on a blank one. The page runs the request on `confirm` and passes back
+// keeps (AD-16) and will not confirm on a blank one; with `optionalReason` instead it asks for one but confirms without,
+// sending null for a blank one. The page runs the request on `confirm` and passes back
 // `processing` and any `error`, which shows inside the dialog so the Admin can fix it and try again.
 const props = defineProps({
     open: { type: Boolean, required: true },
@@ -17,6 +18,7 @@ const props = defineProps({
     confirmLabel: { type: String, required: true },
     pendingLabel: { type: String, default: null },
     requireReason: { type: Boolean, default: true },
+    optionalReason: { type: Boolean, default: false },
     destructive: { type: Boolean, default: false },
     processing: { type: Boolean, default: false },
     error: { type: String, default: null },
@@ -31,6 +33,7 @@ const emit = defineEmits(['update:open', 'confirm']);
 
 const reason = ref('');
 const reasonBlank = computed(() => reason.value.trim() === '');
+const asksReason = computed(() => props.requireReason || props.optionalReason);
 const canConfirm = computed(() => !props.processing && (!props.requireReason || !reasonBlank.value));
 
 // A fresh reason every time it opens, so one action's reason is never sent with the next.
@@ -46,7 +49,7 @@ function close(open) {
 }
 
 function confirm() {
-    if (canConfirm.value) emit('confirm', props.requireReason ? reason.value.trim() : null);
+    if (canConfirm.value) emit('confirm', asksReason.value && !reasonBlank.value ? reason.value.trim() : null);
 }
 </script>
 
@@ -57,7 +60,7 @@ function confirm() {
             <AlertDialogDescription v-if="description" class="text-[13px] text-muted-foreground">{{ description }}</AlertDialogDescription>
 
             <form class="space-y-3" @submit.prevent="confirm">
-                <div v-if="requireReason" class="space-y-1.5">
+                <div v-if="asksReason" class="space-y-1.5">
                     <Label :for="`${testid}-reason`" class="text-[13px]">{{ reasonLabel }}</Label>
                     <Textarea
                         :id="`${testid}-reason`"
@@ -68,7 +71,9 @@ function confirm() {
                         :aria-describedby="`${testid}-reason-help`"
                         :aria-invalid="!!error"
                     />
-                    <p :id="`${testid}-reason-help`" class="text-xs text-muted-foreground">Required. Saved in the audit log with the change.</p>
+                    <p :id="`${testid}-reason-help`" class="text-xs text-muted-foreground">
+                        {{ requireReason ? 'Required.' : 'Optional.' }} Saved in the audit log with the change.
+                    </p>
                 </div>
                 <p v-if="error" class="text-xs text-destructive" role="alert" :data-testid="`${testid}-error`">{{ error }}</p>
 

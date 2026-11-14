@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Authorization\PageAccess;
 use App\Authorization\ScopeResolver;
 use App\Commands\Attendance\AttendanceMark;
 use App\Commands\Attendance\ConfirmPracticeRefusedException;
@@ -57,7 +58,6 @@ use App\Models\RollcallSignature;
 use App\Models\SectionPractice;
 use App\Models\Trooper;
 use App\Models\Unit;
-use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReportStatus;
 use App\Repositories\AttendanceRepository;
@@ -76,6 +76,7 @@ use App\Repositories\UnitDesignationOrder;
 use App\Repositories\UnitGuidonRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
+use App\Rollcall\ChainOfCommand;
 use App\Rollcall\MissingGameIdentities;
 use App\Rollcall\ResultImageUrls;
 use App\Rollcall\RollcallGuests;
@@ -163,6 +164,8 @@ class RollcallController extends Controller
         private readonly MissingGameIdentities $missingIdentities,
         private readonly AutomaticAttendance $automatic,
         private readonly RollcallCycleProps $cycle,
+        private readonly PageAccess $pages,
+        private readonly ChainOfCommand $chainOfCommand,
     ) {}
 
     /**
@@ -217,9 +220,7 @@ class RollcallController extends Controller
         }
 
         // Scope first, so a unit outside it is a 403 whether or not it exists (AD-8).
-        abort_unless($scope->contains($unit), 403, 'This section is outside your scope.');
-        $section = $this->units->find($unit);
-        abort_unless($section?->type === UnitType::Section, 404);
+        $section = $this->pages->rollcall($user, $unit, $scope)->orAbort();
 
         if (! $previewing) {
             Cookie::queue(self::REMEMBERED_SECTION_COOKIE.$user->id, (string) $section->id, self::REMEMBERED_SECTION_MINUTES);
@@ -249,6 +250,8 @@ class RollcallController extends Controller
             // The live result images the post can embed (#641): the Signed RC and the Attended SP of this week, drawn
             // from the marks as they are when a fetch reaches the portal (a cache may reuse one for a minute). The unit's secret in the URL is what lets the forum load them.
             'resultImages' => ResultImageUrls::for($section, $weekStart),
+            // The section's chain of command up to its battalion, which the post prints as `{{coc}}`.
+            'chainOfCommand' => $this->chainOfCommand->lines($section),
             'report' => $this->reportProps($section, $weekStart),
             // Which roll call flow the week follows and whether its roll call was created (#703).
             'flow' => $this->cycle->flow($section, $weekStart),

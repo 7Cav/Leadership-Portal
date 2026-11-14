@@ -19,7 +19,7 @@ describe('rollcallContext (3.11)', () => {
     const context = rollcallContext(input());
 
     it('describes the section and the week in forum convention', () => {
-        expect(context).toMatchObject({ unit: '2/1/A/1-7', unit_name: '2nd Section', week: '03Oct26 – 09Oct26', week_start: '03Oct26', week_end: '09Oct26' });
+        expect(context).toMatchObject({ unit: '2/1/A/1-7', unit_name: '2nd Section', week: '03Oct26 to 09Oct26', week_start: '03Oct26', week_end: '09Oct26' });
     });
 
     it('prints the training date in the post date form and the topic as set, empty when the week has neither (#703)', () => {
@@ -297,5 +297,23 @@ describe('rollcallContext roles and order (the owner, 2026-10-16)', () => {
         const out = rollcallPost(resolved(body), { ...input(SQUAD), fireteams: { show: true, order: 'by_fireteam' } });
 
         expect(out.text).toBe('Teams:1.(Section Leader)Sl.E 2.(Assistant Section Leader)Asl.C 3.(FTL Alpha)Ftl.B* 4.Member.D 5.Senior.F 6.Able.A ');
+    });
+});
+
+describe('the chain of command in the post', () => {
+    const CHAIN = [
+        { role: 'Section Leader', holders: [{ rank: 'Sergeant', name: 'Vasquez.R', url: 'https://7cav.us/rosters/profile?uniqueid=1001' }], acting: false },
+        { role: 'Platoon Leader', holders: [], acting: false },
+    ];
+
+    it('takes the chain the server sent, and none when it sent nothing', () => {
+        expect(rollcallContext({ ...input(), chainOfCommand: CHAIN }).coc).toEqual(CHAIN);
+        expect(rollcallContext(input()).coc).toEqual([]);
+    });
+
+    it('prints it where the template puts {{coc}}', () => {
+        const out = rollcallPost(resolved('[B]Chain of command[/B]\n{{coc}}'), { ...input(), chainOfCommand: CHAIN });
+
+        expect(out.text).toBe('[B]Chain of command[/B]\nSection Leader: [url=https://7cav.us/rosters/profile?uniqueid=1001]Sergeant Vasquez.R[/url]\nPlatoon Leader: Vacant');
     });
 });

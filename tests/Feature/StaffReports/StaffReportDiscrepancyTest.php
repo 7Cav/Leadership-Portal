@@ -22,6 +22,7 @@ require_once __DIR__.'/../StaffPractices/fixture.php';
 // capture, an FTX or a battalion's operation, class or event, and never to the staff member about their own report.
 
 beforeEach(function () {
+    everyPracticeHeld();
     $this->tree = staffPracticeTree();
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-10 12:00:00', 'UTC'));
     $this->week = CarbonImmutable::parse('2026-10-03', 'UTC');
@@ -59,7 +60,7 @@ function sendDiscrepancyReport(User $user, Trooper $trooper, bool $attended, arr
 /** The PSG's row on the CO's overview. */
 function psgOverviewRow(User $viewer, int $trooperId): array
 {
-    $groups = test()->actingAs($viewer)->get('/staff-reports')->assertOk()->viewData('page')['props']['groups'];
+    $groups = test()->actingAs($viewer)->get('/staff-reports?week=2026-10-03')->assertOk()->viewData('page')['props']['groups'];
 
     return collect($groups)->flatMap(fn (array $group) => $group['rows'])->firstWhere('trooperId', $trooperId);
 }
@@ -133,7 +134,7 @@ it('shows the warning to readers only: never to the staff member on their own pa
     $co = Trooper::query()->where('cav_id', $this->co->cav_id)->sole();
     capturedSaw(capturedPractice($this->other->id), $co->id, '76561190000000055');
     sendDiscrepancyReport($this->co, $co, false, []);
-    $this->actingAs($this->co)->get('/staff-reports')->assertInertia(fn (AssertableInertia $page) => $page
+    $this->actingAs($this->co)->get('/staff-reports?week=2026-10-03')->assertInertia(fn (AssertableInertia $page) => $page
         ->where('own.trooperId', $co->id)
         ->missing('own.discrepancy'));
     $this->actingAs($this->co)->get(route('staff-report.show', ['trooper' => $co->id, 'week' => '2026-10-03']))
@@ -149,7 +150,7 @@ it('reads the overview in the same number of queries for one staff report and se
     $count = function (): int {
         DB::flushQueryLog();
         DB::enableQueryLog();
-        test()->actingAs($this->tree['users']['admin'])->get('/staff-reports')->assertOk();
+        test()->actingAs($this->tree['users']['admin'])->get('/staff-reports?week=2026-10-03')->assertOk();
         DB::disableQueryLog();
 
         return count(DB::getQueryLog());

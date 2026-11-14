@@ -15,7 +15,6 @@ import {
     PhPencilSimpleLine,
     PhSealCheck,
     PhStack,
-    PhWarning,
 } from '@phosphor-icons/vue';
 import { toast } from 'vue-sonner';
 import { Badge } from '@/components/ui/badge';
@@ -32,9 +31,11 @@ import ReadinessChecklist from '@/components/reports/ReadinessChecklist.vue';
 import ReportDeadlineBanner from '@/components/reports/ReportDeadlineBanner.vue';
 import ReportPreview from '@/components/reports/ReportPreview.vue';
 import EditReportDialog from '@/components/reports/EditReportDialog.vue';
+import OwedWeekNotice from '@/components/reports/OwedWeekNotice.vue';
 import ReportEditRequestPanel from '@/components/reports/ReportEditRequestPanel.vue';
 import SendDialog from '@/components/reports/SendDialog.vue';
 import RollcallSummary from '@/components/reports/RollcallSummary.vue';
+import SelfReportedNotice from '@/components/reports/SelfReportedNotice.vue';
 import StaffReportsPanel from '@/components/reports/StaffReportsPanel.vue';
 import TimeAgo from '@/components/TimeAgo.vue';
 import Guidon from '@/components/Guidon.vue';
@@ -93,6 +94,9 @@ const props = defineProps({
     // A platoon's or company's HQ staff and their own staff reports for the week, read only and
     // live; null for any other unit.
     staffReports: { type: Array, default: null },
+    // The unit's game (its own or the nearest above it) when its attendance can never be read automatically, else null:
+    // one notice near the top says all attendance is self-reported, and nothing below calls server data missing.
+    selfReported: { type: String, default: null },
     // A section's draft with troopers: whether the week's practice is confirmed (`{ confirmed, held }`), which the send
     // needs (#634). Null when nothing needs confirming.
     practice: { type: Object, default: null },
@@ -557,20 +561,9 @@ function useSuggestion() {
             :reason-labels="reasonLabels"
         />
 
-        <div
-            v-if="week.owed"
-            class="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg border border-warning/35 bg-warning/8 px-3.5 py-2 text-[13px]"
-            data-testid="owed-week"
-        >
-            <PhWarning class="size-4 shrink-0 text-warning" aria-hidden="true" />
-            <p class="min-w-0 flex-1">
-                <span class="font-semibold">The report for {{ weekLabel(week.owed) }} is not sent.</span>
-                <span class="text-muted-foreground"> This page sends the report for {{ weekLabel(week.start) }}.</span>
-            </p>
-            <Link :href="weekUrl(week.owed)" class="font-medium underline underline-offset-2 hover:text-foreground" data-testid="owed-week-link">
-                Open {{ weekLabel(week.owed) }}
-            </Link>
-        </div>
+        <SelfReportedNotice v-if="selfReported" :game="selfReported" />
+
+        <OwedWeekNotice v-if="week.owed" :owed="week.owed" :href="weekUrl(week.owed)">This page sends the report for {{ weekLabel(week.start) }}.</OwedWeekNotice>
 
         <!-- The shared mode switch (5.3 AC): this screen creates and sends; the roll-up navigates. -->
         <nav aria-label="Report mode" class="inline-flex w-fit gap-0.5 rounded-md bg-muted p-0.5 text-xs font-medium">
@@ -625,7 +618,7 @@ function useSuggestion() {
                     </p>
                 </div>
 
-                <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+                <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
                     <div class="flex min-w-0 flex-col gap-5">
                         <section v-if="sent" class="rounded-lg border border-border bg-card p-5" aria-labelledby="sent-title" data-testid="sent-panel">
                             <div class="flex items-start gap-3">
@@ -697,7 +690,7 @@ function useSuggestion() {
                             @focus="focusTarget"
                         />
 
-                        <section class="rounded-lg border border-border bg-card" aria-labelledby="notes-title" data-testid="notes-panel">
+                        <section class="rounded-lg border border-border bg-card lg:flex-1" aria-labelledby="notes-title" data-testid="notes-panel">
                             <div class="flex items-center gap-2 border-b border-border px-4 pt-3.5 pb-3">
                                 <h2 id="notes-title" class="text-[15px] font-semibold">Leader notes</h2>
                                 <span class="ml-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground" aria-live="polite" data-testid="save-state">
@@ -777,7 +770,7 @@ function useSuggestion() {
                                                 {{
                                                     staleReview
                                                         ? 'You edited the notes after confirming. Read them once more, then tick again.'
-                                                        : 'Editing the notes afterward clears this, so the check stays honest.'
+                                                        : 'Editing the notes afterwards unticks this.'
                                                 }}
                                             </p>
                                         </div>
@@ -787,8 +780,9 @@ function useSuggestion() {
                         </section>
                     </div>
 
-                    <div class="min-w-0 lg:sticky lg:top-[calc(var(--shell-top,3rem)+1rem)]">
+                    <div class="flex min-w-0 flex-col">
                         <ReportPreview
+                            class="lg:flex-1"
                             :unit="unit"
                             :week="week"
                             :sent="sent"
@@ -810,11 +804,12 @@ function useSuggestion() {
                             :roster-sync="rosterSync"
                             :loa-sync="loaSync"
                             :computed-at="computedAt"
+                            :self-reported="selfReported"
                         />
                     </div>
                 </div>
 
-                <StaffReportsPanel v-if="staffReports" class="mt-5" :rows="staffReports" />
+                <StaffReportsPanel v-if="staffReports" class="mt-5" :rows="staffReports" :self-reported="selfReported" :notice="false" />
 
                 <div
                     v-if="!sent && !week.beforeFloor"

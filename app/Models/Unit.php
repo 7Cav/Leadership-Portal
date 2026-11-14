@@ -5,6 +5,8 @@ namespace App\Models;
 use Carbon\CarbonImmutable;
 use Database\Factories\UnitFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -29,7 +31,9 @@ use Illuminate\Support\Str;
  * (worked out by `UnitGame` in the repository layer). Not mass-assigned. `lead_position_id` is the billet whose holder
  * leads a regimental staff portfolio the import made (shown as its lead, or vacant); written by the import only.
  * `created_by` is the user who added the unit by hand, who may undo the add for {@see UNDO_ADD_MINUTES} minutes while it
- * is still empty; null for the import's units. Not mass-assigned.
+ * is still empty; null for the import's units. Not mass-assigned. `deactivated_at` and `deactivated_by` say when an Admin
+ * deactivated the unit and who; an inactive unit and everything under it are left out of every list of units
+ * ({@see active()}). Not mass-assigned.
  */
 #[Fillable(['type', 'name', 'callsign', 'label'])]
 class Unit extends Model
@@ -56,6 +60,8 @@ class Unit extends Model
             'kind' => UnitKind::class,
             'lead_position_id' => 'integer',
             'game_id' => 'integer',
+            'deactivated_at' => 'immutable_datetime',
+            'deactivated_by' => 'integer',
         ];
     }
 
@@ -87,6 +93,28 @@ class Unit extends Model
         };
 
         return $title.' '.($this->callsign ?? $this->name);
+    }
+
+    /**
+     * Only the units no Admin deactivated, nor any unit above them: the subtree of an inactive unit is inactive with it.
+     * A unit's `path` starts with the path of every unit above it (AD-18), so one `NOT EXISTS` finds an inactive
+     * ancestor at any depth. Paths hold only digits and "/", so `LIKE` has no wildcard to trip on.
+     *
+     * @param  Builder<Unit>  $query
+     */
+    #[Scope]
+    protected function active(Builder $query): void
+    {
+        $path = $query->qualifyColumn('path');
+        $prefix = in_array($query->getConnection()->getDriverName(), ['mysql', 'mariadb'], true)
+            ? "CONCAT(inactive_units.path, '%')"
+            : "inactive_units.path || '%'";
+
+        $query->whereNotExists(fn ($inactive) => $inactive
+            ->selectRaw('1')
+            ->from('units as inactive_units')
+            ->whereNotNull('inactive_units.deactivated_at')
+            ->whereRaw("{$path} LIKE {$prefix}"));
     }
 
     public function isLine(): bool

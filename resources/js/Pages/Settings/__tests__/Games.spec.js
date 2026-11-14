@@ -42,6 +42,7 @@ const INTERFACES = [
     { value: 'battlemetrics', label: 'BattleMetrics' },
     { value: 'nightwatch', label: 'Nightwatch' },
     { value: 'none', label: 'None' },
+    { value: 'impossible', label: 'None (impossible)' },
 ];
 const GAMES = [
     { id: 1, slug: 'hll', name: 'Hell Let Loose', abbreviation: 'HLL', idKinds: ['Steam ID'], interface: 'crcon', retired: false, inUse: true },
@@ -67,6 +68,14 @@ describe('Settings/Games', () => {
         expect(wrapper.get('[data-testid="interface-squad"]').text()).toBe('None');
         expect(wrapper.find('[data-testid="retired-foxhole"]').exists()).toBe(true);
         expect(wrapper.find('[data-testid="retired-hll"]').exists()).toBe(false);
+    });
+
+    it('lets every games cell wrap, so the table fits its card without a sideways scroll', () => {
+        const wrapper = factory();
+        const cells = wrapper.get('[data-testid="game-row-hll"]').findAll('td');
+
+        expect(cells.length).toBeGreaterThan(0);
+        for (const cell of cells) expect(cell.classes()).toContain('whitespace-normal');
     });
 
     it('offers delete only for a game nothing uses, and bring back only for a retired one', () => {
@@ -118,6 +127,16 @@ describe('Settings/Games', () => {
 
         await wrapper.get('[data-testid="cancel-edit"]').trigger('click');
         expect(wrapper.get('[data-testid="submit-game"]').text()).toBe('Add game');
+    });
+
+    it('offers None (impossible) apart from None, and saves it', async () => {
+        const wrapper = factory();
+        await wrapper.get('[data-testid="edit-squad"]').trigger('click');
+
+        expect(wrapper.findAll('[data-testid="game-interface"] option').map((o) => o.text())).toEqual(['CRCON', 'BattleMetrics', 'Nightwatch', 'None', 'None (impossible)']);
+        await wrapper.get('[data-testid="game-interface"]').setValue('impossible');
+        await wrapper.get('[data-testid="game-form"]').trigger('submit');
+        expect(patch).toHaveBeenCalledWith('/settings/games/4', expect.anything(), expect.objectContaining({ interface: 'impossible' }));
     });
 
     it('retires, brings back and deletes through their routes, showing a refusal by the row', async () => {
@@ -195,6 +214,13 @@ describe('Settings/Games', () => {
         await wrapper.get('[data-testid="game-form"]').trigger('submit');
 
         expect(post.mock.lastCall[2].abbreviation).toBe('SQ44');
+    });
+
+    it('says the abbreviation shows on the highest line unit in an AO, not only a battalion', () => {
+        const help = factory().get('#game-abbreviation-help').text();
+
+        expect(help).toContain('Org structure shows it on the highest line unit in an AO that plays the game, usually a battalion.');
+        expect(help).not.toContain("battalion's row");
     });
 
     it('is in the Settings navigation', () => {

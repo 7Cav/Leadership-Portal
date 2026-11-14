@@ -385,7 +385,7 @@ describe('the starter template, filled', () => {
         const tree = read(render(STARTER, context).text);
         const icon = (file, width) => ['img', { attrs: { src: `https://7cav.us/data/roster_ranks/0/${file}`, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' }, style: { width, height: 'auto' } }, []];
 
-        expect(tree[0]).toEqual(['center', { style: { textAlign: 'center' } }, [['b', ['1/E/2-7 ROLL CALL | 16MAY26 – 22MAY26']]]]);
+        expect(tree[0]).toEqual(['center', { style: { textAlign: 'center' } }, [['b', ['1/E/2-7 ROLL CALL | 16MAY26 to 22MAY26']]]]);
         expect(tree[1]).toEqual('br');
         expect(tree[2]).toEqual(['b', ['Roll Call Accountability']]);
         const [, rows] = tree[4];
@@ -420,5 +420,22 @@ describe('the starter template, filled', () => {
         // One insignia per trooper; the name's own [IMG] stays text.
         expect(elementsOf(tree).filter((node) => node.kind === 'img')).toHaveLength(context.troopers.length);
         expect(JSON.stringify(tree)).toContain('<script>alert(1)</script>');
+    });
+});
+
+describe('the chain of command in the preview', () => {
+    it('shows each holder as a link to their milpac and Vacant as text', () => {
+        const coc = [
+            { role: 'Section Leader', holders: [], acting: false },
+            { role: 'Platoon Leader', holders: [{ rank: 'First Lieutenant', name: 'Laui.M', url: 'https://7cav.us/rosters/profile?uniqueid=3099' }], acting: true },
+        ];
+
+        expect(read(render('{{coc}}', { coc }).text)).toEqual([
+            'Section Leader: Vacant',
+            'br',
+            'Platoon Leader: ',
+            ['url', { attrs: { href: 'https://7cav.us/rosters/profile?uniqueid=3099', rel: 'noopener noreferrer nofollow', target: '_blank' } }, ['First Lieutenant Laui.M']],
+            ' (acting)',
+        ]);
     });
 });

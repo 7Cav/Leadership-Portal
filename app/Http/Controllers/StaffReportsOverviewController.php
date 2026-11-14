@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Authorization\PageAccess;
 use App\Authorization\StaffReportAccess;
 use App\Commands\StaffReports\PushStaffReportToSheetHandler;
 use App\Kpi\StaffHqHealth;
+use App\Milpac\SelfReportedGame;
 use App\Milpac\StaffReportWeek;
 use App\Models\StaffReport;
 use App\Models\Trooper;
@@ -21,7 +23,8 @@ use Inertia\Response;
  * The staff reports overview: for one Cav week, every platoon, company and battalion HQ staff member whose staff report
  * the viewer reads, grouped by HQ down the tree, with whether each sent theirs and attended a section practice, and
  * what else they reported. The viewer's own, when they file one, sits on top. Read only: each row links to the staff
- * member's report page.
+ * member's report page. It opens on the running week; there, a staff member who still owes the week before's report
+ * is marked, and the page says how many do ({@see StaffReportOwed}).
  *
  * Who opens it: whoever reads some HQ's staff ({@see StaffReportAccess::readableHqs()}: command above a platoon,
  * company or battalion HQ, a staff grant or read scope there, Admins; a battalion HQ is read from the regiment). Anyone
@@ -36,13 +39,13 @@ class StaffReportsOverviewController extends Controller
         private readonly PushStaffReportToSheetHandler $sheet,
         private readonly StaffHqHealth $health,
         private readonly UnitGuidonRepository $guidons,
+        private readonly PageAccess $pages,
     ) {}
 
-    public function index(Request $request): Response
+    public function index(Request $request, SelfReportedGame $selfReported, StaffReportOwed $owed): Response
     {
         $user = $request->user();
-        $hqs = $this->access->readableHqs($user);
-        abort_if($hqs->isEmpty(), 404);
+        $hqs = $this->pages->staffReports($user)->orAbort();
 
         $now = CarbonImmutable::now();
         $sheetConfigured = $this->sheet->sheetConfigured();
@@ -59,6 +62,17 @@ class StaffReportsOverviewController extends Controller
             $weekStart,
         );
 
+        // Every listed report (the viewer's own too) that claims a practice its section marked as not held.
+        $conflicts = $this->week->conflicts(
+            collect($staff)->flatten(1)->pluck('report')->push($own === null ? null : $this->week->find($own, $weekStart))->filter()->unique('id')->values(),
+            $weekStart,
+        );
+
+        // On the running week only: who still owes the week before's report, so the overview opened on this week
+        // does not hide a missed one.
+        $owing = $weekStart->equalTo($current) ? $owed->onHqs($hqs->pluck('id')->map(fn ($id) => (int) $id)->all(), $weekStart) : [];
+        $ownOwes = $own !== null && $weekStart->equalTo($current) && $owed->previousWeek($own, $weekStart) !== null;
+
         // Every HQ's guidon in one query: an HQ has none of its own, so each shows its unit's (the company or battalion).
         $guidonOf = $this->guidons->designsFor($hqs, inherit: true);
 
@@ -67,11 +81,16 @@ class StaffReportsOverviewController extends Controller
                 'id' => $hq->id,
                 'label' => $hq->callsign ?? $hq->name,
                 'guidon' => $guidonOf[$hq->id] ?? null,
+                // The HQ's game when its attendance can never be read: the group says so once instead of a
+                // "No game server data" alert on every row.
+                'selfReported' => $selfReported->for($hq->id),
                 'rows' => collect($staff[$hq->id])
                     ->reject(fn (array $row) => $own !== null && $row['trooper']->id === $own->id)
                     ->map(fn (array $row) => [
                         ...$this->row($row['trooper'], $row['report'], $hq, $weekStart, $ended),
                         'discrepancy' => $discrepancies[$row['trooper']->id] ?? null,
+                        'conflict' => $conflicts[$row['trooper']->id] ?? null,
+                        'owesPrevious' => isset($owing[$row['trooper']->id]),
                     ])
                     ->values()
                     ->all(),
@@ -89,7 +108,11 @@ class StaffReportsOverviewController extends Controller
                 'next' => $weekStart->addWeek()->lessThanOrEqualTo($current) ? $weekStart->addWeek()->toDateString() : null,
                 'ended' => $ended,
             ],
-            'own' => $this->ownRow($own, $weekStart, $ended),
+            // How many listed staff still owe the week before's report (the running week only), or null when none do.
+            'owed' => ($count = collect($groups)->flatMap(fn (array $group) => $group['rows'])->where('owesPrevious', true)->unique('trooperId')->count()) === 0
+                ? null : ['week' => $weekStart->subWeek()->toDateString(), 'count' => $count],
+            'own' => ($ownRow = $this->ownRow($own, $weekStart, $ended)) === null ? null
+                : [...$ownRow, 'owesPrevious' => $ownOwes, 'conflict' => $conflicts[$own->id] ?? null],
             'sheetConfigured' => $sheetConfigured,
             'groups' => $groups,
             // One HQ's unit health at a time, so the page reads a bounded number of queries however many HQs it lists:
@@ -186,11 +209,11 @@ class StaffReportsOverviewController extends Controller
         ];
     }
 
-    /** `?week=YYYY-MM-DD`, a Saturday that opens a Cav week no later than the current one (AD-11), else 404; the last ended week when absent. */
+    /** `?week=YYYY-MM-DD`, a Saturday that opens a Cav week no later than the current one (AD-11), else 404; the running week when absent. */
     private function weekStart(mixed $week, CarbonImmutable $now): CarbonImmutable
     {
         if ($week === null || $week === '') {
-            return WeekOf::lastEnded($now);
+            return WeekOf::start($now);
         }
 
         $date = is_string($week) ? CarbonImmutable::createFromFormat('!Y-m-d', $week, 'UTC') : false;

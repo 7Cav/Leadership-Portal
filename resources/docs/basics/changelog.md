@@ -20,7 +20,7 @@ page: /changelog
 
 Under the page title you see how many changes are recorded and since which date.
 
-> [!good-to-know] Admins choose whether technical and security items are available to everyone with **Make technical and security items available to everyone**, behind the gear button (**Changelog settings**) at the top of the page. When it is off, only the changelog editors see them.
+> [!good-to-know] Admins choose whether technical and security items are available to everyone with **Make technical and security items available to everyone**, behind the gear button (**Changelog settings**) at the top of the page. When it is off, only the changelog editors see them. The same place shows when the portal was last deployed.
 
 > [!good-to-know] Only the changelog editors can change it, and only while signed in as themselves, never while someone acts as them or during View as.
 

@@ -5,6 +5,7 @@ section: admin
 order: 3
 audience: leader
 page: /settings/templates
+updated: 2026-11-12
 ---
 
 > [!why] Every section's roll call post is built from a template. Leaders can edit their own unit's templates, not only Admins. A mistake in one shows in the roll call post of every section that uses it that week.
@@ -58,5 +59,6 @@ page: /settings/templates
 4. **Template codes** on the page lists every code you can use, with an example. Click one to put it in the template at the cursor, in **Visual** or **Source**. A code not on the list is refused when you save.
 5. To keep the Signed RC and Attended SP marks current after the post is on the forum, put the two live images in the template: `[IMG]{{rc_image}}[/IMG]` for who signed and `[IMG]{{sp_image}}[/IMG]` for who attended practice. Each lists every trooper with their mark, and the portal draws it from the marks as they are when the forum fetches it, so a mark changed later shows without pasting the post again (the forum may reuse an image for about a minute). The text table keeps working beside them if you want both.
 6. To show the week's training in the post, use `{{training_date}}` for when practice starts (such as `Wed 20May26 2300Z`) and `{{training_topic}}` for the topic, which is the same one the weekly report shows. Either is empty until it is set, so `{{#training_topic}}Topic: {{training_topic}}{{/training_topic}}` leaves the line out when there is none.
+7. `{{coc}}` prints the section's chain of command up to its battalion, one line per billet: Assistant Section Leader and Section Leader, Platoon Sergeant and Platoon Leader, the company's First Sergeant, Executive Officer and Commanding Officer, then the battalion's Sergeant Major, Executive Officer and Commanding Officer. Each holder is written as their full rank and milpac name, linked to their milpac on 7cav.us. A billet nobody holds reads `Vacant`, and a lead an Admin assigned ends in `(acting)`. A level the section does not have is left out. For DEVCOM, the 1IC and 2IC are the battalion's Commanding Officer and Executive Officer, and there is no Sergeant Major line. It comes from Org structure, so it changes when a billet does.
 
 > [!good-to-know] What this changes, and how to undo it: the next roll call post in every section using that template changes. To undo it, make the previous version active, or switch the template off. Every save, switch and activation is in the audit log.
