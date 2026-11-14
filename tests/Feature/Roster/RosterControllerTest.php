@@ -291,15 +291,50 @@ it('names the leave source and its last sync, stale once the latest LOA sync fai
 it('shows an Admin what the latest LOA sync could not read, and nobody else, nor an Admin viewing as a leader', function () {
     SyncRun::factory()->create(['source' => SyncRun::SOURCE_LOA, 'status' => SyncRunStatus::Partial, 'finished_at' => '2026-10-08 11:30:00', 'errored' => 1, 'needs_review' => 2, 'error' => 'Thread 812: The forum answered 503.']);
     $admin = User::factory()->admin()->create();
+    Loa::factory()->needsReview()->create(['trooper_id' => rosterTrooper($this->section1)->id, 'posted_at' => '2026-10-04 12:00:00']);
 
     $this->actingAs($admin)->get('/roster')->assertInertia(fn ($page) => $page
         ->where('loaSyncProblems.unread', 1)
-        ->where('loaSyncProblems.needsReview', 2)
+        // The posts that need review as Home's Needs attention lists them, not the sync's own tally.
+        ->where('loaSyncProblems.needsReview', 1)
         ->where('loaSyncProblems.problems', [['threadId' => 812, 'text' => 'Thread 812: The forum answered 503.']]));
     $this->actingAs($this->leader)->get('/roster')->assertInertia(fn ($page) => $page->where('loaSyncProblems', null));
 
     $this->actingAs($admin)->post('/view-as', ['kind' => 'user', 'id' => $this->leader->id]);
     $this->actingAs($admin)->get('/roster')->assertInertia(fn ($page) => $page->where('loaSyncProblems', null));
+});
+
+it('counts the leave posts that need review as Home lists them: one per trooper on a rollcall, in the weeks Home reads', function () {
+    SyncRun::factory()->create(['source' => SyncRun::SOURCE_LOA, 'status' => SyncRunStatus::Success, 'finished_at' => '2026-10-08 11:30:00', 'needs_review' => 6]);
+    $admin = User::factory()->admin()->create();
+    $twice = rosterTrooper($this->section1);
+    // Two posts of one trooper, one trooper elsewhere in scope, and a post that bears on no week Home reads.
+    Loa::factory()->needsReview()->create(['trooper_id' => $twice->id, 'posted_at' => '2026-10-04 12:00:00']);
+    Loa::factory()->needsReview()->create(['trooper_id' => $twice->id, 'posted_at' => '2026-10-05 12:00:00']);
+    Loa::factory()->needsReview()->create(['trooper_id' => rosterTrooper($this->section3)->id, 'posted_at' => '2026-10-06 12:00:00']);
+    Loa::factory()->needsReview()->create(['trooper_id' => rosterTrooper($this->section2)->id, 'posted_at' => '2026-08-01 12:00:00']);
+    // A trooper on no section's rollcall (HQ staff) is not on Home's list either.
+    Loa::factory()->needsReview()->create(['trooper_id' => rosterTrooper($this->company)->id, 'posted_at' => '2026-10-04 12:00:00']);
+
+    $home = $this->actingAs($admin)->get('/home')->assertOk()->viewData('page')['props']['attention']['totals']['loaReview'];
+
+    expect($home)->toBe(2);
+    $this->actingAs($admin)->get('/roster')->assertInertia(fn ($page) => $page->where('loaSyncProblems.needsReview', $home));
+});
+
+it('sends the weeks each trooper\'s leave covers, as the milpac reads them, and not a post that needs review', function () {
+    $away = rosterTrooper($this->section1);
+    $review = rosterTrooper($this->section1);
+    // 24SEP to 07OCT touches the weeks starting 19SEP, 26SEP and 03OCT.
+    Loa::factory()->create(['trooper_id' => $away->id, 'starts_at' => '2026-09-24', 'ends_at' => '2026-10-07']);
+    Loa::factory()->needsReview()->create(['trooper_id' => $review->id, 'posted_at' => '2026-10-04 12:00:00']);
+    rosterMark($away, $this->section1, 1, null, RollcallSignature::Unsigned);
+
+    $this->actingAs($this->leader)->get('/roster')->assertInertia(fn ($page) => $page
+        ->where('troopers', fn ($rows) => collect($rows)->firstWhere('id', $away->id)['loaWeeks'] === ['2026-09-19', '2026-09-26', '2026-10-03']
+            && collect($rows)->firstWhere('id', $review->id)['loaWeeks'] === []
+            && collect($rows)->firstWhere('id', $this->leaderTrooper->id)['loaWeeks'] === []));
+    $this->getJson("/roster/troopers/{$away->id}")->assertJsonPath('trooper.loaWeeks', ['2026-09-19', '2026-09-26', '2026-10-03']);
 });
 
 it('reports no sync yet rather than inventing a time', function () {

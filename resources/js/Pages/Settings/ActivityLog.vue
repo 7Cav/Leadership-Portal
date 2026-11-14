@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import EmptyState from '@/components/EmptyState.vue';
 import UserFilterPicker from '@/components/UserFilterPicker.vue';
-import { forumDateTime } from '@/lib/forumDate';
+import { forumZulu } from '@/lib/forumDate';
 
 // The pages each user opened (#382), newest first, for retracing a bug report. `visits` is a Laravel paginator as-is.
 // Each visit is `{ id, user, url, actingAs, viewingAs, visited_at }`; `actingAs` / `viewingAs` are what the shell named
@@ -100,7 +100,7 @@ function goTo(url) {
                             <span v-if="visit.viewingAs" class="block text-xs font-normal text-muted-foreground" data-testid="viewing-as">viewing as {{ visit.viewingAs }}</span>
                         </TableCell>
                         <TableCell class="max-w-[60ch] font-mono text-xs break-all whitespace-normal" data-testid="visit-url">{{ visit.url }}</TableCell>
-                        <TableCell class="px-4 tabular-nums">{{ forumDateTime(visit.visited_at) }}</TableCell>
+                        <TableCell class="px-4 tabular-nums">{{ forumZulu(visit.visited_at) }}</TableCell>
                     </TableRow>
                 </TableBody>
             </Table>

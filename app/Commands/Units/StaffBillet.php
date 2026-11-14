@@ -24,6 +24,9 @@ use App\Models\UnitKind;
  *    and the import never moves it back. A department with no portfolio sits under the regiment. Each portfolio names
  *    its officer's billet: the node shows that billet's serving holder as its lead (or vacant), and a billet that
  *    commands nothing else commands the portfolio, so its holder sees what is under it.
+ *  - **The whole staff tree is created** (2026-11-12): every portfolio and department here exists after an import, even
+ *    one no Cav billet maps to yet ({@see defaultGroups()}), so JAG sits under the Executive Officer while Cav lists
+ *    no JAG billet, as S3 or S7 do with no holder.
  *
  * Matching is exact or by a whole leading code, never a guess: a billet none of this names places nobody, as before.
  * Only billets in groups that are not line companies are read here; a line company's billets are {@see CavDesignation}'s.
@@ -83,6 +86,7 @@ final class StaffBillet
      * the regiment]. With {@see DEPARTMENT_PORTFOLIO} and {@see HOLDING_PORTFOLIO}, the one place the default staff tree
      * is written down, as the General Staff oversight chart of 2026-11-10 draws it:
      *
+     *   Office of the Commanding Officer → Executive Officer
      *   Executive Officer → Reserve & Development Command (RDC Commander) → DEVCOM staff, Reservists; JAG
      *   Chief of Staff → S1, ODS, and the two Deputy Chiefs of Staff:
      *     Deputy Chief of Staff 1 → S5, RRD, RTC
@@ -97,10 +101,14 @@ final class StaffBillet
      * are Regimental HQ staff on the regiment, and like every serving trooper placed there read the whole regiment
      * (ScopeResolver). ACD stays a line battalion under the regiment: line units never move into this tree.
      *
+     * The Office of the Commanding Officer (2026-11-12) is led by the regimental commander's billet. That billet commands
+     * the regiment, as the XO's and CSM's do, so naming it the lead changes nobody's scope.
+     *
      * @var array<string, array{0: string, 1: string|null, 2: string|null}>
      */
     public const PORTFOLIOS = [
-        'XO' => ['Executive Officer', 'Regimental Executive Officer', null],
+        'CO' => ['Office of the Commanding Officer', 'Regimental Commanding Officer', null],
+        'XO' => ['Executive Officer', 'Regimental Executive Officer', 'CO'],
         'RDC' => ['Reserve & Development Command', 'RDC Commander', 'XO'],
         'COS' => ['Chief of Staff', 'Regimental Chief of Staff', null],
         'DCOS1' => ['Deputy Chief of Staff 1', null, 'COS'],
@@ -176,6 +184,21 @@ final class StaffBillet
         $code = in_array(trim($groupTitle), ['JAG', 'Judge Advocate General'], true) ? 'JAG' : self::departmentCode($title);
 
         return $code === null ? null : self::department($code);
+    }
+
+    /**
+     * Every portfolio and department of the default staff tree, whether or not a Cav billet maps to it, so the import
+     * builds the whole tree: a department whose billets Cav does not list (JAG, 2026-11-12) still exists, empty, under
+     * its portfolio. Holding groups are not here; each is created by the billet that fills it.
+     *
+     * @return list<GroupDesignation>
+     */
+    public static function defaultGroups(): array
+    {
+        return [
+            ...array_map(fn (string $callsign) => self::portfolio($callsign), array_keys(self::PORTFOLIOS)),
+            ...array_map(fn (string $code) => self::department($code), array_keys(self::DEPARTMENTS)),
+        ];
     }
 
     /**
