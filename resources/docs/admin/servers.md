@@ -3,7 +3,7 @@ title: Servers
 summary: Choose which game servers the portal reads attendance from, which game each one is for, and check that the portal can read them.
 section: admin
 order: 9
-updated: 2026-11-02
+updated: 2026-11-12
 audience: admin
 page: /settings/servers
 ---
@@ -34,7 +34,7 @@ The unit runs a CRCON for each Hell Let Loose server, both WW2 and Vietnam. Once
 
 1. **What each game reads** lists, for each game, the interface that reads it, whether it is **Configured** (it has a server to read and the credentials for it are set) and its selected servers.
 2. Under that is every server a capture reads for the game, with when it was last read and, if it ever failed, when and why. A failure newer than the last read is shown in red, so a feed that is down does not pass for a practice nobody played.
-3. A game with no server selected reads the server of its interface set in env, if that server is its own, whatever type it is. Selecting a training server for the game turns this off. A game with no server of its own reads nothing until a training server is selected. A game read by none says so: its leaders mark attendance by hand.
+3. A game with no server selected reads the server of its interface set in env, if that server is its own, whatever type it is. Selecting a training server for the game turns this off. A game with no server of its own reads nothing until a training server is selected. A game read by **None** says it is not set up yet, and its leaders mark attendance by hand. A game set to **None (impossible)** shows **Can't be read**: its attendance can never be read automatically, its leaders mark it by hand, and its reports say it is self-reported.
 4. The times come from the captures and the tests, not from a check made when the page opens. A server that shows **credentials not set** is not read at all until its credentials are set. One that shows **no server selected** has its key set but no server: select a training server for the game. The credentials and the server addresses are never shown.
 
 ## Test a connection

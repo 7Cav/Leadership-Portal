@@ -8,6 +8,9 @@ use App\Docs\GuideLibrary;
 use App\Docs\ViewerAudience;
 use App\Models\User;
 use App\Repositories\DocsProgressRepository;
+use App\Tutorial\TutorialPersonaResolver;
+use App\Tutorial\TutorialSandbox;
+use App\Tutorial\TutorialTrack;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -30,11 +33,16 @@ class DocsController extends Controller
         private readonly DocsProgressRepository $progress,
     ) {}
 
-    public function index(Request $request): Response
+    public function index(Request $request, TutorialPersonaResolver $personas, TutorialSandbox $sandbox): Response
     {
         abort_unless(DocsPages::enabled(), 404);
 
-        return Inertia::render('Docs/Index', $this->pages->home($this->audience->of($request->user()), $this->facts($request->user())));
+        return Inertia::render('Docs/Index', [
+            ...$this->pages->home($this->audience->of($request->user()), $this->facts($request->user())),
+            // The fixing problems tutorial is offered to whoever leads a unit, read from their real standing: never from
+            // inside a tutorial, where no tutorial is started anyway.
+            'fixTutorial' => ! $sandbox->entered() && TutorialTrack::FixProblems->offeredTo($personas->for($request->user())),
+        ]);
     }
 
     /**

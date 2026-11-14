@@ -100,7 +100,7 @@ class ServersController extends Controller
                 'value' => $interface->value,
                 'label' => $interface->label(),
                 'credentialsSet' => $this->credentials->areSet($interface),
-            ], array_filter(TelemetryInterface::cases(), fn (TelemetryInterface $interface) => $interface !== TelemetryInterface::None))),
+            ], array_filter(TelemetryInterface::cases(), fn (TelemetryInterface $interface) => $interface->reads()))),
             'types' => array_map(fn (GameServerType $type) => ['value' => $type->value, 'label' => $type->label()], GameServerType::cases()),
             'fetchResult' => $request->session()->get('servers_fetch'),
             'testResult' => $request->session()->get('connection_test'),

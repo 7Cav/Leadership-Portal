@@ -24,6 +24,10 @@ use LogicException;
  * made-up troopers, four weeks of history, a leave, and this week's practice already seen on a practice game server.
  * The person themselves is placed in it at the echelon they hold for real ({@see TutorialPersona}).
  *
+ * The fixing problems tutorial ({@see TutorialTrack::FixProblems}) changes this week: CPL Sample.R was not seen and
+ * made the practice up elsewhere, PVT Trial.B asked for a make-up and missed it, PFC Model.G of 2nd Section played at
+ * 1st Section's practice where the server did not see them, and 2nd Section has not sent its report.
+ *
  * Every name is made up and obviously so, except two: Laui.M and Grayson.J, the portal's maintainers, who serve in
  * every practice unit as ordinary troopers (approved by the project). Nothing here is read from real troopers.
  * Their made-up milpac ids sit in `Trooper::PRACTICE_CAV_IDS`, so "View on 7cav.us" opens a maintainer's real milpac.
@@ -47,6 +51,15 @@ final class PracticeWorld
     /** The trooper whose signature and mark the roll call step asks for. */
     public const DEMO = 'Demo.K';
 
+    /** Fixing problems: the trooper who made the practice up elsewhere, to be marked Make-up complete. */
+    public const MADE_UP = 'Sample.R';
+
+    /** Fixing problems: the trooper who asked for a make-up and missed, whose miss blocks the report. */
+    public const OWES_MAKEUP = 'Trial.B';
+
+    /** Fixing problems: the 2nd Section trooper at 1st Section's practice, to be added as a guest. */
+    public const GUEST = 'Model.G';
+
     /** The two maintainers in every practice unit. */
     public const MAINTAINERS = ['Laui.M', 'Grayson.J'];
 
@@ -64,8 +77,9 @@ final class PracticeWorld
         private readonly SendWeeklyReportHandler $send,
     ) {}
 
-    public function build(int $userId, TutorialPersona $persona, ?CarbonImmutable $now = null): void
+    public function build(int $userId, TutorialPersona $persona, ?CarbonImmutable $now = null, TutorialTrack $track = TutorialTrack::Basics): void
     {
+        $fixing = $track === TutorialTrack::FixProblems;
         if ($this->sandbox->userId() !== $userId) {
             throw new LogicException('The practice unit is only built inside the person\'s own tutorial sandbox.');
         }
@@ -147,38 +161,67 @@ final class PracticeWorld
         }
 
         // This week: seen on the practice server, not created, not confirmed, not posted, and Demo.K neither signed nor
-        // seen. The tutorial teaches the new roll call (#703), so this week is on it whatever the cutover says; the
-        // weeks of history before it are sent and stay on the three steps.
+        // seen. When fixing problems, Demo.K played, Sample.R was not seen, and Trial.B asked for a make-up and missed.
+        // The tutorial teaches the new roll call (#703), so this week is on it whatever the cutover says; the weeks of
+        // history before it are sent and stay on the three steps.
         $practice = $this->practices->findOrCreate($section->id, $week, flowVersion: RollcallFlow::V2);
         $this->practice->captured($practice, $start->addHour()->min($now), $start, $start->addHour());
         foreach ($sectionMembers as $trooper) {
-            if ($trooper->username === self::DEMO) {
+            if ($trooper->username === self::DEMO && ! $fixing) {
                 $this->attendance->signRollcall($practice, $trooper->id, RollcallSignature::Unsigned);
 
                 continue;
             }
+            if ($trooper->username === self::OWES_MAKEUP && $fixing) {
+                $this->attendance->signRollcall($practice, $trooper->id, RollcallSignature::MakeupRequested);
+                $this->attendance->markPractice($practice, $trooper->id, AttendanceStatus::Missed, AttendanceSource::Manual);
+
+                continue;
+            }
             $this->attendance->signRollcall($practice, $trooper->id, RollcallSignature::WillAttend);
-            if ($trooper->username !== 'Mock.T') {
+            if ($trooper->username !== 'Mock.T' && ! ($fixing && $trooper->username === self::MADE_UP)) {
                 $this->attendance->markPracticeAuto($practice, $trooper->id);
                 $this->practice->capturePlayer($practice, $game, $trooper->username, 'practice-'.$trooper->cav_id, $trooper);
             }
         }
-        // HQ staff report the section practices they attended: they were seen at both sections' practices this week,
-        // so the staff report shows server data backing that up.
-        if ($persona->hqStaff !== null) {
-            $this->practice->capturePlayer($practice, $game, $persona->username, 'practice-'.$self->cav_id, $self);
+        // Fixing problems starts after the practice: both roll calls were created and posted on the new flow, so the
+        // reader goes straight to Sign and mark.
+        if ($fixing) {
+            $this->practices->markRollcallPosted($this->practices->markCreated($practice, $me->id), $me->id);
+        }
+
+        // 2nd Section's practice this week, seen on the server: for HQ staff, who were there too (their staff report then
+        // shows server data backing that up), and when fixing problems, where Model.G was not seen as they played at
+        // 1st Section's. Its report is not sent.
+        if ($fixing || $persona->hqStaff !== null) {
             $theirs = $this->practices->findOrCreate($other->id, $week, flowVersion: RollcallFlow::V2);
             $this->practice->captured($theirs, $start->addHour()->min($now), $start, $start->addHour());
-            foreach ([...$otherMembers, $self] as $trooper) {
+            foreach ($otherMembers as $trooper) {
+                if ($fixing) {
+                    $this->attendance->signRollcall($theirs, $trooper->id, RollcallSignature::WillAttend);
+                }
+                if ($fixing && $trooper->username === self::GUEST) {
+                    continue;
+                }
+                if ($fixing) {
+                    $this->attendance->markPracticeAuto($theirs, $trooper->id);
+                }
                 $this->practice->capturePlayer($theirs, $game, $trooper->username, 'practice-'.$trooper->cav_id, $trooper);
+            }
+            if ($fixing) {
+                $this->practices->markRollcallPosted($this->practices->markCreated($theirs, $me->id), $me->id);
+            }
+            if ($persona->hqStaff !== null) {
+                $this->practice->capturePlayer($practice, $game, $persona->username, 'practice-'.$self->cav_id, $self);
+                $this->practice->capturePlayer($theirs, $game, $persona->username, 'practice-'.$self->cav_id, $self);
             }
         }
 
         // No identity warnings in the tutorial: no step teaches linking, so every practice trooper is linked.
         $this->practice->linkEveryone($game);
 
-        // A leader above the sections sees one section already in for the week.
-        if ($persona->leads !== null && $persona->leads !== UnitType::Section) {
+        // A leader above the sections sees one section already in for the week. When fixing problems it is still out.
+        if (! $fixing && $persona->leads !== null && $persona->leads !== UnitType::Section) {
             $this->history($other, $otherMembers, $week, $otherLead, 'Fireteam formations', 0);
         }
     }

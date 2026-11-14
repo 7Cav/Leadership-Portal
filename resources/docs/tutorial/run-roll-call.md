@@ -15,7 +15,7 @@ Roll call is the weekly task the rest of the portal is built on. Your section's 
 
 1. Choose **Roll call** in the sidebar. It opens on your section and this week, on step 1, **Create**.
 2. Check the **Training date**. It comes from your section's practice slot; changing it moves this week's practice only.
-3. Check the **Training topic**. It comes from your platoon's topic, and is locked when your platoon enforces it.
+3. Check the training topic. It comes from your platoon's topic, and is locked when your platoon enforces it.
 4. Choose **Create roll call**.
 
 ## Post it

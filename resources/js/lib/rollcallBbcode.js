@@ -1,4 +1,4 @@
-import { render } from './bbcode';
+import { render, WEEK_JOIN } from './bbcode';
 import { fireteamNames, orderTroopers, roleLabel } from './fireteams';
 import { forumDate } from './forumDate';
 import { insigniaWidth } from './rankInsignia';
@@ -83,7 +83,7 @@ export function rollcallContext({ section, week, troopers, fireteams = {}, resul
     return {
         unit: section.designation,
         unit_name: section.name,
-        week: `${postDate(week.start)} – ${postDate(week.closes)}`,
+        week: `${postDate(week.start)}${WEEK_JOIN}${postDate(week.closes)}`,
         week_start: postDate(week.start),
         week_end: postDate(week.closes),
         // This week's practice start and training topic (#703): the topic is the weekly report's training subject.

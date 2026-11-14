@@ -34,6 +34,15 @@ describe('TrainingCard (#703)', () => {
         expect(factory().find('[data-testid="training-date-change"]').exists()).toBe(false);
     });
 
+    it('names the editable topic in its placeholder, with no caption above it', () => {
+        const wrapper = factory();
+        const input = wrapper.get('[data-testid="training-topic-input"]');
+
+        expect(input.attributes('placeholder')).toBe("Type this week's training topic");
+        expect(input.attributes('aria-label')).toBe('Training topic');
+        expect(wrapper.text()).not.toContain('Training topic');
+    });
+
     it('locks a topic the platoon enforces, and names the platoon', () => {
         const wrapper = factory({ training: { subject: 'Land navigation', enforced: true, platoon: '1st Platoon', canEdit: false } });
 

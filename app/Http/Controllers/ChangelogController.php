@@ -73,8 +73,9 @@ class ChangelogController extends Controller
             'pendingRestore' => $editor ? $this->pendingRestore() : null,
             // Whether a non-editor gets the "Show technical and security items" toggle. Editors always see them.
             'technicalToggle' => ! $editor && $technicalEnabled,
-            // The Admin setting, sent only to someone who may change it.
-            'technicalSetting' => $mayManage ? ['enabled' => $technicalEnabled] : null,
+            // The Admin setting, sent only to someone who may change it, with when the portal was last deployed (ISO, UTC,
+            // or null).
+            'technicalSetting' => $mayManage ? ['enabled' => $technicalEnabled, 'deployedAt' => $this->access->deployedAt()?->toIso8601ZuluString()] : null,
         ]);
     }
 

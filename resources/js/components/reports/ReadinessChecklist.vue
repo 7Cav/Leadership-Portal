@@ -79,7 +79,7 @@ const waiting = computed(() => props.children.filter((c) => c.status !== 'sent')
         <div class="px-4"><Progress :model-value="(done / checks.length) * 100" aria-label="Checks done" /></div>
 
         <ol class="mt-1 p-2">
-            <li v-for="check in checks" :key="check.id" :data-check="check.id" class="[&+li]:border-t [&+li]:border-border/70">
+            <li v-for="check in checks" :key="check.id" :data-check="check.id" :data-done="check.done ? '' : undefined" class="[&+li]:border-t [&+li]:border-border/70">
                 <button
                     type="button"
                     class="grid w-full grid-cols-[1.25rem_minmax(0,1fr)_auto_1rem] items-start gap-x-2.5 gap-y-0.5 rounded-md p-3 text-left hover:bg-accent/55 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"

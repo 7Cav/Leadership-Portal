@@ -78,7 +78,7 @@ threshold) is the divergence AD-21 exists to prevent. The precise definitions ar
   `ReportKpiSource` is the leaf/non-leaf seam, bound in `AppServiceProvider` to
   `EchelonReportKpiSource`: a section's live KPIs, or a non-leaf unit's `RollupKpis` sum with
   the children that had not sent frozen as `missing_children`. Rate deltas are integer basis
-  points.
+  points, taken between the whole percents the report shows (93% to 89% is `-400`).
 
 `RollupKpis` (5.7) is the non-leaf side (AD-13): `forUnit($unit, $weekStart)` →
 `RollupResult`, the sum (`UnitKpis::plus()`) of the unit's **direct** children's **sent**

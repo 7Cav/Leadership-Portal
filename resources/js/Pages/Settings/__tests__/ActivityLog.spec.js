@@ -50,7 +50,7 @@ describe('Settings/ActivityLog', () => {
 
         expect(row.text()).toContain('Hale.S');
         expect(row.get('[data-testid="visit-url"]').text()).toBe('/roster?unit=4');
-        expect(row.text()).toContain('28OCT26');
+        expect(row.text()).toContain('28OCT26 14\u200A05Z');
     });
 
     it('renders the address as text, never as markup', () => {

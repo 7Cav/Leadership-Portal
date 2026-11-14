@@ -191,7 +191,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::post('/troopers/{trooper}/staff-practices/remove', [StaffPracticeController::class, 'destroy'])->middleware('throttle:audited-writes')->name('staff-practices.remove');
     // The weekly staff report of a platoon or company HQ staff member: one page per staff member and
     // week, read by them, the chain above their HQ and Admins; sent once, by the staff member alone, as an audited Command
-    // (Authorization\StaffReportAccess). `/staff-report` opens the viewer's own: the ended week while owed, else the running week.
+    // (Authorization\StaffReportAccess). `/staff-report` opens the viewer's own for the running week.
     Route::get('/staff-report', [StaffReportController::class, 'own'])->name('staff-report.own');
     // The staff reports overview: every HQ staff member whose report the viewer reads, for one week (`?week=`).
     Route::get('/staff-reports', [StaffReportsOverviewController::class, 'index'])->name('staff-reports.index');

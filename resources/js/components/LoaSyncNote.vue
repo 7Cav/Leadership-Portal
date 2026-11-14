@@ -29,10 +29,12 @@ const status = computed(() => {
     const { source, lastSyncedAt } = props.sync;
     const at = lastSyncedAt ? `${forumDateTime(lastSyncedAt)}Z` : null;
 
+    // No sync yet does not mean no leave on the page (tutorial and demo leave, rows kept from before), and `sync` says
+    // nothing about the rows, so the note never claims nobody is on LOA.
     if (!at) {
         return failed.value
-            ? `Leave from ${source}: the sync failed and has never succeeded, so nobody shows as on LOA`
-            : `Leave from ${source} has not synced yet, so nobody shows as on LOA`;
+            ? `Leave from ${source}: the sync failed and has never succeeded, so leave shown may be incomplete`
+            : `Leave from ${source} has not synced yet, so leave shown may be incomplete`;
     }
     if (!props.sync.stale) return `Leave from ${source}, synced ${at}`;
 

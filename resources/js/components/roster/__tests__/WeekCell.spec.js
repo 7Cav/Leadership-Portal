@@ -19,3 +19,19 @@ describe('WeekCell', () => {
         expect(half.attributes('title')).toBeUndefined();
     });
 });
+
+describe('WeekCell for a line HQ staff week', () => {
+    it('draws two halves, like a roll call and an SP: the report sent on top, the rule met below', () => {
+        const cell = mount(WeekCell, { props: { rc: 'staff-sent', sp: 'staff-short', staff: { state: 'short' } } });
+
+        expect(cell.findAll('.roster-h')).toHaveLength(2);
+        expect(cell.find('[data-testid="staff-sent"]').classes()).toContain('roster-h--staff-sent');
+        expect(cell.find('[data-testid="staff-accountability"]').classes()).toContain('roster-h--staff-short');
+    });
+
+    it('marks the halves as staff only for a staff week', () => {
+        const cell = mount(WeekCell, { props: { rc: 'ok', sp: 'ok' } });
+
+        expect(cell.find('[data-testid="staff-sent"]').exists()).toBe(false);
+    });
+});

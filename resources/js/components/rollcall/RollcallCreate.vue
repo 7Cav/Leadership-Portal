@@ -131,10 +131,8 @@ async function create(notHeld = false) {
                 </div>
 
                 <div class="grid gap-1.5">
-                    <div class="flex flex-wrap items-center gap-2">
-                        <Label for="create-topic">Training topic</Label>
+                    <div v-if="training.platoon && training.enforced" class="flex flex-wrap items-center gap-2">
                         <Badge
-                            v-if="training.platoon && training.enforced"
                             variant="outline"
                             class="border-primary/40 bg-primary/10 px-1.5 text-[11px] font-normal text-foreground"
                             data-testid="create-topic-source"
@@ -147,11 +145,12 @@ async function create(notHeld = false) {
                         <Input
                             id="create-topic"
                             v-model="topic"
+                            aria-label="Training topic"
                             maxlength="255"
                             :readonly="topicLocked"
                             :disabled="disabled"
                             :class="topicLocked && 'pl-9'"
-                            :placeholder="topicLocked ? '' : 'Type this week\'s topic'"
+                            :placeholder="topicLocked ? '' : 'Type this week\'s training topic'"
                             data-testid="create-topic"
                         />
                     </div>
