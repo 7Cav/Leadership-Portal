@@ -28,6 +28,9 @@ class SyncRun extends Model
     /** The `source` the roster sync records its runs under, and `Milpac\RosterProvenance` reads them by. */
     public const SOURCE_ROSTER = 'roster';
 
+    /** The `source` the 7Cav calendar sync records its runs under (#751), and the roll call reads them by. */
+    public const SOURCE_CALENDAR = 'calendar';
+
     /** An echelon leader's sync of one unit; recorded apart so it never moves the roster-wide stamp. */
     public const SOURCE_ROSTER_UNIT = 'roster-unit';
 

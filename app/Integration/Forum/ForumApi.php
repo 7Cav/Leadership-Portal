@@ -8,6 +8,7 @@ use App\Integration\Forum\Data\ForumThreadPage;
 use App\Integration\Forum\Data\ForumThreadSummary;
 use App\Integration\Forum\Data\ForumToken;
 use App\Integration\Forum\Requests\ExchangeCodeRequest;
+use App\Integration\Forum\Requests\ExportCalendarRequest;
 use App\Integration\Forum\Requests\FetchProfileRequest;
 use App\Integration\Forum\Requests\FetchThreadRequest;
 use App\Integration\Forum\Requests\ListForumThreadsRequest;
@@ -35,6 +36,9 @@ use TypeError;
  * used through this seam to read the body of any other part of the forum. A thread id alone cannot be
  * checked against a section before the request, so {@see fetchLoaThread()} compares the section after
  * the fetch and discards the thread if it is outside the configured sections.
+ *
+ * And it is the read path to the forum calendar (#751): {@see exportCalendar()} reads the calendar's public iCalendar
+ * export, with no credential, and only that.
  */
 class ForumApi
 {
@@ -146,6 +150,34 @@ class ForumApi
         }
 
         return $thread->postedAt;
+    }
+
+    /**
+     * The 7Cav calendar as the forum exports it, iCalendar text (`BEGIN:VCALENDAR` ... `END:VCALENDAR`), unparsed: the
+     * calendar sync reads it. Read-only and public, so no key is sent with it.
+     *
+     * @throws ForumRequestException when the forum cannot be reached, answers with an error, or answers with
+     *                               something that is not a calendar
+     */
+    public function exportCalendar(): string
+    {
+        try {
+            $response = $this->connector()->send(new ExportCalendarRequest);
+        } catch (FatalRequestException $e) {
+            throw ForumRequestException::unreachable($e);
+        }
+
+        if ($response->failed()) {
+            throw ForumRequestException::calendarExportFailed($response->status());
+        }
+
+        $body = $response->body();
+
+        if (! str_contains($body, 'BEGIN:VCALENDAR')) {
+            throw ForumRequestException::malformedCalendar();
+        }
+
+        return $body;
     }
 
     /**

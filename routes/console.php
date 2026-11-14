@@ -12,6 +12,7 @@ use App\Commands\Guests\ApplyGuestMakeupsDue;
 use App\Commands\PortalRoleGrants\ExpireEndedStaffGrants;
 use App\Commands\Users\SetAdminFlag;
 use App\Jobs\CaptureSectionPracticeJob;
+use App\Jobs\SyncCalendarJob;
 use App\Jobs\SyncLoasJob;
 use App\Jobs\SyncRosterJob;
 use App\Models\ChangelogEntry;
@@ -142,6 +143,19 @@ Schedule::command('portal:sync-loas')->hourlyAt(15)->when(fn () => SyncLoasJob::
 // the last run, so a post edited after that (an ELOA extended, say) is caught here, and this is the run that reads the whole year
 // and deletes the leave whose thread is gone.
 Schedule::command('portal:sync-loas --full')->dailyAt('03:30')->when(fn () => SyncLoasJob::isConfigured());
+
+// The 7Cav calendar (#751): read from the forum's public export and cached, so the roll call lists the week's events
+// without waiting on the forum. Hourly, at ten to the hour, away from the roster and leave syncs; `--now` runs it in the
+// foreground, for a first read or a check without a queue worker.
+Artisan::command('portal:sync-calendar {--now : Run the sync in the foreground instead of queueing it}', function () {
+    $this->option('now') ? SyncCalendarJob::dispatchSync() : SyncCalendarJob::dispatch();
+
+    $this->info($this->option('now') ? 'Calendar sync finished.' : 'Calendar sync queued.');
+
+    return 0;
+})->purpose('Read the 7Cav calendar from the forum into the portal (queued unless --now)');
+
+Schedule::command('portal:sync-calendar')->hourlyAt(50);
 
 // The activity log keeps 30 days (#382). Deleted in chunks so the prune never holds a long lock on a table every page
 // view writes to. Daily, at a quiet hour away from the 03:30 leave sync.
