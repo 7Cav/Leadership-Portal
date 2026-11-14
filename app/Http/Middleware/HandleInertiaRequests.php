@@ -147,7 +147,8 @@ class HandleInertiaRequests extends Middleware
             // The hands-on tutorial, while this request runs in it (RunInTutorial): its steps with their checklists ticked
             // from the person's own practice copy, for the blue bar and the coach card. Null outside the tutorial.
             'tutorialMode' => fn () => $this->sandbox->entered() && ($persona = $this->tutorial->persona()) !== null ? [
-                'steps' => $this->steps->describe((int) $this->sandbox->userId(), $persona),
+                'title' => $this->tutorial->track()->title(),
+                'steps' => $this->steps->describe((int) $this->sandbox->userId(), $persona, track: $this->tutorial->track()),
             ] : null,
             // The 7cav.us forum's address, for links that open a forum page (the makeup PM opens the forum's own
             // "start conversation" form). The portal never writes to the forum; these are plain links.
