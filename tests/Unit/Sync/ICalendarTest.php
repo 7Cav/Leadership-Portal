@@ -38,7 +38,7 @@ function calStarts(CalendarEntry $entry, string $from, string $to, string $readA
 }
 
 it('reads every event with an id, a title and a start, and leaves out a cancelled one and one with no title', function () {
-    expect(array_keys(calEntries()))->toBe(['1064', '4075', '1232', '4088', '3926']);
+    expect(array_map('strval', array_keys(calEntries())))->toBe(['1064', '4075', '1232', '4088', '3926']);
 });
 
 it('reads the title, start, end and link of an event, its escapes undone', function () {

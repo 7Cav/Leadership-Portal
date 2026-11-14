@@ -15,7 +15,7 @@ use Carbon\CarbonImmutable;
 
 /**
  * The events on the 7Cav calendar that a section's roll call lists for a Cav week (#751): those that start in the week,
- * Saturday 0000Z to the next Saturday, whose title carries a tag of the game the section plays, its own or the nearest
+ * Saturday 0000Z to Saturday 0000Z a week later, whose title carries a tag of the game the section plays, its own or the nearest
  * unit's above it ({@see UnitRepository::gameOf()}, {@see Game::marksEvent()}). Read from the cache the calendar sync
  * keeps, never from the forum, so the page does not wait on it. Only listed: nothing here marks anyone as having been at
  * one.

@@ -97,9 +97,9 @@ final class Occurrences
             return;
         }
 
-        $days = $recurrence->days === [] ? [$first->dayOfWeekIso] : $recurrence->days;
+        $days = $recurrence->days === [] ? [(int) $first->format('N')] : $recurrence->days;
         // The Monday of the first week, at the first start's time of day: every week's starts are counted from it.
-        $monday = $first->subDays($first->dayOfWeekIso - 1);
+        $monday = $first->subDays((int) $first->format('N') - 1);
 
         for ($week = 0; $steps < self::MAX_STEPS; $week++) {
             $base = $monday->addWeeks($week * $recurrence->interval);
