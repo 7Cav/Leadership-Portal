@@ -254,6 +254,24 @@ describe('the code picker', () => {
         expect(picker.querySelector('[data-testid="code-picker-where"]').textContent).toContain('inside the trooper loop');
     });
 
+    it("offers an event's codes inside the events loop, and not the trooper's (#751)", async () => {
+        const body = '{{#events}}x{{/events}}';
+        const picker = await openPicker(body, 11);
+
+        expect(picker.querySelector('[data-testid="code-pick-event_name"]')).not.toBeNull();
+        expect(picker.querySelector('[data-testid="code-pick-event_start"]')).not.toBeNull();
+        expect(picker.querySelector('[data-testid="code-pick-name"]')).toBeNull();
+        expect(picker.querySelector('[data-testid="code-pick-troopers"]')).toBeNull();
+        expect(picker.querySelector('[data-testid="code-picker-where"]').textContent).toContain('inside the events loop');
+    });
+
+    it('offers the events code and loop outside every loop, and no event codes', async () => {
+        const picker = await openPicker('ab', 1);
+
+        expect(picker.querySelectorAll('[data-testid="code-pick-events"]').length).toBe(2);
+        expect(picker.querySelector('[data-testid="code-pick-event_name"]')).toBeNull();
+    });
+
     it('puts the picked code in at the cursor, drawn as a chip', async () => {
         const body = '{{#troopers}}x{{/troopers}}';
         const picker = await openPicker(body, 14);

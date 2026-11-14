@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import cases from '../../../../tests/Fixtures/bbcode-templates.json';
-import { DESCRIBED, FILTERS, LABELLED, chainText, codeLabel, LISTS, ROW_FLAGS, ROW_STRINGS, TOP_FLAGS, TOP_STRINGS, inert, parse, render, sampleContext, templateLegend } from '../bbcode';
+import { DESCRIBED, EVENT_STRINGS, FILTERS, LABELLED, chainText, codeLabel, eventsText, LISTS, ROW_FLAGS, ROW_STRINGS, TOP_FLAGS, TOP_STRINGS, inert, parse, render, sampleContext, templateLegend } from '../bbcode';
 
 // Story 3.10. The grammar cases are shared with the server's TemplateSyntax (tests/Fixtures/bbcode-templates.json), so the
 // browser and the server accept and refuse the same templates with the same messages.
@@ -45,7 +45,8 @@ const context = (overrides = {}) => ({
 
 describe('the legend of template codes', () => {
     it('describes every name the parser accepts and nothing else, so the legend cannot drift', () => {
-        expect([...DESCRIBED].sort()).toEqual([...TOP_STRINGS, ...TOP_FLAGS, ...LISTS, ...ROW_STRINGS, ...ROW_FLAGS, ...FILTERS].sort());
+        // `events` is both a value and a list, described once.
+        expect([...DESCRIBED].sort()).toEqual([...new Set([...TOP_STRINGS, ...TOP_FLAGS, ...LISTS, ...ROW_STRINGS, ...ROW_FLAGS, ...EVENT_STRINGS, ...FILTERS])].sort());
     });
 
     it('gives every name a short label for the visual editor, and no name more than one', () => {
@@ -65,6 +66,7 @@ describe('the legend of template codes', () => {
             ['lists', LISTS],
             ['rowValues', ROW_STRINGS],
             ['rowFlags', ROW_FLAGS],
+            ['eventValues', EVENT_STRINGS],
             ['filters', FILTERS],
         ]);
         for (const entry of legend.flatMap((group) => group.entries)) {
@@ -106,7 +108,7 @@ describe('the sample section for the template preview', () => {
         const sample = sampleContext();
         const codes = Object.fromEntries(templateLegend().flatMap((group) => group.entries.map((entry) => [entry.name, entry.example])));
 
-        expect(Object.keys(sample).sort()).toEqual([...TOP_STRINGS, ...TOP_FLAGS, ...LISTS].sort());
+        expect(Object.keys(sample).sort()).toEqual([...new Set([...TOP_STRINGS, ...TOP_FLAGS, ...LISTS])].sort());
         for (const name of ['unit', 'unit_name', 'week', 'week_start', 'week_end']) expect(sample[name], name).toBe(codes[name]);
         for (const trooper of sample.troopers) expect(Object.keys(trooper).sort()).toEqual([...ROW_STRINGS, ...ROW_FLAGS].sort());
         expect(sample.troopers[0]).toMatchObject({ n: '1', rank: codes.rank, rank_short: codes.rank_short, name: codes.name, rc: codes.rc, sp: codes.sp });
@@ -171,8 +173,8 @@ describe('the grammar, against the cases shared with the server', () => {
     it('lists the same names as the server, one per case, so the two lists cannot drift', () => {
         const valid = cases.valid.map((c) => c.template).join('\n');
 
-        for (const name of [...TOP_STRINGS, ...TOP_FLAGS, ...ROW_STRINGS, ...ROW_FLAGS]) expect(valid).toContain(name);
-        expect(LISTS).toEqual(['troopers']);
+        for (const name of [...TOP_STRINGS, ...TOP_FLAGS, ...ROW_STRINGS, ...ROW_FLAGS, ...EVENT_STRINGS]) expect(valid).toContain(name);
+        expect(LISTS).toEqual(['troopers', 'events']);
         expect(FILTERS).toEqual(['upper', 'lower']);
     });
 });
@@ -395,5 +397,55 @@ describe('the chain of command, {{coc}}', () => {
         expect(codeLabel('coc')).toBe('Chain of command');
         expect(render('{{coc}}', sampleContext()).text.split('\n')).toHaveLength(10);
         expect(render('{{coc}}', sampleContext()).text).toContain('Platoon Leader: [url=https://example.com/milpac/3]First Lieutenant Laui.M[/url] (acting)');
+    });
+});
+
+describe("the week's calendar events (#751)", () => {
+    const events = [
+        { event_name: 'SQUAD | Squad Saturday @1900Z', event_start: 'Sat 16May26 1900Z' },
+        { event_name: '[HLL] Operation [Red]', event_start: 'Tue 19May26 2300Z' },
+    ];
+
+    it('prints every event on its own line, start then name, as {{events}}', () => {
+        expect(render('{{events}}', context({ events })).text).toBe('Sat 16May26 1900Z SQUAD | Squad Saturday @1900Z\nTue 19May26 2300Z [\u200BHLL\uFF3D Operation [\u200BRed\uFF3D');
+        expect(render('{{events|upper}}', context({ events: events.slice(0, 1) })).text).toBe('SAT 16MAY26 1900Z SQUAD | SQUAD SATURDAY @1900Z');
+    });
+
+    it('prints nothing for a week with none, or a page that sent none', () => {
+        expect(render('[{{events}}]', context({ events: [] })).text).toBe('[]');
+        expect(render('[{{events}}]', context()).text).toBe('[]');
+        expect(eventsText(undefined)).toBe('');
+    });
+
+    it('repeats a block once per event with its name and start, and shows {{^events}} for an empty week', () => {
+        const template = '[LIST]{{#events}}[*]{{event_start}}: {{event_name}} ({{unit}}){{/events}}[/LIST]{{^events}}No events.{{/events}}';
+
+        expect(render(template, context({ events: events.slice(0, 1) })).text).toBe('[LIST][*]Sat 16May26 1900Z: SQUAD | Squad Saturday @1900Z (1/E/2-7)[/LIST]');
+        expect(render(template, context({ events: [] })).text).toBe('[LIST][/LIST]No events.');
+    });
+
+    it('keeps the event values to the events loop and the trooper values out of it', () => {
+        expect(parse('{{event_name}}')).toMatchObject({ ok: false, error: '"event_name" can only be used inside {{#events}}.' });
+        expect(parse('{{#events}}{{name}}{{/events}}')).toMatchObject({ ok: false, error: '"name" can only be used inside {{#troopers}}.' });
+        expect(parse('{{#troopers}}{{#events}}x{{/events}}{{/troopers}}')).toMatchObject({ ok: false, error: '"{{#events}}" cannot go inside "{{#troopers}}".' });
+        expect(parse('{{#troopers}}{{events}}{{/troopers}}')).toMatchObject({ ok: true });
+    });
+
+    it('lists the codes in the legend: the value, the list and the event values, with labels for the editor', () => {
+        const legend = templateLegend();
+        const group = (key) => legend.find((entry) => entry.key === key).entries.map((entry) => entry.code);
+
+        expect(group('values')).toContain('{{events}}');
+        expect(group('lists')).toEqual(['{{#troopers}}...{{/troopers}}', '{{#events}}...{{/events}}']);
+        expect(group('eventValues')).toEqual(['{{event_name}}', '{{event_start}}']);
+        expect(codeLabel('events')).toBe('Events');
+        expect(codeLabel('event_start')).toBe('Event start');
+    });
+
+    it('fills the template preview with sample events', () => {
+        const sample = sampleContext();
+
+        expect(sample.events.length).toBeGreaterThan(0);
+        for (const event of sample.events) expect(Object.keys(event).sort()).toEqual([...EVENT_STRINGS].sort());
     });
 });

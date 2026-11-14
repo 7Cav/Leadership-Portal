@@ -317,3 +317,25 @@ describe('the chain of command in the post', () => {
         expect(out.text).toBe('[B]Chain of command[/B]\nSection Leader: [url=https://7cav.us/rosters/profile?uniqueid=1001]Sergeant Vasquez.R[/url]\nPlatoon Leader: Vacant');
     });
 });
+
+describe("the week's calendar events in the post (#751)", () => {
+    const EVENTS = [
+        { name: 'SQUAD | Squad Saturday @1900Z', start: '2026-10-03T19:00:00Z', url: 'https://7cav.us/events/1064/' },
+        { name: 'SQUAD | Warrior Wednesdays 2300 Zulu', start: '2026-10-07T23:00:00Z', url: null },
+    ];
+
+    it('takes the events the server sent, each with its name and start as the post writes a moment, and none when it sent nothing', () => {
+        expect(rollcallContext({ ...input(), events: EVENTS }).events).toEqual([
+            { event_name: 'SQUAD | Squad Saturday @1900Z', event_start: 'Sat 03Oct26 1900Z' },
+            { event_name: 'SQUAD | Warrior Wednesdays 2300 Zulu', event_start: 'Wed 07Oct26 2300Z' },
+        ]);
+        expect(rollcallContext(input()).events).toEqual([]);
+    });
+
+    it('prints them where the template puts {{events}}, and lays them out one by one in {{#events}}', () => {
+        expect(rollcallPost(resolved('Events:\n{{events}}'), { ...input(), events: EVENTS }).text).toBe(
+            'Events:\nSat 03Oct26 1900Z SQUAD | Squad Saturday @1900Z\nWed 07Oct26 2300Z SQUAD | Warrior Wednesdays 2300 Zulu',
+        );
+        expect(rollcallPost(resolved('{{#events}}[*]{{event_name}} at {{event_start}}{{/events}}{{^events}}None{{/events}}'), { ...input(), events: [] }).text).toBe('None');
+    });
+});

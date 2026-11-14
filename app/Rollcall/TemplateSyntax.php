@@ -10,20 +10,24 @@ namespace App\Rollcall;
  *
  * The language is Mustache's core and nothing more, so it cannot run code:
  *   {{name}} and {{name|upper}}   print a value
- *   {{#name}} ... {{/name}}       repeat for each trooper (`troopers`), or show when a flag or value is set
+ *   {{#name}} ... {{/name}}       repeat for each trooper (`troopers`) or event (`events`), or show when a flag or
+ *                                 value is set
  *   {{^name}} ... {{/name}}       show when it is not set
  * Every name comes from the fixed lists below.
  */
 final class TemplateSyntax
 {
     /** Names printable anywhere in a template. */
-    public const TOP_STRINGS = ['unit', 'unit_name', 'week', 'week_start', 'week_end', 'training_date', 'training_topic', 'coc', 'count', 'signed', 'attended', 'rc_image', 'sp_image'];
+    public const TOP_STRINGS = ['unit', 'unit_name', 'week', 'week_start', 'week_end', 'training_date', 'training_topic', 'coc', 'events', 'count', 'signed', 'attended', 'rc_image', 'sp_image'];
 
     /** Yes-or-no names about the whole post, usable only as sections, anywhere in a template. */
     public const TOP_FLAGS = ['fireteams_shown'];
 
-    /** The one list a template may repeat over. */
-    public const LISTS = ['troopers'];
+    /**
+     * The lists a template may repeat over: the troopers, and the week's calendar events (#751). `events` is also a
+     * value, which prints every event on its own line. Lists do not nest.
+     */
+    public const LISTS = ['troopers', 'events'];
 
     /** Names printable inside {{#troopers}}. */
     public const ROW_STRINGS = ['n', 'role', 'rank', 'rank_short', 'rank_icon', 'rank_icon_width', 'name', 'display_name', 'rc', 'sp'];
@@ -34,7 +38,13 @@ final class TemplateSyntax
      */
     public const ROW_FLAGS = ['sp_present', 'sp_missed', 'sp_excused', 'sp_makeup', 'sp_attached', 'sp_loa', 'sp_unmarked', 'rc_yes', 'rc_no', 'rc_makeup_requested', 'rc_excused', 'rc_unsigned', 'is_sl', 'is_asl', 'is_ftl'];
 
+    /** Names printable inside {{#events}} (#751). */
+    public const EVENT_STRINGS = ['event_name', 'event_start'];
+
     public const FILTERS = ['upper', 'lower'];
+
+    /** What each list repeats for, in the message that says it cannot be printed. */
+    private const EACH = ['troopers' => 'trooper', 'events' => 'event'];
 
     /**
      * A template an Admin can start from when a company has none: the mockup's post, with a table of troopers and a
@@ -85,7 +95,8 @@ BBCODE;
             }
 
             $last = $offset + strlen($whole);
-            $inRow = in_array('troopers', array_column($stack, 'name'), true);
+            // The list the tag sits inside, if any: its own names may be used there.
+            $list = self::openList($stack);
 
             if ($mark === '/') {
                 if ($stack === []) {
@@ -111,14 +122,18 @@ BBCODE;
                 $known = in_array($name, self::LISTS, true)
                     || in_array($name, self::TOP_STRINGS, true)
                     || in_array($name, self::TOP_FLAGS, true)
-                    || ($inRow && (in_array($name, self::ROW_STRINGS, true) || in_array($name, self::ROW_FLAGS, true)));
+                    || self::inList($name, $list, [...self::ROW_STRINGS, ...self::ROW_FLAGS, ...self::EVENT_STRINGS]);
 
                 if (! $known) {
-                    return self::unknownName($name, $inRow);
+                    return self::unknownName($name, $list);
                 }
 
-                if ($name === 'troopers' && $inRow) {
-                    return '"{{#troopers}}" cannot be nested inside itself.';
+                if (in_array($name, self::LISTS, true) && $list === $name) {
+                    return "\"{{#{$name}}}\" cannot be nested inside itself.";
+                }
+
+                if (in_array($name, self::LISTS, true) && $list !== null) {
+                    return "\"{{#{$name}}}\" cannot go inside \"{{#{$list}}}\".";
                 }
 
                 $stack[] = ['name' => $name, 'inverted' => $mark === '^'];
@@ -126,16 +141,16 @@ BBCODE;
                 continue;
             }
 
-            if (in_array($name, self::LISTS, true)) {
-                return "\"{$name}\" cannot be printed; use {{#{$name}}}...{{/{$name}}} to repeat for each trooper.";
+            if (in_array($name, self::LISTS, true) && ! in_array($name, self::TOP_STRINGS, true)) {
+                return "\"{$name}\" cannot be printed; use {{#{$name}}}...{{/{$name}}} to repeat for each ".self::EACH[$name].'.';
             }
 
             if (in_array($name, self::ROW_FLAGS, true) || in_array($name, self::TOP_FLAGS, true)) {
                 return "\"{$name}\" is a yes-or-no value, so use {{#{$name}}}...{{/{$name}}} rather than printing it.";
             }
 
-            if (! (in_array($name, self::TOP_STRINGS, true) || ($inRow && in_array($name, self::ROW_STRINGS, true)))) {
-                return self::unknownName($name, $inRow);
+            if (! (in_array($name, self::TOP_STRINGS, true) || self::inList($name, $list, [...self::ROW_STRINGS, ...self::EVENT_STRINGS]))) {
+                return self::unknownName($name, $list);
             }
 
             if ($filter !== null && ! in_array($filter, self::FILTERS, true)) {
@@ -154,10 +169,49 @@ BBCODE;
         return null;
     }
 
-    private static function unknownName(string $name, bool $inRow): string
+    /**
+     * The names that may be used only inside each list, by the list.
+     *
+     * @return array<string, list<string>>
+     */
+    private static function inLists(): array
     {
-        if (! $inRow && (in_array($name, self::ROW_STRINGS, true) || in_array($name, self::ROW_FLAGS, true))) {
-            return "\"{$name}\" can only be used inside {{#troopers}}.";
+        return ['troopers' => [...self::ROW_STRINGS, ...self::ROW_FLAGS], 'events' => self::EVENT_STRINGS];
+    }
+
+    /**
+     * The outermost list open on the stack, or null outside every list.
+     *
+     * @param  list<array{name: string, inverted: bool}>  $stack
+     */
+    private static function openList(array $stack): ?string
+    {
+        foreach ($stack as $frame) {
+            if (in_array($frame['name'], self::LISTS, true)) {
+                return $frame['name'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Whether `$name` is one of `$names` that the open list lets a template use.
+     *
+     * @param  list<string>  $names
+     */
+    private static function inList(string $name, ?string $list, array $names): bool
+    {
+        return $list !== null && in_array($name, $names, true) && in_array($name, self::inLists()[$list], true);
+    }
+
+    /** A name of a list's own used outside that list is named as such; anything else is unknown. */
+    private static function unknownName(string $name, ?string $list): string
+    {
+        foreach (self::inLists() as $owner => $names) {
+            if ($owner !== $list && in_array($name, $names, true)) {
+                return "\"{$name}\" can only be used inside {{#{$owner}}}.";
+            }
         }
 
         return "Unknown name \"{$name}\".";
