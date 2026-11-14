@@ -1,4 +1,5 @@
 import {
+    PhArrowsLeftRight,
     PhBookOpenText,
     PhClockCounterClockwise,
     PhClipboardText,
@@ -70,6 +71,7 @@ export const NAV_GROUPS = [
             { label: 'Servers', href: '/settings/servers', icon: PhHardDrives },
             { label: 'Audit log', href: '/settings/audit-log', icon: PhListMagnifyingGlass },
             { label: 'Activity log', href: '/settings/activity-log', icon: PhFootprints },
+            { label: 'Placement changes', href: '/settings/placement-changes', icon: PhArrowsLeftRight },
             // Only while DEMO_TOOLS is on (#115): `feature` names the shared `features` flag it needs.
             { label: 'Demo data', href: '/settings/demo-data', icon: PhFlask, feature: 'demoTools' },
         ],

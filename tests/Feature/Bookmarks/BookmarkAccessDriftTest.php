@@ -42,6 +42,7 @@ function driftPages(array $tree): array
         ['settings.servers', []],
         ['settings.audit-log', []],
         ['settings.activity-log', []],
+        ['settings.placement-changes', []],
         ['settings.demo-data', []],
     ];
 }
