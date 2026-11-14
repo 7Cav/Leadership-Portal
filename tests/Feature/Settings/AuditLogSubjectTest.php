@@ -131,9 +131,9 @@ describe('details written with new entries', function () {
         $entries = AuditLogEntry::query()->orderBy('id')->get();
 
         expect($entries->pluck('details')->all())->toBe([
-            ['subject' => 'Practice slot 1/1/F/1-7', 'changes' => [['field' => 'Slot', 'from' => 'none', 'to' => 'Wed 2359Z']]],
-            ['subject' => 'Practice slot 1/1/F/1-7', 'changes' => [['field' => 'Slot', 'from' => 'Wed 2359Z', 'to' => 'Fri 1900Z']]],
-            ['subject' => 'Practice slot 1/1/F/1-7', 'changes' => [['field' => 'Slot', 'from' => 'Fri 1900Z', 'to' => 'none']]],
+            ['subject' => 'Practice slot 1/1/F/1-7', 'changes' => [['field' => 'Slot', 'from' => 'none', 'to' => "Wed 23\u{200A}59Z"]]],
+            ['subject' => 'Practice slot 1/1/F/1-7', 'changes' => [['field' => 'Slot', 'from' => "Wed 23\u{200A}59Z", 'to' => "Fri 19\u{200A}00Z"]]],
+            ['subject' => 'Practice slot 1/1/F/1-7', 'changes' => [['field' => 'Slot', 'from' => "Fri 19\u{200A}00Z", 'to' => 'none']]],
         ]);
 
         // The slot is gone, yet the page still names it from what the entry stored.

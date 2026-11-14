@@ -13,6 +13,7 @@ require_once __DIR__.'/../StaffPractices/fixture.php';
 // The shell's report due banner (`reportsDue`): the reports the signed-in user still owes, on the Saturday they fall due.
 
 beforeEach(function () {
+    everyPracticeHeld();
     $this->tree = staffPracticeTree();
     $this->platoon = $this->tree['units']['platoon'];
     $this->pl = Trooper::query()->where('cav_id', $this->tree['users']['pl']->cav_id)->sole();

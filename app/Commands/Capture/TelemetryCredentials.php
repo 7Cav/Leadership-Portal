@@ -21,7 +21,7 @@ final class TelemetryCredentials
 
     public function areSet(TelemetryInterface $interface): bool
     {
-        if ($interface === TelemetryInterface::None) {
+        if (! $interface->reads()) {
             return false;
         }
 

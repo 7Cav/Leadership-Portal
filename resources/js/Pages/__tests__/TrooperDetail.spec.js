@@ -28,7 +28,7 @@ const trooper = (overrides = {}) => ({
     tig: '2026-04-08',
     tigMonths: 6,
     section: { id: 3, name: 'Nightriders', callsign: '1/1/E/2-7' },
-    milpacUrl: 'https://7cav.us/rosters/profile?uniqueid=4374',
+    milpacUrl: 'https://7cav.us/rosters/profile/4374/',
     ...overrides,
 });
 
@@ -60,7 +60,7 @@ describe('TrooperDetail', () => {
             expect(wrapper.get('[data-testid="trooper-subtitle"]').text()).toContain('Assistant Section Leader');
             expect(wrapper.get('[data-testid="trooper-subtitle"]').text()).toContain('1/1/E/2-7 Nightriders');
             expect(wrapper.get('[data-testid="trooper-subtitle"]').text()).toContain('Milpac ID #4374');
-            expect(wrapper.get('[data-testid="milpac-link"]').attributes('href')).toBe('https://7cav.us/rosters/profile?uniqueid=4374');
+            expect(wrapper.get('[data-testid="milpac-link"]').attributes('href')).toBe('https://7cav.us/rosters/profile/4374/');
             expect(wrapper.get('[data-testid="milpac-link"]').attributes('rel')).toContain('noopener');
             expect(wrapper.get('[data-testid="milpac-link"]').text()).toContain('opens in a new tab');
         });
@@ -378,7 +378,7 @@ describe('TrooperDetail', () => {
 
             expect(wrapper.find('[data-testid="awards-empty"]').exists()).toBe(false);
             expect(wrapper.get('[data-testid="awards-unavailable"]').text()).toContain('not synced from the Cav roster yet');
-            expect(wrapper.get('[data-testid="awards-milpac-link"]').attributes('href')).toBe('https://7cav.us/rosters/profile?uniqueid=4374');
+            expect(wrapper.get('[data-testid="awards-milpac-link"]').attributes('href')).toBe('https://7cav.us/rosters/profile/4374/');
         });
 
         it('names the count for screen readers and never offers to change an award', () => {

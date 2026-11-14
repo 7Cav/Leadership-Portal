@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Authorization\PageAccess;
 use App\Authorization\ScopeResolver;
 use App\Commands\GameIdentities\GameRetiredException;
 use App\Commands\Games\AddGame;
@@ -42,10 +43,13 @@ class GamesController extends Controller
     public function __construct(
         private readonly GameRepository $games,
         private readonly ScopeResolver $scope,
+        private readonly PageAccess $pages,
     ) {}
 
     public function index(Request $request, ScopeResolver $scope, TrooperGameIdentityRepository $identities): Response
     {
+        // Open to everyone signed in (PageAccess::openSetting); the page shows a non-Admin only what is theirs.
+        $this->pages->openSetting($request->user())->orAbort();
         $inUse = array_flip($this->games->inUseIds());
         $isAdmin = $scope->actsAsAdmin($request->user());
         $all = $isAdmin ? $identities->all() : null;

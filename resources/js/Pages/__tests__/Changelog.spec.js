@@ -421,6 +421,24 @@ describe('Changelog page', () => {
             mountPage();
             expect(wrapper.find('[data-testid="changelog-settings"]').exists()).toBe(false);
         });
+
+        it('shows the Admin when the portal was last deployed, and nothing when that is unknown', async () => {
+            mountPage({ technicalSetting: { enabled: false, deployedAt: '2026-11-12T11:23:00Z' } });
+            await wrapper.get('[data-testid="changelog-settings"]').trigger('click');
+            await flushPromises();
+            expect(body('[data-testid="changelog-last-deployed"]').textContent.trim()).toBe('Last deployed 12NOV26 11 23Z');
+
+            wrapper.unmount();
+            mountPage({ technicalSetting: { enabled: false, deployedAt: null } });
+            await wrapper.get('[data-testid="changelog-settings"]').trigger('click');
+            await flushPromises();
+            expect(body('[data-testid="changelog-last-deployed"]')).toBeNull();
+        });
+
+        it('sizes the settings button like the buttons beside it', () => {
+            mountPage({ technicalSetting: { enabled: false } });
+            expect(wrapper.get('[data-testid="changelog-settings"]').attributes('data-size')).toBe('icon-sm');
+        });
     });
 
     describe('tags, filters and the count', () => {

@@ -10,6 +10,7 @@ use App\Models\Trooper;
 use App\Models\Unit;
 use App\Repositories\CrossSectionSightingRepository;
 use App\Repositories\PracticeCapturePlayerRepository;
+use App\Repositories\PracticeHeldState;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\StaffReportRepository;
 use App\Repositories\TrooperPlacementRepository;
@@ -139,6 +140,44 @@ class StaffReportWeek
 
             if ($notSeen !== [] || $seenElsewhere !== []) {
                 $out[(int) $trooperId] = ['notSeen' => $notSeen, 'seenElsewhere' => $seenElsewhere];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Where a sent report claims a section practice the section marked as not held that week (or cancelled), whenever
+     * the section marked it: trooper id => the section labels, or no key when none conflicts. Only a section practice
+     * report is compared; an FTX's sections name who took part. The report and whether it met the rule stand as sent;
+     * this only flags it. A fixed number of queries whatever the number of reports.
+     *
+     * @param  iterable<StaffReport>  $reports  sent reports of one week
+     * @return array<int, list<string>>
+     */
+    public function conflicts(iterable $reports, CarbonImmutable $weekStart): array
+    {
+        $compared = collect($reports)->filter(fn (StaffReport $report) => $report->attended
+            && ($report->practice_type ?? StaffReport::SP) === StaffReport::SP && ($report->practices ?? []) !== []);
+
+        if ($compared->isEmpty()) {
+            return [];
+        }
+
+        $states = $this->sectionPractices->heldStates(
+            $compared->flatMap(fn (StaffReport $report) => array_map(fn (array $row) => (int) $row['section_id'], $report->practices))->unique()->values()->all(),
+            $weekStart,
+        );
+
+        $out = [];
+        foreach ($compared as $report) {
+            $labels = collect($report->practices)
+                ->filter(fn (array $row) => PracticeHeldState::conflicts($states[(int) $row['section_id']] ?? PracticeHeldState::NO_SLOT))
+                ->map(fn (array $row) => $row['section'] ?? 'a section no longer in the portal')
+                ->values()->all();
+
+            if ($labels !== []) {
+                $out[(int) $report->trooper_id] = $labels;
             }
         }
 

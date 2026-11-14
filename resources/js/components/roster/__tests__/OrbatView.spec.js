@@ -86,10 +86,27 @@ describe('Order of battle (roster-s2)', () => {
         expect(strip[7].classes()).toContain('is-now');
     });
 
-    it("labels the strip with the first and last week's start dates, apart, not two ranges run together", () => {
+    it("reads a line HQ staff member's strip from their staff reports, and sums the reports among the flags", () => {
+        const at = (i) => ({ state: i === 19 ? 'open' : i === 18 ? 'met' : 'short', hq: '1/A/1-7', sent: i !== 19, report: null });
+        const staff = trooper(15, 1, { name: 'Hale.S', rank: 'SFC', role: 'PSG', kpis: null, weeks: WEEKS.map(() => null), inSection: WEEKS.map(() => false), staffWeeks: WEEKS.map((w, i) => at(i)), staffReports: { met: 1, due: 4, weeks: 4 } });
+        const row = factory({ troopers: [staff, ...roster().troopers] }).find('[data-testid="trooper-15"]');
+        const strip = row.findAll('.strip-wk');
+
+        expect(strip[6].find('[data-testid="staff-sent"]').classes()).toContain('roster-h--staff-sent');
+        expect(strip[6].find('[data-testid="staff-accountability"]').classes()).toContain('roster-h--staff-met');
+        expect(strip[5].find('[data-testid="staff-sent"]').classes()).toContain('roster-h--staff-sent');
+        expect(strip[5].find('[data-testid="staff-accountability"]').classes()).toContain('roster-h--staff-short');
+        expect(strip[7].find('[data-testid="staff-sent"]').classes()).toContain('roster-h--staff-open');
+        expect(strip[7].find('[data-testid="staff-accountability"]').classes()).toContain('roster-h--staff-na');
+        expect(row.find('[role="img"]').attributes('aria-label')).toBe('Last 8 weeks: staff report sent 7 of 7 weeks, met the rule 1.');
+        expect(row.find('[data-testid="flag-staff-reports"]').text()).toBe('Reports 1 of 4 met');
+    });
+
+    it("labels the strip with the first and last week's end dates, as the matrix and the reports do, the ranges in the titles", () => {
         const ends = factory().find('[data-testid="strip-ends"]');
 
-        expect(ends.findAll('span').map((s) => s.text())).toEqual(['15AUG', '03OCT']);
+        expect(ends.findAll('span').map((s) => s.text())).toEqual(['21AUG', '09OCT']);
+        expect(ends.findAll('span').map((s) => s.attributes('title'))).toEqual(['Week Ending 21AUG26 (15AUG26 to 21AUG26)', 'Week Ending 09OCT26 (03OCT26 to 09OCT26)']);
         expect(ends.classes()).toEqual(expect.arrayContaining(['justify-between', 'gap-2']));
     });
 

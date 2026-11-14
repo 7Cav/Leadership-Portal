@@ -9,7 +9,7 @@ import { copyText } from '@/lib/clipboard';
 import LoaSyncNote from '@/components/LoaSyncNote.vue';
 import TimeAgo from '@/components/TimeAgo.vue';
 import { weekPhrase } from '@/lib/forumDate';
-import { baselineText, formatKpi, KPIS, stamp, timeOf, unitLabel } from '@/lib/report';
+import { baselineText, formatKpi, KPIS, onLeave, stamp, timeOf, unitLabel } from '@/lib/report';
 import { excusedReason, practiceOf, signatureOf } from '@/lib/rollcall';
 import { reportSummary } from '@/lib/reportSummary';
 import HighlightList from './HighlightList.vue';
@@ -42,6 +42,9 @@ const props = defineProps({
     // A section's live draft: on LOA and at-risk move with leave, so its source and last sync show (AD-20).
     loaSync: { type: Object, default: null },
     computedAt: { type: String, required: true },
+    // The unit's game when its attendance can never be read automatically: no mark comes from a capture, so the footer
+    // does not mention one.
+    selfReported: { type: String, default: null },
 });
 
 const audience = computed(() => (props.unit.parent ? `${unitLabel(props.unit.parent)} and command` : 'command'));
@@ -61,7 +64,7 @@ const hints = computed(() => {
         rc: 'Signed, last 30 days',
         sp: 'Credited, last 30 days',
         atRisk: names((t) => t.atRisk) || '',
-        onLoa: names((t) => t.onLoa) || '',
+        onLoa: names(onLeave) || '',
         makeups: names((t) => t.status === 'makeup') || '',
     };
 });
@@ -87,6 +90,8 @@ function noteFor(trooper) {
     const reason = reasonFor.value.get(trooper.id);
     if (reason) parts.push(props.reasonLabels[reason]);
     if (trooper.atRisk) parts.push(`At-risk, ${trooper.missed} misses in 30 days`);
+    // A leave week reads LOA whatever was captured, so where a mark came from says nothing there.
+    if (onLeave(trooper)) return parts.join('. ');
     if (trooper.source === 'auto') parts.push('Marked from game server capture');
     // An automatic Excused shows on a half nobody recorded; say why once.
     if (trooper.excused && (signatureOf(trooper) === 'excused' || practiceOf(trooper) === 'excused')) parts.push(excusedReason(trooper.excused));
@@ -117,7 +122,7 @@ const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id ===
 </script>
 
 <template>
-    <section class="overflow-hidden rounded-lg border border-border bg-card shadow-[var(--shadow-panel)]" aria-labelledby="preview-title" tabindex="-1" id="preview">
+    <section class="overflow-hidden rounded-lg border border-border bg-card shadow-[var(--shadow-panel)] lg:flex lg:flex-col" aria-labelledby="preview-title" tabindex="-1" id="preview">
         <div class="flex items-start gap-3 px-5 pt-4 pb-3.5">
             <div class="min-w-0 flex-1">
                 <p class="flex items-center gap-1.5 text-xs text-muted-foreground"><PhEye aria-hidden="true" />Preview, as {{ audience }} see it</p>
@@ -179,11 +184,12 @@ const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id ===
                             <TableRow v-for="t in troopers" :key="t.id">
                                 <TableCell class="font-medium">{{ t.name }}</TableCell>
                                 <TableCell>
-                                    <Badge v-if="t.onLoa && t.rollcall === 'unsigned'" variant="warning">LOA</Badge>
+                                    <Badge v-if="onLeave(t)" variant="warning">LOA</Badge>
                                     <Badge v-else :variant="RC[signatureOf(t)][1]">{{ RC[signatureOf(t)][0] }}</Badge>
                                 </TableCell>
                                 <TableCell>
-                                    <Badge v-if="practiceOf(t)" :variant="SP[practiceOf(t)][1]">{{ SP[practiceOf(t)][0] }}</Badge>
+                                    <Badge v-if="onLeave(t)" variant="warning">LOA</Badge>
+                                    <Badge v-else-if="practiceOf(t)" :variant="SP[practiceOf(t)][1]">{{ SP[practiceOf(t)][0] }}</Badge>
                                     <Badge v-else variant="warning">Not marked</Badge>
                                 </TableCell>
                                 <TableCell class="min-w-[12rem] text-xs whitespace-normal text-muted-foreground">{{ noteFor(t) }}</TableCell>
@@ -253,15 +259,16 @@ const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id ===
             </p>
         </div>
 
-        <p class="flex flex-wrap gap-x-4 gap-y-1 border-t border-border bg-muted/45 px-5 py-3 text-[11px] text-muted-foreground" data-testid="provenance">
-            <span v-if="unit.isLeaf" class="inline-flex items-center gap-1.5">
+        <p class="flex flex-wrap gap-x-4 gap-y-1 border-t border-border bg-muted/45 px-5 py-3 text-[11px] text-muted-foreground lg:mt-auto" data-testid="provenance">
+            <!-- The roster sync is today's, not the freeze's: a sent report leaves it out rather than pair a later sync with its freeze. -->
+            <span v-if="unit.isLeaf && !sent" class="inline-flex items-center gap-1.5" data-testid="roster-sync">
                 <PhArrowsClockwise aria-hidden="true" />
                 <span v-if="rosterSync.at">Roster from {{ rosterSync.source }}, synced <TimeAgo :at="rosterSync.at">{{ stamp(rosterSync.at) }}</TimeAgo></span>
                 <template v-else>Roster from {{ rosterSync.source }}, not synced yet</template>
             </span>
             <span v-if="sent" class="inline-flex items-center gap-1.5"><PhLockSimple aria-hidden="true" /><span>Frozen <TimeAgo :at="sentAt">{{ stamp(sentAt) }}</TimeAgo></span></span>
             <span v-else-if="unit.isLeaf" class="inline-flex items-center gap-1.5">
-                <PhLightning aria-hidden="true" /><span>Computed from roll call and attendance at <TimeAgo :at="computedAt">{{ timeOf(computedAt) }}</TimeAgo>. Marks are manual unless noted as game server capture.</span>
+                <PhLightning aria-hidden="true" /><span>Computed from roll call and attendance at <TimeAgo :at="computedAt">{{ timeOf(computedAt) }}</TimeAgo>. {{ selfReported ? 'All marks are manual.' : 'Marks are manual unless noted as game server capture.' }}</span>
             </span>
             <span v-else class="inline-flex items-center gap-1.5"><PhStack aria-hidden="true" />Built from the frozen reports of the units below</span>
         </p>

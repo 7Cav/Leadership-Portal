@@ -44,11 +44,13 @@ import {
     shortDuration,
     sourceLabel,
     SP_STATES,
-    weekCell,
-    weekStartTick,
+    trooperWeekCell,
+    weekEndTick,
     weekLabel,
+    weekTitle,
     writeOrbatSort,
 } from '@/lib/roster';
+import { staffReportsText, staffReportsTone, staffTipRows, withStaffWeek } from '@/lib/staffWeeks';
 import CellLegend from './CellLegend.vue';
 import FilterChips from './FilterChips.vue';
 import FloatingTip from './FloatingTip.vue';
@@ -192,6 +194,12 @@ const shownCount = computed(() => rows.value.filter((r) => r.kind === 'member').
 const scopedCount = computed(() => props.troopers.filter((t) => !t.departed).length);
 const sectionsShown = computed(() => rows.value.filter((r) => r.kind === 'section').length);
 
+// A line HQ staff member's week reads their staff report instead of "No section that week".
+function cellAt(trooper, index) {
+    const week = props.weeks[index];
+
+    return withStaffWeek(trooperWeekCell(trooper, index, week, props.currentWeek), trooper.staffWeeks?.[index]);
+}
 function cellsFor(trooper) {
     return stripWeeks.value.map((week, i) => {
         const index = stripStart.value + i;
@@ -199,7 +207,7 @@ function cellsFor(trooper) {
         return {
             week,
             index,
-            ...weekCell(trooper.weeks[index], week, { current: week === props.currentWeek, joined: trooper.joined, departedAt: trooper.departedAt, departed: trooper.departed, inSection: trooper.inSection?.[index], excused: trooper.excusedWeeks?.[week] ?? null }),
+            ...cellAt(trooper, index),
             auto: trooper.weeks[index]?.source === 'auto',
         };
     });
@@ -215,8 +223,18 @@ function stripLabel(trooper) {
     const signed = cells.filter((c) => c.rc === 'ok' || c.rc === 'cn' || c.rc === 'mr').length;
     const attended = cells.filter((c) => ['ok', 'mk'].includes(c.sp)).length;
     const missed = cells.filter((c) => c.sp === 'bad').length;
+    // LOA weeks are left out of the count, as the KPIs leave them out of RC and SP.
+    const loa = cells.filter((c) => c.rc === 'loa').length;
+    const staff = cells.filter((c) => c.staff && !['loa', 'before'].includes(c.staff.state));
+    if (staff.length) {
+        const sent = staff.filter((c) => c.staff.sent).length;
+        const met = staff.filter((c) => c.staff.state === 'met').length;
+        const shown = staff.filter((c) => c.staff.state !== 'open').length;
 
-    return `Last 8 weeks: roll call signed ${signed} of 8 weeks, section practice attended ${attended}${missed ? `, ${missed} missed` : ''}.`;
+        return `Last 8 weeks: staff report sent ${sent} of ${shown} weeks, met the rule ${met}${signed || attended ? `, roll call signed ${signed}, section practice attended ${attended}` : ''}.`;
+    }
+
+    return `Last 8 weeks: roll call signed ${signed} of ${cells.length - loa} weeks${loa ? `, ${loa} on LOA` : ''}, section practice attended ${attended}${missed ? `, ${missed} missed` : ''}.`;
 }
 
 // Floating tip content, keyed `m:<trooperId>:<weekIndex>` or `s:<sectionId>:<weekIndex>`.
@@ -231,7 +249,8 @@ function resolveTip(key) {
     if (kind === 'm') {
         const trooper = byId.value.get(Number(id));
         const mark = trooper.weeks[index];
-        const cell = weekCell(mark, week, { current, joined: trooper.joined, departedAt: trooper.departedAt, departed: trooper.departed, inSection: trooper.inSection?.[index], excused: trooper.excusedWeeks?.[week] ?? null });
+        const cell = cellAt(trooper, index);
+        if (cell.staff) return { title, rows: staffTipRows(cell.staff) };
 
         return { title, rows: [['Roll call', RC_STATES[cell.rc]], ['SP', SP_STATES[cell.sp], sourceLabel(mark)]] };
     }
@@ -248,6 +267,7 @@ function resolveTip(key) {
 }
 
 const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted: 'text-muted-foreground' };
+const STAFF_TONE = { ok: 'success', warn: 'warning', bad: 'danger', muted: 'outline' };
 
 const table = ref(null);
 const search = ref(null);
@@ -347,9 +367,10 @@ function clearAll() {
                         </th>
                         <th>
                             <span class="block">Last 8 weeks</span>
-                            <!-- The first and last week's start dates only: their full ranges would run together in the strip's width. -->
+                            <!-- Week ending, as the matrix and the reports label weeks; the full ranges are in the titles, as they would run together in the strip's width. -->
                             <span class="mt-0.5 flex w-[104px] justify-between gap-2 text-[10px] font-normal tabular-nums" data-testid="strip-ends">
-                                <span>{{ weekStartTick(stripWeeks[0]) }}</span><span>{{ weekStartTick(stripWeeks[STRIP - 1]) }}</span>
+                                <span :title="weekTitle(stripWeeks[0])">{{ weekEndTick(stripWeeks[0]) }}</span
+                                ><span :title="weekTitle(stripWeeks[STRIP - 1])">{{ weekEndTick(stripWeeks[STRIP - 1]) }}</span>
                             </span>
                         </th>
                         <th v-for="key in ['rc', 'sp']" :key="key" class="text-right" :aria-sort="ariaSort(key)" :data-testid="`th-${key}`">
@@ -500,7 +521,7 @@ function clearAll() {
                                         :class="cell.week === currentWeek && 'is-now'"
                                         class="strip-wk"
                                     >
-                                        <WeekCell :rc="cell.rc" :sp="cell.sp" size="sm" />
+                                        <WeekCell :rc="cell.rc" :sp="cell.sp" :staff="cell.staff" size="sm" />
                                     </span>
                                 </span>
                             </td>
@@ -510,6 +531,13 @@ function clearAll() {
                                 <span class="inline-flex gap-1">
                                     <Badge v-if="row.trooper.kpis?.atRisk" variant="danger" data-testid="flag-at-risk"><PhWarning />At-risk, {{ row.trooper.kpis.missed }} missed</Badge>
                                     <Badge v-if="row.trooper.kpis?.onLoa" variant="outline"><PhLockSimple />LOA</Badge>
+                                    <Badge
+                                        v-if="staffReportsText(row.trooper.staffReports)"
+                                        :variant="STAFF_TONE[staffReportsTone(row.trooper.staffReports)]"
+                                        :title="`Staff reports for the last ${row.trooper.staffReports.weeks} finished Cav weeks, in place of RC and SP 30d`"
+                                        data-testid="flag-staff-reports"
+                                        >{{ staffReportsText(row.trooper.staffReports) }}</Badge
+                                    >
                                     <Badge v-if="!row.trooper.departed && isNewRecruit(row.trooper, currentWeek)" variant="info" :title="`Joined ${forumDate(row.trooper.joined)}`"><PhUserPlus />Joined recently</Badge>
                                     <Badge v-if="row.trooper.departed" variant="outline"><PhSignOut />Departed</Badge>
                                 </span>

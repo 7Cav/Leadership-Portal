@@ -35,8 +35,9 @@ const props = defineProps({
     testResult: { type: Object, default: null },
 });
 
-// `interfaces` leaves out none, so a game read by none falls back to this label.
-const interfaceLabel = (value) => props.interfaces.find((option) => option.value === value)?.label ?? (value === 'none' ? 'None' : value);
+// `interfaces` leaves out the two that read nothing, so a game read by neither falls back to these labels.
+const NO_READER = { none: 'None', impossible: 'None (impossible)' };
+const interfaceLabel = (value) => props.interfaces.find((option) => option.value === value)?.label ?? NO_READER[value] ?? value;
 const typeLabel = (value) => props.types.find((option) => option.value === value)?.label ?? value;
 
 const selectedFor = (game) => props.servers.filter((server) => server.selected && server.gameId === game.id);
@@ -198,7 +199,7 @@ function outcomeLine(outcome) {
                             <Badge v-if="game.retired" variant="outline">Retired</Badge>
                             <span class="font-normal text-muted-foreground" :data-testid="`interface-${game.id}`">{{ interfaceLabel(game.interface) }}</span>
                             <Badge :variant="game.captureConfigured ? 'secondary' : 'outline'" :data-testid="`configured-${game.id}`">
-                                {{ game.captureConfigured ? 'Configured' : 'Not configured' }}
+                                {{ game.interface === 'impossible' ? "Can't be read" : game.captureConfigured ? 'Configured' : 'Not configured' }}
                             </Badge>
                         </p>
                         <Button
@@ -228,7 +229,8 @@ function outcomeLine(outcome) {
                     </ul>
                     <p v-else class="mt-1 text-[13px] text-muted-foreground" :data-testid="`env-${game.id}`">
                         <template v-if="game.readsEnvServer">No server selected: reads the {{ interfaceLabel(game.interface) }} server set in env.</template>
-                        <template v-else-if="game.interface === 'none'">Attendance read by none: leaders mark it by hand.</template>
+                        <template v-else-if="game.interface === 'none'">Attendance read by none: not set up yet, so leaders mark it by hand.</template>
+                        <template v-else-if="game.interface === 'impossible'">Attendance can't be read automatically for this game: leaders mark it by hand and reports say it is self-reported.</template>
                         <template v-else>No training server selected: nothing is read.</template>
                     </p>
 

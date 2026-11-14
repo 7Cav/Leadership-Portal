@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Authorization\PageAccess;
 use App\Authorization\ScopeResolver;
 use App\Commands\Units\AccountabilityRules;
 use App\Commands\Units\ActingLeadForbiddenException;
@@ -91,6 +92,7 @@ class OrgStructureController extends Controller
         private readonly UnitLeadRepository $leads,
         private readonly UnitActingLeadRepository $actingLeads,
         private readonly ScopeResolver $scope,
+        private readonly PageAccess $pages,
     ) {}
 
     /**
@@ -99,6 +101,8 @@ class OrgStructureController extends Controller
      */
     public function index(Request $request, ScopeResolver $scope, UnitGuidonRepository $guidons, Headcount $headcount, UnitOversightRepository $oversights, GameRepository $gameRepository, UnitCommandMappingRepository $commands, AccountabilityRules $accountability): Response
     {
+        // Open to everyone signed in (PageAccess::openSetting); the page shows a non-Admin only what is theirs.
+        $this->pages->openSetting($request->user())->orAbort();
         // For an Admin, every unit, the inactive ones too: the page lists them greyed behind Show inactive, so they can
         // reactivate one. Nothing else below counts them. Anyone else (an Admin previewing with view as included) gets
         // the active tree only, and no inactive data at all.
@@ -222,8 +226,8 @@ class OrgStructureController extends Controller
                     ->sum(fn (Unit $placed) => $placedAnywhere->get($placed->id, 0)),
             ] : []),
             'own_count' => $byUnit->get($unit->id, 0),
-            // The headcount's own rule, so this page and the roster agree: New Recruits, ELOA and the Reservists count
-            // only on their own group.
+            // The headcount's own rule, so this page and the roster agree: New Recruits, ELOA and the Reservists never
+            // count on a line unit above them, only on their own group and a staff group that holds it.
             'trooper_count' => $byUnit
                 ->filter(fn (int $count, int $id) => Headcount::counts($placedIn->get($id), $unit))
                 ->sum(),

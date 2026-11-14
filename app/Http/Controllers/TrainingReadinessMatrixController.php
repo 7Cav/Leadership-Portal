@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Authorization\PageAccess;
 use App\Authorization\ScopeResolver;
 use App\Milpac\ReadinessMatrix;
 use App\Repositories\UnitRepository;
@@ -25,13 +26,12 @@ class TrainingReadinessMatrixController extends Controller
         private readonly ScopeResolver $scope,
         private readonly ReadinessMatrix $matrix,
         private readonly UnitRepository $units,
+        private readonly PageAccess $pages,
     ) {}
 
     public function show(Request $request, int $unit): Response
     {
-        $found = $this->scope->resolve($request->user())->contains($unit) ? $this->units->find($unit) : null;
-
-        abort_if($found === null, 403, 'That unit is outside your scope.');
+        $found = $this->pages->readiness($request->user(), $unit)->orAbort();
 
         return Inertia::render('TrainingReadinessMatrix', $this->matrix->for($found));
     }

@@ -14,7 +14,7 @@ it('marks an existing user as Admin once the match is confirmed, audited', funct
     $user = User::factory()->serving()->create(['username' => 'Jarvis.A']);
 
     $this->artisan('portal:admin', ['username' => 'Jarvis.A'])
-        ->expectsOutputToContain("Matched Jarvis.A, forum id {$user->forum_user_id}: Cav profile ".Trooper::MILPAC_PROFILE_URL.$user->cav_id)
+        ->expectsOutputToContain("Matched Jarvis.A, forum id {$user->forum_user_id}: Cav profile https://7cav.us/rosters/profile/{$user->cav_id}/,")
         ->expectsConfirmation('Make Jarvis.A an Admin?', 'yes')
         ->expectsOutput('Jarvis.A is now an Admin.')
         ->assertSuccessful();

@@ -99,7 +99,7 @@ class FetchGameServers
                 TelemetryInterface::Crcon => fn () => $this->crcon->listServers(),
                 TelemetryInterface::BattleMetrics => fn () => $this->battleMetrics->listServers(),
                 TelemetryInterface::Nightwatch => fn () => $this->nightwatch->listServers(),
-                TelemetryInterface::None => null,
+                TelemetryInterface::None, TelemetryInterface::Impossible => null,
             };
 
             if ($lister !== null) {

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Authorization\PageAccess;
 use App\Authorization\ScopeResolver;
 use App\Kpi\ChainNode;
 use App\Kpi\ChildReport;
@@ -9,6 +10,7 @@ use App\Kpi\Headcount;
 use App\Kpi\KpiDelta;
 use App\Kpi\ReportChain;
 use App\Kpi\UnitKpis;
+use App\Milpac\SelfReportedGame;
 use App\Models\Unit;
 use App\Models\WeeklyReport;
 use App\Models\WeeklyReportStatus;
@@ -49,19 +51,17 @@ class ReportRollupController extends Controller
         private readonly Headcount $headcount,
         private readonly WeeklyReportRepository $reports,
         private readonly UnitGuidonRepository $guidons,
+        private readonly PageAccess $pages,
     ) {}
 
-    public function index(Request $request, ?int $unit = null): Response|RedirectResponse
+    public function index(Request $request, SelfReportedGame $selfReported, ?int $unit = null): Response|RedirectResponse
     {
         $current = WeekOf::reporting(CarbonImmutable::now());
         $week = $this->requestedWeek($request, $current);
         $scope = $this->scope->resolve($request->user());
 
         if ($unit !== null) {
-            $root = $this->units->find($unit);
-            abort_if($root === null, 404);
-            abort_unless($scope->contains($root->id), 403);
-            abort_unless($root->isLine(), 404);
+            $root = $this->pages->reports($request->user(), $unit, $scope)->orAbort();
             $roots = collect([$root]);
         } else {
             $roots = $this->topmost($scope, $week);
@@ -91,7 +91,7 @@ class ReportRollupController extends Controller
             // chain with several tops.
             'guidon' => $roots->count() === 1 ? $this->guidons->designsFor($roots, inherit: true)[$roots->first()->id] : null,
             'guidonUnit' => $roots->count() === 1 ? ($roots->first()->callsign ?? $roots->first()->name) : null,
-            'roots' => $chains->map(fn (ChainNode $node) => $this->present($node, $week, $senders))->values()->all(),
+            'roots' => $chains->map(fn (ChainNode $node) => $this->present($node, $week, $senders, $selfReported))->values()->all(),
         ]);
     }
 
@@ -170,7 +170,7 @@ class ReportRollupController extends Controller
      * @param  Collection<int, string>  $senders
      * @return array<string, mixed>
      */
-    private function present(ChainNode $node, CarbonImmutable $week, Collection $senders): array
+    private function present(ChainNode $node, CarbonImmutable $week, Collection $senders, SelfReportedGame $selfReported): array
     {
         return [
             'id' => $node->unit->id,
@@ -200,7 +200,9 @@ class ReportRollupController extends Controller
                 $node->report->sent_as_unit === null ? '' : ' acting as '.$this->units->find($node->report->sent_as_unit)?->billet()
             ),
             'reportUrl' => '/reports/'.$node->unit->id.'/'.$week->toDateString(),
-            'children' => array_map(fn (ChainNode $child) => $this->present($child, $week, $senders), $node->children),
+            // The unit's game when its attendance can never be read: the report panel says all of it is self-reported.
+            'selfReported' => $selfReported->for($node->unit->id),
+            'children' => array_map(fn (ChainNode $child) => $this->present($child, $week, $senders, $selfReported), $node->children),
         ];
     }
 

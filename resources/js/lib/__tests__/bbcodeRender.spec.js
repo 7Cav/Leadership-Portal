@@ -385,7 +385,7 @@ describe('the starter template, filled', () => {
         const tree = read(render(STARTER, context).text);
         const icon = (file, width) => ['img', { attrs: { src: `https://7cav.us/data/roster_ranks/0/${file}`, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' }, style: { width, height: 'auto' } }, []];
 
-        expect(tree[0]).toEqual(['center', { style: { textAlign: 'center' } }, [['b', ['1/E/2-7 ROLL CALL | 16MAY26 – 22MAY26']]]]);
+        expect(tree[0]).toEqual(['center', { style: { textAlign: 'center' } }, [['b', ['1/E/2-7 ROLL CALL | 16MAY26 to 22MAY26']]]]);
         expect(tree[1]).toEqual('br');
         expect(tree[2]).toEqual(['b', ['Roll Call Accountability']]);
         const [, rows] = tree[4];

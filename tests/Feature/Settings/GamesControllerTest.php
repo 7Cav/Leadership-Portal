@@ -51,6 +51,7 @@ it('lists every game with its id label, interface and state, and the interfaces 
             ['value' => 'battlemetrics', 'label' => 'BattleMetrics'],
             ['value' => 'nightwatch', 'label' => 'Nightwatch'],
             ['value' => 'none', 'label' => 'None'],
+            ['value' => 'impossible', 'label' => 'None (impossible)'],
         ]));
 });
 

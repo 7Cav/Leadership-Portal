@@ -8,6 +8,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\ChangelogRepository;
 use App\Repositories\UnitRepository;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -304,6 +305,21 @@ it('sends technical entries to editors always, and to everyone else only while a
         ->where('technicalSetting', null));
     $this->actingAs($this->admin)->get('/changelog')->assertInertia(fn (Assert $page) => $page
         ->where('technicalSetting.enabled', true));
+});
+
+it('tells only an Admin when the portal was last deployed: when the front end was built', function () {
+    $marker = tempnam(sys_get_temp_dir(), 'manifest');
+    touch($marker, CarbonImmutable::parse('2026-11-12 11:23:00', 'UTC')->getTimestamp());
+    config()->set('portal.changelog_deploy_marker', $marker);
+
+    $this->actingAs($this->admin)->get('/changelog')->assertInertia(fn (Assert $page) => $page
+        ->where('technicalSetting.deployedAt', '2026-11-12T11:23:00Z'));
+    $this->actingAs($this->member)->get('/changelog')->assertInertia(fn (Assert $page) => $page
+        ->where('technicalSetting', null));
+
+    unlink($marker);
+    $this->actingAs($this->admin)->get('/changelog')->assertInertia(fn (Assert $page) => $page
+        ->where('technicalSetting.deployedAt', null));
 });
 
 it('lets only an Admin signed in as themselves change the technical setting, audited', function () {

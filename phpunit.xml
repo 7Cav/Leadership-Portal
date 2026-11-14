@@ -44,6 +44,7 @@
         <env name="SEVENCAV_FORUM_PAF_NODE" value=""/>
         <env name="LOA_SYNC_REQUEST_DELAY_MS" value="0"/>
         <env name="PORTAL_WEEK_FLOOR_WEEKS" value="20"/>
+        <env name="PORTAL_STAFF_REPORTS_START" value="2026-10-31"/>
         <env name="JSAM_MIN_VISITS" value="3"/>
         <env name="JSAM_MIN_OWN_SP_PERCENT" value="75"/>
         <env name="JSAM_WINDOW_WEEKS" value="12"/>

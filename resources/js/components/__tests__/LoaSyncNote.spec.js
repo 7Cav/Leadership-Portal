@@ -28,8 +28,8 @@ describe('LoaSyncNote', () => {
         ['a failed latest sync', { stale: true, latestStatus: 'failure' }, 'Leave from Forum thread: the latest sync did not succeed, so on LOA and at-risk use the last good sync, 08OCT26 09\u200A14Z'],
         ['a partial latest sync', { stale: true, latestStatus: 'partial' }, 'Leave from Forum thread: the latest sync did not succeed, so on LOA and at-risk use the last good sync, 08OCT26 09\u200A14Z'],
         ['an overdue sync', { stale: true }, 'Leave from Forum thread, last synced 08OCT26 09\u200A14Z, overdue. On LOA and at-risk may be out of date'],
-        ['no sync yet', { lastSyncedAt: null, neverSynced: true, latestStatus: null }, 'Leave from Forum thread has not synced yet, so nobody shows as on LOA'],
-        ['only failed syncs', { lastSyncedAt: null, neverSynced: true, stale: true, latestStatus: 'failure' }, 'Leave from Forum thread: the sync failed and has never succeeded, so nobody shows as on LOA'],
+        ['no sync yet', { lastSyncedAt: null, neverSynced: true, latestStatus: null }, 'Leave from Forum thread has not synced yet, so leave shown may be incomplete'],
+        ['only failed syncs', { lastSyncedAt: null, neverSynced: true, stale: true, latestStatus: 'failure' }, 'Leave from Forum thread: the sync failed and has never succeeded, so leave shown may be incomplete'],
     ])('says so plainly, as a status, for %s', (_label, over, text) => {
         const el = note(over);
 

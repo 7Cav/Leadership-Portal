@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Authorization\PageAccess;
 use App\Authorization\ScopeResolver;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLogEntry;
@@ -46,15 +47,14 @@ class AuditLogController extends Controller
         private readonly AuditLogRepository $auditLog,
         private readonly ScopeResolver $scope,
         private readonly UnitRepository $units,
+        private readonly PageAccess $pages,
     ) {}
 
     public function index(Request $request): Response
     {
         // `actsAsAdmin`, not the raw flag: an Admin previewing a leader (view-as, Story 1.13)
         // sees what that leader would — no audit log.
-        if (! $this->scope->actsAsAdmin($request->user())) {
-            abort(403, 'Only an Admin may review the audit log.');
-        }
+        $this->pages->adminSetting($request->user(), 'Only an Admin may review the audit log.')->orAbort();
 
         $filters = $request->validate([
             'actor_id' => ['nullable', 'integer'],
