@@ -29,7 +29,6 @@ use App\Models\WeeklyReport;
 use App\Repositories\AuditLogRepository;
 use App\Repositories\AuditSubject;
 use App\Repositories\UnitRepository;
-use App\Support\Audit\AuditPage;
 use App\Support\Time\WeekLabel;
 use Closure;
 use Illuminate\Http\Request;
@@ -173,7 +172,9 @@ class AuditLogController extends Controller
      */
     public static function pageLink(?string $page): ?array
     {
-        if ($page === null || ! AuditPage::isLocal($page)) {
+        // A path on this portal only, as `AuditPage::isLocal()` keeps it (Deptrac keeps controllers off Support\Audit):
+        // a single leading `/`, and no backslash or control character a browser may read as `/` or drop.
+        if ($page === null || ! str_starts_with($page, '/') || str_starts_with($page, '//') || preg_match('/[\x00-\x1F\x7F\\\\]/', $page) === 1) {
             return null;
         }
 
