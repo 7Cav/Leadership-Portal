@@ -94,9 +94,9 @@ class Eloquent implements AuditLogRepository
         'UnitOversight' => [UnitOversight::class, []],
     ];
 
-    public function recordWithMutation(int $actorId, string $action, ?string $reason, Closure $mutation, ?int $onBehalfOf = null, ?int $onBehalfOfUnit = null, array $notes = []): mixed
+    public function recordWithMutation(int $actorId, string $action, ?string $reason, Closure $mutation, ?int $onBehalfOf = null, ?int $onBehalfOfUnit = null, array $notes = [], ?string $page = null): mixed
     {
-        return DB::transaction(function () use ($actorId, $action, $reason, $mutation, $onBehalfOf, $onBehalfOfUnit, $notes) {
+        return DB::transaction(function () use ($actorId, $action, $reason, $mutation, $onBehalfOf, $onBehalfOfUnit, $notes, $page) {
             $result = $mutation();
 
             if (! $result instanceof Model) {
@@ -115,15 +115,15 @@ class Eloquent implements AuditLogRepository
                 ];
             }
 
-            $this->append($actorId, $action, $reason, $result, $this->sortedAttributes($result), $onBehalfOf, $onBehalfOfUnit, $details);
+            $this->append($actorId, $action, $reason, $result, $this->sortedAttributes($result), $onBehalfOf, $onBehalfOfUnit, $details, $page);
 
             return $result;
         });
     }
 
-    public function recordBatchWithMutation(?int $actorId, string $action, ?string $reason, Closure $mutation, ?int $onBehalfOf = null, ?int $onBehalfOfUnit = null): AuditedBatch
+    public function recordBatchWithMutation(?int $actorId, string $action, ?string $reason, Closure $mutation, ?int $onBehalfOf = null, ?int $onBehalfOfUnit = null, ?string $page = null): AuditedBatch
     {
-        return DB::transaction(function () use ($actorId, $action, $reason, $mutation, $onBehalfOf, $onBehalfOfUnit) {
+        return DB::transaction(function () use ($actorId, $action, $reason, $mutation, $onBehalfOf, $onBehalfOfUnit, $page) {
             $batch = $mutation();
 
             if (! $batch instanceof AuditedBatch) {
@@ -152,7 +152,7 @@ class Eloquent implements AuditLogRepository
             $this->append($actorId, $action, $reason, $batch->target, [
                 'target' => $this->sortedAttributes($batch->target),
                 'members' => $members,
-            ], $onBehalfOf, $onBehalfOfUnit, $details);
+            ], $onBehalfOf, $onBehalfOfUnit, $details, $page);
 
             return $batch;
         }, attempts: self::BATCH_ATTEMPTS);
@@ -194,7 +194,7 @@ class Eloquent implements AuditLogRepository
      * @param  array<mixed>  $digested  the content `content_digest` hashes
      * @param  array<string, mixed>|null  $details  the subject and changes ({@see AuditSubject::details()}); not digested
      */
-    private function append(?int $actorId, string $action, ?string $reason, Model $target, array $digested, ?int $onBehalfOf, ?int $onBehalfOfUnit, ?array $details): void
+    private function append(?int $actorId, string $action, ?string $reason, Model $target, array $digested, ?int $onBehalfOf, ?int $onBehalfOfUnit, ?array $details, ?string $page = null): void
     {
         AuditLogEntry::query()->forceCreate([
             'actor_id' => $actorId,
@@ -206,6 +206,7 @@ class Eloquent implements AuditLogRepository
             'reason' => $reason,
             'content_digest' => hash('sha256', json_encode($digested, JSON_THROW_ON_ERROR)),
             'details' => $details,
+            'page' => $page === null ? null : mb_substr($page, 0, 500),
             'created_at' => now(),
         ]);
     }

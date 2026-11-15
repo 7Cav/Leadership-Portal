@@ -101,6 +101,9 @@ class AuditLogController extends Controller
             'target_type' => $entry->target_type,
             'target_id' => $entry->target_id,
             'link' => $this->link($targets["{$entry->target_type}#{$entry->target_id}"] ?? null),
+            // The page the change was made on, to open it again (`{ href, label }`), or null for an entry from before
+            // pages were kept, or one with no page behind it (a sync).
+            'page' => self::pageLink($entry->page),
             // What the entry is about and what it changed: as written with the entry, or for an older entry without
             // them, the subject read from its target as it is now (null when the target is gone).
             'subject' => $entry->details['subject'] ?? AuditSubject::describe($targets["{$entry->target_type}#{$entry->target_id}"] ?? null),
@@ -142,6 +145,47 @@ class AuditLogController extends Controller
      *
      * @return array{href: string, label: string}|null
      */
+    /** The page names, by the first part of a portal address. */
+    private const PAGES = [
+        'home' => 'Home',
+        'roster' => 'Roster',
+        'rollcall' => 'Roll call',
+        'reports' => 'Reports',
+        'staff-report' => 'Staff report',
+        'staff-reports' => 'Staff reports',
+        'training-plans' => 'Training plan',
+        'troopers' => 'Trooper page',
+        'readiness' => 'Training readiness',
+        'game-identities' => 'Game identities',
+        'counseling' => 'Counseling',
+        'changelog' => 'Changelog',
+        'docs' => 'Guides',
+        'notifications' => 'Notifications',
+    ];
+
+    /**
+     * A link to the page a change was made on: its address as kept with the entry, named after the page, such as
+     * "Roll call" or "Settings, Org structure". Null when no page was kept.
+     *
+     * @return array{href: string, label: string}|null
+     */
+    public static function pageLink(?string $page): ?array
+    {
+        if ($page === null || ! str_starts_with($page, '/')) {
+            return null;
+        }
+
+        $parts = array_values(array_filter(explode('/', (string) parse_url($page, PHP_URL_PATH)), fn (string $part) => $part !== ''));
+        $first = $parts[0] ?? 'home';
+        $label = match (true) {
+            $first === 'settings' && isset($parts[1]) => 'Settings, '.ucfirst(str_replace('-', ' ', $parts[1])),
+            isset(self::PAGES[$first]) => self::PAGES[$first],
+            default => ucfirst(str_replace('-', ' ', $first)),
+        };
+
+        return ['href' => $page, 'label' => $label];
+    }
+
     private function link(?object $target): ?array
     {
         $unit = fn (?Unit $unit) => $unit?->callsign ?? $unit?->name;
