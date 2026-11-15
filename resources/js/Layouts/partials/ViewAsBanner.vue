@@ -64,14 +64,15 @@ function actAs() {
         <PhEye class="size-4 shrink-0" weight="bold" aria-hidden="true" />
         <p class="min-w-0 flex-1 truncate">
             Viewing as <strong class="font-semibold">{{ subject }}</strong>
-            <template v-if="viewAs.kind !== 'unit' && viewAs.designation">
-                <span class="font-mono text-[12.5px]"> · {{ viewAs.designation }}</span>
+            <!-- A person is named with their billet (Chief of Staff), or the callsign of the unit they lead without one. -->
+            <template v-if="viewAs.kind !== 'unit' && (viewAs.billet || viewAs.designation)">
+                <span data-testid="view-as-billet"> ({{ viewAs.billet ?? viewAs.designation }})</span>
             </template>
             <template v-else-if="viewAs.kind === 'unit' && viewAs.unitName !== viewAs.designation">
                 <span class="hidden sm:inline"> ({{ viewAs.unitName }})</span>
             </template>
             <span class="md:hidden" data-testid="view-as-read-only-short">. Read only.</span>
-            <span class="hidden md:inline" data-testid="view-as-read-only">. Read only: nothing can be changed while viewing as.</span>
+            <span class="hidden md:inline" data-testid="view-as-read-only">. This view is read only and nothing can be changed while viewing as.</span>
         </p>
         <button
             v-if="canActAs"
