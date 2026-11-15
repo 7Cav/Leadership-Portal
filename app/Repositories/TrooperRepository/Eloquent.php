@@ -7,7 +7,6 @@ use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitKind;
-use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\SectionWeekRoster;
 use App\Repositories\TrooperPlacementRepository;
@@ -570,11 +569,14 @@ class Eloquent implements TrooperRepository
         $escaped = strtr(mb_strtolower($term), ['!' => '!!', '%' => '!%', '_' => '!_']);
 
         return Trooper::query()
-            // Placed in a section, or HQ staff on a line HQ (listed as staff guests). A group is off the line.
-            ->whereIn('primary_section_id', Unit::query()->active()->select('id')->where('type', '!=', UnitType::Group->value))
-            ->where('primary_section_id', '!=', $hostSectionId)
-            ->whereIn('status', TrooperStatus::servingValues())
+            // Everyone, whatever their standing or placement (15NOV26): only accountability cares about the AO. Left out
+            // is only a serving trooper of the host section itself, who is on its rollcall already.
+            ->where(fn (Builder $q) => $q
+                ->whereNull('primary_section_id')
+                ->orWhere('primary_section_id', '!=', $hostSectionId)
+                ->orWhereNotIn('status', TrooperStatus::servingValues()))
             ->whereRaw("LOWER(username) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
+            ->orderByRaw('CASE WHEN status IN ('.implode(', ', array_fill(0, count(TrooperStatus::serving()), '?')).') THEN 0 ELSE 1 END', TrooperStatus::servingValues())
             ->orderByRaw("CASE WHEN LOWER(username) LIKE ? ESCAPE '!' THEN 0 ELSE 1 END", ["{$escaped}%"])
             ->orderBy('username')
             ->orderBy('id')

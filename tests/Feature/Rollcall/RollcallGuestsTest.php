@@ -114,8 +114,6 @@ it('refuses a trooper who cannot be a guest here, saying why', function (Closure
     expect(CrossSectionSighting::query()->count())->toBe(0)->and(SectionPractice::query()->count())->toBe(0);
 })->with([
     'in the host section' => [fn ($t) => guestOf($t->host), 'own_section'],
-    'departed' => [fn ($t) => guestOf($t->home, ['status' => TrooperStatus::Inactive]), 'not_serving'],
-    'unplaced' => [fn () => Trooper::factory()->create(['status' => TrooperStatus::Combat]), 'not_placed'],
     'unknown' => [fn () => (object) ['id' => 999999999], 'unknown_trooper'],
 ]);
 
@@ -229,26 +227,28 @@ it('lists the practice\'s guests on the rollcall, capture and manual, with their
             ->where('guests.1.section', '3/2/B/1-7'));
 });
 
-it('finds serving troopers from other sections by username, outside the leader\'s scope, with only what the picker shows', function () {
+it('finds everyone by username but the host section\'s own serving troopers, outside the leader\'s scope, with only what the picker shows', function () {
     guestOf($this->host, ['username' => 'Visitor.Host']);
-    guestOf($this->home, ['username' => 'Visitor.Gone', 'status' => TrooperStatus::Inactive]);
-    Trooper::factory()->create(['username' => 'Visitor.Nowhere', 'status' => TrooperStatus::Combat]);
+    $formerHost = guestOf($this->host, ['username' => 'Visitor.Former', 'status' => TrooperStatus::Inactive]);
+    $gone = guestOf($this->home, ['username' => 'Visitor.Gone', 'status' => TrooperStatus::Inactive]);
+    $nowhere = Trooper::factory()->create(['username' => 'Visitor.Nowhere', 'status' => TrooperStatus::Combat]);
 
-    $this->actingAs($this->leader)->getJson("/rollcall/{$this->host->id}/guests/search?q=visitor")
-        ->assertOk()
-        ->assertExactJson([
-            'troopers' => [['id' => $this->guest->id, 'name' => 'Visitor.V', 'rank' => 'PFC', 'section' => '3/2/B/1-7']],
-            'more' => false,
-        ]);
+    // Serving first, then by username.
+    $response = $this->actingAs($this->leader)->getJson("/rollcall/{$this->host->id}/guests/search?q=visitor")->assertOk();
+
+    expect($response->json('troopers.*.id'))->toBe([$nowhere->id, $this->guest->id, $formerHost->id, $gone->id])
+        ->and($response->json('troopers.1'))->toBe(['id' => $this->guest->id, 'name' => 'Visitor.V', 'rank' => 'PFC', 'section' => '3/2/B/1-7', 'serving' => true])
+        ->and($response->json('troopers.3.serving'))->toBeFalse()
+        ->and($response->json('more'))->toBeFalse();
 });
 
-it('finds HQ staff too, but never someone in a group', function () {
+it('finds HQ staff and people in a group too', function () {
     guestOf($this->platoon, ['username' => 'Visitor.PSG', 'rank_short' => 'SSG']);
     guestOf(app(UnitRepository::class)->create(UnitType::Group, 'Reservists', 'RES', null), ['username' => 'Visitor.Reserve']);
 
     $this->actingAs($this->leader)->getJson("/rollcall/{$this->host->id}/guests/search?q=visitor")
         ->assertOk()
-        ->assertJsonPath('troopers.*.name', ['Visitor.PSG', 'Visitor.V']);
+        ->assertJsonPath('troopers.*.name', ['Visitor.PSG', 'Visitor.Reserve', 'Visitor.V']);
 });
 
 it('lists HQ staff a leader adds as a staff guest under their own HQ, with no makeup, and lets the leader undo it', function () {
@@ -270,11 +270,26 @@ it('lists HQ staff a leader adds as a staff guest under their own HQ, with no ma
     expect(CrossSectionSighting::query()->where('trooper_id', $psg->id)->exists())->toBeFalse();
 });
 
-it('refuses someone placed in a group as a guest', function () {
-    $reservist = guestOf(app(UnitRepository::class)->create(UnitType::Group, 'Reservists', 'RES', null));
+it('lists anyone else who attended with no makeup: a group, unplaced, or no longer serving', function (Closure $trooper) {
+    $guest = $trooper($this);
 
-    addGuest($this->leader, $this->host->id, $reservist->id)->assertUnprocessable()->assertJsonPath('reason', 'not_placed');
-});
+    addGuest($this->leader, $this->host->id, $guest->id)
+        ->assertOk()
+        ->assertJsonPath('makeup', 'none')
+        ->assertJsonPath('guest.staffGuest', false)
+        ->assertJsonPath('guest.source', 'manual');
+
+    expect(Attendance::query()->where('trooper_id', $guest->id)->exists())->toBeFalse();
+
+    removeGuest($this->leader, $this->host->id, $guest->id)->assertOk();
+    expect(CrossSectionSighting::query()->where('trooper_id', $guest->id)->exists())->toBeFalse();
+})->with([
+    'a reservist' => [fn ($t) => guestOf(app(UnitRepository::class)->create(UnitType::Group, 'Reservists', 'RES', null))],
+    'unplaced' => [fn () => Trooper::factory()->create(['status' => TrooperStatus::Combat])],
+    'departed from another section' => [fn ($t) => guestOf($t->home, ['status' => TrooperStatus::Inactive])],
+    'departed from the host section' => [fn ($t) => guestOf($t->host, ['status' => TrooperStatus::Inactive])],
+    'departed HQ staff' => [fn ($t) => guestOf($t->platoon, ['status' => TrooperStatus::Inactive])],
+]);
 
 it('offers the guest search only to someone who may add guests here, and only for a real search', function () {
     $granted = User::factory()->serving()->create();

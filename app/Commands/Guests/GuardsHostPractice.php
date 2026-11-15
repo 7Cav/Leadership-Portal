@@ -44,12 +44,13 @@ trait GuardsHostPractice
     }
 
     /**
-     * Who may be a guest at `$sectionId`'s practice in the week opening at `$weekStart`: a serving trooper with a section
-     * or a line HQ of their own that week (never a group), which is not the host section (a host trooper is marked on the
-     * rollcall itself). HQ staff are listed only: they have no rollcall to carry a makeup ({@see isStaff()}). Their own section is the one their makeup goes to ({@see TrooperRepository::ownSectionsInWeek()}):
-     * where they are placed now, or for a week that has ended, the section whose rollcall lists them that week, so a
-     * host cannot add its own trooper of that week who has moved since. A departed trooper keeps their last placement,
-     * so standing is checked, not only placement.
+     * Who may be a guest at `$sectionId`'s practice in the week opening at `$weekStart`: anyone who attended, whatever
+     * their standing or placement (2026-11-15: HQ staff, a group such as ELOA or Reservists, unplaced, no longer
+     * serving). Only accountability cares whether they are in the AO, so only the makeup depends on it ({@see guestKind()}).
+     * Refused is only a trooper on the host section's own rollcall that week, who is marked there instead: their own
+     * section ({@see TrooperRepository::ownSectionsInWeek()}) is where they are placed now, or for a week that has ended,
+     * the section whose rollcall lists them that week, so a host cannot add its own trooper of that week who has moved
+     * since. A departed trooper keeps their last placement but is on no rollcall, so this week they may be added.
      *
      * @throws GuestAttendanceRefusedException
      */
@@ -59,28 +60,44 @@ trait GuardsHostPractice
             throw GuestAttendanceRefusedException::unknownTrooper();
         }
 
-        if (! $trooper->status->isServing()) {
-            throw GuestAttendanceRefusedException::notServing($trooper->display_name);
+        if ($this->onHostRollcall($trooper, $sectionId, $weekStart, $troopers)) {
+            throw GuestAttendanceRefusedException::ownSection($trooper->display_name);
         }
 
-        $own = $troopers->ownSectionsInWeek([$trooper->id], $weekStart)[$trooper->id] ?? null;
-        $type = $own === null ? null : $units->find($own)?->type;
-
-        return match (true) {
-            // A group (staff department, ELOA, Reservists) is off the line. HQ staff of a platoon, company, battalion or
-            // the regiment are listed as staff guests (2026-11-15), with no makeup.
-            $type === null,
-            $type === UnitType::Group => throw GuestAttendanceRefusedException::notPlaced($trooper->display_name),
-            $own === $sectionId => throw GuestAttendanceRefusedException::ownSection($trooper->display_name),
-            default => $trooper,
-        };
+        return $trooper;
     }
 
-    /** Whether the guest is HQ staff: placed on a line HQ, not a section, so they get no makeup. */
-    private function isStaff(int $trooperId, CarbonImmutable $weekStart, UnitRepository $units, TrooperRepository $troopers): bool
+    /**
+     * What the guest's entry means for accountability: `section` (their own section's rollcall takes the makeup), `staff`
+     * (serving HQ staff of a platoon, company, battalion or the regiment, listed as a staff guest under their own HQ;
+     * they have no rollcall, and their staff report stays theirs to send), or `none` (anyone else: a group such as ELOA
+     * or Reservists, unplaced, or no longer serving; listed, with no makeup).
+     *
+     * @return 'section'|'staff'|'none'
+     */
+    private function guestKind(Trooper $trooper, CarbonImmutable $weekStart, UnitRepository $units, TrooperRepository $troopers): string
     {
-        $own = $troopers->ownSectionsInWeek([$trooperId], $weekStart)[$trooperId] ?? null;
+        $own = $troopers->ownSectionsInWeek([$trooper->id], $weekStart)[$trooper->id] ?? null;
+        $ended = WeekOf::hasEnded($weekStart, CarbonImmutable::now());
 
-        return $own !== null && $units->find($own)?->type !== UnitType::Section;
+        if ($own !== null && $units->find($own)?->type === UnitType::Section && ($ended || $trooper->status->isServing())) {
+            return 'section';
+        }
+
+        $placed = $trooper->primary_section_id === null ? null : $units->find($trooper->primary_section_id)?->type;
+
+        return $trooper->status->isServing() && $placed !== null && $placed !== UnitType::Section && $placed !== UnitType::Group
+            ? 'staff'
+            : 'none';
+    }
+
+    /** Whether `$trooper` is on `$sectionId`'s own rollcall in the week opening at `$weekStart`. */
+    private function onHostRollcall(Trooper $trooper, int $sectionId, CarbonImmutable $weekStart, TrooperRepository $troopers): bool
+    {
+        $own = $troopers->ownSectionsInWeek([$trooper->id], $weekStart)[$trooper->id] ?? null;
+
+        // An ended week's own section is already the rollcall that listed them; this week's is where they are placed,
+        // which lists them only while they serve.
+        return $own === $sectionId && (WeekOf::hasEnded($weekStart, CarbonImmutable::now()) || $trooper->status->isServing());
     }
 }

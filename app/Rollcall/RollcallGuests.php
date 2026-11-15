@@ -81,12 +81,16 @@ class RollcallGuests
     }
 
     /**
-     * The line HQ `$trooper` is placed on, or null for a trooper in a section (or nowhere).
+     * The line HQ `$trooper` serves on, or null for a trooper in a section, a group, nowhere, or no longer serving.
      *
      * @param  Collection<int, Unit>  $units
      */
     private static function hqOf(Trooper $trooper, Collection $units): ?Unit
     {
+        if (! $trooper->status->isServing()) {
+            return null;
+        }
+
         $unit = $units->get($trooper->primary_section_id);
 
         return $unit instanceof Unit && $unit->type !== UnitType::Section && $unit->type !== UnitType::Group ? $unit : null;

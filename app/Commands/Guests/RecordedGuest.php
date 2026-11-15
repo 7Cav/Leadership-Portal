@@ -10,8 +10,9 @@ use App\Models\SectionPractice;
  * automatic makeup on the guest's own rollcall: `marked` (written, or an earlier automatic one kept in place), `kept`
  * (their own mark stayed: present, loa, a leader's mark, leave covering the week, or no longer placed there),
  * `locked` (their own week may not change: report sent, practice confirmed), `pending` (the host practice is not over
- * yet, so the makeup is written once it is, #634), or `staff` (HQ staff, who have no rollcall and so no makeup: their
- * staff report stays theirs to send).
+ * yet, so the makeup is written once it is, #634), `staff` (HQ staff, who have no rollcall and so no makeup: their
+ * staff report stays theirs to send), or `none` (anyone else with no section rollcall that week: a group such as ELOA or
+ * Reservists, unplaced, or no longer serving; listed only).
  */
 final readonly class RecordedGuest
 {

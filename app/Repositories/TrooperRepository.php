@@ -352,12 +352,12 @@ interface TrooperRepository
     public function searchByUsername(array $terms, ?int $cavId, iterable $sectionIds, bool $withUnplaced, int $limit, ?int $ownCavId = null): EloquentCollection;
 
     /**
-     * The rollcall's guest picker (2026-10-23): serving troopers placed in any section but `$hostSectionId`, or on a line
-     * HQ (HQ staff, listed as staff guests since 2026-11-15; never a group), whose
-     * username contains `$term` (ignoring case, `%` and `_` matching themselves), for a host leader saying "X from another
+     * The rollcall's guest picker (2026-10-23): every trooper, whatever their standing or placement (HQ staff, a group such
+     * as ELOA or Reservists, unplaced, no longer serving; 2026-11-15), but a serving trooper placed in `$hostSectionId`
+     * (already on its rollcall), whose username contains `$term` (ignoring case, `%` and `_` matching themselves), for a host leader saying "X from another
      * section attended our practice". Deliberately not scope-filtered: a guest comes from outside the leader's scope by
      * definition. The caller exposes only what the picker needs (username, rank, own section), never the milpac. A
-     * username that starts with the term comes first, then by username. At most `$limit` rows, with `primary_section_id`.
+     * serving trooper comes first, then a username that starts with the term, then by username. At most `$limit` rows, with `primary_section_id`.
      *
      * @return EloquentCollection<int, Trooper>
      */

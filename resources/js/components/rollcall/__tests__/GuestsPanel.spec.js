@@ -95,6 +95,20 @@ describe('GuestsPanel', () => {
         expect(toastSuccess).toHaveBeenCalledWith('Added PFC Visitor.V as a guest', { description: "Their own section's roll call gets Make-up complete once this practice is over." });
     });
 
+    it('offers someone no longer serving, says so, and adds them with no make-up', async () => {
+        answerSearch([{ id: 70, name: 'Former.F', rank: 'SPC', section: '1/1/B/1-7', serving: false }]);
+        post.mockResolvedValue({ ok: true, status: 200, data: { guest: { trooperId: 70, name: 'Former.F', displayName: 'SPC Former.F', rank: 'SPC', section: '1/1/B/1-7', source: 'manual', recordedBy: 'Host.L', staffGuest: false }, makeup: 'none' } });
+        const wrapper = factory();
+
+        await search(wrapper, 'for');
+        expect(wrapper.find('[data-testid="guest-result-70"]').text()).toContain('1/1/B/1-7 · not serving');
+
+        await wrapper.find('[data-testid="guest-result-70"]').trigger('click');
+        await flushPromises();
+
+        expect(toastSuccess).toHaveBeenCalledWith('Added SPC Former.F as a guest', { description: 'They have no section roll call this week, so no make-up is needed.' });
+    });
+
     it('says why a guest was refused, and keeps the list as it was', async () => {
         answerSearch([{ id: 9, name: 'Visitor.V', rank: 'PFC', section: '1/1/B/1-7' }]);
         post.mockResolvedValue({ ok: false, status: 422, data: { message: 'This practice is confirmed, so its guests can no longer change.', reason: 'confirmed' } });
@@ -152,7 +166,7 @@ describe('GuestsPanel', () => {
     it('asks for hand entries and does not promise that the game server adds guests', () => {
         const text = factory().text();
 
-        expect(text).toContain('Add troopers from other sections who attended.');
+        expect(text).toContain('Add anyone from outside this section who attended.');
         expect(text).toContain('The game server does not add guests yet; it will once practices have set times.');
     });
 

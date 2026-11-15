@@ -83,6 +83,8 @@ class RollcallGuestController extends Controller
                 'name' => $t->username,
                 'rank' => $t->rank_short ?? $t->rank,
                 'section' => ($section = $units->get($t->primary_section_id)) instanceof Unit ? ($section->callsign ?? $section->name) : null,
+                // Anyone may be a guest (15NOV26); the picker says who is no longer serving, so the right person is picked.
+                'serving' => $t->status->isServing(),
             ])->values(),
             'more' => $found->count() > self::LIMIT,
         ]);

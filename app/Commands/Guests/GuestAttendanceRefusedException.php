@@ -11,7 +11,7 @@ use RuntimeException;
  * rollcall can act on, the message says it in plain words for a toast:
  *
  * - `not_a_section`, `before_floor`, `confirmed`: the host practice's week cannot change here;
- * - `unknown_trooper`, `not_serving`, `not_placed`, `own_section`: the trooper cannot be a guest;
+ * - `unknown_trooper`, `own_section`: the trooper cannot be a guest;
  * - `already_listed`: they are already recorded at this practice (by the server, a leader, or as staff: the message
  *   says so for a staff entry, which shows on their milpac page, not in the guest list);
  * - `not_listed`: there is no hand-added entry for them to remove;
@@ -42,16 +42,6 @@ class GuestAttendanceRefusedException extends RuntimeException
     public static function unknownTrooper(): self
     {
         return new self('That trooper was not found. Search again.', 'unknown_trooper');
-    }
-
-    public static function notServing(string $name): self
-    {
-        return new self("{$name} is no longer serving, so they cannot be added as a guest.", 'not_serving');
-    }
-
-    public static function notPlaced(string $name): self
-    {
-        return new self("{$name} is not placed in a section or an HQ, so they cannot be listed as a guest.", 'not_placed');
     }
 
     public static function ownSection(string $name): self
