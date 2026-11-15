@@ -60,12 +60,19 @@ describe('RollcallClose (#703)', () => {
     });
 
     it('lets the leader untick "I edited the forum post" after a misclick, without copying again', () => {
-        const wrapper = factory({ editedSincePost: false });
+        const wrapper = factory({ editedSincePost: false, posted: { at: '2026-10-08T16:20:00+00:00', by: 'Vasquez.R', threadUrl: null, canUndo: true } });
 
         expect(wrapper.findComponent(Checkbox).props('disabled')).toBe(false);
         wrapper.findComponent(Checkbox).vm.$emit('update:modelValue', false);
         expect(wrapper.emitted('unmark-edited')).toHaveLength(1);
         expect(wrapper.emitted('mark-posted')).toBeUndefined();
+    });
+
+    it('keeps the tick when there is no edit to undo, and says why', () => {
+        const wrapper = factory({ editedSincePost: false, posted: { at: '2026-10-08T16:20:00+00:00', by: 'Vasquez.R', threadUrl: null, canUndo: false } });
+
+        expect(wrapper.findComponent(Checkbox).props('disabled')).toBe(true);
+        expect(wrapper.get('[data-testid="close-edited"]').attributes('title')).toBe('Your forum post already has every mark. There is no edit to undo.');
     });
 
     it('closes and sends for review, unless the screen is read-only', async () => {

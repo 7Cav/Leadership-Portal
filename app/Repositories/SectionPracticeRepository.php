@@ -103,8 +103,8 @@ interface SectionPracticeRepository
     public function markRollcallPosted(SectionPractice $practice, int $userId, ?string $threadUrl = null): SectionPractice;
 
     /**
-     * Puts back the posted stamp the last {@see markRollcallPosted()} replaced (none, if it was the first), once: the
-     * undo is used up. Null when there is nothing to undo.
+     * Puts back the posted stamp the last {@see markRollcallPosted()} replaced, once: the undo is used up. Null when
+     * there is nothing to undo: none was replaced (the first stamp is the post itself), or it was undone already.
      */
     public function undoRollcallPosted(SectionPractice $practice): ?SectionPractice;
 

@@ -2345,7 +2345,7 @@ describe('Rollcall page: a week on each flow (#703)', () => {
     const TRAINING = { subject: 'Land navigation', enforced: false, platoon: '1st Platoon', canEdit: true };
     const REPORT = { due: '2026-10-10T23:59:00+00:00', overdueUntil: '2026-10-31T00:00:00+00:00', sent: false, href: '/reports/12/2026-10-03' };
     const CREATED = { version: 2, created: { at: '2026-10-04T10:00:00+00:00', by: 'Vasquez.R' } };
-    const POSTED = { lastMarkedAt: null, posted: { at: '2026-10-04T11:00:00+00:00', by: 'Vasquez.R' } };
+    const POSTED = { lastMarkedAt: null, posted: { at: '2026-10-04T11:00:00+00:00', by: 'Vasquez.R', canUndo: true } };
     const cycle = (props = {}) => factory({ practiceSlot: SLOT, training: TRAINING, report: REPORT, flow: { version: 2, created: null }, ...props });
     const stepTitles = (wrapper) => wrapper.findAll('[data-step]').map((b) => b.text());
 

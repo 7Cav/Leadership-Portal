@@ -174,7 +174,8 @@ class Eloquent implements SectionPracticeRepository
     {
         $undo = $practice->rollcall_post_undo;
 
-        if (! is_array($undo)) {
+        // Only a stamp that replaced an earlier post, an edit, is undone: the first one is the post itself.
+        if (! is_array($undo) || ($undo['at'] ?? null) === null) {
             return null;
         }
 

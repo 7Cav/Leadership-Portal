@@ -713,6 +713,8 @@ class RollcallController extends Controller
             'at' => $practice->rollcall_posted_at->toIso8601String(),
             'by' => $practice->rollcallPostedBy?->username,
             'threadUrl' => $practice->rollcall_thread_url,
+            // Whether unticking "I edited the forum post" can put back the stamp this one replaced (#766).
+            'canUndo' => is_array($practice->rollcall_post_undo) && ($practice->rollcall_post_undo['at'] ?? null) !== null,
         ];
     }
 
