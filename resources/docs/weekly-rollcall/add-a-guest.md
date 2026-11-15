@@ -16,7 +16,7 @@ audience: leader
 ## Add the guest
 
 1. Choose **Add guest**.
-2. Type part of the trooper's name and pick them. Only serving troopers from other sections are offered.
+2. Type part of the trooper's name and pick them. Serving troopers from other sections and HQ staff are offered.
 3. They are listed as **Added by hand**.
 4. Their make-up goes on their own section's roll call once your practice is over. Added after it ended, they get it straight away.
 
@@ -35,3 +35,4 @@ audience: leader
 
 1. Staff who attended your practice are listed from their own staff entries: **Staff guest** when your section is in their platoon or company, **Guest** otherwise.
 2. They are shown only. They never count in your numbers, get no make-up, and cannot be removed here.
+3. You can also add HQ staff yourself with **Add guest**, such as your Platoon Sergeant. They are listed the same way and get no make-up. Their staff report is still theirs to send, and you can take them back off with **Undo**.

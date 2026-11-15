@@ -1469,6 +1469,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
             :sending="sendingForReview"
             @copy="copyBbcode"
             @mark-posted="markPosted"
+            @unmark-edited="editedSincePost = true"
             @send="sendForReview"
             :troopers="orderedRows"
             :draft="reportDraft"

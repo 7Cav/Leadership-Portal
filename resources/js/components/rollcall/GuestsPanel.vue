@@ -43,6 +43,7 @@ const MAKEUP_ADDED = {
     kept: 'Their own roll call already had a mark for this week, so it stayed.',
     locked: 'Their own section\'s week is locked, so no make-up was recorded there.',
     pending: 'Their own section\'s roll call gets Make-up complete once this practice is over.',
+    staff: 'HQ staff have no roll call of their own, so no make-up is needed. Their staff report is still theirs to send.',
 };
 const MAKEUP_REMOVED = {
     withdrawn: 'The Make-up complete it put on their own roll call was taken back.',
@@ -147,7 +148,7 @@ async function add(trooper) {
         }
         const guest = result.data.guest;
         list.value = [...list.value.filter((g) => g.trooperId !== guest.trooperId), guest].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '', undefined, { sensitivity: 'base' }));
-        toast.success(`Added ${label(guest)} as a guest`, { description: MAKEUP_ADDED[result.data.makeup] ?? MAKEUP_ADDED.marked });
+        toast.success(`Added ${label(guest)} as a ${guest.staffGuest ? 'staff guest' : 'guest'}`,{ description: MAKEUP_ADDED[result.data.makeup] ?? MAKEUP_ADDED.marked });
         closePicker();
     } finally {
         busy.value = null;
@@ -228,7 +229,7 @@ async function undo(guest) {
                     autocomplete="off"
                     spellcheck="false"
                     :maxlength="MAX_CHARS"
-                    placeholder="Find a trooper from another section by name"
+                    placeholder="Find a trooper from another section or HQ by name"
                     aria-label="Find a guest by name"
                     data-testid="guest-search"
                 />
@@ -246,7 +247,7 @@ async function undo(guest) {
             </p>
             <p v-else-if="status === 'throttled'" role="alert" class="mt-2 text-xs text-muted-foreground">Too many searches in a short time. Wait a moment, then keep typing.</p>
             <p v-else-if="!results.length" class="mt-2 text-xs text-muted-foreground" data-testid="guest-search-empty">
-                No serving trooper in another section matches "{{ query.trim() }}".
+                No serving trooper in another section or HQ matches "{{ query.trim() }}".
             </p>
             <ul v-else class="mt-2 divide-y divide-border rounded-md border border-border" data-testid="guest-results">
                 <li v-for="trooper in results" :key="trooper.id">

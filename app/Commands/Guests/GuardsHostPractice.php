@@ -45,8 +45,8 @@ trait GuardsHostPractice
 
     /**
      * Who may be a guest at `$sectionId`'s practice in the week opening at `$weekStart`: a serving trooper with a section
-     * of their own that week (never HQ staff or a group), which is not the host section (a host trooper is marked on the
-     * rollcall itself). Their own section is the one their makeup goes to ({@see TrooperRepository::ownSectionsInWeek()}):
+     * or a line HQ of their own that week (never a group), which is not the host section (a host trooper is marked on the
+     * rollcall itself). HQ staff are listed only: they have no rollcall to carry a makeup ({@see isStaff()}). Their own section is the one their makeup goes to ({@see TrooperRepository::ownSectionsInWeek()}):
      * where they are placed now, or for a week that has ended, the section whose rollcall lists them that week, so a
      * host cannot add its own trooper of that week who has moved since. A departed trooper keeps their last placement,
      * so standing is checked, not only placement.
@@ -64,13 +64,23 @@ trait GuardsHostPractice
         }
 
         $own = $troopers->ownSectionsInWeek([$trooper->id], $weekStart)[$trooper->id] ?? null;
+        $type = $own === null ? null : $units->find($own)?->type;
 
         return match (true) {
-            // HQ staff and groups (2026-10-24) have no rollcall of their own to carry the makeup, so they are not guests.
-            $own === null,
-            $units->find($own)?->type !== UnitType::Section => throw GuestAttendanceRefusedException::notPlaced($trooper->display_name),
+            // A group (staff department, ELOA, Reservists) is off the line. HQ staff of a platoon, company, battalion or
+            // the regiment are listed as staff guests (2026-11-15), with no makeup.
+            $type === null,
+            $type === UnitType::Group => throw GuestAttendanceRefusedException::notPlaced($trooper->display_name),
             $own === $sectionId => throw GuestAttendanceRefusedException::ownSection($trooper->display_name),
             default => $trooper,
         };
+    }
+
+    /** Whether the guest is HQ staff: placed on a line HQ, not a section, so they get no makeup. */
+    private function isStaff(int $trooperId, CarbonImmutable $weekStart, UnitRepository $units, TrooperRepository $troopers): bool
+    {
+        $own = $troopers->ownSectionsInWeek([$trooperId], $weekStart)[$trooperId] ?? null;
+
+        return $own !== null && $units->find($own)?->type !== UnitType::Section;
     }
 }

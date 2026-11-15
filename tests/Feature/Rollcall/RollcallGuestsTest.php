@@ -242,6 +242,40 @@ it('finds serving troopers from other sections by username, outside the leader\'
         ]);
 });
 
+it('finds HQ staff too, but never someone in a group', function () {
+    guestOf($this->platoon, ['username' => 'Visitor.PSG', 'rank_short' => 'SSG']);
+    guestOf(app(UnitRepository::class)->create(UnitType::Group, 'Reservists', 'RES', null), ['username' => 'Visitor.Reserve']);
+
+    $this->actingAs($this->leader)->getJson("/rollcall/{$this->host->id}/guests/search?q=visitor")
+        ->assertOk()
+        ->assertJsonPath('troopers.*.name', ['Visitor.PSG', 'Visitor.V']);
+});
+
+it('lists HQ staff a leader adds as a staff guest under their own HQ, with no makeup, and lets the leader undo it', function () {
+    $psg = guestOf($this->platoon, ['username' => 'Platoon.S', 'rank_short' => 'SSG']);
+
+    addGuest($this->leader, $this->host->id, $psg->id)
+        ->assertOk()
+        ->assertJsonPath('makeup', 'staff')
+        ->assertJsonPath('guest.staffGuest', true)
+        ->assertJsonPath('guest.source', 'manual');
+
+    expect(Attendance::query()->where('trooper_id', $psg->id)->exists())->toBeFalse();
+
+    // Another platoon's HQ staff is a plain guest here.
+    $other = guestOf(Unit::query()->where('callsign', '2/B/1-7')->firstOrFail(), ['username' => 'Other.S']);
+    addGuest($this->leader, $this->host->id, $other->id)->assertOk()->assertJsonPath('guest.staffGuest', false);
+
+    removeGuest($this->leader, $this->host->id, $psg->id)->assertOk();
+    expect(CrossSectionSighting::query()->where('trooper_id', $psg->id)->exists())->toBeFalse();
+});
+
+it('refuses someone placed in a group as a guest', function () {
+    $reservist = guestOf(app(UnitRepository::class)->create(UnitType::Group, 'Reservists', 'RES', null));
+
+    addGuest($this->leader, $this->host->id, $reservist->id)->assertUnprocessable()->assertJsonPath('reason', 'not_placed');
+});
+
 it('offers the guest search only to someone who may add guests here, and only for a real search', function () {
     $granted = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $granted->id, 'unit_id' => $this->host->id]);

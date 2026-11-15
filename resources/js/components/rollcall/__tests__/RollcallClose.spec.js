@@ -59,6 +59,15 @@ describe('RollcallClose (#703)', () => {
         expect(wrapper.emitted('mark-posted')).toHaveLength(1);
     });
 
+    it('lets the leader untick "I edited the forum post" after a misclick, without copying again', () => {
+        const wrapper = factory({ editedSincePost: false });
+
+        expect(wrapper.findComponent(Checkbox).props('disabled')).toBe(false);
+        wrapper.findComponent(Checkbox).vm.$emit('update:modelValue', false);
+        expect(wrapper.emitted('unmark-edited')).toHaveLength(1);
+        expect(wrapper.emitted('mark-posted')).toBeUndefined();
+    });
+
     it('closes and sends for review, unless the screen is read-only', async () => {
         const wrapper = factory();
 

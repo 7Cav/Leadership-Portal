@@ -51,7 +51,7 @@ class GuestAttendanceRefusedException extends RuntimeException
 
     public static function notPlaced(string $name): self
     {
-        return new self("{$name} is not placed in a section, so there is no section of their own to make up.", 'not_placed');
+        return new self("{$name} is not placed in a section or an HQ, so they cannot be listed as a guest.", 'not_placed');
     }
 
     public static function ownSection(string $name): self

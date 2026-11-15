@@ -352,8 +352,8 @@ interface TrooperRepository
     public function searchByUsername(array $terms, ?int $cavId, iterable $sectionIds, bool $withUnplaced, int $limit, ?int $ownCavId = null): EloquentCollection;
 
     /**
-     * The rollcall's guest picker (decided 2026-10-23): serving troopers placed in any section (never HQ staff or a group,
-     * who have no rollcall for the makeup) but `$hostSectionId`, whose
+     * The rollcall's guest picker (2026-10-23): serving troopers placed in any section but `$hostSectionId`, or on a line
+     * HQ (HQ staff, listed as staff guests since 2026-11-15; never a group), whose
      * username contains `$term` (ignoring case, `%` and `_` matching themselves), for a host leader saying "X from another
      * section attended our practice". Deliberately not scope-filtered: a guest comes from outside the leader's scope by
      * definition. The caller exposes only what the picker needs (username, rank, own section), never the milpac. A

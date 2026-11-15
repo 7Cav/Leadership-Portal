@@ -149,6 +149,11 @@ class RecordGuestAttendanceHandler
     /** The automatic makeup on the guest's own rollcall, through the capture's own path, and what became of it. */
     private function withMakeup(CrossSectionSighting $sighting, SectionPractice $practice, int $trooperId, int $actorId): RecordedGuest
     {
+        // HQ staff are listed only: no rollcall of their own takes a makeup, and their staff report is theirs to fill in.
+        if ($this->isStaff($trooperId, $practice->week_start, $this->units, $this->troopers)) {
+            return new RecordedGuest(sighting: $sighting, practice: $practice, makeup: 'staff');
+        }
+
         $end = PracticeTiming::hourEnd($practice->week_start, $practice, $this->slots->forSection($practice->section_id));
 
         if ($end !== null && $end->greaterThan(CarbonImmutable::now())) {

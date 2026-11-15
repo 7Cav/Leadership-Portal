@@ -45,7 +45,7 @@ const props = defineProps({
     draft: { type: Object, default: () => ({ notes: null, unaccounted: [], reasons: [] }) },
 });
 
-const emit = defineEmits(['copy', 'mark-posted', 'send', 'update:draft']);
+const emit = defineEmits(['copy', 'mark-posted', 'unmark-edited', 'send', 'update:draft']);
 
 // Who missed practice with no make-up (mockup 703-4): each is reported with a reason, as on the weekly report.
 const missed = computed(() => unaccountedTroopers(props.troopers));
@@ -74,8 +74,10 @@ const checks = computed(() => [
 ]);
 const destination = computed(() => (props.platoon ? `${props.platoon} staff` : 'Platoon Staff'));
 
+// Ticking stamps the post as edited; unticking (a misclick) puts the step back to needing the edit.
 function onEdited(value) {
     if (value && !edited.value) emit('mark-posted');
+    if (!value && edited.value) emit('unmark-edited');
 }
 </script>
 
@@ -120,7 +122,7 @@ function onEdited(value) {
                     <label class="ml-auto inline-flex items-center gap-2 text-[13px]">
                         <Checkbox
                             :model-value="edited"
-                            :disabled="edited || Boolean(disabledReason) || posting || !copied"
+                            :disabled="Boolean(disabledReason) || posting || (!edited && !copied)"
                             :title="!copied && !edited ? 'Copy the updated BBCode first' : undefined"
                             data-testid="close-edited"
                             @update:model-value="onEdited"

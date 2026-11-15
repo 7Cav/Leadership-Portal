@@ -3,7 +3,7 @@ title: Run this week's roll call
 summary: Create the week's roll call, post it, record who signed, mark section practice, then close it for review.
 section: weekly-rollcall
 order: 1
-updated: 2026-11-13
+updated: 2026-11-15
 audience: leader
 page: /rollcall
 weekly: true
@@ -77,7 +77,7 @@ The card at the top of the roll call shows when practice starts this week and th
 The header shows when your section practices, in Zulu, with your own time beside it. A section practice is always one hour.
 
 1. Choose the pencil next to the practice time (or next to **No practice slot**).
-2. Pick the weekday and the start time in Zulu, then choose **Save slot**. **Remove slot** takes it away.
+2. Pick the weekday and type the start time in Zulu as 24-hour time, such as 2300, then choose **Save slot**. **Remove slot** takes it away.
 3. To change one week only, use **This week only**: pick another day and time in the same Cav week and choose **Move this week**, or choose **Cancel this week**. **Back to the usual time** undoes either.
 
 A change or removal never touches a week before the one it starts with: those weeks keep the slot they had. The editor always names the first week it changes. On the current week that is this week, unless the game server already read it or its report was sent (or reopened for editing): it then keeps its time and the new slot starts with the next Cav week, shown in the header as, for example, "Practice Wed 23 59Z from 07NOV26". Opened from a past week, the editor changes the weekly slot from the first week it can, not that past week. This week only cannot be used on a week whose report was sent.
@@ -123,7 +123,7 @@ If your section plays a game and has no slot, a warning sits at the top of the r
 On the new roll call, closing the week is sending its weekly report.
 
 1. When everyone is signed and marked, confirm the practice, then choose **Continue to close** (or step 4, **Close for review**).
-2. Under **A. Update your forum post**, choose **Copy updated BBCode**, edit your roll call post on the forum with it (**Open your forum post** takes you there when you gave its link), then tick **I edited the forum post**.
+2. Under **A. Update your forum post**, choose **Copy updated BBCode**, edit your roll call post on the forum with it (**Open your forum post** takes you there when you gave its link), then tick **I edited the forum post**. Ticked it by mistake? Untick it.
 3. Under **B. Weekly report for Platoon Staff**, check the training and the attendance it will report, write your **Notes to send with this report**, and choose a reason for each trooper who missed practice. They save as you type and are the report's own notes and reasons.
 4. Under **Before you close**, check **Practice confirmed**, **Every trooper has a mark**, **Forum post edited** and a reason for each trooper who missed. **Close and send for review** opens once the practice is confirmed.
 5. Choose **Close and send for review**. The report opens with its send window: answer any make-up still owed, then send it. See [Write and send your report](/docs/weekly-report/send-your-report).
