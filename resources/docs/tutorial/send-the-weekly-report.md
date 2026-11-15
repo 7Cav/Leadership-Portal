@@ -18,7 +18,7 @@ Your report is what your chain of command reads about your unit's week. It is du
 
 ## Work through Ready to send
 
-1. **Ready to send** lists what is still open.
+1. **Ready to send** lists what is still open. **Practice slot set** and **Practice confirmed** must be done before the report can go, even with **Send anyway**.
 2. Under **Unaccounted troopers**, pick a reason for each one, or choose **Keep suggested reason**.
 3. Fill in the **Training subject** and your **Notes to send with this report**. The draft saves as you type.
 
