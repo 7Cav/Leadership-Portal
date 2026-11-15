@@ -26,7 +26,7 @@
         { "name": "a lone closing brace pair is just text", "template": "a }} b" },
         { "name": "braces around a value are plain text", "template": "{{{unit}}}" },
         { "name": "the week's events printed anywhere, filtered, and inside the trooper loop", "template": "[B]Events[/B]\n{{events}}\n{{events|upper}}{{#troopers}}{{events}}{{/troopers}}" },
-        { "name": "an events loop with its values, and the empty week", "template": "[LIST]{{#events}}[*]{{event_start}} {{event_name|upper}}{{#event_name}}!{{/event_name}}{{unit}}{{/events}}[/LIST]{{^events}}No events this week.{{/events}}" }
+        { "name": "an events loop with its values, and the empty week", "template": "[LIST]{{#events}}[*]{{event_start}} [url={{event_url}}]{{event_name|upper}}[/url]{{#event_name}}!{{/event_name}}{{unit}}{{/events}}[/LIST]{{^events}}No events this week.{{/events}}" }
     ],
     "invalid": [
         { "name": "an unknown name", "template": "{{colour}}", "error": "Unknown name \"colour\".", "message": "Unknown name \"colour\"." },

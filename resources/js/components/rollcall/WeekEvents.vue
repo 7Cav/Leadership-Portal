@@ -12,9 +12,9 @@ const props = defineProps({
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-/** An event's start as the page writes a moment in Zulu, `Sat 21NOV26 1900Z`; the line puts a colon before the name. */
+/** An event's start as the page writes a moment in Zulu, with its weekday after: `21NOV26 1900Z (SAT)`; the line puts a colon before the name. */
 function startLabel(start) {
-    return `${WEEKDAYS[new Date(start).getUTCDay()]} ${forumDateTime(start)}Z`;
+    return `${forumDateTime(start)}Z (${WEEKDAYS[new Date(start).getUTCDay()].toUpperCase()})`;
 }
 
 const items = computed(() => (props.events.state === 'listed' ? (props.events.items ?? []) : []));

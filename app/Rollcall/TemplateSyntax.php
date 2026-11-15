@@ -39,7 +39,7 @@ final class TemplateSyntax
     public const ROW_FLAGS = ['sp_present', 'sp_missed', 'sp_excused', 'sp_makeup', 'sp_attached', 'sp_loa', 'sp_unmarked', 'rc_yes', 'rc_no', 'rc_makeup_requested', 'rc_excused', 'rc_unsigned', 'is_sl', 'is_asl', 'is_ftl'];
 
     /** Names printable inside {{#events}} (#751). */
-    public const EVENT_STRINGS = ['event_name', 'event_start'];
+    public const EVENT_STRINGS = ['event_name', 'event_start', 'event_url'];
 
     public const FILTERS = ['upper', 'lower'];
 

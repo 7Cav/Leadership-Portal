@@ -402,13 +402,13 @@ describe('the chain of command, {{coc}}', () => {
 
 describe("the week's calendar events (#751)", () => {
     const events = [
-        { event_name: 'SQUAD | Squad Saturday @1900Z', event_start: 'Sat 16May26 1900Z' },
-        { event_name: '[HLL] Operation [Red]', event_start: 'Tue 19May26 2300Z' },
+        { event_name: 'SQUAD | Squad Saturday @1900Z', event_start: '16MAY26 1900Z (SAT)', event_url: 'https://7cav.us/events/1064/' },
+        { event_name: '[HLL] Operation [Red]', event_start: '19MAY26 2300Z (TUE)', event_url: 'javascript:alert(1)' },
     ];
 
-    it('prints every event on its own line, start then name, as {{events}}', () => {
-        expect(render('{{events}}', context({ events })).text).toBe('Sat 16May26 1900Z: SQUAD | Squad Saturday @1900Z\nTue 19May26 2300Z: [\u200BHLL\uFF3D Operation [\u200BRed\uFF3D');
-        expect(render('{{events|upper}}', context({ events: events.slice(0, 1) })).text).toBe('SAT 16MAY26 1900Z: SQUAD | SQUAD SATURDAY @1900Z');
+    it('prints every event on its own line, start then name linked to its calendar page, as {{events}}; an unusable address is left out', () => {
+        expect(render('{{events}}', context({ events })).text).toBe('16MAY26 1900Z (SAT): [url=https://7cav.us/events/1064/]SQUAD | Squad Saturday @1900Z[/url]\n19MAY26 2300Z (TUE): [\u200BHLL\uFF3D Operation [\u200BRed\uFF3D');
+        expect(render('{{events|upper}}', context({ events: events.slice(0, 1) })).text).toBe('16MAY26 1900Z (SAT): [url=https://7cav.us/events/1064/]SQUAD | SQUAD SATURDAY @1900Z[/url]');
     });
 
     it('prints nothing for a week with none, or a page that sent none', () => {
@@ -418,9 +418,9 @@ describe("the week's calendar events (#751)", () => {
     });
 
     it('repeats a block once per event with its name and start, and shows {{^events}} for an empty week', () => {
-        const template = '[LIST]{{#events}}[*]{{event_start}}: {{event_name}} ({{unit}}){{/events}}[/LIST]{{^events}}No events.{{/events}}';
+        const template = '[LIST]{{#events}}[*]{{event_start}}: [url={{event_url}}]{{event_name}}[/url] ({{unit}}){{/events}}[/LIST]{{^events}}No events.{{/events}}';
 
-        expect(render(template, context({ events: events.slice(0, 1) })).text).toBe('[LIST][*]Sat 16May26 1900Z: SQUAD | Squad Saturday @1900Z (1/E/2-7)[/LIST]');
+        expect(render(template, context({ events: events.slice(0, 1) })).text).toBe('[LIST][*]16MAY26 1900Z (SAT): [url=https://7cav.us/events/1064/]SQUAD | Squad Saturday @1900Z[/url] (1/E/2-7)[/LIST]');
         expect(render(template, context({ events: [] })).text).toBe('[LIST][/LIST]No events.');
     });
 
@@ -437,7 +437,7 @@ describe("the week's calendar events (#751)", () => {
 
         expect(group('values')).toContain('{{events}}');
         expect(group('lists')).toEqual(['{{#troopers}}...{{/troopers}}', '{{#events}}...{{/events}}']);
-        expect(group('eventValues')).toEqual(['{{event_name}}', '{{event_start}}']);
+        expect(group('eventValues')).toEqual(['{{event_name}}', '{{event_start}}', '{{event_url}}']);
         expect(codeLabel('events')).toBe('Events');
         expect(codeLabel('event_start')).toBe('Event start');
     });

@@ -33,7 +33,7 @@ export const ROW_STRINGS = ['n', 'role', 'rank', 'rank_short', 'rank_icon', 'ran
  */
 export const ROW_FLAGS = ['sp_present', 'sp_missed', 'sp_excused', 'sp_makeup', 'sp_attached', 'sp_loa', 'sp_unmarked', 'rc_yes', 'rc_no', 'rc_makeup_requested', 'rc_excused', 'rc_unsigned', 'is_sl', 'is_asl', 'is_ftl'];
 /** Names printable inside {{#events}}. */
-export const EVENT_STRINGS = ['event_name', 'event_start'];
+export const EVENT_STRINGS = ['event_name', 'event_start', 'event_url'];
 export const FILTERS = ['upper', 'lower'];
 
 // The names that may be used only inside each list, by the list.
@@ -56,11 +56,12 @@ const MEANINGS = {
     training_date: ["When this week's practice starts: the section's slot, or this week's own time when it was moved. Empty when there is no practice this week", 'Wed 20May26 2300Z'],
     training_topic: ["This week's training topic: the platoon's, or the section's own. The weekly report shows the same one. Empty until one is set", 'Land navigation: map and compass'],
     events: [
-        "The week's events on the 7Cav calendar for the section's game, one per line: the start in Zulu, then the name. Empty when there are none or the calendar could not be read. As a list, {{#events}}...{{/events}} repeats what is inside once for each event and {{^events}}...{{/events}} shows when there are none",
+        "The week's events on the 7Cav calendar for the section's game, one per line: the start in Zulu, then the name linked to the event on the calendar. Empty when there are none or the calendar could not be read. As a list, {{#events}}...{{/events}} repeats what is inside once for each event and {{^events}}...{{/events}} shows when there are none",
         '[LIST]{{#events}}[*]{{event_start}}: {{event_name}}{{/events}}[/LIST]',
     ],
     event_name: ["The event's name, as the 7Cav calendar has it", 'SQUAD | Squad Saturday @1900Z'],
-    event_start: ['When the event starts, in Zulu', 'Sat 16May26 1900Z'],
+    event_start: ['When the event starts, in Zulu, with its weekday', '16MAY26 1900Z (SAT)'],
+    event_url: ["The event's page on the 7Cav calendar, for a link of your own: [url={{event_url}}]{{event_name}}[/url]", 'https://7cav.us/events/1064/'],
     coc: ["The section's chain of command up to its battalion, one line per billet from the Assistant Section Leader up to the Battalion Commanding Officer. Each holder links to their milpac; an empty billet reads Vacant, an acting lead ends in (acting)", 'Section Leader: [url=…]Sergeant Jay.JH[/url]'],
     count: ['How many troopers are in the section', '8'],
     signed: ['How many signed the roll call as will attend', '6'],
@@ -115,6 +116,7 @@ const LABELS = {
     events: 'Events',
     event_name: 'Event name',
     event_start: 'Event start',
+    event_url: 'Event link',
     count: 'Trooper count',
     signed: 'Signed count',
     attended: 'Attended count',
@@ -206,8 +208,8 @@ const SAMPLE_CHAIN = [
 
 // The sample week's calendar events.
 const SAMPLE_EVENTS = [
-    { event_name: 'SQUAD | Squad Saturday @1900Z', event_start: 'Sat 16May26 1900Z' },
-    { event_name: 'SQUAD | Operation Paper Trail', event_start: 'Sun 17May26 2000Z' },
+    { event_name: 'SQUAD | Squad Saturday @1900Z', event_start: '16MAY26 1900Z (SAT)', event_url: 'https://7cav.us/events/1064/' },
+    { event_name: 'SQUAD | Operation Paper Trail', event_start: '17MAY26 2000Z (SUN)', event_url: 'https://7cav.us/events/4075/' },
 ];
 
 // The forum's own rank insignia, for the sample section's rows.
@@ -386,13 +388,19 @@ function print(value, filter) {
 }
 
 /**
- * The week's events as `{{events}}` prints them: one line each, the start in Zulu then the name
- * with a colon between (`Sat 21Nov26 1900Z: SQUAD | Squad Saturday @1900Z`), inert like every other value and taking the filter. Nothing for
- * a week with none.
+ * The week's events as `{{events}}` prints them: one line each, the start in Zulu, a colon, then the name linked to the
+ * event's page on the calendar (`21NOV26 1900Z (SAT): [url=https://7cav.us/events/1064/]SQUAD | Squad Saturday[/url]`).
+ * The words are inert like every other value and take the filter; the address is the server's and is left as it is, and
+ * an event without a usable one prints its name unlinked. Nothing for a week with none.
  */
 export function eventsText(events, filter) {
     return (events ?? [])
-        .map(({ event_name = '', event_start = '' }) => cased(inert([event_start, event_name].filter(Boolean).join(': ')), filter))
+        .map(({ event_name = '', event_start = '', event_url = '' }) => {
+            const name = cased(inert(event_name), filter);
+            const linked = event_name && LINK.test(event_url) ? `[url=${event_url}]${name}[/url]` : name;
+
+            return [cased(inert(event_start), filter), linked].filter(Boolean).join(': ');
+        })
         .join('\n');
 }
 
