@@ -3,7 +3,7 @@ title: Glossary
 summary: What the words on the portal's screens mean.
 section: basics
 order: 7
-updated: 2026-11-12
+updated: 2026-11-15
 audience: everyone
 ---
 
@@ -37,7 +37,7 @@ audience: everyone
 - Weekly report: a unit's numbers, training subject and notes for the week, sent up the chain. Sending freezes it; it can be edited and sent again until it is due.
 - Roll-up: a platoon's or higher unit's report, added up from the sent reports below it. Its headcount comes from the roster, not from those reports. While a report below it is missing, or last week's roll-up was sent with one missing, it shows no change from last week.
 - Staff report: a platoon or company HQ staff member's own weekly report of the section practices they attended.
-- Staff guest: a staff member listed on a roll call of a section in their own platoon or company. Shown only, never counted.
+- Staff guest: a staff member listed on a roll call of a section in their own platoon or company, from their own staff report or added by the section leader. Shown only, never counted.
 - Game identity: a trooper's player ID, one per game, so the server data can be matched to them.
 - Unit game: the game a unit plays, set on Org structure. Every unit under it plays the same game unless it has its own.
 - Unmatched player: someone the game server saw at a practice who is not linked to any trooper yet.
