@@ -717,7 +717,7 @@ describe('Settings/Templates', () => {
             const entry = page().get('[data-testid="legend-entry-rank_icon"]');
 
             expect(entry.text()).toContain('rank insignia');
-            expect(entry.text()).toContain('{{#rank_icon}}[IMG]{{rank_icon}}[/IMG]{{/rank_icon}}');
+            expect(entry.text()).toContain('{{#rank_icon}}[img]{{rank_icon}}[/img]{{/rank_icon}}');
         });
 
         it('explains the rank icon width and shows how to size the [IMG] with it', () => {

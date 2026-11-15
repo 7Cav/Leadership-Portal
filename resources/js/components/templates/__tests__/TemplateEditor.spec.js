@@ -135,7 +135,7 @@ describe('editing in the visual mode', () => {
         await selectVisual(2, 6);
         await wrapper.get('[data-testid="tool-bold"]').trigger('click');
         await flushPromises();
-        expect(wrapper.props('modelValue')).toBe('a [B]bold[/B] b');
+        expect(wrapper.props('modelValue')).toBe('a [b]bold[/b] b');
 
         surface().dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true, cancelable: true }));
         await flushPromises();
@@ -143,7 +143,7 @@ describe('editing in the visual mode', () => {
 
         surface().dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }));
         await flushPromises();
-        expect(wrapper.props('modelValue')).toBe('a [B]bold[/B] b');
+        expect(wrapper.props('modelValue')).toBe('a [b]bold[/b] b');
     });
 });
 
@@ -154,7 +154,7 @@ describe('the toolbar', () => {
         await wrapper.get('[data-testid="tool-bold"]').trigger('click');
         await flushPromises();
 
-        expect(wrapper.props('modelValue')).toBe('a [B]bold[/B] b');
+        expect(wrapper.props('modelValue')).toBe('a [b]bold[/b] b');
         expect(surface().querySelector('strong').textContent).toBe('bold');
     });
 
@@ -167,7 +167,7 @@ describe('the toolbar', () => {
         await wrapper.get('[data-testid="tool-bold"]').trigger('click');
         await flushPromises();
 
-        expect(wrapper.props('modelValue')).toBe('a [B]bold[/B] b');
+        expect(wrapper.props('modelValue')).toBe('a [b]bold[/b] b');
     });
 
     it('takes Ctrl+B, Ctrl+I and Ctrl+U as the buttons', async () => {
@@ -176,7 +176,7 @@ describe('the toolbar', () => {
         surface().dispatchEvent(new KeyboardEvent('keydown', { key: 'i', ctrlKey: true, bubbles: true, cancelable: true }));
         await flushPromises();
 
-        expect(wrapper.props('modelValue')).toBe('[I]word[/I]');
+        expect(wrapper.props('modelValue')).toBe('[i]word[/i]');
     });
 
     it('says why, and changes nothing, when formatting would cross into another cell', async () => {
@@ -196,14 +196,14 @@ describe('the toolbar', () => {
         await flushPromises();
         document.querySelector('[data-testid="tool-size-5"]').click();
         await flushPromises();
-        expect(wrapper.props('modelValue')).toBe('[SIZE=5]big[/SIZE]');
+        expect(wrapper.props('modelValue')).toBe('[size=5]big[/size]');
 
         await selectVisual(8, 11);
         await wrapper.get('[data-testid="tool-color"]').trigger('click');
         await flushPromises();
         document.querySelector('[data-testid="tool-color-red"]').click();
         await flushPromises();
-        expect(wrapper.props('modelValue')).toBe('[SIZE=5][COLOR=#c0392b]big[/COLOR][/SIZE]');
+        expect(wrapper.props('modelValue')).toBe('[size=5][color=#c0392b]big[/color][/size]');
     });
 
     it('adds a column to the trooper table from a cell, in the header and the trooper row', async () => {
@@ -535,7 +535,7 @@ describe('opening another template', () => {
         await wrapper.get('[data-testid="tool-table"]').trigger('click');
         await flushPromises();
 
-        expect(wrapper.props('modelValue').startsWith('b[TABLE]')).toBe(true);
+        expect(wrapper.props('modelValue').startsWith('b[table]')).toBe(true);
     });
 });
 
@@ -560,7 +560,7 @@ describe('the menus', () => {
         await flushPromises();
         document.querySelector('[data-testid="tool-link-add"]').click();
         await flushPromises();
-        expect(wrapper.props('modelValue')).toBe('see [URL=https://7cav.us]here[/URL]');
+        expect(wrapper.props('modelValue')).toBe('see [url=https://7cav.us]here[/url]');
     });
 
     it('puts the live roll call image in', async () => {
@@ -570,7 +570,7 @@ describe('the menus', () => {
         document.querySelector('[data-testid="tool-image-rc"]').click();
         await flushPromises();
 
-        expect(wrapper.props('modelValue')).toBe('[IMG]{{rc_image}}[/IMG]');
+        expect(wrapper.props('modelValue')).toBe('[img]{{rc_image}}[/img]');
         expect(surface().querySelector('.tpl-image').textContent).toBe('Image: Signed RC image');
     });
 

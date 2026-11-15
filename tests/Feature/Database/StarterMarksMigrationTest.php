@@ -14,6 +14,17 @@ function starterMarksMigration(): object
     return require database_path('migrations/2026_11_19_095000_publish_starter_marks_on_default_template.php');
 }
 
+/** The starter as this migration published it, uppercase tags and all (lowercased since by 2026_11_29_100002). */
+function starterMarksCurrent(): string
+{
+    return (new ReflectionClassConstant(starterMarksMigration(), 'CURRENT'))->getValue();
+}
+
+function lowercaseMigration(): object
+{
+    return require database_path('migrations/2026_11_29_100002_lowercase_bbcode_in_portal_templates.php');
+}
+
 function seededStarter(object $migration): string
 {
     return (new ReflectionClassConstant($migration, 'SEEDED'))->getValue();
@@ -52,7 +63,7 @@ it('freezes the starter as the templates migration seeded it, without the new ma
     $seeded = seededStarter(starterMarksMigration());
 
     expect($seeded)->not->toContain('sp_excused')->not->toContain('rc_excused')->toContain('sp_attached')
-        ->and((new ReflectionClassConstant(starterMarksMigration(), 'CURRENT'))->getValue())->toBe(TemplateSyntax::STARTER);
+        ->and(lowercaseMigration()->lowercaseTags(starterMarksCurrent()))->toBe(TemplateSyntax::STARTER);
 });
 
 it('publishes the current starter as v2 of an unchanged regiment default and of an unchanged copy, and rolls back', function () {
@@ -64,9 +75,9 @@ it('publishes the current starter as v2 of an unchanged regiment default and of 
 
     $migration->up();
 
-    expect(activeVersion($default))->toMatchObject(['version' => 2, 'body' => TemplateSyntax::STARTER, 'created_by' => null])
+    expect(activeVersion($default))->toMatchObject(['version' => 2, 'body' => starterMarksCurrent(), 'created_by' => null])
         ->and(activeVersion($default)->body)->toContain('{{#sp_excused}}EX{{/sp_excused}}')->toContain('{{#rc_makeup_requested}}MU{{/rc_makeup_requested}}')->toContain('{{#rc_excused}}EX{{/rc_excused}}')
-        ->and(activeVersion($copy))->toMatchObject(['version' => 2, 'body' => TemplateSyntax::STARTER])
+        ->and(activeVersion($copy))->toMatchObject(['version' => 2, 'body' => starterMarksCurrent()])
         ->and(activeVersion($edited)->body)->toBe($seeded.'[B]Ours[/B]');
 
     $migration->up(); // again: nothing left on the seeded starter

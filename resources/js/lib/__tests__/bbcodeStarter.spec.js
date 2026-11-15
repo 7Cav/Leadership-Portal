@@ -23,10 +23,10 @@ describe('the starter template', () => {
     it('renders a post like the mockup, each status in its own mark', () => {
         const out = render(STARTER, CONTEXT).text;
 
-        expect(out).toContain('[B]1/E/2-7 ROLL CALL | 16MAY26 to 22MAY26[/B]');
-        expect(out).toContain('[TR][TD]1[/TD][TD][IMG width="11px" height="auto"]https://7cav.us/data/roster_ranks/0/18.jpg[/IMG] Sergeant Jay.JH[/TD][TD]✓[/TD][TD]✓[/TD][/TR]');
-        // No insignia from Cav: no empty [IMG] tag, just the name.
-        expect(out).toContain('[TR][TD]2[/TD][TD]Specialist Adams.P[/TD][TD]✗[/TD][TD]LOA[/TD][/TR]');
+        expect(out).toContain('[b]1/E/2-7 ROLL CALL | 16MAY26 to 22MAY26[/b]');
+        expect(out).toContain('[tr][td]1[/td][td][img width="11px" height="auto"]https://7cav.us/data/roster_ranks/0/18.jpg[/img] Sergeant Jay.JH[/td][td]✓[/td][td]✓[/td][/tr]');
+        // No insignia from Cav: no empty [img] tag, just the name.
+        expect(out).toContain('[tr][td]2[/td][td]Specialist Adams.P[/td][td]✗[/td][td]LOA[/td][/tr]');
     });
 
     it('marks an excused practice EX, and a make-up requested or excused roll call MU and EX (#629)', () => {
@@ -36,12 +36,12 @@ describe('the starter template', () => {
         ];
         const out = render(STARTER, { ...CONTEXT, troopers: rows }).text;
 
-        expect(out).toContain('[TR][TD]1[/TD][TD]Private Bell.A[/TD][TD]MU[/TD][TD]EX[/TD][/TR]');
-        expect(out).toContain('[TR][TD]2[/TD][TD]Private Cole.B[/TD][TD]EX[/TD][TD]✗[/TD][/TR]');
+        expect(out).toContain('[tr][td]1[/td][td]Private Bell.A[/td][td]MU[/td][td]EX[/td][/tr]');
+        expect(out).toContain('[tr][td]2[/td][td]Private Cole.B[/td][td]EX[/td][td]✗[/td][/tr]');
     });
 
     it('says so for an empty section', () => {
-        expect(render(STARTER, { ...CONTEXT, troopers: [] }).text).toContain('[TR][TD]No troopers are placed in this section.[/TD][/TR]');
+        expect(render(STARTER, { ...CONTEXT, troopers: [] }).text).toContain('[tr][td]No troopers are placed in this section.[/td][/tr]');
     });
 
     it('adds a Role column only when the section shows fireteam leaders and has one', () => {
@@ -49,10 +49,10 @@ describe('the starter template', () => {
         const shown = render(STARTER, { ...CONTEXT, fireteams_shown: true, troopers: CONTEXT.troopers.map((row, i) => ({ ...row, role: roles[i] })) }).text;
         const hidden = render(STARTER, { ...CONTEXT, fireteams_shown: false, troopers: CONTEXT.troopers.map((row, i) => ({ ...row, role: roles[i] })) }).text;
 
-        expect(shown).toContain('[TH]Name[/TH][TH]Role[/TH][TH]Signed RC[/TH]');
-        expect(shown).toContain('Sergeant Jay.JH[/TD][TD]Section Leader (FTL Alpha)[/TD][TD]✓[/TD]');
-        expect(shown).toContain('Specialist Adams.P[/TD][TD][/TD][TD]✗[/TD]');
+        expect(shown).toContain('[th]Name[/th][th]Role[/th][th]Signed RC[/th]');
+        expect(shown).toContain('Sergeant Jay.JH[/td][td]Section Leader (FTL Alpha)[/td][td]✓[/td]');
+        expect(shown).toContain('Specialist Adams.P[/td][td][/td][td]✗[/td]');
         expect(hidden).not.toContain('Role');
-        expect(hidden).toContain('Sergeant Jay.JH[/TD][TD]✓[/TD]');
+        expect(hidden).toContain('Sergeant Jay.JH[/td][td]✓[/td]');
     });
 });
