@@ -23,8 +23,8 @@ describe("WeekEvents, the week's calendar events on the roll call (#751)", () =>
         const starts = wrapper.findAll('[data-testid="week-event-start"]').map((cell) => cell.text());
         const names = wrapper.findAll('[data-testid="week-event-name"]');
 
-        expect(starts[0]).toMatch(/^Sat 21NOV26 19\s00Z$/);
-        expect(starts[1]).toMatch(/^Wed 25NOV26 23\s00Z$/);
+        expect(starts[0]).toMatch(/^Sat 21NOV26 19\s00Z:$/);
+        expect(starts[1]).toMatch(/^Wed 25NOV26 23\s00Z:$/);
         expect(names.map((name) => name.text())).toEqual(['SQUAD | Squad Saturday @1900Z', 'SQUAD | Warrior Wednesdays 2300 Zulu']);
         expect(names[0].attributes('href')).toBe('https://7cav.us/events/1064/');
         expect(names[1].element.tagName).toBe('SPAN');

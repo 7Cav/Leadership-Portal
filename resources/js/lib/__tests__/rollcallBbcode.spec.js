@@ -334,7 +334,7 @@ describe("the week's calendar events in the post (#751)", () => {
 
     it('prints them where the template puts {{events}}, and lays them out one by one in {{#events}}', () => {
         expect(rollcallPost(resolved('Events:\n{{events}}'), { ...input(), events: EVENTS }).text).toBe(
-            'Events:\nSat 03Oct26 1900Z SQUAD | Squad Saturday @1900Z\nWed 07Oct26 2300Z SQUAD | Warrior Wednesdays 2300 Zulu',
+            'Events:\nSat 03Oct26 1900Z: SQUAD | Squad Saturday @1900Z\nWed 07Oct26 2300Z: SQUAD | Warrior Wednesdays 2300 Zulu',
         );
         expect(rollcallPost(resolved('{{#events}}[*]{{event_name}} at {{event_start}}{{/events}}{{^events}}None{{/events}}'), { ...input(), events: [] }).text).toBe('None');
     });

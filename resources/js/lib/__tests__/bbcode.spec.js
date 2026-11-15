@@ -407,8 +407,8 @@ describe("the week's calendar events (#751)", () => {
     ];
 
     it('prints every event on its own line, start then name, as {{events}}', () => {
-        expect(render('{{events}}', context({ events })).text).toBe('Sat 16May26 1900Z SQUAD | Squad Saturday @1900Z\nTue 19May26 2300Z [\u200BHLL\uFF3D Operation [\u200BRed\uFF3D');
-        expect(render('{{events|upper}}', context({ events: events.slice(0, 1) })).text).toBe('SAT 16MAY26 1900Z SQUAD | SQUAD SATURDAY @1900Z');
+        expect(render('{{events}}', context({ events })).text).toBe('Sat 16May26 1900Z: SQUAD | Squad Saturday @1900Z\nTue 19May26 2300Z: [\u200BHLL\uFF3D Operation [\u200BRed\uFF3D');
+        expect(render('{{events|upper}}', context({ events: events.slice(0, 1) })).text).toBe('SAT 16MAY26 1900Z: SQUAD | SQUAD SATURDAY @1900Z');
     });
 
     it('prints nothing for a week with none, or a page that sent none', () => {

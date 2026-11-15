@@ -12,7 +12,7 @@ const props = defineProps({
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-/** An event's start as the page writes a moment in Zulu: `Sat 21NOV26 1900Z`. */
+/** An event's start as the page writes a moment in Zulu, `Sat 21NOV26 1900Z`; the line puts a colon before the name. */
 function startLabel(start) {
     return `${WEEKDAYS[new Date(start).getUTCDay()]} ${forumDateTime(start)}Z`;
 }
@@ -41,8 +41,8 @@ const stale = computed(() =>
         <h2 id="week-events-title" class="text-[13px] font-semibold">Events this week</h2>
         <p v-if="empty" class="mt-1 text-xs text-muted-foreground" data-testid="week-events-empty">{{ empty }}</p>
         <ul v-else class="mt-1.5 divide-y divide-border" data-testid="week-events-list">
-            <li v-for="event in items" :key="`${event.start} ${event.name}`" class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-1.5">
-                <span class="shrink-0 font-medium tabular-nums" data-testid="week-event-start">{{ startLabel(event.start) }}</span>
+            <li v-for="event in items" :key="`${event.start} ${event.name}`" class="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 py-1.5">
+                <span class="shrink-0 font-medium tabular-nums" data-testid="week-event-start">{{ startLabel(event.start) }}:</span>
                 <a v-if="event.url" :href="event.url" target="_blank" rel="noopener noreferrer" class="min-w-0 break-words underline-offset-2 hover:underline" data-testid="week-event-name">{{
                     event.name
                 }}</a>

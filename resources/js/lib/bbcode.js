@@ -57,7 +57,7 @@ const MEANINGS = {
     training_topic: ["This week's training topic: the platoon's, or the section's own. The weekly report shows the same one. Empty until one is set", 'Land navigation: map and compass'],
     events: [
         "The week's events on the 7Cav calendar for the section's game, one per line: the start in Zulu, then the name. Empty when there are none or the calendar could not be read. As a list, {{#events}}...{{/events}} repeats what is inside once for each event and {{^events}}...{{/events}} shows when there are none",
-        '[LIST]{{#events}}[*]{{event_start}} {{event_name}}{{/events}}[/LIST]',
+        '[LIST]{{#events}}[*]{{event_start}}: {{event_name}}{{/events}}[/LIST]',
     ],
     event_name: ["The event's name, as the 7Cav calendar has it", 'SQUAD | Squad Saturday @1900Z'],
     event_start: ['When the event starts, in Zulu', 'Sat 16May26 1900Z'],
@@ -387,12 +387,12 @@ function print(value, filter) {
 
 /**
  * The week's events as `{{events}}` prints them: one line each, the start in Zulu then the name
- * (`Sat 21Nov26 1900Z SQUAD | Squad Saturday @1900Z`), inert like every other value and taking the filter. Nothing for
+ * with a colon between (`Sat 21Nov26 1900Z: SQUAD | Squad Saturday @1900Z`), inert like every other value and taking the filter. Nothing for
  * a week with none.
  */
 export function eventsText(events, filter) {
     return (events ?? [])
-        .map(({ event_name = '', event_start = '' }) => cased(inert([event_start, event_name].filter(Boolean).join(' ')), filter))
+        .map(({ event_name = '', event_start = '' }) => cased(inert([event_start, event_name].filter(Boolean).join(': ')), filter))
         .join('\n');
 }
 
