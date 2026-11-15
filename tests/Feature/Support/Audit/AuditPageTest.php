@@ -31,6 +31,9 @@ it('keeps nothing for another site, a malformed address or no page at all', func
     'no host' => ['/settings/games'],
     'not an address' => ['not a url'],
     'none' => [null],
+    // This portal's host, but a path a browser reads as another site (15NOV26).
+    'a second slash' => ['http://localhost//evil.example/login'],
+    'a backslash' => ['http://localhost/\\evil.example/login'],
 ]);
 
 it('cuts a very long address to what the column holds', function () {
@@ -74,3 +77,11 @@ it('links nowhere for an entry with no page', function () {
     expect(AuditLogController::pageLink(null))->toBeNull()
         ->and(AuditLogController::pageLink('https://example.com/x'))->toBeNull();
 });
+
+it('never links to another site from an entry stored with such a page', function (string $page) {
+    expect(AuditLogController::pageLink($page))->toBeNull();
+})->with([
+    'a second slash' => ['//evil.example/login'],
+    'a backslash' => ['/\\evil.example/login'],
+    'a control character' => ["/\t/evil.example"],
+]);

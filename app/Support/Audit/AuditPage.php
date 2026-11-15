@@ -34,10 +34,22 @@ class AuditPage
         $path = parse_url($referer, PHP_URL_PATH);
         $query = parse_url($referer, PHP_URL_QUERY);
 
-        if (! is_string($host) || mb_strtolower($host) !== mb_strtolower($request->getHost()) || ! is_string($path) || ! str_starts_with($path, '/')) {
+        if (! is_string($host) || mb_strtolower($host) !== mb_strtolower($request->getHost()) || ! is_string($path)) {
             return null;
         }
 
-        return mb_substr($path.(is_string($query) && $query !== '' ? "?{$query}" : ''), 0, self::MAX);
+        $page = mb_substr($path.(is_string($query) && $query !== '' ? "?{$query}" : ''), 0, self::MAX);
+
+        return self::isLocal($page) ? $page : null;
+    }
+
+    /**
+     * Whether `$page` is a path on this portal, as the docs' "?" help reads one: it starts with a single `/`, so
+     * `//evil.example` (another site to a browser) is refused, and holds no backslash or control character, which a
+     * browser may read as a `/` or drop (`/\evil.example` and `/\t/evil.example` both open evil.example).
+     */
+    public static function isLocal(string $page): bool
+    {
+        return str_starts_with($page, '/') && ! str_starts_with($page, '//') && preg_match('/[\x00-\x1F\x7F\\\\]/', $page) !== 1;
     }
 }

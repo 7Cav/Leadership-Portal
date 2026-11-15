@@ -29,6 +29,7 @@ use App\Models\WeeklyReport;
 use App\Repositories\AuditLogRepository;
 use App\Repositories\AuditSubject;
 use App\Repositories\UnitRepository;
+use App\Support\Audit\AuditPage;
 use App\Support\Time\WeekLabel;
 use Closure;
 use Illuminate\Http\Request;
@@ -165,13 +166,14 @@ class AuditLogController extends Controller
 
     /**
      * A link to the page a change was made on: its address as kept with the entry, named after the page, such as
-     * "Roll call" or "Settings, Org structure". Null when no page was kept.
+     * "Roll call" or "Settings, Org structure". Null when no page was kept, or for anything that is not a path on this
+     * portal (an entry stored before that was checked), so the log never links to another site.
      *
      * @return array{href: string, label: string}|null
      */
     public static function pageLink(?string $page): ?array
     {
-        if ($page === null || ! str_starts_with($page, '/')) {
+        if ($page === null || ! AuditPage::isLocal($page)) {
             return null;
         }
 
