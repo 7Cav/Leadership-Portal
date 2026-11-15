@@ -100,8 +100,11 @@ class RollcallGuestController extends Controller
     {
         return $this->attempt($request, 'adding this guest', function (CarbonImmutable $week, int $trooperId) use ($request, $unit, $handler) {
             $recorded = $handler->handle($request->user(), new RecordGuestAttendance($unit, $week, $trooperId));
-            // Read again, so a retry that could not write the makeup still offers the next one.
-            $missing = $this->makeups->makeupsMissing($recorded->practice, [$trooperId]) !== [];
+            // Read again, so a retry that could not write the makeup still offers the next one. Only a makeup that is due
+            // can be missing: a pending one waits for the practice hour (#634), and staff and others get none, as the
+            // rollcall page reads it.
+            $missing = in_array($recorded->makeup, ['marked', 'kept', 'locked'], true)
+                && $this->makeups->makeupsMissing($recorded->practice, [$trooperId]) !== [];
 
             return [
                 'guest' => $this->guests->one($recorded->sighting, $this->troopers->find($trooperId), $missing),

@@ -284,9 +284,12 @@ async function undo(guest) {
                     <Badge variant="secondary" class="font-normal" data-testid="guest-source">{{ guest.staffGuest ? 'Staff guest' : 'Guest' }}</Badge>
                     <span class="text-xs text-muted-foreground" data-testid="guest-staff-note">Staff, not counted here</span>
                 </template>
-                <Badge v-else variant="outline" class="font-normal" data-testid="guest-source">
-                    <template v-if="guest.recordedBy">Added by {{ guest.recordedBy }}</template><template v-else>Added by hand</template>
-                </Badge>
+                <template v-else>
+                    <Badge v-if="guest.staffGuest" variant="secondary" class="font-normal" data-testid="guest-staff-guest">Staff guest</Badge>
+                    <Badge variant="outline" class="font-normal" data-testid="guest-source">
+                        <template v-if="guest.recordedBy">Added by {{ guest.recordedBy }}</template><template v-else>Added by hand</template>
+                    </Badge>
+                </template>
                 <span v-if="guest.source === 'manual' && guest.makeupMissing" class="text-xs text-muted-foreground" data-testid="guest-makeup-missing">
                     No make-up on their own roll call yet
                 </span>

@@ -8,6 +8,7 @@ use App\Models\AuditLogEntry;
 use App\Models\CrossSectionSighting;
 use App\Models\PortalRoleGrant;
 use App\Models\SectionPractice;
+use App\Models\SectionPracticeSlot;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
@@ -268,6 +269,16 @@ it('lists HQ staff a leader adds as a staff guest under their own HQ, with no ma
 
     removeGuest($this->leader, $this->host->id, $psg->id)->assertOk();
     expect(CrossSectionSighting::query()->where('trooper_id', $psg->id)->exists())->toBeFalse();
+});
+
+it('does not call a makeup that waits for the practice hour missing (#634)', function () {
+    // Thursday 2000Z, an hour from now: the makeup waits until it is over.
+    SectionPracticeSlot::query()->create(['section_id' => $this->host->id, 'weekday' => 4, 'start_minute' => 1200]);
+
+    addGuest($this->leader, $this->host->id, $this->guest->id)
+        ->assertOk()
+        ->assertJsonPath('makeup', 'pending')
+        ->assertJsonPath('guest.makeupMissing', false);
 });
 
 it('lists anyone else who attended with no makeup: a group, unplaced, or no longer serving', function (Closure $trooper) {

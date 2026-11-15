@@ -47,6 +47,16 @@ describe('GuestsPanel', () => {
         expect(wrapper.find('[data-testid="guest-8"] [data-testid="guest-undo"]').exists()).toBe(true);
     });
 
+    it('labels HQ staff a leader added as a staff guest, with Undo, and a plain hand-added guest without the label', () => {
+        const manual = (trooperId, staffGuest) => ({ trooperId, name: `Hand${trooperId}.H`, displayName: `SFC Hand${trooperId}.H`, rank: 'SFC', section: '1/A/1-7', source: 'manual', recordedBy: 'Host.L', makeupMissing: false, staffGuest });
+        const wrapper = factory({ guests: [manual(30, true), manual(31, false)] });
+
+        expect(wrapper.find('[data-testid="guest-30"] [data-testid="guest-staff-guest"]').text()).toBe('Staff guest');
+        expect(wrapper.find('[data-testid="guest-30"] [data-testid="guest-source"]').text()).toBe('Added by Host.L');
+        expect(wrapper.find('[data-testid="guest-30"] [data-testid="guest-undo"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="guest-31"] [data-testid="guest-staff-guest"]').exists()).toBe(false);
+    });
+
     it('lists staff who attended as a staff guest or a guest, shown only, with nothing to undo', () => {
         const staff = (trooperId, staffGuest) => ({ trooperId, name: `Staff${trooperId}.S`, displayName: `SGT Staff${trooperId}.S`, rank: 'SGT', section: '1/A/1-7', source: 'staff', recordedBy: 'Staff.S', makeupMissing: false, staffGuest });
         const wrapper = factory({ guests: [SEEN, staff(20, true), staff(21, false)] });
