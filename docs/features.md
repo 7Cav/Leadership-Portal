@@ -317,7 +317,7 @@ leaves the Cav; one who left before it began doing so has no date and is on no p
   report.
 - A unit's report (`/reports/<unit>/<week>`):
   - Section report: KPIs and the change from last week, a "Ready to send" checklist (Roll call complete, Practice marked,
-    Practice confirmed, which blocks the send, Unaccounted troopers explained, Training subject filled, Notes reviewed), a reason for each unaccounted trooper from
+    Practice slot set and Practice confirmed, which both block the send, Unaccounted troopers explained, Training subject filled, Notes reviewed), a reason for each unaccounted trooper from
     a fixed list, the training subject (last sent subject offered as a suggestion), notes, history and an 8 week trend.
   - Suggested reasons: where the portal's data says why a trooper is unaccounted, their reason is pre-selected:
     "Departed, no longer on the Cav roster", "Moved out of the section this week" (they left the section during the

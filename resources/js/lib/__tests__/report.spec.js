@@ -75,6 +75,23 @@ describe('readinessChecks', () => {
         });
     });
 
+    describe('practice slot set', () => {
+        const content = { trainingSubject: 'Room clearing', unaccounted: [] };
+        const ids = (practice) => readinessChecks({ isLeaf: true, troopers: [], content, reviewed: true, practice }).map((c) => c.id);
+        const slot = (practice) => readinessChecks({ isLeaf: true, troopers: [], content, reviewed: true, practice }).find((c) => c.id === 'slot');
+
+        it('is a blocking check, before the confirmation, while the section needs a slot and has none, held week or not', () => {
+            expect(slot({ confirmed: true, held: false, slotSet: false })).toMatchObject({ title: 'Practice slot set', done: false, blocking: true, next: 'Set the practice slot in roll call' });
+            expect(ids({ confirmed: false, held: null, slotSet: false }).indexOf('slot')).toBe(ids({ confirmed: false, held: null, slotSet: false }).indexOf('confirmed') - 1);
+        });
+
+        it('is not listed once the section has a slot, or needs none', () => {
+            expect(slot({ confirmed: false, held: null, slotSet: true })).toBeUndefined();
+            expect(slot({ confirmed: false, held: null })).toBeUndefined();
+            expect(slot(null)).toBeUndefined();
+        });
+    });
+
     const content = { trainingSubject: 'Room clearing', unaccounted: [] };
 
     it('reads the roster checks as not applicable for a section with no troopers', () => {

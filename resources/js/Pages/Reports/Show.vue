@@ -97,8 +97,8 @@ const props = defineProps({
     // The unit's game (its own or the nearest above it) when its attendance can never be read automatically, else null:
     // one notice near the top says all attendance is self-reported, and nothing below calls server data missing.
     selfReported: { type: String, default: null },
-    // A section's draft with troopers: whether the week's practice is confirmed (`{ confirmed, held }`), which the send
-    // needs (#634). Null when nothing needs confirming.
+    // A section's draft with troopers: whether the week's practice is confirmed (`{ confirmed, held }`, #634) and whether
+    // the section has the weekly practice slot it needs (`slotSet`), both of which the send needs. Null when nothing does.
     practice: { type: Object, default: null },
 });
 
@@ -275,8 +275,11 @@ const checks = computed(() =>
     }),
 );
 const openChecks = computed(() => checks.value.filter((c) => !c.done));
-// A check the server enforces (the practice confirmation, #634): "Send anyway" cannot pass it.
-const blocked = computed(() => openChecks.value.some((c) => c.blocking));
+// A check the server enforces (the practice slot, and the practice confirmation, #634): "Send anyway" cannot pass it.
+const blocking = computed(() => openChecks.value.find((c) => c.blocking) ?? null);
+const blocked = computed(() => blocking.value !== null);
+// What the disabled send says: the first check that blocks it, as its next step.
+const blockedNote = computed(() => (blocking.value ? `${blocking.value.next} first` : null));
 // Children still out are named on their own in the overview and the reason, not as an open check.
 const openItems = computed(() => openChecks.value.filter((c) => c.id !== 'children'));
 const missingUnits = computed(() => (props.children ?? []).filter((c) => c.status !== 'sent').map(unitLabel));
@@ -346,7 +349,7 @@ onMounted(() => {
     // Arrived to send, but the report cannot go yet: say why instead of opening nothing.
     if (sent.value) return;
     toast.warning('This report cannot be sent yet', {
-        description: blocked.value ? 'Confirm the practice in roll call first.' : (props.kpiError ?? readOnlyNote.value ?? 'It is read-only here.'),
+        description: blocked.value ? `${blockedNote.value}.` : (props.kpiError ?? readOnlyNote.value ?? 'It is read-only here.'),
     });
 });
 
@@ -841,7 +844,7 @@ function useSuggestion() {
                             v-if="openChecks.length"
                             variant="outline"
                             :disabled="readOnly || !!kpiError || blocked"
-                            :title="readOnlyNote ?? (blocked ? 'Confirm the practice in roll call first' : undefined)"
+                            :title="readOnlyNote ?? blockedNote ?? undefined"
                             data-testid="send-anyway"
                             @click="openSend"
                         >

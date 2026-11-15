@@ -71,6 +71,16 @@ describe('RollcallClose (#703)', () => {
         expect(unconfirmed.attributes('title')).toBe('Confirm the practice took place first');
     });
 
+    it('waits for the practice slot too, confirmed or not, and lists it as a check', () => {
+        const wrapper = factory({ slotSet: false });
+        const send = wrapper.get('[data-testid="close-send"]');
+
+        expect(send.attributes('disabled')).toBeDefined();
+        expect(send.attributes('title')).toBe('Set the practice slot first');
+        expect(wrapper.get('[data-check="slot"]').attributes('data-done')).toBe('false');
+        expect(factory().find('[data-check="slot"]').exists()).toBe(false);
+    });
+
     it('says a sent week is closed and locked, and points to the report', () => {
         const wrapper = factory({ report: { ...REPORT, sent: true } });
 
