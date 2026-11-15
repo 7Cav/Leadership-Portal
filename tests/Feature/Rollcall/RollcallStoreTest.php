@@ -208,6 +208,11 @@ it('still answers saved when only the at-risk refresh fails, so the screen never
             return $this->inner->clearMakeupAuto($practice, $trooperId);
         }
 
+        public function clearPracticeAuto(SectionPractice $practice, int $trooperId, bool $restoreMissed): ?Attendance
+        {
+            return $this->inner->clearPracticeAuto($practice, $trooperId, $restoreMissed);
+        }
+
         public function practicesWithAutoMakeup(int $trooperId, CarbonInterface $weekStart): Collection
         {
             return $this->inner->practicesWithAutoMakeup($trooperId, $weekStart);

@@ -548,3 +548,97 @@ it('leaves no audit trail behind a refused collision, and nothing is consumed by
 
     expect(AuditLogEntry::query()->count())->toBe($before);
 });
+
+function unlinkBody(object $test, array $override = []): array
+{
+    return ['week' => '2026-10-03', 'platform' => 'hll', 'platform_id' => '76561190000000001', 'trooper_id' => $test->ortega->id, 'clear_mark' => true, ...$override];
+}
+
+it('says what the mark was before the link, so an Undo can put it back', function () {
+    Attendance::factory()->create([
+        'trooper_id' => $this->ortega->id, 'section_practice_id' => $this->practice->id,
+        'status' => AttendanceStatus::Missed, 'source' => AttendanceSource::Auto,
+    ]);
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this))
+        ->assertOk()
+        ->assertJsonPath('before', ['status' => 'missed', 'source' => 'auto'])
+        ->assertJsonPath('trooper', ['id' => $this->ortega->id, 'status' => 'present', 'source' => 'auto']);
+});
+
+it('undoes a link: the player is unmatched again, the ID removed and the attended mark taken back, audited', function () {
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this))->assertOk();
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/unlink", unlinkBody($this))
+        ->assertOk()
+        ->assertJsonPath('cleared', true)
+        ->assertJsonPath('trooper', ['id' => $this->ortega->id, 'status' => null, 'source' => null]);
+
+    expect(TrooperGameIdentity::query()->count())->toBe(0)
+        ->and(Attendance::query()->where('trooper_id', $this->ortega->id)->count())->toBe(0)
+        ->and(AuditLogEntry::query()->where('action', 'attendance.auto_unmarked')->where('actor_id', $this->leader->id)->count())->toBe(1);
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
+        ->assertInertia(fn (Assert $page) => $page->where('unmatched.0.platformId', '76561190000000001'));
+});
+
+it('puts an automatic missed back, and keeps the row with its signature', function () {
+    Attendance::factory()->create([
+        'trooper_id' => $this->ortega->id, 'section_practice_id' => $this->practice->id,
+        'status' => AttendanceStatus::Missed, 'source' => AttendanceSource::Auto,
+    ]);
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this))->assertOk();
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/unlink", unlinkBody($this, ['restore_missed' => true]))
+        ->assertOk()
+        ->assertJsonPath('trooper', ['id' => $this->ortega->id, 'status' => 'missed', 'source' => 'auto']);
+});
+
+it('leaves a mark changed since the link, and still undoes the link', function () {
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this))->assertOk();
+    Attendance::query()->where('trooper_id', $this->ortega->id)->update(['status' => 'excused', 'source' => 'manual']);
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/unlink", unlinkBody($this))
+        ->assertOk()
+        ->assertJsonPath('cleared', false)
+        ->assertJsonPath('trooper', ['id' => $this->ortega->id, 'status' => 'excused', 'source' => 'manual']);
+
+    expect(TrooperGameIdentity::query()->count())->toBe(0);
+});
+
+it('puts back the ID a replace link overwrote', function () {
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'game_id' => game('hll')->id, 'platform_id' => '76561190000000099']);
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this, ['replace' => true, 'replacing' => '76561190000000099']))->assertOk();
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/unlink", unlinkBody($this, ['replaced' => '76561190000000099']))->assertOk();
+
+    expect(TrooperGameIdentity::query()->sole()->platform_id)->toBe('76561190000000099');
+});
+
+it('refuses to undo a link whose ID changed since, and changes nothing', function () {
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'game_id' => game('hll')->id, 'platform_id' => '76561190000000077']);
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/unlink", unlinkBody($this))
+        ->assertStatus(422)
+        ->assertJsonPath('message', UnmatchedPlayerResolutionException::linkChanged()->getMessage());
+
+    expect(TrooperGameIdentity::query()->sole()->platform_id)->toBe('76561190000000077');
+});
+
+it('denies undoing a link for a section outside the leader\'s scope (AD-8)', function () {
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this))->assertOk();
+    $other = User::factory()->commanding(Unit::factory()->create(['type' => UnitType::Section, 'path' => '931/']))->create();
+
+    $this->actingAs($other)->postJson("/rollcall/{$this->section->id}/unmatched/unlink", unlinkBody($this))->assertForbidden();
+
+    expect(TrooperGameIdentity::query()->count())->toBe(1);
+});
+
+it('leaves the mark of a confirmed practice, and still undoes the link', function () {
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this))->assertOk();
+    $this->practice->forceFill(['confirmed_at' => now(), 'confirmed_by' => $this->leader->id])->save();
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/unlink", unlinkBody($this))
+        ->assertOk()
+        ->assertJsonPath('cleared', false)
+        ->assertJsonPath('trooper', ['id' => $this->ortega->id, 'status' => 'present', 'source' => 'auto']);
+});

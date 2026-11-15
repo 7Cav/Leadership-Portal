@@ -28,7 +28,7 @@ trait ResolvesUnmatchedPlayers
         ScopeResolver $scope,
         SectionPracticeRepository $practices,
         PracticeCapturePlayerRepository $captured,
-        LinkUnmatchedPlayer|DismissUnmatchedPlayer|RestoreDismissedPlayer $command,
+        LinkUnmatchedPlayer|DismissUnmatchedPlayer|RestoreDismissedPlayer|UndoUnmatchedLink $command,
     ): array {
         if (! $scope->writeScope($actor)->contains($command->sectionId)) {
             throw GameIdentityForbiddenException::forSection($command->sectionId);

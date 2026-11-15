@@ -17,6 +17,7 @@ audience: leader
 
 1. Open **Choose a trooper** and pick the trooper the player is. The closest names are listed first. To find someone else, type part of their name, such as "Dube.R" or "dube".
 2. Choose **Link and mark attended**. This saves their game identity and marks them attended.
+3. Linked the wrong trooper? The player stays in the panel, greyed out, until you reload. Choose **Undo** there, or on the message that confirms the link. The player is listed again, the trooper gets back the ID they had before, and the attended mark is taken back, unless someone changed that mark since.
 
 > [!good-to-know] If the trooper already has a different ID for that game, the portal asks before replacing it. Choose **Keep** to leave the old one.
 >

@@ -38,6 +38,7 @@ it('answers a 20-digit id with 404, not a 500', function (string $method, string
     'link an unmatched player' => ['POST', '/rollcall/99999999999999999999/unmatched/link'],
     'dismiss an unmatched player' => ['POST', '/rollcall/99999999999999999999/unmatched/dismiss'],
     'undo a dismissal' => ['POST', '/rollcall/99999999999999999999/unmatched/restore'],
+    'undo a link' => ['POST', '/rollcall/99999999999999999999/unmatched/unlink'],
     'retry capture' => ['POST', '/rollcall/99999999999999999999/capture'],
     'search for a guest' => ['GET', '/rollcall/99999999999999999999/guests/search'],
     'add a guest' => ['POST', '/rollcall/99999999999999999999/guests'],

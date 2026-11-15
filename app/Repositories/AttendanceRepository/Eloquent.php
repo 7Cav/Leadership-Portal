@@ -139,6 +139,37 @@ class Eloquent implements AttendanceRepository
         });
     }
 
+    public function clearPracticeAuto(SectionPractice $practice, int $trooperId, bool $restoreMissed): ?Attendance
+    {
+        return DB::transaction(function () use ($practice, $trooperId, $restoreMissed) {
+            $row = Attendance::query()
+                ->where(['trooper_id' => $trooperId, 'section_practice_id' => $practice->id])
+                ->lockForUpdate()
+                ->first();
+
+            // Only the automatic attended mark itself: a leader's word and every other status stay.
+            if ($row === null || $row->status !== AttendanceStatus::Present || $row->source !== AttendanceSource::Auto) {
+                return null;
+            }
+
+            if ($restoreMissed) {
+                $row->fill(['status' => AttendanceStatus::Missed, 'source' => AttendanceSource::Auto])->save();
+
+                return $this->realise($row);
+            }
+
+            if ($row->rollcall === RollcallSignature::Unsigned) {
+                $row->delete();
+
+                return $row;
+            }
+
+            $row->fill(['status' => null, 'source' => null])->save();
+
+            return $this->realise($row);
+        });
+    }
+
     public function practicesWithAutoMakeup(int $trooperId, CarbonInterface $weekStart): Collection
     {
         return SectionPractice::query()
