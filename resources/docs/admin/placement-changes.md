@@ -12,7 +12,7 @@ page: /settings/placement-changes
 ## Read the list
 
 1. Open **Settings**, then **Org structure**, and choose the **Placement changes** tab. The newest moves are first, for the last 14 days. Choose **7 days** or **30 days** to see less or more.
-2. Each row is one move: when, who, from which unit to which, and whether the roster sync or an Admin made it. Moves from one sync share a time.
+2. Each row is one move: when, who, from which unit to which, and whether the roster sync or an Admin made it. An Admin's move names them, from 15NOV26 on; an older one just says **Admin**. Moves from one sync share a time.
 3. A trooper moved and put straight back has both rows marked. That's usually a wrong edit on the milpac.
 
 > [!good-to-know] A trooper moved and put back inside the same Cav week isn't treated as a transfer: it doesn't excuse their week, and their milpac page doesn't list it. Put back in a later week, both moves stay on their milpac page, marked as a likely correction.
