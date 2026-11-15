@@ -101,14 +101,14 @@ const waiting = computed(() => props.children.filter((c) => c.status !== 'sent')
                 </button>
 
                 <div v-show="open.has(check.id)" :id="`check-${check.id}`" class="px-3 pb-3.5">
-                    <template v-if="check.id === 'rollcall' || check.id === 'practice' || check.id === 'confirmed'">
+                    <template v-if="check.id === 'rollcall' || check.id === 'practice' || check.id === 'confirmed' || check.id === 'slot'">
                         <p v-if="check.id === 'practice'" class="mb-2.5 text-xs text-muted-foreground">
                             Practice marks are recorded in roll call, where the change is audited.
                         </p>
                         <p v-else-if="check.id === 'confirmed'" class="mb-2.5 text-xs text-muted-foreground">
                             Once the practice is over, use <strong>Confirm practice took place</strong> or <strong>Practice did not take place</strong> on the practice step.
                         </p>
-                        <p v-else class="mb-2.5 text-xs text-muted-foreground">
+                        <p v-else-if="check.id === 'rollcall'" class="mb-2.5 text-xs text-muted-foreground">
                             Signature changes after you send stay out of this report.
                         </p>
                         <Button v-if="rollcallUrl" variant="outline" size="sm" as-child>

@@ -732,6 +732,9 @@ describe('Reports/Show opened to send from the roll call (#703)', () => {
         expect(wrapper.get('[data-testid="send-anyway"]').attributes('disabled')).toBeDefined();
         expect(wrapper.get('[data-testid="send-anyway"]').attributes('title')).toBe('Set the practice slot in roll call first');
         expect(wrapper.get('[data-check="slot"]').text()).toContain('Practice slot set');
+        // Like the other roll call items, it opens the roll call, where the slot is set.
+        expect(wrapper.get('[data-check="slot"]').text()).toContain('Open roll call');
+        expect(wrapper.get('[data-check="slot"]').text()).not.toContain('Signature changes');
     });
 
     it('says why when it arrives to send a report that cannot go yet', async () => {
