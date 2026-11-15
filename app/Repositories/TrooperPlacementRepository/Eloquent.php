@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\DB;
 
 class Eloquent implements TrooperPlacementRepository
 {
-    public function record(array $changes, PlacementSource $source, CarbonInterface $at): void
+    public function record(array $changes, PlacementSource $source, CarbonInterface $at, ?int $by = null): void
     {
         $changes = array_filter($changes, fn (array $change) => $change[0] !== $change[1]);
 
@@ -34,18 +34,18 @@ class Eloquent implements TrooperPlacementRepository
 
         foreach (array_chunk(array_keys($changes), 500) as $ids) {
             $open = TrooperPlacement::query()->whereIn('trooper_id', $ids)->whereNull('placed_until')->pluck('trooper_id')->flip();
-            TrooperPlacement::query()->whereIn('trooper_id', $ids)->whereNull('placed_until')->update(['placed_until' => $at, 'updated_at' => $now]);
+            TrooperPlacement::query()->whereIn('trooper_id', $ids)->whereNull('placed_until')->update(['placed_until' => $at, 'closed_by' => $by, 'updated_at' => $now]);
 
             foreach ($ids as $trooperId) {
                 [$from, $to] = $changes[$trooperId];
 
                 // Placed before the history began: keep that placement for the weeks behind it.
                 if ($from !== null && ! $open->has($trooperId)) {
-                    $rows[] = ['trooper_id' => $trooperId, 'unit_id' => $from, 'placed_from' => null, 'placed_until' => $at, 'source' => $source->value];
+                    $rows[] = ['trooper_id' => $trooperId, 'unit_id' => $from, 'placed_from' => null, 'placed_until' => $at, 'source' => $source->value, 'placed_by' => null, 'closed_by' => $by];
                 }
 
                 if ($to !== null) {
-                    $rows[] = ['trooper_id' => $trooperId, 'unit_id' => $to, 'placed_from' => $at, 'placed_until' => null, 'source' => $source->value];
+                    $rows[] = ['trooper_id' => $trooperId, 'unit_id' => $to, 'placed_from' => $at, 'placed_until' => null, 'source' => $source->value, 'placed_by' => $by, 'closed_by' => null];
                 }
             }
         }
@@ -58,7 +58,7 @@ class Eloquent implements TrooperPlacementRepository
     public function historyOf(int $trooperId): Collection
     {
         return TrooperPlacement::query()
-            ->with('unit')
+            ->with(['unit', 'placedBy', 'closedBy'])
             ->where('trooper_id', $trooperId)
             ->orderByRaw('placed_from is not null')
             ->orderBy('placed_from')
@@ -74,7 +74,7 @@ class Eloquent implements TrooperPlacementRepository
             ->where(fn (Builder $query) => $query->where('placed_from', '>=', $since)->orWhere('placed_until', '>=', $since));
 
         return TrooperPlacement::query()
-            ->with(['unit', 'trooper'])
+            ->with(['unit', 'trooper', 'placedBy', 'closedBy'])
             ->whereIn('trooper_id', $changed)
             ->orderBy('trooper_id')
             ->orderByRaw('placed_from is not null')

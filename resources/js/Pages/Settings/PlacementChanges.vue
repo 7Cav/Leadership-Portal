@@ -9,7 +9,7 @@ import OrgStructureTabs from '@/components/settings/OrgStructureTabs.vue';
 import { forumDate, forumZulu } from '@/lib/forumDate';
 
 // Placement changes: every move between units the roster sync or an Admin wrote over the last days, newest first, so a
-// wrong milpac edit is caught the day it happens. Each change is `{ at, trooperId, trooper, from, to, source,
+// wrong milpac edit is caught the day it happens. Each change is `{ at, trooperId, trooper, from, to, source, by,
 // reversedAt, reverses }` (`Milpac\PlacementHistory::changesSince()`): `reversedAt` is when the move was undone, and
 // `reverses` marks the move that undid one.
 const props = defineProps({
@@ -19,6 +19,9 @@ const props = defineProps({
 });
 
 const SOURCES = { sync: 'Roster sync', manual: 'Admin' };
+
+// Who made the move: the Admin by name where it was recorded (`by`, from 15NOV26), else the source.
+const byLabel = (change) => (change.source === 'manual' && change.by ? change.by : (SOURCES[change.source] ?? 'Unknown'));
 
 function move(change) {
     if (change.from && change.to) return `${change.from} to ${change.to}`;
@@ -96,7 +99,7 @@ const show = (days) => router.get('/settings/placement-changes', { days }, { pre
                             {{ move(change) }}
                             <span v-if="note(change)" class="block text-xs text-muted-foreground" data-testid="change-note">{{ note(change) }}</span>
                         </TableCell>
-                        <TableCell class="px-4 text-muted-foreground">{{ SOURCES[change.source] ?? 'Unknown' }}</TableCell>
+                        <TableCell class="px-4 text-muted-foreground" data-testid="change-by">{{ byLabel(change) }}</TableCell>
                     </TableRow>
                 </TableBody>
             </Table>

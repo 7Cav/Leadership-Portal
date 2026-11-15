@@ -52,7 +52,7 @@ final class PlacementHistory
      * where to where, whether the roster sync or an Admin did it, and whether it was undone (`reversedAt`) or undid one
      * (`reverses`), however soon. Moves written by one sync run share their time.
      *
-     * @return list<array{at: string, trooperId: int, trooper: string, from: ?string, to: ?string, source: ?string, reversedAt: ?string, reverses: bool}>
+     * @return list<array{at: string, trooperId: int, trooper: string, from: ?string, to: ?string, source: ?string, by: ?string, reversedAt: ?string, reverses: bool}>
      */
     public function changesSince(CarbonInterface $since): array
     {
@@ -74,6 +74,8 @@ final class PlacementHistory
                     'from' => $move['from'],
                     'to' => $move['to'],
                     'source' => $move['source'],
+                    // The Admin who made a manual move, where it was recorded (from 15NOV26).
+                    'by' => $move['by'] ?? null,
                     'reversedAt' => $move['reversedAt']?->toIso8601ZuluString(),
                     'reverses' => $move['reverses'],
                 ];
@@ -90,7 +92,7 @@ final class PlacementHistory
      * the row it closed for a move to nowhere).
      *
      * @param  Collection<int, TrooperPlacement>  $rows  oldest first
-     * @return list<array{at: CarbonImmutable, from: ?string, to: ?string, source: ?string}>
+     * @return list<array{at: CarbonImmutable, from: ?string, to: ?string, source: ?string, by: ?string}>
      */
     private static function movesIn(Collection $rows): array
     {
@@ -102,14 +104,14 @@ final class PlacementHistory
 
             if ($row->placed_from !== null) {
                 $joined = $previous?->placed_until !== null && $previous->placed_until->equalTo($row->placed_from);
-                $moves[] = ['at' => $row->placed_from, 'from' => $joined ? self::label($previous) : null, 'to' => self::label($row), 'source' => $row->source?->value];
+                $moves[] = ['at' => $row->placed_from, 'from' => $joined ? self::label($previous) : null, 'to' => self::label($row), 'source' => $row->source?->value, 'by' => $row->placedBy?->username];
             }
 
             $next = $rows[$index + 1] ?? null;
 
             // Left a unit for no other: unplaced (their unit removed, say), shown as a move to nowhere.
             if ($row->placed_until !== null && ($next === null || $next->placed_from === null || ! $next->placed_from->equalTo($row->placed_until))) {
-                $moves[] = ['at' => $row->placed_until, 'from' => self::label($row), 'to' => null, 'source' => $row->source?->value];
+                $moves[] = ['at' => $row->placed_until, 'from' => self::label($row), 'to' => null, 'source' => $row->source?->value, 'by' => $row->closedBy?->username];
             }
         }
 

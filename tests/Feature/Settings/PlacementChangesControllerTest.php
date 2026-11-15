@@ -54,8 +54,8 @@ it('lists the moves of the span newest first, marking a move put straight back, 
         ->component('Settings/PlacementChanges')
         ->where('days', 14)
         ->where('changes', [
-            ['at' => '2026-11-14T19:00:00Z', 'trooperId' => $gentry->id, 'trooper' => 'PFC Gentry.C', 'from' => '2/1/A/1-7', 'to' => '1/1/A/1-7', 'source' => 'sync', 'reversedAt' => null, 'reverses' => true],
-            ['at' => '2026-11-14T18:00:00Z', 'trooperId' => $gentry->id, 'trooper' => 'PFC Gentry.C', 'from' => '1/1/A/1-7', 'to' => '2/1/A/1-7', 'source' => 'sync', 'reversedAt' => '2026-11-14T19:00:00Z', 'reverses' => false],
+            ['at' => '2026-11-14T19:00:00Z', 'trooperId' => $gentry->id, 'trooper' => 'PFC Gentry.C', 'from' => '2/1/A/1-7', 'to' => '1/1/A/1-7', 'source' => 'sync', 'by' => null, 'reversedAt' => null, 'reverses' => true],
+            ['at' => '2026-11-14T18:00:00Z', 'trooperId' => $gentry->id, 'trooper' => 'PFC Gentry.C', 'from' => '1/1/A/1-7', 'to' => '2/1/A/1-7', 'source' => 'sync', 'by' => null, 'reversedAt' => '2026-11-14T19:00:00Z', 'reverses' => false],
         ]));
 
     $this->actingAs($this->admin)->get('/settings/placement-changes?days=30')->assertInertia(fn (Assert $page) => $page
@@ -66,4 +66,22 @@ it('lists the moves of the span newest first, marking a move put straight back, 
 
 it('takes only the spans it offers', function () {
     $this->actingAs($this->admin)->get('/settings/placement-changes?days=365')->assertSessionHasErrors('days');
+});
+
+it('names the Admin who placed a trooper by hand, and the one whose unit delete left a trooper unplaced', function () {
+    $trooper = Trooper::factory()->create(['username' => 'Adams.P', 'status' => 'combat']);
+    app(TrooperRepository::class)->place($trooper->id, $this->two->id, $this->admin->id);
+
+    $this->actingAs($this->admin)->get('/settings/placement-changes')->assertInertia(fn (Assert $page) => $page
+        ->where('changes.0.to', '2/1/A/1-7')
+        ->where('changes.0.source', 'manual')
+        ->where('changes.0.by', 'Pike.S'));
+
+    $other = User::factory()->serving()->admin()->create(['username' => 'Hale.S']);
+    $this->travel(1)->minutes();
+    app(UnitRepository::class)->delete($this->two, $other->id);
+
+    $this->actingAs($this->admin)->get('/settings/placement-changes')->assertInertia(fn (Assert $page) => $page
+        ->where('changes.0.to', null)
+        ->where('changes.0.by', 'Hale.S'));
 });

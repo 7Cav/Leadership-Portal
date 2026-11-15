@@ -32,6 +32,13 @@ describe('Settings/PlacementChanges', () => {
         expect(rows[0].get('a').attributes('href')).toBe('/troopers/756');
     });
 
+    it('names the Admin who made a manual move, where it was recorded', () => {
+        const rows = factory([{ ...ADMIN, by: 'Hale.S' }, ADMIN]).findAll('[data-testid="change-by"]');
+
+        expect(rows[0].text()).toBe('Hale.S');
+        expect(rows[1].text()).toBe('Admin');
+    });
+
     it('offers 7, 14 and 30 days, the one shown pressed', async () => {
         const wrapper = factory();
 

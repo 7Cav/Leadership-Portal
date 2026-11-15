@@ -24,11 +24,13 @@ interface TrooperPlacementRepository
      * Record placement changes made at `$at`: for each trooper, the unit they leave and the unit they join (either
      * may be null: a first placement, or a trooper left unplaced). The open row is closed at `$at` and a new open row
      * starts there. A trooper with no history yet gets their old placement recorded first, open-ended into the past,
-     * so their earlier weeks still read against it. A change to the same unit records nothing.
+     * so their earlier weeks still read against it. A change to the same unit records nothing. `$by` is the Admin who
+     * made a manual change, kept on the rows it opens (`placed_by`) and closes (`closed_by`) so Placement changes can
+     * name them; null for the roster sync.
      *
      * @param  array<int, array{0: ?int, 1: ?int}>  $changes  trooper id => [old unit id, new unit id]
      */
-    public function record(array $changes, PlacementSource $source, CarbonInterface $at): void;
+    public function record(array $changes, PlacementSource $source, CarbonInterface $at, ?int $by = null): void;
 
     /**
      * Every placement of one trooper, oldest first, each with its unit loaded (null for a unit since deleted).
