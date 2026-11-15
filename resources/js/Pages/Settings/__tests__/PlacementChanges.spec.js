@@ -41,6 +41,17 @@ describe('Settings/PlacementChanges', () => {
         expect(router.get).toHaveBeenCalledWith('/settings/placement-changes', { days: 30 }, expect.anything());
     });
 
+    it('is the Placement changes tab of Org structure', () => {
+        const tabs = factory().get('[data-testid="org-structure-tabs"]');
+
+        expect(tabs.findAll('a').map((a) => [a.text(), a.attributes('href')])).toEqual([
+            ['Units', '/settings/org-structure'],
+            ['Placement changes', '/settings/placement-changes'],
+        ]);
+        expect(tabs.get('[data-tab="changes"]').attributes('aria-current')).toBe('page');
+        expect(tabs.get('[data-tab="units"]').attributes('aria-current')).toBeUndefined();
+    });
+
     it('says when nothing moved in the span', () => {
         expect(factory([]).text()).toContain('No placement changes in the last 14 days');
     });

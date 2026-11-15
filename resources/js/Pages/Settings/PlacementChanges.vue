@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import EmptyState from '@/components/EmptyState.vue';
+import OrgStructureTabs from '@/components/settings/OrgStructureTabs.vue';
 import { forumDate, forumZulu } from '@/lib/forumDate';
 
 // Placement changes: every move between units the roster sync or an Admin wrote over the last days, newest first, so a
@@ -37,12 +38,12 @@ const show = (days) => router.get('/settings/placement-changes', { days }, { pre
 </script>
 
 <template>
-    <Head title="Settings · Placement changes · 7Cav Leadership Portal" />
+    <Head title="Settings · Org structure · Placement changes · 7Cav Leadership Portal" />
 
     <div class="space-y-5">
         <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0">
-                <h1 class="text-xl font-semibold tracking-tight">Placement changes</h1>
+                <h1 class="text-xl font-semibold tracking-tight">Org structure</h1>
                 <p class="mt-1 max-w-[70ch] text-[13px] text-muted-foreground">
                     Every move between units the roster sync or an Admin made, newest first. A trooper moved and put straight back is marked: that is usually
                     a wrong edit on the milpac, worth reporting to S1.
@@ -50,6 +51,8 @@ const show = (days) => router.get('/settings/placement-changes', { days }, { pre
             </div>
             <Badge variant="outline" class="gap-1"><PhLockSimple aria-hidden="true" />Admin only</Badge>
         </div>
+
+        <OrgStructureTabs current="changes" />
 
         <Card class="min-w-0 gap-0 py-0">
             <div class="flex flex-wrap items-center gap-2 border-b border-border p-4 text-[13px]" role="group" aria-label="How far back">
