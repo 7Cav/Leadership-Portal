@@ -156,9 +156,33 @@ class Eloquent implements SectionPracticeRepository
     public function markRollcallPosted(SectionPractice $practice, int $userId, ?string $threadUrl = null): SectionPractice
     {
         $practice->forceFill([
+            // The stamp this replaces, so a mistaken "I edited the forum post" can be undone.
+            'rollcall_post_undo' => [
+                'at' => $practice->rollcall_posted_at?->toIso8601String(),
+                'by' => $practice->rollcall_posted_by,
+                'threadUrl' => $practice->rollcall_thread_url,
+            ],
             'rollcall_posted_at' => now(),
             'rollcall_posted_by' => $userId,
             'rollcall_thread_url' => $threadUrl ?? $practice->rollcall_thread_url,
+        ])->save();
+
+        return $practice->load('rollcallPostedBy');
+    }
+
+    public function undoRollcallPosted(SectionPractice $practice): ?SectionPractice
+    {
+        $undo = $practice->rollcall_post_undo;
+
+        if (! is_array($undo)) {
+            return null;
+        }
+
+        $practice->forceFill([
+            'rollcall_posted_at' => $undo['at'] ?? null,
+            'rollcall_posted_by' => $undo['by'] ?? null,
+            'rollcall_thread_url' => $undo['threadUrl'] ?? null,
+            'rollcall_post_undo' => null,
         ])->save();
 
         return $practice->load('rollcallPostedBy');

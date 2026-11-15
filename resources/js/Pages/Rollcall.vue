@@ -663,6 +663,24 @@ function onCreated({ flow, training: saved, practiceSlot }) {
     go(2);
 }
 
+// Unticking "I edited the forum post" after a misclick (#766): the server puts back the stamp the tick replaced, so a
+// reload, and command, see the post as not edited again. Before the tick the post needed editing, or was never stamped.
+async function unmarkEdited() {
+    posting.value = true;
+    try {
+        const result = await postJson(`/rollcall/${props.section.id}/posted/undo`, { week: props.week.date }).catch(unreachable);
+        if (result.ok) {
+            posted.value = result.data?.posted ?? null;
+            editedSincePost.value = posted.value !== null;
+        } else {
+            toast.error('Could not untick it', { description: messageFor(result) });
+            if (result.status === 409 && result.data?.locked) router.reload();
+        }
+    } finally {
+        posting.value = false;
+    }
+}
+
 // "Mark as posted, continue" on the post step: the same stamp as "Mark roll call posted", then on to sign and mark.
 async function markPostedAndContinue() {
     const before = posted.value?.at ?? null;
@@ -1469,7 +1487,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
             :sending="sendingForReview"
             @copy="copyBbcode"
             @mark-posted="markPosted"
-            @unmark-edited="editedSincePost = true"
+            @unmark-edited="unmarkEdited"
             @send="sendForReview"
             :troopers="orderedRows"
             :draft="reportDraft"

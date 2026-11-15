@@ -17,6 +17,8 @@ use App\Commands\Attendance\MarkRollcallPosted;
 use App\Commands\Attendance\MarkRollcallPostedForbiddenException;
 use App\Commands\Attendance\MarkRollcallPostedHandler;
 use App\Commands\Attendance\RollcallWeekLockedException;
+use App\Commands\Attendance\UndoRollcallPosted;
+use App\Commands\Attendance\UndoRollcallPostedHandler;
 use App\Commands\Capture\AutomaticAttendance;
 use App\Commands\Capture\CaptureRetryForbiddenException;
 use App\Commands\Capture\CaptureRetryRefusedException;
@@ -391,6 +393,37 @@ class RollcallController extends Controller
             report($e);
 
             return response()->json(['message' => 'The portal hit an error marking the roll call posted. Try again in a moment.'], 500);
+        }
+
+        return response()->json(['posted' => $this->postedProps($practice)]);
+    }
+
+    /**
+     * Unticking "I edited the forum post" (#766): puts back the posted stamp the tick replaced, one audited Command.
+     * Answers the stamp now on record (null when the tick was the first), or a 409 with `locked` once the report is sent.
+     */
+    public function unposted(Request $request, int $unit, UndoRollcallPostedHandler $handler): JsonResponse
+    {
+        $validator = Validator::make($request->all(), ['week' => ['required', 'date_format:Y-m-d']]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => $validator->errors()->first()], 422);
+        }
+
+        $weekStart = $this->requestedWeek($request->input('week'), WeekOf::start(CarbonImmutable::now()));
+
+        try {
+            $practice = $handler->handle($request->user(), new UndoRollcallPosted($unit, $weekStart));
+        } catch (MarkRollcallPostedForbiddenException $e) {
+            return response()->json(['message' => $e->getMessage()], 403);
+        } catch (InvalidAttendanceMarkException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (RollcallWeekLockedException $e) {
+            return response()->json(['message' => $e->getMessage(), 'locked' => true], 409);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'The portal hit an error undoing the posted mark. Reload to see whether it was undone.'], 500);
         }
 
         return response()->json(['posted' => $this->postedProps($practice)]);

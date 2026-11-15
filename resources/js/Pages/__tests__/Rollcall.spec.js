@@ -2465,6 +2465,19 @@ describe('Rollcall page: a week on each flow (#703)', () => {
         expect(toastWarning).toHaveBeenCalledWith('Save the training topic first', expect.anything());
     });
 
+    it('puts the previous posted stamp back on the server when "I edited the forum post" is unticked (#766)', async () => {
+        page.url = '/rollcall/12?step=4';
+        const wrapper = cycle({ flow: CREATED, practice: POSTED });
+        expect(wrapper.get('[data-testid="close-edited"]').attributes('data-state')).toBe('checked');
+        post.mockResolvedValue({ ok: true, status: 200, data: { posted: { at: '2026-10-03T09:00:00+00:00', by: 'Vasquez.R', threadUrl: null } } });
+
+        wrapper.findComponent({ name: 'RollcallClose' }).vm.$emit('unmark-edited');
+        await flushPromises();
+
+        expect(post).toHaveBeenCalledWith('/rollcall/12/posted/undo', { week: '2026-10-03' });
+        expect(wrapper.get('[data-testid="close-edited"]').attributes('data-state')).toBe('unchecked');
+    });
+
     it('sends the forum thread link with the post, and the close step links to it', async () => {
         post.mockResolvedValue({ ok: true, status: 200, data: { posted: { at: '2026-10-04T11:00:00+00:00', by: 'Vasquez.R', threadUrl: 'https://7cav.us/threads/rc.1/' } } });
         const wrapper = cycle({ flow: CREATED });

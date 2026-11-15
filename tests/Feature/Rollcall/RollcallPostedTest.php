@@ -101,3 +101,46 @@ it('refuses a thread link that is not on the forum, and writes nothing (#703)', 
     'not https' => 'http://7cav.us/threads/1/',
     'not a link' => 'roll call thread',
 ]);
+
+// #766: unticking "I edited the forum post" after a misclick puts back the stamp the tick replaced.
+it('puts back the stamp a mark posted replaced, once, audited', function () {
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted", ['week' => '2026-10-03'])->assertOk();
+    Carbon::setTestNow(CarbonImmutable::parse('2026-10-09 18:00:00', 'UTC'));
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted", ['week' => '2026-10-03'])
+        ->assertJsonPath('posted.at', '2026-10-09T18:00:00+00:00');
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted/undo", ['week' => '2026-10-03'])
+        ->assertOk()
+        ->assertJsonPath('posted', ['at' => '2026-10-08T16:20:00+00:00', 'by' => 'Vasquez.R', 'threadUrl' => null]);
+
+    expect(AuditLogEntry::query()->where('action', 'rollcall.post_undone')->count())->toBe(1);
+
+    // The undo is used up: a second one has nothing to put back, and changes nothing.
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted/undo", ['week' => '2026-10-03'])->assertStatus(422);
+    expect(SectionPractice::query()->sole()->rollcall_posted_at->toIso8601String())->toBe('2026-10-08T16:20:00+00:00');
+});
+
+it('takes the stamp away when the undone mark posted was the first', function () {
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted", ['week' => '2026-10-03'])->assertOk();
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted/undo", ['week' => '2026-10-03'])
+        ->assertOk()
+        ->assertJsonPath('posted', null);
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}?week=2026-10-03")
+        ->assertInertia(fn ($page) => $page->where('practice.posted', null));
+});
+
+it('refuses an undo with nothing marked, outside scope, or once the report is sent', function () {
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted/undo", ['week' => '2026-10-03'])->assertStatus(422);
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted", ['week' => '2026-10-03'])->assertOk();
+
+    $this->actingAs(User::factory()->serving()->create())->postJson("/rollcall/{$this->section->id}/posted/undo", ['week' => '2026-10-03'])
+        ->assertForbidden();
+
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => '2026-10-03']);
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted/undo", ['week' => '2026-10-03'])
+        ->assertStatus(409)->assertJson(['locked' => true]);
+
+    expect(SectionPractice::query()->sole()->rollcall_posted_at)->not->toBeNull();
+});

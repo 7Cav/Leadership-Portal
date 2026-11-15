@@ -219,6 +219,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::post('/rollcall/{unit}/capture', [RollcallController::class, 'retryCapture'])->middleware('throttle:practice-capture')->name('rollcall.capture');
     Route::post('/rollcall/{unit}/confirm', [RollcallController::class, 'confirm'])->middleware('throttle:audited-writes')->name('rollcall.confirm');
     Route::post('/rollcall/{unit}/posted', [RollcallController::class, 'posted'])->middleware('throttle:audited-writes')->name('rollcall.posted');
+    Route::post('/rollcall/{unit}/posted/undo', [RollcallController::class, 'unposted'])->middleware('throttle:audited-writes')->name('rollcall.posted.undo');
     // Fireteams on the rollcall (the owner's order, 2026-10-16): each write is an audited Command whose handler checks
     // the actor commands the section (or, for the policy, its company); a staff grant reads, it does not write. These,
     // the unmatched dismiss and restore, the topic and the guest add and remove share one per-user throttle, since each

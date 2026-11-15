@@ -103,6 +103,12 @@ interface SectionPracticeRepository
     public function markRollcallPosted(SectionPractice $practice, int $userId, ?string $threadUrl = null): SectionPractice;
 
     /**
+     * Puts back the posted stamp the last {@see markRollcallPosted()} replaced (none, if it was the first), once: the
+     * undo is used up. Null when there is nothing to undo.
+     */
+    public function undoRollcallPosted(SectionPractice $practice): ?SectionPractice;
+
+    /**
      * Record that a leader reviewed and confirmed the practice's marks (7.8): `confirmed_at` = now,
      * `confirmed_by` = `$userId`, and `not_held` when the leader says it did not take place (#634);
      * confirming again re-stamps. Returns the row with `confirmedBy` loaded. Callers route it through

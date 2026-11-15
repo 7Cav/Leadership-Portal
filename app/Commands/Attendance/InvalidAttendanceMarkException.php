@@ -69,6 +69,12 @@ class InvalidAttendanceMarkException extends RuntimeException
         return new self('The '.WeekLabel::phrase($weekStart).' is too far back to change.');
     }
 
+    /** "I edited the forum post" has no mark posted to undo: none was made, or it was undone already (#766). */
+    public static function nothingToUndo(): self
+    {
+        return new self('There is no posted mark to undo. Reload the page to see the roll call as it is.');
+    }
+
     /**
      * @param  list<int>  $trooperIds
      */
