@@ -31,7 +31,9 @@ it('sets the tags with the rest of the game, trimmed, without blanks or a second
         ->assertSessionHasNoErrors();
 
     expect($hll->fresh()->eventTags())->toBe(['[HLL]', 'Hell Let Loose'])
-        ->and(AuditLogEntry::query()->pluck('action')->all())->toBe(['game.event_tags_set']);
+        ->and(AuditLogEntry::query()->pluck('action')->all())->toBe(['game.event_tags_set'])
+        // The audit log shows the tags before and after.
+        ->and(AuditLogEntry::query()->sole()->details['changes'])->toBe([['field' => 'Calendar tags', 'from' => '[HLL]', 'to' => '[HLL], Hell Let Loose']]);
 });
 
 it('records nothing when the tags are the ones the game has', function () {
