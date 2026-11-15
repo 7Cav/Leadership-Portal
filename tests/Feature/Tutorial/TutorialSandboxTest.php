@@ -105,6 +105,15 @@ it('never shows a changelog editor the "Changelog outdated" bar in the tutorial'
     $this->get('/home')->assertInertia(fn ($page) => $page->where('changelogOutdated', false));
 });
 
+it('lets nobody change the changelog in the tutorial, where the entries would vanish on exit', function () {
+    config(['portal.changelog_editors' => ['Editor.E']]);
+    $editor = User::factory()->commanding($this->section)->create(['username' => 'Editor.E']);
+
+    $this->actingAs($editor)->post('/tutorial')->assertRedirect();
+    $this->get('/changelog')->assertInertia(fn ($page) => $page->where('isEditor', false));
+    $this->post('/changelog', ['date' => '2026-11-15', 'entries' => [['body' => 'Lost on exit']]])->assertForbidden();
+});
+
 it('ticks the coach card from what was done in the practice copy', function () {
     $leader = User::factory()->commanding($this->section)->create();
     $this->actingAs($leader)->post('/tutorial');
