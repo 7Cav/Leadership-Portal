@@ -57,3 +57,12 @@ it('leaves a regiment default an Admin has edited alone', function () {
 
     expect(activeRollcallVersion($default))->toMatchObject(['version' => 1, 'body' => 'edited by an Admin']);
 });
+
+it('still finds an unchanged regiment default whose tags were lowercased already, and keeps it lowercase', function () {
+    $lower = (string) preg_replace_callback('/\[(\/?)([A-Za-z]+)(?=(?:[=\s][^\[\]]*)?\])/', fn (array $m) => '['.$m[1].strtolower($m[2]), rcLoaBody('SEEDED'));
+    $default = regimentDefaultOn($lower);
+
+    rcLoaMigration()->up();
+
+    expect(activeRollcallVersion($default)->body)->toContain('{{#rc_loa}}LOA{{/rc_loa}}')->toContain('[b]')->not->toContain('[B]');
+});

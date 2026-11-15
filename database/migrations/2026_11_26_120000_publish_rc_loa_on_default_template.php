@@ -57,7 +57,7 @@ BBCODE;
                     'section_id' => $template->section_id,
                     'artifact_type' => $template->artifact_type,
                     'version' => $latest + 1,
-                    'body' => self::CURRENT,
+                    'body' => self::currentLike((string) $template->body),
                     'created_by' => null,
                     'created_at' => $now,
                 ]);
@@ -104,10 +104,31 @@ BBCODE;
 
         return $rows
             // Compared in PHP, so a TEXT column compares the same on SQLite and MySQL, line endings included.
-            ->filter(fn (object $row) => str_replace("\r\n", "\n", $row->body) === $body)
-            ->filter(fn (object $row) => ! $addedHere || ($row->created_by === null && (int) $row->version > 1 && str_replace("\r\n", "\n", (string) DB::table('template_versions')
-                ->where('template_id', $row->id)->where('version', (int) $row->version - 1)->value('body')) === self::SEEDED))
+            // Tag case aside: the portal's own templates may have been lowercased already (2026_11_29_100002).
+            ->filter(fn (object $row) => self::sameBody((string) $row->body, $body))
+            ->filter(fn (object $row) => ! $addedHere || ($row->created_by === null && (int) $row->version > 1 && self::sameBody((string) DB::table('template_versions')
+                ->where('template_id', $row->id)->where('version', (int) $row->version - 1)->value('body'), self::SEEDED)))
             ->values()
             ->all();
+    }
+
+    /** Whether two bodies are the same but for line endings and the case of BBCode tag names. */
+    private static function sameBody(string $a, string $b): bool
+    {
+        return self::tagsLower(str_replace("\r\n", "\n", $a)) === self::tagsLower(str_replace("\r\n", "\n", $b));
+    }
+
+    /** `$body` with every BBCode tag name lowercase, as the portal writes them from 15NOV26. */
+    private static function tagsLower(string $body): string
+    {
+        return (string) preg_replace_callback('/\[(\/?)([A-Za-z]+)(?=(?:[=\s][^\[\]]*)?\])/', fn (array $m) => '['.$m[1].strtolower($m[2]), $body);
+    }
+
+    /** `CURRENT` in the case of the body it replaces: lowercase when that one had been lowercased already. */
+    private static function currentLike(string $replaced): string
+    {
+        $replaced = str_replace("\r\n", "\n", $replaced);
+
+        return self::tagsLower($replaced) === $replaced && $replaced !== str_replace("\r\n", "\n", self::SEEDED) ? self::tagsLower(self::CURRENT) : self::CURRENT;
     }
 };
