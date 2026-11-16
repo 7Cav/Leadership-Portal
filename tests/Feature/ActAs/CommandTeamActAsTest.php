@@ -31,7 +31,7 @@ function ctPerson(int $cavId, string $username, ?int $position, ?string $billet,
 {
     $trooper = Trooper::factory()->create([
         'cav_id' => $cavId, 'cav_position_id' => $position, 'billet' => $billet, 'status' => TrooperStatus::Combat,
-        'rank' => 'SGT', 'username' => $username, 'primary_section_id' => $placedIn?->id,
+        'rank' => 'Sergeant', 'rank_short' => 'SGT', 'username' => $username, 'primary_section_id' => $placedIn?->id,
     ]);
 
     return User::factory()->create(['cav_id' => $cavId, 'forum_user_id' => $trooper->forum_user_id, 'username' => $username] + $user);

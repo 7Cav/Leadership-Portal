@@ -22,7 +22,7 @@ beforeEach(function () {
     $this->other = $repo->create(UnitType::Section, '2nd Section', '2/1/A/1-7', $regiment->id);
 
     UnitCommandMapping::factory()->create(['unit_id' => $this->section->id, 'cav_position_id' => 5900]);
-    $leaderTrooper = Trooper::factory()->create(['cav_id' => 901, 'cav_position_id' => 5900, 'status' => TrooperStatus::Combat, 'rank' => 'SGT']);
+    $leaderTrooper = Trooper::factory()->create(['cav_id' => 901, 'cav_position_id' => 5900, 'status' => TrooperStatus::Combat, 'rank' => 'Sergeant', 'rank_short' => 'SGT']);
     $this->leader = User::factory()->create(['cav_id' => 901, 'forum_user_id' => $leaderTrooper->forum_user_id, 'username' => 'Vasquez.R']);
 
     // The Admin holds a milpac too, so losing the flag leaves them signed in as a plain member.
