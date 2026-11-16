@@ -39,6 +39,7 @@ use App\Http\Controllers\StaffPracticeController;
 use App\Http\Controllers\StaffReportController;
 use App\Http\Controllers\StaffReportsOverviewController;
 use App\Http\Controllers\StrengthTrendsController;
+use App\Http\Controllers\TimezoneController;
 use App\Http\Controllers\TrainingPlanController;
 use App\Http\Controllers\TrainingReadinessMatrixController;
 use App\Http\Controllers\TrooperDetailController;
@@ -237,6 +238,8 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // The section's practice slot and one week's move or cancellation (#392): audited Commands gated by write scope.
     Route::post('/rollcall/{unit}/slot', [RollcallPracticeSlotController::class, 'slot'])->middleware('throttle:audited-writes')->name('rollcall.slot');
     Route::post('/rollcall/{unit}/slot/week', [RollcallPracticeSlotController::class, 'week'])->middleware('throttle:audited-writes')->name('rollcall.slot.week');
+    // A platoon leader keeps or moves a section's slot for a clock change (16NOV26).
+    Route::post('/rollcall/{unit}/slot/clock-change', [RollcallPracticeSlotController::class, 'clockChange'])->middleware('throttle:audited-writes')->name('rollcall.slot.clock-change');
     // The roll call's weekly cycle (#703): create a week's roll call with its training date and topic (flow 2), and the
     // topic on its own, which is the weekly report's training subject, one value.
     Route::post('/rollcall/{unit}/create', [RollcallTrainingController::class, 'create'])->middleware('throttle:audited-writes')->name('rollcall.create');
@@ -317,6 +320,8 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::patch('/bookmarks/{bookmark}', [BookmarkController::class, 'move'])->middleware('throttle:audited-writes')->name('bookmarks.move');
     Route::delete('/bookmarks/{bookmark}', [BookmarkController::class, 'destroy'])->middleware('throttle:audited-writes')->name('bookmarks.destroy');
     Route::get('/scope/units', ScopeUnitsController::class)->middleware('throttle:scope-units')->name('scope.units');
+    // The browser's time zone, kept so the portal knows when clocks change where a platoon leader lives (16NOV26).
+    Route::post('/me/timezone', [TimezoneController::class, 'update'])->middleware('throttle:audited-writes')->name('me.timezone');
     Route::post('/view-as', [ViewAsController::class, 'store'])->middleware('throttle:audited-writes')->name('view-as.store');
     Route::delete('/view-as', [ViewAsController::class, 'destroy'])->middleware('throttle:audited-writes')->name('view-as.destroy');
 

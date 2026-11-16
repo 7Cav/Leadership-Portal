@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffReportAccess;
 use App\Commands\Attendance\InvalidAttendanceMarkException;
+use App\Commands\Practices\ConfirmClockChange;
 use App\Commands\Practices\PracticeSchedule;
+use App\Commands\WeeklyReports\ClockChangeNotConfirmedException;
 use App\Commands\WeeklyReports\InvalidPlatoonTrainingTopicException;
 use App\Commands\WeeklyReports\InvalidReportContentException;
 use App\Commands\WeeklyReports\MakeupChecksIncompleteException;
@@ -111,6 +113,7 @@ class ReportController extends Controller
         private readonly PracticeSchedule $schedule,
         private readonly RollcallRoster $rollcallRoster,
         private readonly LoaCoverage $loaCoverage,
+        private readonly ConfirmClockChange $clockChange,
     ) {}
 
     public function show(Request $request, UnaccountedSuggestions $suggestions, AuditLogRepository $audit, ReportEditProps $editProps, SelfReportedGame $selfReported, int $unit, string $week): Response
@@ -258,14 +261,17 @@ class ReportController extends Controller
     }
 
     /**
-     * @return array{confirmed: bool, held: ?bool}
+     * `clockChange` is a clock change in the week before it or the week of it that the platoon leader has yet to answer,
+     * or has answered (16NOV26), else null.
+     *
+     * @return array{confirmed: bool, held: ?bool, clockChange: ?array<string, mixed>}
      */
     private function practiceProps(Unit $section, CarbonImmutable $weekStart): array
     {
         $practice = $this->practices->find($section->id, $weekStart);
         $confirmed = $practice?->confirmed_at !== null;
 
-        return ['confirmed' => $confirmed, 'held' => $confirmed ? ! $practice->not_held : null];
+        return ['confirmed' => $confirmed, 'held' => $confirmed ? ! $practice->not_held : null, 'clockChange' => $this->clockChange->notice($section, $weekStart)];
     }
 
     /**
@@ -454,6 +460,8 @@ class ReportController extends Controller
             throw ValidationException::withMessages(['training_subject' => "Your platoon set this week's training topic and locked it, so it cannot be changed here. Reload the page to see it."]);
         } catch (PracticeNotConfirmedException $e) {
             // A mark saved since the page loaded clears the confirmation too.
+            throw ValidationException::withMessages(['practice' => $e->getMessage()]);
+        } catch (ClockChangeNotConfirmedException $e) {
             throw ValidationException::withMessages(['practice' => $e->getMessage()]);
         } catch (ReportKpisUnavailableException $e) {
             throw ValidationException::withMessages(['report' => $this->unavailableMessage($e)]);

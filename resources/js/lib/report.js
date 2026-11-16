@@ -196,6 +196,22 @@ export function readinessChecks({ isLeaf, troopers, children, content, reviewed,
                   },
               ]
             : []),
+        // A clock change in the week before it or the week of it (16NOV26): the platoon leader keeps or moves the slot.
+        ...(practice?.clockChange
+            ? [
+                  {
+                      id: 'clockChange',
+                      title: 'Practice slot confirmed for the clock change',
+                      done: Boolean(practice.clockChange.confirmed),
+                      count: '',
+                      detail: practice.clockChange.confirmed
+                          ? `${practice.clockChange.confirmed.by ?? 'Your platoon leader'} ${practice.clockChange.confirmed.moved ? 'moved' : 'kept'} the slot.`
+                          : `Clocks change on ${forumDate(practice.clockChange.at)}. Your platoon leader keeps or moves the practice slot on the roll call. The report cannot be sent until then.`,
+                      next: 'Ask your platoon leader to confirm the practice slot',
+                      blocking: true,
+                  },
+              ]
+            : []),
         ...[
             {
                 id: 'unaccounted',

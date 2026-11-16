@@ -54,6 +54,7 @@ import TrainingCard from '@/components/rollcall/TrainingCard.vue';
 import RollcallClose from '@/components/rollcall/RollcallClose.vue';
 import RollcallCreate from '@/components/rollcall/RollcallCreate.vue';
 import WarningBanner from '@/components/WarningBanner.vue';
+import ClockChangeCard from '@/components/rollcall/ClockChangeCard.vue';
 import { copyText } from '@/lib/clipboard';
 import { messageFor, unreachable, useRollcallAutosave, whenLeft } from '@/composables/useRollcallAutosave';
 import { takeHistoryRestore } from '@/lib/historyRestore';
@@ -119,6 +120,8 @@ const props = defineProps({
     practiceSlot: { type: Object, default: null },
     // True when the section plays a game and has troopers but no slot: the page warns at the top until one is set.
     practiceSlotMissing: { type: Boolean, default: false },
+    // A clock change the platoon leader keeps or moves the slot for (16NOV26), or null.
+    clockChange: { type: Object, default: null },
     // The Cav week a slot saved now starts with when this week is held, or null.
     practiceSlotChangesFrom: { type: String, default: null },
     // Whether the section's game is read from its server; the slot warning says what a slot changes only then.
@@ -527,6 +530,19 @@ watch(
 const pickingTemplate = ref(false);
 // Picking is not week data, so a sent week does not lock it; a preview and a read-only section do.
 // The practice slot (#392): the server's answer after a change replaces the prop until the next load brings it again.
+// A clock change where the platoon leader lives (16NOV26): the card asks them to keep or move the slot. Its answer
+// brings the slot and the change as they now stand.
+const clockChangeOverride = ref(undefined);
+const clockChangeState = computed(() => (clockChangeOverride.value === undefined ? props.clockChange : clockChangeOverride.value));
+watch(
+    () => props.clockChange,
+    () => (clockChangeOverride.value = undefined),
+);
+function onClockChangeConfirmed({ practiceSlot, clockChange }) {
+    if (practiceSlot !== undefined) slotOverride.value = practiceSlot;
+    clockChangeOverride.value = clockChange ?? null;
+}
+
 const slotOverride = ref(undefined);
 const currentSlot = computed(() => (slotOverride.value === undefined ? props.practiceSlot : slotOverride.value));
 watch(
@@ -1422,6 +1438,14 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                 </Button>
             </template>
         </WarningBanner>
+        <ClockChangeCard
+            v-if="clockChangeState"
+            :section-id="section.id"
+            :week="week.date"
+            :change="clockChangeState"
+            :practice-start="currentSlot?.week?.start ?? null"
+            @confirmed="onClockChangeConfirmed"
+        />
 
         <!-- The new flow's create step (#703): the form until the roll call is created, then what was created. -->
         <template v-if="panel === 'create'">

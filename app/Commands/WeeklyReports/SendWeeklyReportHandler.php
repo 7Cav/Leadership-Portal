@@ -6,6 +6,7 @@ use App\Authorization\ScopeResolver;
 use App\Commands\Attendance\AttendanceMark;
 use App\Commands\Attendance\MarkAttendance;
 use App\Commands\Attendance\MarkAttendanceHandler;
+use App\Commands\Practices\ConfirmClockChange;
 use App\Kpi\KpiService;
 use App\Kpi\ReportKpisUnavailableException;
 use App\Kpi\TrooperAttendance;
@@ -100,6 +101,7 @@ class SendWeeklyReportHandler
         private readonly KpiService $kpis,
         private readonly MarkAttendanceHandler $attendance,
         private readonly SectionPracticeRepository $practices,
+        private readonly ConfirmClockChange $clockChange,
     ) {}
 
     /**
@@ -141,6 +143,7 @@ class SendWeeklyReportHandler
         }
 
         $this->refuseUnconfirmedPractice($unit, $weekStart);
+        $this->refuseUnconfirmedClockChange($unit, $weekStart);
 
         $content = ReportContent::checked($unit, $weekStart, $command->notes, $command->trainingSubject, $command->unaccounted, $this->troopers);
         $trainingSubject = SectionTrainingSubject::forSend($unit->id, $this->topics->forSection($unit, $weekStart), $content->trainingSubject);
@@ -246,6 +249,21 @@ class SendWeeklyReportHandler
             'unaccounted' => $unaccounted,
             'template_version_id' => $templateVersionId,
         ]), JSON_THROW_ON_ERROR | JSON_PRESERVE_ZERO_FRACTION));
+    }
+
+    /**
+     * A section's report waits for its platoon leader's answer to a clock change in the week before it and the week of
+     * it (16NOV26), so the slot is checked while there is still time to move it.
+     *
+     * @throws ClockChangeNotConfirmedException
+     */
+    private function refuseUnconfirmedClockChange(Unit $unit, CarbonImmutable $weekStart): void
+    {
+        $notice = $this->clockChange->notice($unit, $weekStart);
+
+        if ($notice !== null && $notice['confirmed'] === null) {
+            throw new ClockChangeNotConfirmedException(CarbonImmutable::parse($notice['at']));
+        }
     }
 
     /**

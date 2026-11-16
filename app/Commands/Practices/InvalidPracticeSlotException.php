@@ -28,6 +28,11 @@ class InvalidPracticeSlotException extends InvalidArgumentException
         return new self("This week's practice was already read from the game server, so its time can no longer change.");
     }
 
+    public static function noClockChange(): self
+    {
+        return new self('There is no clock change to confirm for this section this week. Reload the page to see it as it is.');
+    }
+
     public static function outsideWeek(): self
     {
         return new self('A practice can only move to another time in the same Cav week, Saturday 0000Z to Friday 2359Z.');

@@ -18,6 +18,7 @@ import { handleSlash, slashClaimed } from '@/composables/useSlashShortcut';
 import { useTheme } from '@/composables/useTheme';
 import { useTrooperSearch } from '@/composables/useTrooperSearch';
 import { useViewAs } from '@/composables/useViewAs';
+import { postJson } from '@/lib/postJson';
 import { scopeLabel } from '@/lib/scopeSwitch';
 import { isActive, locate } from './navigation';
 import 'vue-sonner/style.css';
@@ -77,6 +78,21 @@ watch(
 
 // app.blade.php themes <html> before this module loads; pick that up so the toggle starts right.
 onMounted(syncFromDocument);
+
+// The browser's time zone, kept with the account so the portal knows when clocks change where a platoon leader lives
+// (16NOV26). Sent once when it differs; never while acting as or viewing as someone (`timezone` false), or in the tutorial.
+onMounted(() => {
+    const user = page.props.auth?.user;
+    const zone = (() => {
+        try {
+            return Intl.DateTimeFormat().resolvedOptions().timeZone;
+        } catch {
+            return null;
+        }
+    })();
+    if (!user || user.timezone === undefined || user.timezone === false || !zone || zone === user.timezone || page.props.viewAs || page.props.tutorialMode) return;
+    postJson('/me/timezone', { timezone: zone }).catch(() => {});
+});
 
 // `/` opens the trooper search from any page, unless the page claims it for a search of its own (the roster's filter).
 const onKeydown = (event) => handleSlash(event, openSearch);
