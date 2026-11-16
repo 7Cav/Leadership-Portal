@@ -3,7 +3,7 @@ title: Run this week's roll call
 summary: Create the week's roll call, post it, record who signed, mark section practice, then close it for review.
 section: weekly-rollcall
 order: 1
-updated: 2026-11-15
+updated: 2026-11-16
 audience: leader
 page: /rollcall
 weekly: true
@@ -100,6 +100,16 @@ The header shows when your section practices, in Zulu, with your own time beside
 A change or removal never touches a week before the one it starts with: those weeks keep the slot they had. The editor always names the first week it changes. On the current week that is this week, unless the game server already read it or its report was sent (or reopened for editing): it then keeps its time and the new slot starts with the next Cav week, shown in the header as, for example, "Practice Wed 23 59Z from 07NOV26". Opened from a past week, the editor changes the weekly slot from the first week it can, not that past week. This week only cannot be used on a week whose report was sent.
 
 If your section plays a game and has no slot, a warning sits at the top of the roll call. If your game's attendance is read from a game server, it also says why: without a slot, its practices are not captured automatically and make-ups are not given from the game server. Choose **Set the practice slot** on the warning to open the same editor. It goes away once a slot is saved, even one that starts next week.
+
+## When the clocks change
+
+The practice slot is kept in Zulu, so when daylight saving starts or ends where your platoon leader lives, the practice moves an hour on everyone's own clock unless the slot moves too.
+
+1. In the week before the clocks change and the week they change, the roll call shows the practice in Zulu and in your own time, before and after the change.
+2. Your platoon leader chooses **Move to** to keep the practice at the same local time, or **Keep** to leave it in Zulu. A move starts with the first practice after the change.
+3. Until they do, the section's weekly report for those weeks cannot be sent, and the section is listed under **Practice slots to confirm for a clock change** on their **Home**.
+
+> [!good-to-know] The portal goes by the time zone of your platoon leader's own browser, which it learns when they open the portal. A platoon with no platoon leader is not asked.
 
 ## Check what the game server saw
 

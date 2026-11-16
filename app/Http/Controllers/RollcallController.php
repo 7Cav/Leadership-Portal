@@ -39,6 +39,7 @@ use App\Commands\GameIdentities\RestoreDismissedPlayerHandler;
 use App\Commands\GameIdentities\UndoUnmatchedLink;
 use App\Commands\GameIdentities\UndoUnmatchedLinkHandler;
 use App\Commands\GameIdentities\UnmatchedPlayerResolutionException;
+use App\Commands\Practices\ConfirmClockChange;
 use App\Commands\Practices\PracticeSchedule;
 use App\Commands\Practices\SectionsWithoutSlot;
 use App\Commands\Practices\SetPracticeSlot;
@@ -141,6 +142,7 @@ class RollcallController extends Controller
         private readonly PracticeSchedule $schedule,
         private readonly SectionsWithoutSlot $sectionsWithoutSlot,
         private readonly SetPracticeSlot $setPracticeSlot,
+        private readonly ConfirmClockChange $clockChange,
         private readonly ScopeResolver $scope,
         private readonly UnitRepository $units,
         private readonly UnitCommandMappingRepository $commands,
@@ -271,6 +273,9 @@ class RollcallController extends Controller
             'training' => $this->cycle->training($section, $weekStart, $this->scope->writeScope($user)->contains($section->id)),
             ...$this->rosterProps($section, $weekStart, $currentWeek),
             'fireteams' => $this->fireteamProps($user, $section),
+            // A clock change where the platoon leader lives, this week or next (16NOV26): the slot to keep or move, and
+            // whether this viewer may answer. Null when there is none.
+            'clockChange' => ($notice = $this->clockChange->notice($section, $weekStart)) === null ? null : [...$notice, 'canConfirm' => $this->clockChange->mayConfirm($user, $section)],
         ]);
     }
 

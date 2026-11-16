@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffReportAccess;
 use App\Commands\Capture\AutomaticAttendance;
+use App\Commands\Practices\ConfirmClockChange;
 use App\Commands\Practices\PracticeSchedule;
 use App\Commands\Practices\SectionsWithoutSlot;
 use App\Kpi\AutoExcused;
@@ -83,6 +84,7 @@ class HomeController extends Controller
         private readonly AutomaticAttendance $automatic,
         private readonly PracticeSchedule $schedule,
         private readonly SectionsWithoutSlot $sectionsWithoutSlot,
+        private readonly ConfirmClockChange $clockChange,
     ) {}
 
     public function show(Request $request): Response
@@ -335,7 +337,7 @@ class HomeController extends Controller
      * @param  Collection<int, Collection<int, TrooperAttendance>>  $attendance  each root's per-trooper rows
      * @param  Collection<int, ChainNode>  $chains
      * @param  Collection<int, int>  $scope
-     * @return array{items: list<array<string, mixed>>, totals: array{holding: int, atRisk: int, loaReview: int, makeupOwed: int}}
+     * @return array{items: list<array<string, mixed>>, totals: array{holding: int, atRisk: int, loaReview: int, makeupOwed: int, clockChange: int}}
      */
     private function attentionProps(Collection $attendance, Collection $chains, Collection $scope, CarbonImmutable $weekStart): array
     {
@@ -376,9 +378,24 @@ class HomeController extends Controller
             ->values();
 
         $date = $weekStart->toDateString();
+        // Sections whose platoon leader has a clock change to answer (16NOV26), in the week being reported on and in the
+        // running week, once each: the report waits for the answer, and the running week is when to move the slot.
+        $current = WeekOf::start(CarbonImmutable::now());
+        $clockChanges = collect([
+            ...array_map(fn (array $row) => [...$row, 'week' => $weekStart], $this->clockChange->pendingAmong($sections->values(), $weekStart)),
+            ...($current->equalTo($weekStart) ? [] : array_map(fn (array $row) => [...$row, 'week' => $current], $this->clockChange->pendingAmong($sections->values(), $current))),
+        ])->unique(fn (array $row) => $row['section']->id.'|'.$row['notice']['at'])->values();
 
         return [
             'items' => [
+                ...$clockChanges->take(self::WORKLIST_LIMIT)->map(fn (array $row) => [
+                    'kind' => 'clock_change',
+                    'id' => "clock-change-{$row['section']->id}",
+                    'unit' => self::unitProps($row['section']),
+                    'at' => $row['notice']['at'],
+                    'phase' => $row['notice']['phase'],
+                    'href' => route('rollcall.show', ['unit' => $row['section']->id, 'week' => $row['week']->toDateString()]),
+                ])->all(),
                 ...$holding->take(self::WORKLIST_LIMIT)->map(fn (array $blocker) => [
                     'kind' => 'holding',
                     'id' => "holding-{$blocker['child']->unit->id}",
@@ -454,7 +471,7 @@ class HomeController extends Controller
                     ];
                 })->all(),
             ],
-            'totals' => ['holding' => $holding->count(), 'atRisk' => $atRisk->count(), 'loaReview' => $review->count(), 'makeupOwed' => $owed->count()],
+            'totals' => ['holding' => $holding->count(), 'atRisk' => $atRisk->count(), 'loaReview' => $review->count(), 'makeupOwed' => $owed->count(), 'clockChange' => $clockChanges->count()],
         ];
     }
 

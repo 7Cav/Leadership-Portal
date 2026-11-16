@@ -84,6 +84,9 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user() ? [
                     ...$request->user()->only(['id', 'username']),
                     'is_admin' => $this->scope->actsAsAdmin($request->user()),
+                    // The time zone kept for the account (16NOV26): the page sends its browser's when they differ, and
+                    // never while acting as someone, whose zone this is not.
+                    'timezone' => $this->acting($request) ? false : $request->user()->timezone,
                 ] : null,
                 // Cav roster context for this login (Story 1.6): rank, billet and MOS, each
                 // carrying the source and fetch time so the UI can never show them as if the

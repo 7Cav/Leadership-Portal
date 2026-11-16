@@ -69,6 +69,14 @@ describe('readinessChecks', () => {
             expect(confirmed({ confirmed: true, held: false })).toMatchObject({ done: true, detail: 'Confirmed as not held.' });
         });
 
+        it('waits for the platoon leader to keep or move the slot for a clock change (16NOV26)', () => {
+            const check = (clockChange) => readinessChecks({ isLeaf: true, troopers: [], content, reviewed: true, practice: { confirmed: true, held: true, clockChange } }).find((c) => c.id === 'clockChange');
+
+            expect(check(null)).toBeUndefined();
+            expect(check({ at: '2026-11-01T06:00:00Z', confirmed: null })).toMatchObject({ done: false, blocking: true, detail: expect.stringContaining('Clocks change on 01NOV26') });
+            expect(check({ at: '2026-11-01T06:00:00Z', confirmed: { moved: true, by: 'Pike.S' } })).toMatchObject({ done: true, detail: 'Pike.S moved the slot.' });
+        });
+
         it('is not asked of a section with nobody to confirm for, nor of a roll-up', () => {
             expect(confirmed(null)).toBeUndefined();
             expect(readinessChecks({ isLeaf: false, children: [], content, reviewed: true, practice: { confirmed: false } }).map((c) => c.id)).toEqual(['children', 'reviewed']);

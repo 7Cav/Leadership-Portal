@@ -1,11 +1,12 @@
 <script setup>
 import { computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
-import { PhArrowSquareOut, PhCalendarX, PhCaretRight, PhCheckCircle, PhClockCounterClockwise, PhEnvelopeSimple, PhFileText, PhUserMinus } from '@phosphor-icons/vue';
+import { PhArrowSquareOut, PhCalendarX, PhCaretRight, PhCheckCircle, PhClockClockwise, PhClockCounterClockwise, PhEnvelopeSimple, PhFileText, PhUserMinus } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import EmptyState from '@/components/EmptyState.vue';
+import { forumDate } from '@/lib/forumDate';
 import { makeupPmUrl } from '@/lib/makeupPm';
 import { weekLabel } from '@/lib/roster';
 
@@ -29,14 +30,17 @@ const atRisk = computed(() => props.attention.items.filter((item) => item.kind =
 const loaReview = computed(() => props.attention.items.filter((item) => item.kind === 'loa_review'));
 // Asked for a make-up on the roll call and none recorded yet (2026-10-30).
 const makeupOwed = computed(() => props.attention.items.filter((item) => item.kind === 'makeup_owed'));
+// A clock change the platoon leader keeps or moves a section's slot for (16NOV26); the report waits for it.
+const clockChange = computed(() => props.attention.items.filter((item) => item.kind === 'clock_change'));
 
-const ICONS = { holding: PhFileText, at_risk: PhUserMinus, loa_review: PhCalendarX, makeup_owed: PhClockCounterClockwise };
-const TONES = { holding: 'text-warning', at_risk: 'text-destructive', loa_review: 'text-warning', makeup_owed: 'text-info' };
+const ICONS = { holding: PhFileText, at_risk: PhUserMinus, loa_review: PhCalendarX, makeup_owed: PhClockCounterClockwise, clock_change: PhClockClockwise };
+const TONES = { holding: 'text-warning', at_risk: 'text-destructive', loa_review: 'text-warning', makeup_owed: 'text-info', clock_change: 'text-warning' };
 
 const weeksText = (weeks) => `${weeks.length === 1 ? 'the week' : 'the weeks'} ${weeks.map(weekLabel).join(', ')}`;
 
 function rowTitle(item) {
     if (item.kind === 'holding') return `Open the ${item.unit.designation} report for this week`;
+    if (item.kind === 'clock_change') return `Open the ${item.unit.designation} roll call to confirm its practice slot`;
     if ((item.kind === 'loa_review' || item.kind === 'makeup_owed') && item.section) return `Open ${item.trooper.displayName} on the ${item.section.designation} roll call`;
 
     return `Open ${item.trooper.displayName} on the roster`;
@@ -44,6 +48,7 @@ function rowTitle(item) {
 
 const groups = computed(() =>
     [
+        { key: 'clock_change', title: 'Practice slots to confirm for a clock change', items: clockChange.value, total: props.attention.totals.clockChange ?? 0, all: '/rollcall', allLabel: 'Open the roll call' },
         { key: 'holding', title: 'Holding up the report chain', items: holding.value, total: props.attention.totals.holding, all: '/reports', allLabel: 'See every report' },
         { key: 'at_risk', title: 'At-risk troopers', items: atRisk.value, total: props.attention.totals.atRisk, all: '/roster', allLabel: 'Open the roster' },
         { key: 'loa_review', title: 'LOA posts that need review', items: loaReview.value, total: props.attention.totals.loaReview ?? 0, all: '/roster', allLabel: 'Open the roster' },
@@ -81,10 +86,13 @@ const groups = computed(() =>
                                 <component :is="ICONS[item.kind]" />
                             </span>
                             <span class="min-w-0">
-                                <span class="block truncate text-[13px] font-medium">{{ item.kind === 'holding' ? item.unit.designation : item.trooper.displayName }}</span>
+                                <span class="block truncate text-[13px] font-medium">{{ item.kind === 'holding' || item.kind === 'clock_change' ? item.unit.designation : item.trooper.displayName }}</span>
                                 <span class="block text-xs text-muted-foreground">
                                     <template v-if="item.kind === 'holding'">
                                         {{ item.status === 'draft' ? 'Draft report' : 'Report not started' }}, holding up {{ item.holds.designation }}
+                                    </template>
+                                    <template v-else-if="item.kind === 'clock_change'">
+                                        Clocks {{ item.phase === 'before' ? 'change' : 'changed' }} on {{ forumDate(item.at) }}: keep or move the practice slot
                                     </template>
                                     <template v-else-if="item.kind === 'makeup_owed'">
                                         Make-up requested for {{ weeksText(item.weeks) }}<template v-if="item.section"> in {{ item.section.designation }}</template>
@@ -104,6 +112,7 @@ const groups = computed(() =>
                                 </Badge>
                                 <Badge v-else-if="item.kind === 'loa_review'" variant="warning">Needs review</Badge>
                                 <Badge v-else-if="item.kind === 'makeup_owed'" variant="info">Owes a make-up</Badge>
+                                <Badge v-else-if="item.kind === 'clock_change'" variant="warning">Confirm slot</Badge>
                                 <Badge v-else variant="danger" class="tabular-nums">{{ item.missed }} missed</Badge>
                                 <PhCaretRight class="size-3.5 text-muted-foreground" aria-hidden="true" />
                             </span>

@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Commands\Attendance\RollcallWeekLockedException;
 use App\Commands\Practices\ChangePracticeWeek;
+use App\Commands\Practices\ConfirmClockChange;
 use App\Commands\Practices\InvalidPracticeSlotException;
 use App\Commands\Practices\PracticeSchedule;
 use App\Commands\Practices\PracticeSlotForbiddenException;
 use App\Commands\Practices\SetPracticeSlot;
+use App\Repositories\UnitRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -65,6 +67,36 @@ class RollcallPracticeSlotController extends Controller
             $request->filled('moved_to') ? CarbonImmutable::parse($request->input('moved_to'))->utc() : null,
             $request->boolean('cancelled'),
         ));
+    }
+
+    /**
+     * The platoon leader's answer to a clock change (16NOV26): keep the section's slot in Zulu, or move it so the practice
+     * stays at the same local time. Answers the slot and the clock change as they now stand.
+     */
+    public function clockChange(Request $request, int $unit, ConfirmClockChange $command, UnitRepository $units): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'week' => ['required', 'date_format:Y-m-d'],
+            'move' => ['required', 'boolean'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => $validator->errors()->first()], 422);
+        }
+
+        $weekStart = WeekOf::start(CarbonImmutable::parse($request->input('week'), 'UTC'));
+        $response = $this->answer($unit, $request->input('week'), fn () => $command->handle($request->user(), $unit, $weekStart, $request->boolean('move')));
+
+        if (! $response->isSuccessful()) {
+            return $response;
+        }
+
+        $section = $units->find($unit);
+
+        return response()->json([
+            ...$response->getData(true),
+            'clockChange' => $section === null ? null : [...($command->notice($section, $weekStart) ?? []), 'canConfirm' => $command->mayConfirm($request->user(), $section)],
+        ]);
     }
 
     private function answer(int $unit, string $week, callable $write): JsonResponse

@@ -227,10 +227,10 @@ it('asks no confirmation of a section with nobody on its roll call, nor of a pla
 it('tells the report page whether the practice is confirmed, and nothing once it is sent', function () {
     $page = fn () => $this->actingAs($this->leader)->get("/reports/{$this->section->id}/2026-10-03");
 
-    $page()->assertInertia(fn (Assert $p) => $p->where('practice', ['confirmed' => false, 'held' => null, 'slotSet' => true]));
+    $page()->assertInertia(fn (Assert $p) => $p->where('practice', ['confirmed' => false, 'held' => null, 'slotSet' => true, 'clockChange' => null]));
 
     $this->practice->forceFill(['confirmed_at' => now(), 'confirmed_by' => $this->leader->id, 'not_held' => true])->save();
-    $page()->assertInertia(fn (Assert $p) => $p->where('practice', ['confirmed' => true, 'held' => false, 'slotSet' => true]));
+    $page()->assertInertia(fn (Assert $p) => $p->where('practice', ['confirmed' => true, 'held' => false, 'slotSet' => true, 'clockChange' => null]));
 
     ptSend($this);
     $page()->assertInertia(fn (Assert $p) => $p->where('practice', null)->where('report.status', 'sent'));
