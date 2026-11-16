@@ -33,4 +33,16 @@ class TrooperPlacement extends Model
     {
         return $this->belongsTo(Unit::class);
     }
+
+    /** The Admin who made this placement by hand, if one did and it was recorded. */
+    public function placedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'placed_by');
+    }
+
+    /** The Admin whose change ended this placement with no other (a unit deleted), if recorded. */
+    public function closedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'closed_by');
+    }
 }

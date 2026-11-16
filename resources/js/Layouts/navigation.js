@@ -100,6 +100,8 @@ const CHILD_PAGES = [
     { prefix: '/readiness/', parent: '/roster' },
     // A guide sits under Docs, and names itself as the last crumb.
     { prefix: '/docs/', parent: '/docs' },
+    // Placement changes is a tab of Org structure.
+    { prefix: '/settings/placement-changes', parent: '/settings/org-structure' },
 ];
 
 function childOf(url, href) {

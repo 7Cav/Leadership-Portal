@@ -2,7 +2,7 @@
 title: Servers
 summary: Choose which game servers the portal reads attendance from, which game each one is for, and check that the portal can read them.
 section: admin
-order: 9
+order: 10
 updated: 2026-11-12
 audience: admin
 page: /settings/servers

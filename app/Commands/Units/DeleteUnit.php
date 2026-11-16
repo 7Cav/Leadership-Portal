@@ -66,7 +66,7 @@ class DeleteUnit
             action: 'unit.deleted',
             reason: $undoAdd ? self::UNDO_REASON : null,
             reasonRequired: false,
-            mutation: function () use ($unit, $undoAdd) {
+            mutation: function () use ($unit, $undoAdd, $actor) {
                 // Checked inside the audit envelope's transaction, under a lock on the unit row, so
                 // the check and the delete are one atomic step: a grant, report or template written
                 // in between waits on the lock instead of turning the refusal back into the raw
@@ -124,7 +124,7 @@ class DeleteUnit
                     throw UnitHasDependentsException::hasEditRequests($unit->name);
                 }
 
-                $this->units->delete($unit);
+                $this->units->delete($unit, $actor->id);
 
                 return $unit;
             },
