@@ -33,16 +33,16 @@ const dueLabel = computed(() => `${forumDateTime(props.due)}Z`);
 <template>
     <div
         v-if="deadline"
-        class="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg border px-3.5 py-2 text-[13px]"
-        :class="deadline.overdue ? 'border-alert-critical bg-alert-critical text-alert-critical-foreground' : 'border-alert-high bg-alert-high text-alert-high-foreground'"
+        class="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg px-3.5 py-2 text-[13px]"
+        :class="deadline.overdue ? 'border-2 border-alert-critical bg-warning/10' : 'border-2 border-alert-high bg-warning/10'"
         data-testid="report-deadline"
         :data-state="deadline.overdue ? 'overdue' : 'due'"
     >
-        <component :is="deadline.overdue ? PhWarning : PhClockCountdown" class="size-4 shrink-0" weight="fill" aria-hidden="true" />
+        <component :is="deadline.overdue ? PhWarning : PhClockCountdown" class="size-4 shrink-0" :class="deadline.overdue ? 'text-alert-critical' : 'text-alert-high'" weight="fill" aria-hidden="true" />
         <p class="min-w-0 flex-1">
             <span class="font-semibold">{{ deadline.text }}</span>
-            <span class="opacity-85"> (due {{ dueLabel }})</span>
+            <span class="text-muted-foreground"> (due {{ dueLabel }})</span>
         </p>
-        <Link v-if="href && !readOnly" :href="href" class="font-semibold underline underline-offset-2" data-testid="report-deadline-link">Open report</Link>
+        <Link v-if="href && !readOnly" :href="href" class="font-medium underline underline-offset-2 hover:text-foreground" data-testid="report-deadline-link">Open report</Link>
     </div>
 </template>
