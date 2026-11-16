@@ -32,7 +32,7 @@ const headline = computed(() => {
 </script>
 
 <template>
-    <WarningBanner v-if="sections.length" data-testid="missing-slots-banner">
+    <WarningBanner v-if="sections.length" level="critical" data-testid="missing-slots-banner">
         <p class="font-semibold">{{ headline }}</p>
         <p class="text-muted-foreground">
             <template v-for="(section, i) in shown" :key="section.id">
