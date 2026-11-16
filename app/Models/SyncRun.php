@@ -34,6 +34,9 @@ class SyncRun extends Model
     /** An echelon leader's sync of one unit; recorded apart so it never moves the roster-wide stamp. */
     public const SOURCE_ROSTER_UNIT = 'roster-unit';
 
+    /** The `source` the reader of the roll call threads' replies records its runs under. */
+    public const SOURCE_ROLLCALL_REPLIES = 'rollcall-replies';
+
     public $timestamps = false;
 
     protected function casts(): array

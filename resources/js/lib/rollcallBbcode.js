@@ -37,7 +37,7 @@ function postDateTime(value) {
 // fall back to: a company with no template shows what is missing instead of a post nobody wrote. The portal never
 // posts it (AD-20); the leader copies it into the week's rollcall thread.
 
-const RC_WORDS = { will_attend: 'Yes', cannot_attend: 'No', makeup_requested: 'MU', excused: 'EX' };
+const RC_WORDS = { will_attend: 'Yes', cannot_attend: 'No', makeup_requested: 'MU', excused: 'EX', loa: 'LOA' };
 const SP_WORDS = { present: 'Yes', missed: 'No', excused: 'EX', makeup: 'MU', loa: 'LOA' };
 
 /**
@@ -55,7 +55,10 @@ export function rollcallContext({ section, week, troopers, fireteams = {}, resul
     const rows = ordered.map((trooper, index) => {
         // As they count: leave as LOA, and the automatic Excused of a first week where nobody recorded otherwise.
         const sp = practiceOf(trooper);
-        const rc = signatureOf(trooper);
+        // A trooper on leave who has not signed reads LOA on the roll call too, as on the practice; one who signed anyway
+        // keeps their answer.
+        const signed = signatureOf(trooper);
+        const rc = sp === 'loa' && (!signed || signed === 'unsigned') ? 'loa' : signed;
         const icon = rankIconOf(trooper);
 
         return {
@@ -85,6 +88,7 @@ export function rollcallContext({ section, week, troopers, fireteams = {}, resul
             rc_no: rc === 'cannot_attend',
             rc_makeup_requested: rc === 'makeup_requested',
             rc_excused: rc === 'excused',
+            rc_loa: rc === 'loa',
             rc_unsigned: !RC_WORDS[rc],
         };
     });

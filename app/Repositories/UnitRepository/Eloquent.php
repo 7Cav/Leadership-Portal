@@ -289,9 +289,9 @@ class Eloquent implements UnitRepository
             ->values();
     }
 
-    public function delete(Unit $unit): void
+    public function delete(Unit $unit, ?int $by = null): void
     {
-        DB::transaction(function () use ($unit) {
+        DB::transaction(function () use ($unit, $by) {
             // The foreign key nulls `primary_section_id` on its own, but `placement_source` would be
             // left saying who placed a trooper who is now unplaced. Cleared together, first. The ELOA
             // "was" (`last_line_unit_id`) is nulled by its own foreign key.
@@ -306,6 +306,7 @@ class Eloquent implements UnitRepository
                 $placed->mapWithKeys(fn (int $id) => [$id => [$unit->id, null]])->all(),
                 PlacementSource::Manual,
                 CarbonImmutable::now(),
+                $by,
             );
 
             $unit->delete();

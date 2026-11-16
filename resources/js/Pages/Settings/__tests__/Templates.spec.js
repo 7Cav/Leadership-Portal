@@ -517,7 +517,7 @@ describe('Settings/Templates', () => {
 
         it.each(groups)('lists every code in the %s group the parser accepts, each with a meaning and an example', (key, names, code) => {
             const group = page().get(`[data-testid="legend-${key}"]`);
-            const entries = group.findAll('[data-testid^="legend-entry-"]');
+            const entries = group.findAll('[data-testid^="legend-entry-"]').filter((entry) => !entry.find('[data-testid="legend-soon"]').exists());
 
             expect(entries.map((entry) => entry.attributes('data-testid'))).toEqual(names.map((name) => `legend-entry-${name}`));
             for (const [index, name] of names.entries()) {
@@ -526,6 +526,17 @@ describe('Settings/Templates', () => {
                 expect(entry.get('[data-testid="legend-meaning"]').text()).toMatch(/^[A-Z].{5,}\.$/);
                 expect(entry.get('[data-testid="legend-example"]').text()).not.toBe('');
             }
+        });
+
+        it('lists {{patch}} greyed out as Coming soon, with nothing to insert or copy', () => {
+            const entry = page().get('[data-testid="legend-entry-patch"]');
+
+            expect(entry.classes()).toContain('opacity-55');
+            expect(entry.get('[data-testid="legend-code"]').text()).toBe('{{patch}}');
+            expect(entry.get('[data-testid="legend-soon"]').text()).toBe('(Coming soon)');
+            expect(entry.find('[data-testid="legend-insert-patch"]').exists()).toBe(false);
+            expect(entry.find('[data-testid="legend-copy-patch"]').exists()).toBe(false);
+            expect(entry.find('[data-testid="legend-example"]').exists()).toBe(false);
         });
 
         it('heads each group with its name and where its codes go', () => {

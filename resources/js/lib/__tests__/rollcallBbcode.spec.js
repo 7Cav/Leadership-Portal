@@ -60,6 +60,19 @@ describe('rollcallContext (3.11)', () => {
         expect(by['Park.J']).toMatchObject({ sp: '', sp_loa: false, sp_unmarked: true });
     });
 
+    it('writes LOA on the roll call for a trooper on leave who has not signed, and keeps the answer of one who did', () => {
+        const rows = rollcallContext(input([
+            { ...t(7, 'Ito.K', 'unsigned', null), loa: { state: 'covered' } },
+            { ...t(8, 'Diaz.L', 'cannot_attend', null), loa: { state: 'covered' } },
+            t(9, 'Park.J', 'unsigned', null),
+        ])).troopers;
+        const by = Object.fromEntries(rows.map((row) => [row.name, row]));
+
+        expect(by['Ito.K']).toMatchObject({ rc: 'LOA', rc_loa: true, rc_unsigned: false });
+        expect(by['Diaz.L']).toMatchObject({ rc: 'No', rc_no: true, rc_loa: false });
+        expect(by['Park.J']).toMatchObject({ rc: '', rc_loa: false, rc_unsigned: true });
+    });
+
     it('does not count a trooper on leave as attended, even with a present mark on the page, so the post shows no tick (3.4)', () => {
         const troopers = [
             t(1, 'Vasquez.R', 'will_attend', 'present'),

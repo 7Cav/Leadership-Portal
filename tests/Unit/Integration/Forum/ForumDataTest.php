@@ -1,5 +1,6 @@
 <?php
 
+use App\Integration\Forum\Data\ForumPostPage;
 use App\Integration\Forum\Data\ForumProfile;
 use App\Integration\Forum\Data\ForumToken;
 use App\Integration\Forum\ForumApi;
@@ -84,5 +85,56 @@ describe('ForumApi::authorizeUrl', function () {
 
         // http_build_query encodes the space between scopes as '+'.
         expect($url)->toContain('scope=user%3Aread+profile%3Aread');
+    });
+});
+
+describe('ForumPostPage::fromArray', function () {
+    it('reads each post with its author, and flags the opening post', function () {
+        $page = ForumPostPage::fromArray([
+            'posts' => [
+                ['post_id' => 10, 'user_id' => 4, 'username' => 'Vasquez.R', 'message' => 'Roll call', 'post_date' => 1_791_000_000, 'message_state' => 'visible', 'position' => 0, 'is_first_post' => true],
+                ['post_id' => 11, 'user_id' => 7, 'username' => 'Doe.J', 'message' => 'Will attend', 'post_date' => 1_791_000_100, 'message_state' => 'deleted', 'position' => 1, 'view_url' => 'https://7cav.us/posts/11/'],
+            ],
+            'pagination' => ['current_page' => 1, 'last_page' => 2],
+        ]);
+
+        expect($page->posts)->toHaveCount(2)
+            ->and($page->posts[0]->isFirstPost)->toBeTrue()
+            ->and($page->posts[1]->isFirstPost)->toBeFalse()
+            ->and($page->posts[1]->userId)->toBe(7)
+            ->and($page->posts[1]->username)->toBe('Doe.J')
+            ->and($page->posts[1]->isVisible())->toBeFalse()
+            ->and($page->posts[1]->url)->toBe('https://7cav.us/posts/11/')
+            ->and($page->posts[1]->postedAt->getTimestamp())->toBe(1_791_000_100)
+            ->and($page->hasMore())->toBeTrue();
+    });
+
+    it('rejects a page without its pagination', function () {
+        ForumPostPage::fromArray(['posts' => []]);
+    })->throws(ForumRequestException::class);
+
+    it('rejects a post whose state is not given', function () {
+        ForumPostPage::fromArray(['posts' => [['post_id' => 1, 'user_id' => 1, 'username' => 'A', 'message' => 'x', 'post_date' => 1]], 'pagination' => []]);
+    })->throws(ForumRequestException::class);
+});
+
+describe('ForumApi::threadIdFromUrl', function () {
+    $api = fn () => new ForumApi([
+        'client_id' => 'id', 'client_secret' => 'secret', 'redirect_uri' => 'https://portal.test/cb',
+        'base_url' => 'https://7cav.us', 'authorize_url' => 'https://7cav.us/oauth2/authorize', 'scopes' => ['user:read'],
+    ]);
+
+    it('reads the thread id from a thread link, with or without its title, page or anchor', function () use ($api) {
+        expect($api()->threadIdFromUrl('https://7cav.us/threads/2-1-a-1-7-roll-call-03oct26.12345/'))->toBe(12345)
+            ->and($api()->threadIdFromUrl('https://7cav.us/threads/12345/'))->toBe(12345)
+            ->and($api()->threadIdFromUrl('https://7cav.us/threads/v2.0-roll-call.678/page-2#post-901'))->toBe(678)
+            ->and($api()->threadIdFromUrl('https://7CAV.us/threads/roll-call.9'))->toBe(9);
+    });
+
+    it('reads no thread from another host, a post link or a section', function () use ($api) {
+        expect($api()->threadIdFromUrl('https://example.com/threads/roll-call.12345/'))->toBeNull()
+            ->and($api()->threadIdFromUrl('https://7cav.us/posts/901/'))->toBeNull()
+            ->and($api()->threadIdFromUrl('https://7cav.us/forums/roll-calls.80/'))->toBeNull()
+            ->and($api()->threadIdFromUrl('not a link'))->toBeNull();
     });
 });

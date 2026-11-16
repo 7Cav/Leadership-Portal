@@ -32,7 +32,8 @@ const total = computed(() => props.groups.reduce((sum, group) => sum + group.cou
 function headline(group) {
     const who = group.count === 1 ? (props.own ? 'of your troopers has' : 'trooper has') : props.own ? 'of your troopers have' : 'troopers have';
 
-    return `${group.count} ${who} no ${group.game} identity linked`;
+    // A game read by one ID kind (EOS on HLL Vietnam) asks for that kind by name.
+    return `${group.count} ${who} no ${group.game} ${group.kind ?? 'identity'} linked`;
 }
 </script>
 

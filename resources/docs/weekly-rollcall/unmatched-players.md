@@ -11,7 +11,7 @@ audience: leader
 ## Find the players who need a trooper
 
 1. On a captured practice's roll call, step 2 says how many players need a trooper.
-2. Open the panel to see them, each with the troopers whose names are closest.
+2. Open the panel to see them, each with the troopers whose names are closest. Where the server reports it, a player also shows how long they were on the server during the practice.
 
 ## Link a player
 

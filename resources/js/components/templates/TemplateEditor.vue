@@ -577,12 +577,13 @@ defineExpose({ insert });
                                 v-for="entry in group.entries"
                                 :key="entry.name"
                                 type="button"
-                                class="flex w-full items-baseline justify-between gap-3 rounded-sm px-2 py-1.5 text-left text-[13px] outline-none hover:bg-accent focus-visible:bg-accent"
+                                class="flex w-full items-baseline justify-between gap-3 rounded-sm px-2 py-1.5 text-left text-[13px] outline-none hover:bg-accent focus-visible:bg-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
                                 :title="entry.meaning"
+                                :disabled="entry.soon"
                                 :data-testid="`code-pick-${entry.name}`"
                                 @click="pick(entry)"
                             >
-                                <span>{{ entry.label }}</span>
+                                <span>{{ entry.label }}<span v-if="entry.soon" class="text-muted-foreground"> (Coming soon)</span></span>
                                 <code class="font-mono text-[11px] text-muted-foreground">{{ entry.code }}</code>
                             </button>
                         </section>

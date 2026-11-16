@@ -48,6 +48,7 @@ final class BookmarkablePages
         'settings.servers' => 'Servers',
         'settings.audit-log' => 'Audit log',
         'settings.activity-log' => 'Activity log',
+        'settings.placement-changes' => 'Placement changes',
         'settings.demo-data' => 'Demo data',
     ];
 
@@ -215,6 +216,7 @@ final class BookmarkablePages
             'settings.servers' => $fixed('settings.servers', fn () => $this->access->adminSetting($user)),
             'settings.audit-log' => $fixed('settings.audit-log', fn () => $this->access->adminSetting($user)),
             'settings.activity-log' => $fixed('settings.activity-log', fn () => $this->access->adminSetting($user)),
+            'settings.placement-changes' => $fixed('settings.placement-changes', fn () => $this->access->adminSetting($user)),
             'settings.demo-data' => $fixed('settings.demo-data', fn () => $this->access->demoData($user)),
         ];
     }

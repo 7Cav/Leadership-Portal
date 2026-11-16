@@ -24,13 +24,14 @@ Roll call is the weekly task the rest of the portal is built on. Your section's 
 
 1. In step 2, **Post**, pick your **Template** and choose **Copy BBCode**.
 2. Paste it as a reply in the forum's roll call thread. The portal never posts to the forum for you.
-3. Paste the thread's link under **Forum thread link** if you like, then choose **Mark as posted, continue**.
+3. Paste the thread's link under **Forum thread link**, then choose **Mark as posted, continue**. The button stays greyed out until the link is in.
 
 ## Sign and mark
 
-1. In step 3, **Sign and mark**, set each trooper's signature as they signed the thread: **Will attend**, **Will not attend**, **Make-up requested**, **Excused** or **Unsigned**. Every change saves as you click.
-2. Below the signatures, check the practice marks. With a practice slot set, the portal reads the game server by itself after practice and fills them in. Fix any mark that is wrong.
-3. Once the practice is over, choose **Confirm practice took place**, or **Practice did not take place** if it did not take place.
+1. In step 3, **Sign and mark**, check the signatures. The portal reads the replies in the thread you linked every hour and signs each trooper from their reply, so most fill in by themselves. A card signed that way says **Signed in the thread**.
+2. Under **Replied, but no answer recognised**, open each reply and set that trooper's signature yourself: **Will attend**, **Will not attend**, **Make-up requested**, **Excused** or **Unsigned**. Set anyone who didn't reply the same way. Every change saves as you click, and a reply never changes a signature you set.
+3. Below the signatures, check the practice marks. With a practice slot set, the portal reads the game server by itself after practice and fills them in. Fix any mark that is wrong.
+4. Once the practice is over, choose **Confirm practice took place**, or **Practice did not take place** if it did not take place.
 
 Troopers on leave are already locked under **On LOA**. You do not mark them.
 

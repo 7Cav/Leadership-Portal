@@ -6,6 +6,8 @@ use App\Commands\Attendance\MakeupMarkResult;
 use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Commands\Practices\PracticeSchedule;
 use App\Commands\Practices\PresenceMinimum;
+use App\Integration\Crcon\CrconApi;
+use App\Integration\Crcon\CrconUnavailable;
 use App\Integration\Crcon\Data\CrconPlayer;
 use App\Integration\Crcon\Data\CrconPresence;
 use App\Models\Game;
@@ -106,7 +108,11 @@ class CaptureSectionPracticeHandler
         private readonly CrossSectionSightingRepository $sightings,
         private readonly UnitRepository $units,
         private readonly TelemetryConnectionRepository $connections,
+        private readonly CrconApi $crcon,
     ) {}
+
+    /** At most this many unmatched players are looked up by their CRCON profile in one capture, so a busy server stays quick. */
+    private const PROFILE_LOOKUPS = 60;
 
     /**
      * Runs the capture as whoever really queued it: a "Try again" made while acting as someone carries that in
@@ -469,9 +475,9 @@ class CaptureSectionPracticeHandler
     private function persistUnresolved(int $practiceId, Game $game, CaptureResult $result): void
     {
         $this->capturePlayers->replaceForPractice($practiceId, $game, [
-            ...array_map(fn (CrconPlayer $p) => ['platform_id' => $p->platformId, 'player_name' => $p->playerName, 'trooper_id' => null, 'id_source' => $p->idSource],
+            ...array_map(fn (CrconPlayer $p) => ['platform_id' => $p->platformId, 'player_name' => $p->playerName, 'trooper_id' => null, 'id_source' => $p->idSource, 'minutes' => $p->minutes],
                 $result->unmatched),
-            ...array_map(fn (array $row) => ['platform_id' => $row['player']->platformId, 'player_name' => $row['player']->playerName, 'trooper_id' => $row['trooperId'], 'id_source' => $row['player']->idSource],
+            ...array_map(fn (array $row) => ['platform_id' => $row['player']->platformId, 'player_name' => $row['player']->playerName, 'trooper_id' => $row['trooperId'], 'id_source' => $row['player']->idSource, 'minutes' => $row['player']->minutes],
                 [...$result->otherSection, ...$result->departed]),
         ]);
     }
@@ -499,6 +505,62 @@ class CaptureSectionPracticeHandler
     }
 
     /**
+     * The unmatched players a CRCON profile ties to a trooper: each logged by an EOS ID nobody linked, whose profile names
+     * their own platform's ID (`steam_id`: a Steam ID, or the console's own ID), which a trooper linked instead. A server
+     * that cannot be asked, or a profile with no such ID, leaves the player unmatched. At most {@see PROFILE_LOOKUPS} are
+     * asked about, in the order seen.
+     *
+     * @param  list<CrconPlayer>  $unmatched
+     * @param  array<string, array<string, int|null>>  $serversOf
+     * @return array{0: list<CrconPlayer>, 1: list<array{player: CrconPlayer, trooperId: int, minutes: int|null, servers: array<string, int|null>}>}
+     */
+    private function matchByProfile(Game $game, array $unmatched, array $serversOf): array
+    {
+        $serverIds = $this->servers->selectedFor($game, TelemetryInterface::Crcon)->pluck('external_id')->all() ?: [null];
+        $native = [];
+
+        foreach (array_slice($unmatched, 0, self::PROFILE_LOOKUPS) as $player) {
+            if (preg_match('/^[0-9a-f]{32}$/i', $player->platformId) !== 1) {
+                continue;
+            }
+
+            foreach ($serverIds as $serverId) {
+                try {
+                    $profile = $this->crcon->playerProfile($player->platformId, $serverId);
+                } catch (CrconUnavailable) {
+                    continue;
+                }
+
+                if ($profile?->nativeId !== null) {
+                    $native[$player->platformId] = $profile->nativeId;
+                }
+
+                break;
+            }
+        }
+
+        if ($native === []) {
+            return [$unmatched, []];
+        }
+
+        $rows = $this->identities->findByPlatformIds($game, array_values(array_unique($native)))->keyBy('platform_id');
+        $still = [];
+        $links = [];
+
+        foreach ($unmatched as $player) {
+            $link = isset($native[$player->platformId]) ? $rows->get($native[$player->platformId]) : null;
+
+            if ($link === null) {
+                $still[] = $player;
+            } else {
+                $links[] = ['player' => $player, 'trooperId' => $link->trooper_id, 'minutes' => $player->minutes, 'servers' => $serversOf[mb_strtolower($player->platformId)] ?? []];
+            }
+        }
+
+        return [$still, $links];
+    }
+
+    /**
      * @param  array<string, array<string, int|null>>  $serversOf  each player's minutes per server, from {@see merge()}
      */
     private function resolve(CrconPresence $presence, string $source, Game $game, SectionPractice $practice, array $serversOf = []): CaptureResult
@@ -521,6 +583,13 @@ class CaptureSectionPracticeHandler
             } else {
                 $links[] = ['player' => $player, 'trooperId' => $link->trooper_id, 'minutes' => $player->minutes, 'servers' => $serversOf[mb_strtolower($player->platformId)] ?? []];
             }
+        }
+
+        // A CRCON game logs every player by an EOS ID; one linked by their Steam (or console) ID instead is found through
+        // their CRCON profile (15NOV26).
+        if ($unmatched !== [] && $game->interface === TelemetryInterface::Crcon) {
+            [$unmatched, $byProfile] = $this->matchByProfile($game, $unmatched, $serversOf);
+            $links = [...$links, ...$byProfile];
         }
 
         // On the practice's rollcall for its week: placed in the section now, or for a week that has ended, on the

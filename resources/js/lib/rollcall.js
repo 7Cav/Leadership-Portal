@@ -311,6 +311,31 @@ export function weeksNeedingWork(weekStatus, date) {
     };
 }
 
+// What the trooper's latest reply on the roll call thread says, when the card should show it beside the signature
+// (`trooper.reply`, from the reply reader): a reply with no answer recognised, for the leader to read, or one whose answer
+// differs from the signature that stands, which is a leader's set by hand (a reply never overwrites it).
+export function replyNote(trooper) {
+    const reply = trooper.reply;
+    if (!reply) return null;
+    if (!reply.answer) return { kind: 'unrecognised', label: 'Replied, but no answer recognised', url: reply.url ?? null };
+    if (reply.answer !== trooper.rollcall) return { kind: 'differs', label: `Reply says ${inSentence(signatureLabel(reply.answer))}`, url: reply.url ?? null };
+
+    return null;
+}
+
+// The troopers whose latest reply gave no answer the reader recognised, in the order given, for the list on step 1.
+export function unrecognisedReplies(troopers) {
+    return troopers.filter((trooper) => trooper.reply && !trooper.reply.answer);
+}
+
+// The signature line on a card: who set it, the thread's reply or a leader.
+export function signatureLine(trooper, label) {
+    if (trooper.rollcall === 'unsigned') return 'Not signed yet';
+    if (trooper.rollcall === 'excused') return 'Excused this week';
+
+    return trooper.rollcallSource === 'reply' ? `Signed in the thread: ${label}` : `Signed: ${label}`;
+}
+
 // Step 1 groups by signature, the ones to chase first.
 export function signatureGroups(troopers) {
     const by = (value) => troopers.filter((t) => !isLocked(t) && signatureOf(t) === value);

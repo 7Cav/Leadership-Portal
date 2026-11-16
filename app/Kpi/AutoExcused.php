@@ -16,7 +16,9 @@ use InvalidArgumentException;
  *
  * - **recruit**: the Cav week of their join date (`troopers.tis`, Cav's `joinDate`);
  * - **transfer**: the Cav week they were placed into a section, from the placement history. A placement from before
- *   the history began is not a transfer, so nobody is excused by the history's first rows.
+ *   the history began is not a transfer, so nobody is excused by the history's first rows. Nor is a move back into
+ *   the section they were in when the week began, or a stay they left again within the week: out and straight back
+ *   is most likely a wrong milpac edit put right.
  *
  * An automatic Excused works like leave: the week leaves the RC and SP rates, neither met nor missed, and a report
  * counts it as accounted. It is only a default, never stored: whatever a leader records for the week wins, fact by

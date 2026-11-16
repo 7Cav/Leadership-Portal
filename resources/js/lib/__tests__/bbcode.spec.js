@@ -54,11 +54,11 @@ describe('the legend of template codes', () => {
         expect(codeLabel('name')).toBe('Trooper name');
         expect(codeLabel('rc')).toBe('Roll call mark');
         expect(codeLabel('constructor')).toBe('constructor');
-        for (const entry of templateLegend().flatMap((group) => group.entries)) expect(entry.label, entry.name).toBe(codeLabel(entry.name));
+        for (const entry of templateLegend().flatMap((group) => group.entries).filter((entry) => !entry.soon)) expect(entry.label, entry.name).toBe(codeLabel(entry.name));
     });
 
     it('groups the codes as the parser reads them, each with a meaning and an example', () => {
-        const legend = templateLegend();
+        const legend = templateLegend().map((group) => ({ ...group, entries: group.entries.filter((entry) => !entry.soon) }));
 
         expect(legend.map((group) => [group.key, group.entries.map((entry) => entry.name)])).toEqual([
             ['values', TOP_STRINGS],
@@ -73,6 +73,15 @@ describe('the legend of template codes', () => {
             expect(entry.meaning, entry.name).not.toBe('');
             expect(entry.example, entry.name).not.toBe('');
         }
+    });
+
+    it('lists {{patch}} as Coming soon at the end of the values: described, never offered as a working code', () => {
+        const values = templateLegend().find((group) => group.key === 'values').entries;
+
+        expect(values.at(-1)).toMatchObject({ name: 'patch', code: '{{patch}}', label: 'Unit patch', soon: true, example: '' });
+        expect(values.at(-1).meaning).toMatch(/100 pixels high.*nearest unit above/);
+        expect(values.filter((entry) => entry.soon).map((entry) => entry.name)).toEqual(['patch']);
+        expect(parse('{{patch}}').ok).toBe(false);
     });
 
     it('writes each code as a template would, and every example that is a template parses', () => {

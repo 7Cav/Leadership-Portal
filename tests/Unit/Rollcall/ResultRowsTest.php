@@ -24,10 +24,13 @@ it('words each mark as the template does', function () {
         ->and(array_column($rows, 'sp'))->toBe(['Yes', 'No', 'MU', 'EX', '-']);
 });
 
-it('shows a trooper on leave as LOA for practice', function () {
-    $rows = ResultRows::for([trooper(['locked' => true])], false);
+it('shows a trooper on leave as LOA for practice, and for the roll call unless they signed anyway', function () {
+    $rows = ResultRows::for([
+        trooper(['id' => 1, 'name' => 'A.A', 'locked' => true]),
+        trooper(['id' => 2, 'name' => 'B.B', 'locked' => true, 'rollcall' => 'cannot_attend']),
+    ], false);
 
-    expect($rows[0]['sp'])->toBe('LOA');
+    expect(array_map(fn (array $row) => [$row['rc'], $row['sp']], $rows))->toBe([['LOA', 'LOA'], ['No', 'LOA']]);
 });
 
 it('counts the automatic excused only where nobody recorded a mark', function () {

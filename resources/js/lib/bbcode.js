@@ -31,7 +31,7 @@ export const ROW_STRINGS = ['n', 'role', 'rank', 'rank_short', 'rank_icon', 'ran
  * Yes-or-no names, usable only as sections, inside {{#troopers}}. `sp_attached` is never set since Attached merged into
  * Make-up complete; it stays so a template saved before still renders.
  */
-export const ROW_FLAGS = ['sp_present', 'sp_missed', 'sp_excused', 'sp_makeup', 'sp_attached', 'sp_loa', 'sp_unmarked', 'rc_yes', 'rc_no', 'rc_makeup_requested', 'rc_excused', 'rc_unsigned', 'is_sl', 'is_asl', 'is_ftl'];
+export const ROW_FLAGS = ['sp_present', 'sp_missed', 'sp_excused', 'sp_makeup', 'sp_attached', 'sp_loa', 'sp_unmarked', 'rc_yes', 'rc_no', 'rc_makeup_requested', 'rc_excused', 'rc_loa', 'rc_unsigned', 'is_sl', 'is_asl', 'is_ftl'];
 /** Names printable inside {{#events}}. */
 export const EVENT_STRINGS = ['event_name', 'event_start', 'event_url'];
 export const FILTERS = ['upper', 'lower'];
@@ -77,7 +77,7 @@ const MEANINGS = {
     rank_icon_width: ['The width to show the rank insignia at, such as 11px, so every rank looks the same size. Empty when Cav has no insignia', '[IMG width="{{rank_icon_width}}" height="auto"]{{rank_icon}}[/IMG]'],
     name: ['The forum username', 'Jay.JH'],
     display_name: ['Short rank and username, as the forum names a member', 'SGT Jay.JH'],
-    rc: ['The roll call answer: Yes (will attend), No (will not attend), MU (make-up requested) or EX (excused), empty when unsigned', 'Yes'],
+    rc: ['The roll call answer: Yes (will attend), No (will not attend), MU (make-up requested), EX (excused) or LOA (on leave and not signed), empty when unsigned', 'Yes'],
     sp: ['The practice mark: Yes (attended), No (not attended), EX (excused), MU (make-up complete) or LOA, empty when not marked', 'MU'],
     sp_present: ['Attended section practice', '{{#sp_present}}✓{{/sp_present}}'],
     sp_missed: ['Did not attend section practice', '{{#sp_missed}}✗{{/sp_missed}}'],
@@ -90,7 +90,8 @@ const MEANINGS = {
     rc_no: ['Signed the roll call: will not attend', '{{#rc_no}}✗{{/rc_no}}'],
     rc_makeup_requested: ['Signed the roll call: make-up requested', '{{#rc_makeup_requested}}MU{{/rc_makeup_requested}}'],
     rc_excused: ['Excused from the roll call this week, by a leader or automatically in a first week', '{{#rc_excused}}EX{{/rc_excused}}'],
-    rc_unsigned: ['Has not signed the roll call', '{{#rc_unsigned}}-{{/rc_unsigned}}'],
+    rc_loa: ['On LOA for the week and has not signed the roll call', '{{#rc_loa}}LOA{{/rc_loa}}'],
+    rc_unsigned: ['Has not signed the roll call, and is not on LOA', '{{#rc_unsigned}}-{{/rc_unsigned}}'],
     is_sl: ['The Section Leader', '{{#is_sl}}(SL) {{/is_sl}}'],
     is_asl: ['The Assistant Section Leader', '{{#is_asl}}(ASL) {{/is_asl}}'],
     is_ftl: ['Leads a fireteam, when the section shows fireteam leaders (the SL or ASL too, where the company allows it)', '{{#is_ftl}}(FTL) {{/is_ftl}}'],
@@ -145,6 +146,7 @@ const LABELS = {
     rc_no: 'Will not attend',
     rc_makeup_requested: 'Make-up requested',
     rc_excused: 'Excused from roll call',
+    rc_loa: 'On LOA, not signed',
     rc_unsigned: 'Not signed',
     is_sl: 'Section Leader',
     is_asl: 'Assistant Section Leader',
@@ -169,6 +171,11 @@ export function codeLabel(name) {
  *
  * @returns {{key: string, title: string, where: string, entries: {name: string, label: string, code: string, open: string, close: string, meaning: string, example: string}[]}[]}
  */
+// What each Coming soon code will print.
+const COMING_SOON = {
+    patch: "The section's unit patch as an image 100 pixels high: its own, or the nearest unit above it that has one",
+};
+
 export function templateLegend() {
     const group = (key, title, where, names, codeOf) => ({
         key,
@@ -180,8 +187,13 @@ export function templateLegend() {
     const tag = (name) => single(`{{${name}}}`);
     const block = (name) => ({ code: `{{#${name}}}...{{/${name}}}`, open: `{{#${name}}}`, close: `{{/${name}}}` });
 
+    // Codes announced but not built yet: listed greyed out, marked Coming soon, and never inserted. The template check
+    // does not know them, so one typed by hand is refused like any unknown code.
+    const values = group('values', 'Values', 'Anywhere in the template', TOP_STRINGS, tag);
+    values.entries.push({ name: 'patch', ...tag('patch'), label: 'Unit patch', meaning: COMING_SOON.patch, example: '', soon: true });
+
     return [
-        group('values', 'Values', 'Anywhere in the template', TOP_STRINGS, tag),
+        values,
         group('topFlags', 'Yes/no flags for the post', 'Anywhere in the template', TOP_FLAGS, block),
         group('lists', 'Lists', '', LISTS, block),
         group('rowValues', 'Trooper values', 'Inside {{#troopers}}', ROW_STRINGS, tag),
@@ -234,7 +246,7 @@ export function sampleContext() {
         rank_icon_width: icon ? `${insigniaWidth(SAMPLE_ICON(icon))}px` : '',
         name,
         display_name: `${rankShort} ${name}`,
-        rc: { yes: 'Yes', no: 'No', makeup: 'MU', excused: 'EX' }[rc] ?? '',
+        rc: { yes: 'Yes', no: 'No', makeup: 'MU', excused: 'EX', loa: 'LOA' }[rc] ?? '',
         sp: { present: 'Yes', missed: 'No', excused: 'EX', makeup: 'MU', loa: 'LOA' }[sp] ?? '',
         sp_present: sp === 'present',
         sp_missed: sp === 'missed',
@@ -247,6 +259,7 @@ export function sampleContext() {
         rc_no: rc === 'no',
         rc_makeup_requested: rc === 'makeup',
         rc_excused: rc === 'excused',
+        rc_loa: rc === 'loa',
         rc_unsigned: rc === null,
     });
     const troopers = [

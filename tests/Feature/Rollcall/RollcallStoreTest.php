@@ -218,6 +218,11 @@ it('still answers saved when only the at-risk refresh fails, so the screen never
             return $this->inner->signRollcall($practice, $trooperId, $rollcall);
         }
 
+        public function signRollcallFromReply(SectionPractice $practice, int $trooperId, RollcallSignature $rollcall): ?Attendance
+        {
+            return $this->inner->signRollcallFromReply($practice, $trooperId, $rollcall);
+        }
+
         public function forPractice(SectionPractice $practice): Collection
         {
             return $this->inner->forPractice($practice);

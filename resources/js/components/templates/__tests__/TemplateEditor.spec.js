@@ -245,6 +245,14 @@ describe('the code picker', () => {
         expect(picker.querySelector('[data-testid="code-pick-unit"]')).not.toBeNull();
     });
 
+    it('shows {{patch}} greyed out as Coming soon, and cannot insert it', async () => {
+        const picker = await openPicker('ab', 1);
+        const patch = picker.querySelector('[data-testid="code-pick-patch"]');
+
+        expect(patch.disabled).toBe(true);
+        expect(patch.textContent).toContain('Unit patch (Coming soon)');
+    });
+
     it('offers a trooper\'s codes inside the loop, and not the loop again', async () => {
         const body = '{{#troopers}}x{{/troopers}}';
         const picker = await openPicker(body, 13);

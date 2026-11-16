@@ -1,6 +1,7 @@
 <?php
 
 use App\Authorization\ScopeResolver;
+use App\Commands\Attendance\ReadRollcallRepliesHandler;
 use App\Commands\Capture\BackfillPracticeCaptures;
 use App\Commands\Capture\CapturePracticesDue;
 use App\Commands\Capture\CaptureSectionPracticeHandler;
@@ -12,6 +13,7 @@ use App\Commands\Guests\ApplyGuestMakeupsDue;
 use App\Commands\PortalRoleGrants\ExpireEndedStaffGrants;
 use App\Commands\Users\SetAdminFlag;
 use App\Jobs\CaptureSectionPracticeJob;
+use App\Jobs\ReadRollcallRepliesJob;
 use App\Jobs\SyncCalendarJob;
 use App\Jobs\SyncLoasJob;
 use App\Jobs\SyncRosterJob;
@@ -143,6 +145,30 @@ Schedule::command('portal:sync-loas')->hourlyAt(15)->when(fn () => SyncLoasJob::
 // the last run, so a post edited after that (an ELOA extended, say) is caught here, and this is the run that reads the whole year
 // and deletes the leave whose thread is gone.
 Schedule::command('portal:sync-loas --full')->dailyAt('03:30')->when(fn () => SyncLoasJob::isConfigured());
+
+// The signatures in the roll call threads' replies: each posted week whose report is not sent yet has its thread read
+// and every trooper's latest reply set as their signature, never over one a leader set by hand. Hourly at a quarter to,
+// away from the roster and leave syncs, and only with a forum API key. `--now` runs it in the foreground.
+Artisan::command('portal:read-rollcall-replies {--now : Run the read in the foreground instead of queueing it}', function (ReadRollcallRepliesHandler $handler) {
+    if (! ReadRollcallRepliesHandler::isConfigured()) {
+        $this->error('The roll call replies cannot be read: set SEVENCAV_FORUM_API_KEY in .env.');
+
+        return 1;
+    }
+
+    if ($this->option('now')) {
+        $this->info($handler->handle()->summary());
+
+        return 0;
+    }
+
+    ReadRollcallRepliesJob::dispatch();
+    $this->info('Roll call reply read queued.');
+
+    return 0;
+})->purpose('Read the signatures from the roll call thread replies (queued unless --now)');
+
+Schedule::command('portal:read-rollcall-replies')->hourlyAt(45)->when(fn () => ReadRollcallRepliesHandler::isConfigured());
 
 // The 7Cav calendar (#751): read from the forum's public export and cached, so the roll call lists the week's events
 // without waiting on the forum. Hourly, at ten to the hour, away from the roster and leave syncs; `--now` runs it in the

@@ -234,6 +234,17 @@ export function transferLabel(move) {
 }
 
 /**
+ * The note under a move that was undone in a later week (`reversedAt`), or that undid one (`reverses`): out and straight
+ * back is most likely a milpac correction, not two transfers. Null for any other move.
+ */
+export function transferNote(move) {
+    if (move.reversedAt) return `Moved back ${forumDate(move.reversedAt)}. Likely a milpac correction`;
+    if (move.reverses) return 'Undoes the move before. Likely a milpac correction';
+
+    return null;
+}
+
+/**
  * How one milpac attendance week (`Kpi\AttendanceHistory`) renders, as the same RC and SP states as a roster week. A
  * week before `joined` is `out`, "Not in the unit yet"; a week from `departedAt` on is `left`, as on the roster (#623).
  * Any other week in no section (on HQ staff, in a group, or before the placement history began) is `none`, "No

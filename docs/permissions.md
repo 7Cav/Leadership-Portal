@@ -148,6 +148,7 @@ No = refused (the page answers 403 or 404, or the control is not shown).
 | Template preview filled from a real section | All | All | No | Own | Own | Own | Own | Own | No | Read | Target |
 | Audit log | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
 | Activity log (pages each user opened) | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
+| Placement changes (moves between units) | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
 | Demo data page (only when `DEMO_TOOLS=true`) | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
 
 (1) Portfolio officers command staff groups. Groups have no roll call, reports or KPIs, so these pages show nothing
@@ -178,6 +179,10 @@ for any other company or section by URL answers 403. The editing controls show o
 | Fireteams: mark FTLs, fill fireteams, section display options | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Company fireteam policy | All | All | No | Own | Own | No | If acting lead of the company or above | No | No | No | No |
 | Pick the section's roll call template (its own, the company's switched-on ones, the regiment default) | All | All | No | Own | Own | Own | Own | Own | No | No | No |
+
+Signatures read from the roll call thread's replies are set by a scheduled job, not by a person, so they have no
+row in this table and no audit entry; the job's run is recorded in the sync runs. It never overwrites a signature
+set by hand.
 
 ### Roll call templates
 
