@@ -11,11 +11,11 @@ const at = (source, marker) => source.indexOf(marker);
 
 describe('formatting', () => {
     it('wraps the selection in the tag, keeping the selection on the same text', () => {
-        expect(toggleTag('a bold b', 2, 6, 'b')).toEqual({ source: 'a [B]bold[/B] b', start: 5, end: 9 });
+        expect(toggleTag('a bold b', 2, 6, 'b')).toEqual({ source: 'a [b]bold[/b] b', start: 5, end: 9 });
     });
 
     it('with nothing selected, puts the tags in with the cursor between them', () => {
-        expect(toggleTag('ab', 1, 1, 'i')).toEqual({ source: 'a[I][/I]b', start: 4, end: 4 });
+        expect(toggleTag('ab', 1, 1, 'i')).toEqual({ source: 'a[i][/i]b', start: 4, end: 4 });
     });
 
     it('takes the tag off again when the selection is already inside it', () => {
@@ -24,7 +24,7 @@ describe('formatting', () => {
     });
 
     it('centres a line the same way', () => {
-        expect(toggleTag('title', 0, 5, 'center')).toEqual({ source: '[CENTER]title[/CENTER]', start: 8, end: 13 });
+        expect(toggleTag('title', 0, 5, 'center')).toEqual({ source: '[center]title[/center]', start: 8, end: 13 });
     });
 
     it('refuses a wrap that would cross other tags or codes', () => {
@@ -34,9 +34,9 @@ describe('formatting', () => {
     });
 
     it('sets a colour or a size on the selection, or changes the one around it', () => {
-        expect(setOption('a red b', 2, 5, 'color', 'red')).toEqual({ source: 'a [COLOR=red]red[/COLOR] b', start: 13, end: 16 });
-        expect(setOption('a [COLOR=red]red[/COLOR] b', 14, 14, 'color', '#00ff00')).toEqual({ source: 'a [COLOR=#00ff00]red[/COLOR] b', start: 18, end: 18 });
-        expect(setOption('x', 0, 1, 'size', '5')).toEqual({ source: '[SIZE=5]x[/SIZE]', start: 8, end: 9 });
+        expect(setOption('a red b', 2, 5, 'color', 'red')).toEqual({ source: 'a [color=red]red[/color] b', start: 13, end: 16 });
+        expect(setOption('a [COLOR=red]red[/COLOR] b', 14, 14, 'color', '#00ff00')).toEqual({ source: 'a [color=#00ff00]red[/color] b', start: 18, end: 18 });
+        expect(setOption('x', 0, 1, 'size', '5')).toEqual({ source: '[size=5]x[/size]', start: 8, end: 9 });
     });
 
     it('refuses a colour or size the forum would not take', () => {
@@ -47,8 +47,8 @@ describe('formatting', () => {
 
 describe('links and images', () => {
     it('links the selection, or writes the address as the link text when nothing is selected', () => {
-        expect(insertLink('see here', 4, 8, 'https://7cav.us/x')).toEqual({ source: 'see [URL=https://7cav.us/x]here[/URL]', start: 37, end: 37 });
-        expect(insertLink('see ', 4, 4, 'https://7cav.us')).toEqual({ source: 'see [URL=https://7cav.us]https://7cav.us[/URL]', start: 46, end: 46 });
+        expect(insertLink('see here', 4, 8, 'https://7cav.us/x')).toEqual({ source: 'see [url=https://7cav.us/x]here[/url]', start: 37, end: 37 });
+        expect(insertLink('see ', 4, 4, 'https://7cav.us')).toEqual({ source: 'see [url=https://7cav.us]https://7cav.us[/url]', start: 46, end: 46 });
     });
 
     it('refuses an address that is not a full http or https one', () => {
@@ -67,8 +67,8 @@ describe('links and images', () => {
     });
 
     it('puts an image in at the cursor, from an address or a live result image code', () => {
-        expect(insertImage('a b', 2, 2, 'https://7cav.us/a.png')).toEqual({ source: 'a [IMG]https://7cav.us/a.png[/IMG]b', start: 34, end: 34 });
-        expect(insertImage('', 0, 0, '{{rc_image}}')).toEqual({ source: '[IMG]{{rc_image}}[/IMG]', start: 23, end: 23 });
+        expect(insertImage('a b', 2, 2, 'https://7cav.us/a.png')).toEqual({ source: 'a [img]https://7cav.us/a.png[/img]b', start: 34, end: 34 });
+        expect(insertImage('', 0, 0, '{{rc_image}}')).toEqual({ source: '[img]{{rc_image}}[/img]', start: 23, end: 23 });
         expect(insertImage('', 0, 0, 'ftp://x')).toBeNull();
     });
 });
@@ -136,8 +136,8 @@ describe('the trooper table', () => {
     it('puts a whole trooper table in, which follows the grammar', () => {
         const result = insertTable('Roll call\n', 10, 10);
 
-        expect(result.source.startsWith('Roll call\n[TABLE]')).toBe(true);
-        expect(result.source).toContain('{{#troopers}}[TR]');
+        expect(result.source.startsWith('Roll call\n[table]')).toBe(true);
+        expect(result.source).toContain('{{#troopers}}[tr]');
         expect(parse(result.source).ok).toBe(true);
     });
 
@@ -157,15 +157,15 @@ describe('the trooper table', () => {
     it('adds and removes a column in the starter, its fireteam column and empty-section row kept whole', () => {
         const added = addColumn(STARTER, at(STARTER, 'Signed RC'));
         expect(parse(added.source).ok).toBe(true);
-        expect(added.source).toContain('[TH]Signed RC[/TH][TH]Column[/TH][TH]Attended SP[/TH]');
-        expect(added.source).toContain('{{#rc_unsigned}}-{{/rc_unsigned}}[/TD][TD][/TD][TD]{{#sp_present}}');
-        expect(added.source).toContain('[TR][TD]No troopers are placed in this section.[/TD][/TR]');
+        expect(added.source).toContain('[th]Signed RC[/th][th]Column[/th][th]Attended SP[/th]');
+        expect(added.source).toContain('{{#rc_unsigned}}-{{/rc_unsigned}}[/td][td][/td][td]{{#sp_present}}');
+        expect(added.source).toContain('[tr][td]No troopers are placed in this section.[/td][/tr]');
 
         const removed = removeColumn(STARTER, at(STARTER, 'Role'));
         expect(parse(removed.source).ok).toBe(true);
         expect(removed.source).not.toContain('Role');
         expect(removed.source).not.toContain('{{role}}');
-        expect(removed.source).toContain('[TH]Name[/TH][TH]Signed RC[/TH]');
+        expect(removed.source).toContain('[th]Name[/th][th]Signed RC[/th]');
     });
 
     it('removes the column under the cursor from every row of the same width', () => {

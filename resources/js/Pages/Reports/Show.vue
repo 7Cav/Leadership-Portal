@@ -29,6 +29,7 @@ import HistoryPanel from '@/components/reports/HistoryPanel.vue';
 import PlatoonTopicField from '@/components/reports/PlatoonTopicField.vue';
 import ReadinessChecklist from '@/components/reports/ReadinessChecklist.vue';
 import ReportDeadlineBanner from '@/components/reports/ReportDeadlineBanner.vue';
+import { reportDeadline } from '@/lib/reportDeadline';
 import ReportPreview from '@/components/reports/ReportPreview.vue';
 import EditReportDialog from '@/components/reports/EditReportDialog.vue';
 import OwedWeekNotice from '@/components/reports/OwedWeekNotice.vue';
@@ -442,7 +443,9 @@ onBeforeUnmount(() => clearInterval(clock));
 
 const countdown = computed(() => {
     let seconds = Math.floor((new Date(props.week.due).getTime() - now.value) / 1000);
-    if (seconds <= 0) return 'Deadline passed';
+    // Past the deadline the overdue banner below says it ("Report overdue by 20 h"): the header says nothing more while
+    // it shows, and "Deadline passed" once the week has left the overdue window.
+    if (seconds <= 0) return reportDeadline(props.week.due, now.value, false, props.week.overdueUntil)?.overdue ? null : 'Deadline passed';
     const d = Math.floor(seconds / 86400);
     seconds -= d * 86400;
     const h = Math.floor(seconds / 3600);
@@ -543,7 +546,7 @@ function useSuggestion() {
             </nav>
             <div class="w-full sm:ml-auto sm:w-auto sm:text-right">
                 <p class="text-xs text-muted-foreground">{{ parentLabel ? `Due to ${parentLabel} ${stamp(week.due)}` : `Due ${stamp(week.due)}` }}</p>
-                <p v-if="!sent" class="text-lg leading-tight font-semibold tabular-nums" data-testid="countdown">{{ countdown }}</p>
+                <p v-if="!sent && countdown" class="text-lg leading-tight font-semibold tabular-nums" data-testid="countdown">{{ countdown }}</p>
                 <p v-else class="text-[13px] font-medium" data-testid="sent-line">
                     Sent <TimeAgo :at="report.sentAt">{{ stamp(report.sentAt) }}</TimeAgo><template v-if="report.sentBy"> by {{ report.sentBy }}</template>
                 </p>
