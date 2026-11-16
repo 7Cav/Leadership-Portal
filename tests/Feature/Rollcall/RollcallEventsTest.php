@@ -4,6 +4,7 @@ use App\Commands\WeeklyReports\SendWeeklyReport;
 use App\Commands\WeeklyReports\SendWeeklyReportHandler;
 use App\Models\CalendarEvent;
 use App\Models\Game;
+use App\Models\SectionPracticeSlot;
 use App\Models\SyncRun;
 use App\Models\SyncRunStatus;
 use App\Models\Trooper;
@@ -68,7 +69,7 @@ beforeEach(function () {
     $this->leader = User::factory()->admin()->create();
     Trooper::factory()->create(['primary_section_id' => $this->section->id]);
     // A section that plays a game needs a practice slot before its report is sent (#756).
-    App\Models\SectionPracticeSlot::query()->create(['section_id' => $this->section->id, 'weekday' => 3, 'start_minute' => 1200]);
+    SectionPracticeSlot::query()->create(['section_id' => $this->section->id, 'weekday' => 3, 'start_minute' => 1200]);
 });
 
 afterEach(fn () => CarbonImmutable::setTestNow());
