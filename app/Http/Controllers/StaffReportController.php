@@ -140,8 +140,9 @@ class StaffReportController extends Controller
             'sections' => $canSend || $canEdit ? $this->sections($hq, $weekStart) : [],
             // What the HQ reports under its accountability options, and how far the picker reaches.
             'accountability' => ($canSend || $canEdit) && $hq !== null ? array_diff_key($this->accountability->staff($hq), ['counts' => true]) : null,
-            // The week's 7Cav calendar events for the HQ's game (#553), as the roll call lists them: an FTX is picked from
-            // them, filling in its name and date. Typing them stays the fallback when none is listed.
+            // The week's 7Cav calendar events for the HQ's game (#553), as the roll call lists them: an FTX, operation or
+            // class is picked from those of its kind, filling in its name and date. Which of the three the report offers
+            // is the HQ's accountability options. Typing them stays the fallback when none is listed.
             'events' => ($canSend || $canEdit) && $hq !== null ? $weekEvents->forSection($hq, $weekStart) : null,
             'maxPractices' => SendStaffReportHandler::MAX_PRACTICES,
             'limits' => [

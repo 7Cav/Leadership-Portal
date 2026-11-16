@@ -396,19 +396,21 @@ describe('StaffReport page', () => {
         );
     });
 
-    // #553: the week's calendar events for the HQ's game.
+    // #553: the week's calendar events for the HQ's game, each of its kind by the forum calendar it is filed in.
     const EVENTS = {
         state: 'listed',
         game: 'Hell Let Loose',
         readAt: '2026-10-09T11:50:00Z',
         lastReadFailed: false,
         items: [
-            { name: 'FTX Bocage', start: '2026-10-06T19:00:00Z', url: null },
-            { name: '[HLL] Joint night', start: '2026-10-07T01:00:00Z', url: null },
+            { name: 'Operation Overlord', start: '2026-10-04T20:00:00Z', url: null, kind: 'operation' },
+            { name: 'BICT', start: '2026-10-05T01:00:00Z', url: null, kind: 'class' },
+            { name: 'FTX Bocage', start: '2026-10-06T19:00:00Z', url: null, kind: 'ftx' },
+            { name: '[HLL] Joint night', start: '2026-10-07T01:00:00Z', url: null, kind: null },
         ],
     };
 
-    it('offers the events of the week to pick as the FTX, filling in the name and date (#553)', async () => {
+    it('offers the FTXs of the week to pick, and an event tied only by its title, filling in the name and date (#553)', async () => {
         const wrapper = page({ events: EVENTS });
         await wrapper.find('[data-testid="attended-yes"]').trigger('click');
         await wrapper.find('[data-testid="type-ftx"]').trigger('click');
@@ -426,11 +428,29 @@ describe('StaffReport page', () => {
         expect(wrapper.find('[data-testid="ftx-event-0"]').attributes('aria-checked')).toBe('true');
     });
 
+    it('offers a battalion HQ the operations or the classes of the week, each kind on its own (#553)', async () => {
+        const wrapper = page({ hq: BATTALION, events: EVENTS });
+        await wrapper.find('[data-testid="attended-yes"]').trigger('click');
+        await wrapper.find('[data-testid="type-operation"]').trigger('click');
+        expect(wrapper.find('[data-testid="ftx-events"]').text()).toContain('Which operation was it?');
+        expect(wrapper.findAll('[data-testid^="ftx-event-"]').map((tile) => tile.text())).toEqual([
+            expect.stringContaining('Operation Overlord'),
+            expect.stringContaining('[HLL] Joint night'),
+        ]);
+
+        await wrapper.find('[data-testid="step-back"]').trigger('click');
+        await wrapper.find('[data-testid="type-class"]').trigger('click');
+        expect(wrapper.findAll('[data-testid^="ftx-event-"]').map((tile) => tile.text())).toEqual([
+            expect.stringContaining('BICT'),
+            expect.stringContaining('[HLL] Joint night'),
+        ]);
+    });
+
     it('says why there is nothing to pick, and leaves the name and date to type (#553)', async () => {
-        const none = page({ events: { ...EVENTS, items: [] } });
+        const none = page({ events: { ...EVENTS, items: [EVENTS.items[0]] } });
         await none.find('[data-testid="attended-yes"]').trigger('click');
         await none.find('[data-testid="type-ftx"]').trigger('click');
-        expect(none.find('[data-testid="ftx-events-none"]').text()).toBe('No Hell Let Loose events on the 7Cav calendar this week. Type the name and date of the FTX.');
+        expect(none.find('[data-testid="ftx-events-none"]').text()).toBe('No Hell Let Loose FTXs on the 7Cav calendar this week. Type the name and date of the FTX.');
         expect(none.find('[data-testid="ftx-fields"]').exists()).toBe(true);
 
         const gameless = page({ events: { state: 'no_game', game: null, items: [], readAt: null, lastReadFailed: false } });
