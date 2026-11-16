@@ -5,6 +5,7 @@ use App\Integration\Forum\ForumRequestException;
 use App\Integration\Forum\Requests\ExportCalendarRequest;
 use App\Jobs\SyncCalendarJob;
 use App\Models\CalendarEvent;
+use App\Models\Game;
 use App\Models\SyncRun;
 use App\Models\SyncRunStatus;
 use App\Sync\SyncCalendarHandler;
@@ -41,6 +42,8 @@ function calStored(): array
 beforeEach(function () {
     // Saturday 14NOV26, the evening after Squad Saturday.
     CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-11-14 21:00:00', 'UTC'));
+    // No game names a forum calendar unless a test gives it one, so only the whole calendar is read.
+    Game::query()->update(['event_calendars' => null]);
 });
 
 afterEach(fn () => CarbonImmutable::setTestNow());
@@ -161,4 +164,49 @@ it('queues the calendar sync as triggered by system, or runs it in the foregroun
     Bus::fake();
     $this->artisan('portal:sync-calendar', ['--now' => true])->expectsOutput('Calendar sync finished.')->assertSuccessful();
     Bus::assertDispatchedSync(SyncCalendarJob::class);
+});
+
+/** One forum calendar's export, listing the given events as `uid => [title, start]`. */
+function calOne(array $events): string
+{
+    $out = 'BEGIN:VCALENDAR'."\n";
+    foreach ($events as $uid => [$title, $start]) {
+        $out .= "BEGIN:VEVENT\nUID:{$uid}\nDTSTART:{$start}\nSUMMARY:{$title}\nEND:VEVENT\n";
+    }
+
+    return $out."END:VCALENDAR\n";
+}
+
+it('reads each forum calendar a game names and stores the calendar of each event, with an event only its calendar lists', function () {
+    Game::factory()->create(['name' => 'Squad', 'event_calendars' => ['operation' => [34], 'class' => [], 'ftx' => [35]]]);
+    // A retired game's calendars are not read.
+    Game::factory()->create(['name' => 'Old game', 'event_calendars' => ['operation' => [99]], 'retired_at' => now()]);
+
+    MockClient::destroyGlobal();
+    $mock = MockClient::global([
+        '*/calendar/34/export' => MockResponse::make(calOne(['4075' => ['SQUAD | Operation Paper Trail', '20261115T200000Z'], '5000' => ['Night op', '20261116T010000Z']]), 200),
+        '*/calendar/35/export' => MockResponse::make(calOne([]), 200),
+        '*/events/export' => MockResponse::make(calExport(), 200),
+    ]);
+
+    app(SyncCalendarHandler::class)->handle();
+
+    $mock->assertSentCount(3);
+    expect(CalendarEvent::query()->where('uid', '4075')->sole()->calendar_id)->toBe(34)
+        ->and(CalendarEvent::query()->where('uid', '5000')->sole()->calendar_id)->toBe(34)
+        ->and(CalendarEvent::query()->where('uid', '1064')->pluck('calendar_id')->unique()->all())->toBe([null]);
+});
+
+it('records a failed run and changes nothing when a forum calendar cannot be read', function () {
+    Game::factory()->create(['name' => 'Squad', 'event_calendars' => ['operation' => [34]]]);
+    MockClient::destroyGlobal();
+    MockClient::global([
+        '*/calendar/34/export' => MockResponse::make('Oops', 500),
+        '*/events/export' => MockResponse::make(calExport(), 200),
+    ]);
+
+    expect(fn () => app(SyncCalendarHandler::class)->handle())->toThrow(ForumRequestException::class);
+
+    expect(CalendarEvent::query()->count())->toBe(0)
+        ->and(SyncRun::query()->sole()->status)->toBe(SyncRunStatus::Failure);
 });

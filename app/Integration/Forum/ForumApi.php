@@ -198,15 +198,16 @@ class ForumApi
 
     /**
      * The 7Cav calendar as the forum exports it, iCalendar text (`BEGIN:VCALENDAR` ... `END:VCALENDAR`), unparsed: the
-     * calendar sync reads it. Read-only and public, so no key is sent with it.
+     * calendar sync reads it. The whole calendar, or with `$calendarId` only the events filed in that one forum calendar.
+     * Read-only and public, so no key is sent with it.
      *
      * @throws ForumRequestException when the forum cannot be reached, answers with an error, or answers with
      *                               something that is not a calendar
      */
-    public function exportCalendar(): string
+    public function exportCalendar(?int $calendarId = null): string
     {
         try {
-            $response = $this->connector()->send(new ExportCalendarRequest);
+            $response = $this->connector()->send(new ExportCalendarRequest($calendarId));
         } catch (FatalRequestException $e) {
             throw ForumRequestException::unreachable($e);
         }
