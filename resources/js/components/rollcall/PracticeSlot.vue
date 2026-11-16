@@ -4,8 +4,8 @@ import { toast } from 'vue-sonner';
 import { PhPencilSimple } from '@phosphor-icons/vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import ZuluTimeInput from '@/components/ZuluTimeInput.vue';
 import { NativeSelect } from '@/components/ui/native-select';
 import { messageFor, unreachable } from '@/composables/useRollcallAutosave';
 import { postJson } from '@/lib/postJson';
@@ -177,7 +177,7 @@ function restoreWeek() {
                     </div>
                     <div class="grid gap-1.5">
                         <Label for="practice-time">Start (Zulu)</Label>
-                        <Input id="practice-time" v-model="time" type="time" data-testid="practice-slot-time" />
+                        <ZuluTimeInput id="practice-time" v-model="time" data-testid="practice-slot-time" />
                     </div>
                 </div>
                 <div class="flex flex-wrap gap-2">
@@ -197,7 +197,7 @@ function restoreWeek() {
                     </div>
                     <div class="grid gap-1.5">
                         <Label for="practice-move-time">Start (Zulu)</Label>
-                        <Input id="practice-move-time" v-model="moveTime" type="time" data-testid="practice-week-time" />
+                        <ZuluTimeInput id="practice-move-time" v-model="moveTime" data-testid="practice-week-time" />
                     </div>
                 </div>
                 <div class="flex flex-wrap gap-2">

@@ -2402,10 +2402,14 @@ describe('Rollcall page: a week on each flow (#703)', () => {
 
         expect(wrapper.find('[data-testid="post-aside"]').exists()).toBe(true);
         expect(wrapper.find('[data-testid="forum-bbcode"]').exists()).toBe(true);
+        // Greyed out until the thread link is in.
+        expect(wrapper.get('[data-testid="mark-posted"]').attributes('disabled')).toBeDefined();
+        await wrapper.get('[data-testid="thread-url"]').setValue('https://7cav.us/threads/rc.1/');
+        expect(wrapper.get('[data-testid="mark-posted"]').attributes('disabled')).toBeUndefined();
         await wrapper.get('[data-testid="mark-posted"]').trigger('click');
         await flushPromises();
 
-        expect(post).toHaveBeenCalledWith('/rollcall/12/posted', { week: '2026-10-03' });
+        expect(post).toHaveBeenCalledWith('/rollcall/12/posted', { week: '2026-10-03', thread_url: 'https://7cav.us/threads/rc.1/' });
         expect(push.mock.calls.at(-1)[0].url).toBe('/rollcall/12?step=3');
     });
 

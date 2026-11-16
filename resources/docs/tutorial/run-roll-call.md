@@ -22,7 +22,7 @@ Roll call is the weekly task the rest of the portal is built on. Your section's 
 
 1. In step 2, **Post**, pick your **Template** and choose **Copy BBCode**.
 2. Paste it as a reply in the forum's roll call thread. The portal never posts to the forum for you.
-3. Paste the thread's link under **Forum thread link** if you like, then choose **Mark as posted, continue**.
+3. Paste the thread's link under **Forum thread link**, then choose **Mark as posted, continue**. The button stays greyed out until the link is in.
 
 ## Sign and mark
 

@@ -1840,7 +1840,9 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                             :disabled="Boolean(readOnlyReason)"
                             data-testid="thread-url"
                         />
-                        <p class="text-xs text-muted-foreground">Optional. The close step links to it, and Platoon Staff can open it from the report.</p>
+                        <p class="text-xs text-muted-foreground" data-testid="thread-url-hint">
+                            Paste the link to the thread before you mark the roll call posted. The close step links to it, and Platoon Staff can open it from the report.
+                        </p>
                     </div>
                     <div class="mt-5 flex flex-wrap items-center gap-2 py-3">
                         <Button variant="outline" class="hidden h-11 sm:inline-flex sm:h-9" @click="go(1)"><PhCaretLeft />Back</Button>
@@ -1851,8 +1853,8 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                             v-if="!posted"
                             class="h-11 flex-1 sm:h-9 sm:flex-none"
                             data-testid="mark-posted"
-                            :disabled="Boolean(readOnlyReason) || posting"
-                            :title="readOnlyReason ?? undefined"
+                            :disabled="Boolean(readOnlyReason) || posting || !threadUrl.trim()"
+                            :title="readOnlyReason ?? (threadUrl.trim() ? undefined : 'Paste the forum thread link first')"
                             @click="markPostedAndContinue"
                         >
                             <PhCheck />Mark as posted, continue
