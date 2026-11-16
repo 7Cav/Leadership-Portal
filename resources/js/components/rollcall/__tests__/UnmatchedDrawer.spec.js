@@ -35,6 +35,13 @@ describe('UnmatchedDrawer', () => {
         expect(first.find('[data-testid="unmatched-link"]').attributes('disabled')).toBeDefined();
     });
 
+    it("shows a player's time on the server when the capture knows it, and nothing when it does not", () => {
+        const wrapper = factory({ players: [{ ...PLAYERS[0], minutes: 42 }, { ...PLAYERS[1], minutes: null }] });
+
+        expect(card(wrapper, '7656119000000001').find('[data-testid="unmatched-minutes"]').text()).toBe('42 min on the server');
+        expect(card(wrapper, '7656119000000002').find('[data-testid="unmatched-minutes"]').exists()).toBe(false);
+    });
+
     it('lists a departed trooper the capture saw, marked departed, with nothing to link or dismiss', () => {
         const wrapper = factory({
             players: [],

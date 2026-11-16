@@ -469,9 +469,9 @@ class CaptureSectionPracticeHandler
     private function persistUnresolved(int $practiceId, Game $game, CaptureResult $result): void
     {
         $this->capturePlayers->replaceForPractice($practiceId, $game, [
-            ...array_map(fn (CrconPlayer $p) => ['platform_id' => $p->platformId, 'player_name' => $p->playerName, 'trooper_id' => null, 'id_source' => $p->idSource],
+            ...array_map(fn (CrconPlayer $p) => ['platform_id' => $p->platformId, 'player_name' => $p->playerName, 'trooper_id' => null, 'id_source' => $p->idSource, 'minutes' => $p->minutes],
                 $result->unmatched),
-            ...array_map(fn (array $row) => ['platform_id' => $row['player']->platformId, 'player_name' => $row['player']->playerName, 'trooper_id' => $row['trooperId'], 'id_source' => $row['player']->idSource],
+            ...array_map(fn (array $row) => ['platform_id' => $row['player']->platformId, 'player_name' => $row['player']->playerName, 'trooper_id' => $row['trooperId'], 'id_source' => $row['player']->idSource, 'minutes' => $row['player']->minutes],
                 [...$result->otherSection, ...$result->departed]),
         ]);
     }
