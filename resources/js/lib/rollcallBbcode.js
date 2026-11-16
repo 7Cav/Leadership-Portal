@@ -14,6 +14,15 @@ function postDate(value) {
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+// When a calendar event starts, as the post writes it: `17NOV26 2300Z (TUE)`, capital months like the week.
+function eventStart(value) {
+    if (!value) return '';
+    const at = new Date(value);
+    const clock = `${String(at.getUTCHours()).padStart(2, '0')}${String(at.getUTCMinutes()).padStart(2, '0')}`;
+
+    return `${forumDate(at)} ${clock}Z (${WEEKDAYS[at.getUTCDay()].toUpperCase()})`;
+}
+
 // When the week's practice starts, as the post writes a moment (`Wed 07Oct26 2300Z`, #703): empty with no practice.
 function postDateTime(value) {
     if (!value) return '';
@@ -37,10 +46,10 @@ const SP_WORDS = { present: 'Yes', missed: 'No', excused: 'EX', makeup: 'MU', lo
  * ({@link orderTroopers}), so `{{n}}` numbers them in that order. Shown fireteams are named by letter
  * ({@link fireteamNames}), and `fireteams_shown` is set only when the section shows FTLs and has at least one.
  *
- * @param {{section: object, week: object, troopers: object[], fireteams?: {show: boolean, order: string, alphabet: string}, resultImages?: {rc: string, sp: string}, training?: {date: ?string, topic: ?string}, chainOfCommand?: {role: string, holders: {rank: string, name: string, url: string}[], acting: boolean}[]}} input
+ * @param {{section: object, week: object, troopers: object[], fireteams?: {show: boolean, order: string, alphabet: string}, resultImages?: {rc: string, sp: string}, training?: {date: ?string, topic: ?string}, chainOfCommand?: {role: string, holders: {rank: string, name: string, url: string}[], acting: boolean}[], events?: {name: string, start: string}[]}} input
  *   the props the rollcall page received, with the working marks
  */
-export function rollcallContext({ section, week, troopers, fireteams = {}, resultImages = {}, training = {}, chainOfCommand = [] }) {
+export function rollcallContext({ section, week, troopers, fireteams = {}, resultImages = {}, training = {}, chainOfCommand = [], events = [] }) {
     const ordered = orderTroopers(troopers, fireteams);
     const names = fireteamNames(ordered, fireteams);
     const rows = ordered.map((trooper, index) => {
@@ -95,6 +104,9 @@ export function rollcallContext({ section, week, troopers, fireteams = {}, resul
         training_topic: training.topic?.trim() ?? '',
         // The section's chain of command up to its battalion (`ChainOfCommand::lines()`), printed by `{{coc}}`.
         coc: chainOfCommand ?? [],
+        // The week's events on the 7Cav calendar for the section's game (#751, `WeekEvents`), printed by `{{events}}`
+        // or laid out one by one in `{{#events}}`: none when the section has no game or the calendar could not be read.
+        events: (events ?? []).map((event) => ({ event_name: event.name ?? '', event_start: eventStart(event.start), event_url: event.url ?? '' })),
         count: String(rows.length),
         signed: String(rows.filter((row) => row.rc_yes).length),
         attended: String(rows.filter((row) => row.sp_present || row.sp_makeup).length),

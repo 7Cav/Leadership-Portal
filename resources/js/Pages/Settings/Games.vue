@@ -12,14 +12,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import EmptyState from '@/components/EmptyState.vue';
 import { toast } from 'vue-sonner';
 import { onHttpException } from '@/lib/httpError';
+import { splitTags } from '@/lib/gameTags';
 
 // The games the regiment plays (#388): the list on the left, and the add/edit form alongside for an Admin (the
 // Staff grants layout). A game in use can be retired, not deleted, so Delete is offered only for one nothing uses.
 // An Admin also sees the identities saved before #450 that break its rules, to fix on Game identities.
 // A game that asks for a Steam or Epic ID offers an Admin to apply the links troopers already have on other games
-// (#174), one click and never on its own.
+// (#174), one click and never on its own. Each game's calendar tags are the text in a 7Cav calendar event's title that
+// marks it as the game's, so a section that plays it lists the event on its roll call (#751).
 const props = defineProps({
-    // `[{ id, slug, name, abbreviation, idKinds, checkedKinds, interface, retired, inUse, accounts, pendingAccountLinks }]`, in
+    // `[{ id, slug, name, abbreviation, idKinds, checkedKinds, interface, eventTags, retired, inUse, accounts, pendingAccountLinks }]`, in
     // the order they were added; `checkedKinds` are the kinds whose IDs the server checks for a shape, `accounts` the shared
     // accounts it asks for ("Steam", "Epic"), and `pendingAccountLinks` how many troopers the backfill would link (Admin only).
     games: { type: Array, required: true },
@@ -35,7 +37,8 @@ const editing = computed(() => props.games.find((game) => game.id === editingId.
 const rowError = ref(null);
 
 // `id_kinds` is the list of player-ID kinds the game asks for ("Steam ID", "Epic ID"), the first being the default.
-const form = useForm({ name: '', abbreviation: '', id_kinds: [''], interface: 'none' });
+// `event_tags` is typed as one line, the tags separated by commas, and sent as a list.
+const form = useForm({ name: '', abbreviation: '', id_kinds: [''], interface: 'none', event_tags: '' });
 
 const interfaceLabel = (value) => props.interfaces.find((option) => option.value === value)?.label ?? value;
 
@@ -46,6 +49,7 @@ function edit(game) {
     form.abbreviation = game.abbreviation ?? '';
     form.id_kinds = [...game.idKinds];
     form.interface = game.interface;
+    form.event_tags = (game.eventTags ?? []).join(', ');
 }
 
 const addKind = () => form.id_kinds.push('');
@@ -53,6 +57,7 @@ const removeKind = (index) => form.id_kinds.splice(index, 1);
 
 // The server names a kind error by its row (`id_kinds.1`) or for the whole list (`id_kinds`, e.g. a kind in use).
 const kindError = computed(() => Object.entries(form.errors).find(([key]) => key === 'id_kinds' || key.startsWith('id_kinds.'))?.[1]);
+const tagError = computed(() => Object.entries(form.errors).find(([key]) => key === 'event_tags' || key.startsWith('event_tags.'))?.[1]);
 
 function cancelEdit() {
     editingId.value = null;
@@ -67,8 +72,9 @@ function submit() {
         onHttpException: onHttpException(editing.value ? 'The game was not saved' : 'The game was not added', (message) => toast.error(message)),
     };
 
-    if (editing.value) form.patch(`/settings/games/${editing.value.id}`, options);
-    else form.post('/settings/games', options);
+    const sent = form.transform((data) => ({ ...data, event_tags: splitTags(data.event_tags) }));
+    if (editing.value) sent.patch(`/settings/games/${editing.value.id}`, options);
+    else sent.post('/settings/games', options);
 }
 
 // Retire, reinstate and delete are one click each: a retire is undone by Reinstate, and a delete is refused by the
@@ -133,6 +139,9 @@ const applyAccountLinks = (game) => act('post', `/settings/games/${game.id}/acco
                                         >{{ game.abbreviation }}</span
                                     >
                                     <Badge v-if="game.retired" variant="outline" :data-testid="`retired-${game.slug}`">Retired</Badge>
+                                </span>
+                                <span class="block text-xs font-normal text-muted-foreground" :data-testid="`event-tags-${game.slug}`">
+                                    {{ game.eventTags?.length ? `Calendar tags: ${game.eventTags.join(', ')}` : 'No calendar tags' }}
                                 </span>
                             </TableCell>
                             <TableCell class="whitespace-normal">
@@ -253,6 +262,23 @@ const applyAccountLinks = (game) => act('post', `/settings/games/${game.id}/acco
                         </NativeSelect>
                         <p class="text-xs text-muted-foreground">None means reading is not set up yet. None (impossible) means this game's attendance can never be read automatically, so reports say it is self-reported. Either way leaders mark it by hand.</p>
                         <p v-if="form.errors.interface" class="text-xs text-destructive" data-testid="error-interface">{{ form.errors.interface }}</p>
+                    </div>
+
+                    <div class="grid gap-1.5">
+                        <Label for="game-event-tags">Calendar tags</Label>
+                        <Input
+                            id="game-event-tags"
+                            v-model="form.event_tags"
+                            data-testid="game-event-tags"
+                            placeholder="[HLL], SQUAD |"
+                            autocomplete="off"
+                            aria-describedby="game-event-tags-help"
+                            :aria-invalid="!!tagError"
+                        />
+                        <p id="game-event-tags-help" class="text-xs text-muted-foreground">
+                            Text in a 7Cav calendar event's title that marks it as this game's, separated by commas. Case is ignored. A section that plays the game lists its events on the roll call.
+                        </p>
+                        <p v-if="tagError" class="text-xs text-destructive" data-testid="error-event_tags">{{ tagError }}</p>
                     </div>
 
                     <div class="flex gap-2">

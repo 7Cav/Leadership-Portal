@@ -4,7 +4,8 @@
 //
 // The template language is deliberately small and cannot run code. It is the same as Mustache's core, nothing more:
 //   {{name}} and {{name|upper}} (or |lower)   print a value
-//   {{#name}} ... {{/name}}                    repeat for each trooper (`troopers`), or show when a flag or value is set
+//   {{#name}} ... {{/name}}                    repeat for each trooper (`troopers`) or event (`events`), or show when a
+//                                              flag or value is set
 //   {{^name}} ... {{/name}}                    show when it is not set (use {{^troopers}} for an empty section)
 // A value is set when it is not empty and not a count of zero, so {{^attended}} can say that nobody attended.
 // Every name is from the fixed lists below, so a typo is refused when an Admin saves the template (the server checks
@@ -16,11 +17,14 @@
 import { insigniaWidth } from './rankInsignia';
 
 /** Names printable anywhere in a template. */
-export const TOP_STRINGS = ['unit', 'unit_name', 'week', 'week_start', 'week_end', 'training_date', 'training_topic', 'coc', 'count', 'signed', 'attended', 'rc_image', 'sp_image'];
+export const TOP_STRINGS = ['unit', 'unit_name', 'week', 'week_start', 'week_end', 'training_date', 'training_topic', 'coc', 'events', 'count', 'signed', 'attended', 'rc_image', 'sp_image'];
 /** Yes-or-no names about the whole post, usable only as sections, anywhere in a template. */
 export const TOP_FLAGS = ['fireteams_shown'];
-/** The one list a template may repeat over. */
-export const LISTS = ['troopers'];
+/**
+ * The lists a template may repeat over: the troopers, and the week's calendar events (#751). `events` is also a value,
+ * which prints every event on its own line.
+ */
+export const LISTS = ['troopers', 'events'];
 /** Names printable inside {{#troopers}}. */
 export const ROW_STRINGS = ['n', 'role', 'rank', 'rank_short', 'rank_icon', 'rank_icon_width', 'name', 'display_name', 'rc', 'sp'];
 /**
@@ -28,7 +32,14 @@ export const ROW_STRINGS = ['n', 'role', 'rank', 'rank_short', 'rank_icon', 'ran
  * Make-up complete; it stays so a template saved before still renders.
  */
 export const ROW_FLAGS = ['sp_present', 'sp_missed', 'sp_excused', 'sp_makeup', 'sp_attached', 'sp_loa', 'sp_unmarked', 'rc_yes', 'rc_no', 'rc_makeup_requested', 'rc_excused', 'rc_loa', 'rc_unsigned', 'is_sl', 'is_asl', 'is_ftl'];
+/** Names printable inside {{#events}}. */
+export const EVENT_STRINGS = ['event_name', 'event_start', 'event_url'];
 export const FILTERS = ['upper', 'lower'];
+
+// The names that may be used only inside each list, by the list.
+const IN_LIST = { troopers: [...ROW_STRINGS, ...ROW_FLAGS], events: EVENT_STRINGS };
+// What each list repeats for, in the message that says it cannot be printed.
+const EACH = { troopers: 'trooper', events: 'event' };
 // The word between the two dates of {{week}}. A filter changes the dates, never this word: {{week|upper}} prints
 // 16MAY26 to 22MAY26, the house style for a week.
 export const WEEK_JOIN = ' to ';
@@ -44,6 +55,13 @@ const MEANINGS = {
     week_end: ['The Friday the week ends', '22May26'],
     training_date: ["When this week's practice starts: the section's slot, or this week's own time when it was moved. Empty when there is no practice this week", 'Wed 20May26 2300Z'],
     training_topic: ["This week's training topic: the platoon's, or the section's own. The weekly report shows the same one. Empty until one is set", 'Land navigation: map and compass'],
+    events: [
+        "The week's events on the 7Cav calendar for the section's game, one per line: the start in Zulu, then the name linked to the event on the calendar. Empty when there are none or the calendar could not be read. As a list, {{#events}}...{{/events}} repeats what is inside once for each event and {{^events}}...{{/events}} shows when there are none",
+        '[LIST]{{#events}}[*]{{event_start}}: {{event_name}}{{/events}}[/LIST]',
+    ],
+    event_name: ["The event's name, as the 7Cav calendar has it", 'SQUAD | Squad Saturday @1900Z'],
+    event_start: ['When the event starts, in Zulu, with its weekday', '16MAY26 1900Z (SAT)'],
+    event_url: ["The event's page on the 7Cav calendar, for a link of your own: [url={{event_url}}]{{event_name}}[/url]", 'https://7cav.us/events/1064/'],
     coc: ["The section's chain of command up to its battalion, one line per billet from the Assistant Section Leader up to the Battalion Commanding Officer. Each holder links to their milpac; an empty billet reads Vacant, an acting lead ends in (acting)", 'Section Leader: [url=…]Sergeant Jay.JH[/url]'],
     count: ['How many troopers are in the section', '8'],
     signed: ['How many signed the roll call as will attend', '6'],
@@ -96,6 +114,10 @@ const LABELS = {
     training_date: 'Practice time',
     training_topic: 'Training topic',
     coc: 'Chain of command',
+    events: 'Events',
+    event_name: 'Event name',
+    event_start: 'Event start',
+    event_url: 'Event link',
     count: 'Trooper count',
     signed: 'Signed count',
     attended: 'Attended count',
@@ -173,9 +195,10 @@ export function templateLegend() {
     return [
         values,
         group('topFlags', 'Yes/no flags for the post', 'Anywhere in the template', TOP_FLAGS, block),
-        group('lists', 'The trooper list', '', LISTS, block),
+        group('lists', 'Lists', '', LISTS, block),
         group('rowValues', 'Trooper values', 'Inside {{#troopers}}', ROW_STRINGS, tag),
         group('rowFlags', 'Yes/no flags for a trooper', 'Inside {{#troopers}}', ROW_FLAGS, block),
+        group('eventValues', 'Event values', 'Inside {{#events}}', EVENT_STRINGS, tag),
         group('filters', 'Filters', 'After a value', FILTERS, (name) => single(`{{value|${name}}}`)),
     ];
 }
@@ -193,6 +216,12 @@ const SAMPLE_CHAIN = [
     { role: 'Battalion Sergeant Major', holders: sampleHolder('Sergeant Major', 'Preacher.A', 6), acting: false },
     { role: 'Battalion Executive Officer', holders: sampleHolder('Major', 'Korfias.F', 7), acting: false },
     { role: 'Battalion Commanding Officer', holders: sampleHolder('Lieutenant Colonel', 'Dallas.E', 8), acting: false },
+];
+
+// The sample week's calendar events.
+const SAMPLE_EVENTS = [
+    { event_name: 'SQUAD | Squad Saturday @1900Z', event_start: '16MAY26 1900Z (SAT)', event_url: 'https://7cav.us/events/1064/' },
+    { event_name: 'SQUAD | Operation Paper Trail', event_start: '17MAY26 2000Z (SUN)', event_url: 'https://7cav.us/events/4075/' },
 ];
 
 // The forum's own rank insignia, for the sample section's rows.
@@ -251,6 +280,7 @@ export function sampleContext() {
         training_date: example('training_date'),
         training_topic: example('training_topic'),
         coc: SAMPLE_CHAIN,
+        events: SAMPLE_EVENTS,
         count: String(troopers.length),
         signed: String(troopers.filter((trooper) => trooper.rc_yes).length),
         attended: String(troopers.filter((trooper) => trooper.sp_present || trooper.sp_makeup).length),
@@ -295,7 +325,9 @@ export function parse(source) {
         last = match.index + whole.length;
         here = { at: match.index, length: whole.length };
 
-        const inRow = stack.some((frame) => frame.name === 'troopers');
+        // The list the tag sits inside, if any: its own names may be used there. Lists do not nest.
+        const list = stack.find((frame) => LISTS.includes(frame.name))?.name ?? null;
+        const inList = (names) => list !== null && names.includes(name) && IN_LIST[list].includes(name);
 
         if (mark === '/') {
             if (stack.length === 1) return fail(`"{{/${name}}}" closes a section that is not open.`);
@@ -307,9 +339,10 @@ export function parse(source) {
         if (filter !== undefined && mark !== '') return fail(`A section "{{${mark}${name}}}" takes no filter.`);
 
         if (mark === '#' || mark === '^') {
-            const known = LISTS.includes(name) || TOP_STRINGS.includes(name) || TOP_FLAGS.includes(name) || (inRow && (ROW_STRINGS.includes(name) || ROW_FLAGS.includes(name)));
-            if (!known) return fail(unknownName(name, inRow));
-            if (name === 'troopers' && inRow) return fail('"{{#troopers}}" cannot be nested inside itself.');
+            const known = LISTS.includes(name) || TOP_STRINGS.includes(name) || TOP_FLAGS.includes(name) || inList([...ROW_STRINGS, ...ROW_FLAGS, ...EVENT_STRINGS]);
+            if (!known) return fail(unknownName(name, list));
+            if (LISTS.includes(name) && list === name) return fail(`"{{#${name}}}" cannot be nested inside itself.`);
+            if (LISTS.includes(name) && list !== null) return fail(`"{{#${name}}}" cannot go inside "{{#${list}}}".`);
 
             const node = { type: 'section', name, inverted: mark === '^', children: [] };
             stack.at(-1).children.push(node);
@@ -317,9 +350,9 @@ export function parse(source) {
             continue;
         }
 
-        if (LISTS.includes(name)) return fail(`"${name}" cannot be printed; use {{#${name}}}...{{/${name}}} to repeat for each trooper.`);
+        if (LISTS.includes(name) && !TOP_STRINGS.includes(name)) return fail(`"${name}" cannot be printed; use {{#${name}}}...{{/${name}}} to repeat for each ${EACH[name]}.`);
         if (ROW_FLAGS.includes(name) || TOP_FLAGS.includes(name)) return fail(`"${name}" is a yes-or-no value, so use {{#${name}}}...{{/${name}}} rather than printing it.`);
-        if (!(TOP_STRINGS.includes(name) || (inRow && ROW_STRINGS.includes(name)))) return fail(unknownName(name, inRow));
+        if (!(TOP_STRINGS.includes(name) || inList([...ROW_STRINGS, ...EVENT_STRINGS]))) return fail(unknownName(name, list));
         if (filter !== undefined && !FILTERS.includes(filter)) return fail(`Unknown filter "${filter}"; use ${FILTERS.join(' or ')}.`);
 
         stack.at(-1).children.push({ type: 'value', name, filter });
@@ -332,8 +365,10 @@ export function parse(source) {
     return { ok: true, tree: root };
 }
 
-function unknownName(name, inRow) {
-    if (!inRow && (ROW_STRINGS.includes(name) || ROW_FLAGS.includes(name))) return `"${name}" can only be used inside {{#troopers}}.`;
+// A name of a list's own used outside that list is named as such; anything else is unknown.
+function unknownName(name, list) {
+    const owner = Object.keys(IN_LIST).find((key) => IN_LIST[key].includes(name));
+    if (owner !== undefined && owner !== list) return `"${name}" can only be used inside {{#${owner}}}.`;
 
     return `Unknown name "${name}".`;
 }
@@ -363,6 +398,23 @@ function print(value, filter) {
     if (Array.isArray(value)) return chainText(value, filter);
 
     return cased(inert(value ?? ''), filter);
+}
+
+/**
+ * The week's events as `{{events}}` prints them: one line each, the start in Zulu, a colon, then the name linked to the
+ * event's page on the calendar (`21NOV26 1900Z (SAT): [url=https://7cav.us/events/1064/]SQUAD | Squad Saturday[/url]`).
+ * The words are inert like every other value and take the filter; the address is the server's and is left as it is, and
+ * an event without a usable one prints its name unlinked. Nothing for a week with none.
+ */
+export function eventsText(events, filter) {
+    return (events ?? [])
+        .map(({ event_name = '', event_start = '', event_url = '' }) => {
+            const name = cased(inert(event_name), filter);
+            const linked = event_name && LINK.test(event_url) ? `[url=${event_url}]${name}[/url]` : name;
+
+            return [cased(inert(event_start), filter), linked].filter(Boolean).join(': ');
+        })
+        .join('\n');
 }
 
 // A milpac link the post may carry: an https address with nothing in it that could end the [url=...] option or the line.
@@ -398,11 +450,11 @@ function renderNodes(nodes, scopes) {
             out += node.value;
         } else if (node.type === 'value') {
             const value = find(node.name);
-            out += node.name === 'week' && node.filter !== undefined
-                ? String(value ?? '').split(WEEK_JOIN).map((date) => print(date, node.filter)).join(WEEK_JOIN)
-                : print(value, node.filter);
-        } else if (node.name === 'troopers') {
-            const rows = find('troopers') ?? [];
+            if (node.name === 'events') out += eventsText(value, node.filter);
+            else if (node.name === 'week' && node.filter !== undefined) out += String(value ?? '').split(WEEK_JOIN).map((date) => print(date, node.filter)).join(WEEK_JOIN);
+            else out += print(value, node.filter);
+        } else if (LISTS.includes(node.name)) {
+            const rows = find(node.name) ?? [];
             if (node.inverted) {
                 if (rows.length === 0) out += renderNodes(node.children, scopes);
             } else {
@@ -431,7 +483,7 @@ function parseOnce(source) {
  * Render a template with the week's data.
  *
  * @param {string} source the template body
- * @param {object} context `{ unit, unit_name, week, ..., troopers: [row] }`, as {@link rollcallContext} builds it
+ * @param {object} context `{ unit, unit_name, week, ..., troopers: [row], events: [event] }`, as {@link rollcallContext} builds it
  * @returns {{ok: true, text: string} | {ok: false, error: string}}
  */
 export function render(source, context) {

@@ -53,6 +53,8 @@ class WeeklyReport extends Model
             'kpis' => 'array',
             'unaccounted' => 'array',
             'makeup_checks' => 'array',
+            // The week's calendar events as a section's roll call listed them when it was sent (#751), so the post keeps them.
+            'calendar_events' => 'array',
             'sent_at' => 'immutable_datetime',
             'reopened_at' => 'immutable_datetime',
             // Set by an approved request to edit it after its deadline ({@see ReportEditRequest}): editable until then.

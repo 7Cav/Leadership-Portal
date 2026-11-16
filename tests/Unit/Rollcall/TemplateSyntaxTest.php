@@ -31,7 +31,7 @@ it('refuses every malformed template in the shared cases, saying what is wrong',
 it('has a case for every name it lets a template use, so the lists cannot drift from the tests', function () {
     $valid = implode("\n", array_column(bbcodeCases()['valid'], 'template'));
 
-    foreach ([...TemplateSyntax::TOP_STRINGS, ...TemplateSyntax::TOP_FLAGS, ...TemplateSyntax::ROW_STRINGS, ...TemplateSyntax::ROW_FLAGS] as $name) {
+    foreach ([...TemplateSyntax::TOP_STRINGS, ...TemplateSyntax::TOP_FLAGS, ...TemplateSyntax::ROW_STRINGS, ...TemplateSyntax::ROW_FLAGS, ...TemplateSyntax::EVENT_STRINGS] as $name) {
         expect($valid)->toContain($name);
     }
 });
@@ -86,8 +86,20 @@ it('accepts the rank icon only inside the trooper list', function () {
         ->and(TemplateSyntax::check('[IMG]{{rank_icon}}[/IMG]'))->toContain('can only be used inside {{#troopers}}');
 });
 
-it('knows exactly one list and two filters', function () {
-    expect(TemplateSyntax::LISTS)->toBe(['troopers'])->and(TemplateSyntax::FILTERS)->toBe(['upper', 'lower']);
+it('knows exactly two lists, the troopers and the events of the week, and two filters', function () {
+    expect(TemplateSyntax::LISTS)->toBe(['troopers', 'events'])->and(TemplateSyntax::FILTERS)->toBe(['upper', 'lower']);
+});
+
+it('prints the events of the week as a value, and repeats for each one as a list, its values only inside it (#751)', function () {
+    expect(TemplateSyntax::check('{{events}}'))->toBeNull()
+        ->and(TemplateSyntax::check('{{#events}}{{event_start}} {{event_name}}{{/events}}{{^events}}None{{/events}}'))->toBeNull()
+        ->and(TemplateSyntax::check('{{event_name}}'))->toBe('"event_name" can only be used inside {{#events}}.')
+        ->and(TemplateSyntax::check('{{#events}}{{name}}{{/events}}'))->toBe('"name" can only be used inside {{#troopers}}.')
+        ->and(TemplateSyntax::check('{{#events}}{{#troopers}}x{{/troopers}}{{/events}}'))->toBe('"{{#troopers}}" cannot go inside "{{#events}}".');
+});
+
+it('keeps the starter template as it was, without the events', function () {
+    expect(TemplateSyntax::STARTER)->not->toContain('events');
 });
 
 it('checks a very long run of spaces inside a tag quickly, and never reads a failed match as valid', function () {

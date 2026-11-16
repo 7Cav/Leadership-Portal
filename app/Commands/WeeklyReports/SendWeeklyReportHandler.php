@@ -23,6 +23,7 @@ use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportAlreadySentException;
 use App\Repositories\WeeklyReportRepository;
+use App\Rollcall\WeekEvents;
 use App\Support\Audit\ActingFor;
 use App\Support\Audit\AuditEnvelope;
 use App\Support\Audit\ReasonRequiredException;
@@ -78,6 +79,10 @@ use Carbon\CarbonInterface;
  * frozen numbers count it; a "did not" leaves the mark as it is. Both answers are frozen with the report as
  * `makeup_checks`. If the send then fails, the make-ups stay recorded: the leader said they happened.
  *
+ * **Calendar events.** A section's send also keeps the week's events from the 7Cav calendar as its roll call lists them
+ * then ({@see WeekEvents}, #751), so the post prints the same events after the calendar changes. They are what the post
+ * printed, not what was reported, so they are not part of the content digest.
+ *
  * **Practice confirmed.** A section's send is refused with {@see PracticeNotConfirmedException} until its leader has
  * confirmed the week's practice as held or as not held on the roll call (#634), checked before anything is written and
  * again under the report's lock (a mark saved meanwhile clears the confirmation). A section with nobody on its roll
@@ -105,6 +110,7 @@ class SendWeeklyReportHandler
         private readonly KpiService $kpis,
         private readonly MarkAttendanceHandler $attendance,
         private readonly SectionPracticeRepository $practices,
+        private readonly WeekEvents $weekEvents,
         private readonly SectionsWithoutSlot $withoutSlot,
     ) {}
 
@@ -193,6 +199,8 @@ class SendWeeklyReportHandler
                     $this->refuseUnconfirmedPractice($unit, $weekStart);
 
                     $kpis = $this->snapshots->snapshot($unit, $weekStart)->toArray();
+                    // The week's calendar events as the roll call lists them now, so its post keeps them (#751).
+                    $calendarEvents = $unit->type === UnitType::Section ? $this->weekEvents->forSection($unit, $weekStart) : null;
 
                     return $this->reports->send(
                         $unit->id,
@@ -210,6 +218,7 @@ class SendWeeklyReportHandler
                         $this->acting->billetOf($actor->id),
                         $makeupChecks,
                         $command->sentFrom,
+                        $calendarEvents,
                     );
                 },
             );

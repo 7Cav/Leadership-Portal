@@ -51,6 +51,7 @@ import ForumPost from '@/components/rollcall/ForumPost.vue';
 import TemplatePick from '@/components/rollcall/TemplatePick.vue';
 import PracticeSlot from '@/components/rollcall/PracticeSlot.vue';
 import TrainingCard from '@/components/rollcall/TrainingCard.vue';
+import WeekEvents from '@/components/rollcall/WeekEvents.vue';
 import RollcallClose from '@/components/rollcall/RollcallClose.vue';
 import RollcallCreate from '@/components/rollcall/RollcallCreate.vue';
 import WarningBanner from '@/components/WarningBanner.vue';
@@ -163,6 +164,9 @@ const props = defineProps({
     training: { type: Object, default: null },
     // The section's chain of command up to its battalion, which a template prints as `{{coc}}`. Empty for the picker.
     chainOfCommand: { type: Array, default: () => [] },
+    // The week's events on the 7Cav calendar for the section's game (#751, `Rollcall\WeekEvents`), which a template prints
+    // as `{{events}}`: `{ state, game, items: [{ name, start, url }], readAt, lastReadFailed, frozen }`. Null for the picker.
+    events: { type: Object, default: null },
     // Which roll call flow the week follows (#703): `{ version, created: { at, by } | null }`. Null for the picker.
     flow: { type: Object, default: null },
     // The section's report draft for the close step (#703): `{ notes, unaccounted, reasons }`. Null for the picker.
@@ -580,6 +584,7 @@ const post = computed(() =>
               fireteams: fireteams.value ?? {},
               resultImages: props.resultImages ?? {},
               chainOfCommand: props.chainOfCommand,
+              events: props.events?.state === 'listed' ? (props.events.items ?? []) : [],
               training: { date: trainingStart.value, topic: training.value?.subject ?? null },
           })
         : null,
@@ -1284,6 +1289,8 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
             @locked="router.reload()"
             @change-date="slotEditor?.startEditing()"
         />
+
+        <WeekEvents v-if="events" class="mt-3" :events="events" />
 
         <div
             v-if="autosave?.state.value === 'error'"
