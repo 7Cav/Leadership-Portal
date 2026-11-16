@@ -231,9 +231,10 @@ interface TrooperRepository
     public function byCavId(array $cavIds): Collection;
 
     /**
-     * The synced rank of each trooper in `$cavIds`, keyed by `cav_id` — the label the view-as
-     * picker and banner put in front of a username (Story 1.13). A trooper with no cached row,
-     * or no rank, is simply absent.
+     * The short synced rank (`CPT`, falling back to the full rank when no short one is cached) of each
+     * trooper in `$cavIds`, keyed by `cav_id`: the label the view-as and act-as pickers and banners put
+     * in front of a username, as a trooper's own display name does (Story 1.13). A trooper with no
+     * cached row, or no rank, is simply absent.
      *
      * @param  list<int>  $cavIds
      * @return Collection<int, string>

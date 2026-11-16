@@ -400,7 +400,10 @@ class Eloquent implements TrooperRepository
 
     public function ranksByCavId(array $cavIds): Collection
     {
-        return Trooper::query()->whereIn('cav_id', $cavIds)->whereNotNull('rank')->pluck('rank', 'cav_id');
+        return Trooper::query()->whereIn('cav_id', $cavIds)->get(['cav_id', 'rank', 'rank_short'])
+            ->mapWithKeys(fn (Trooper $trooper) => [$trooper->cav_id => filled($trooper->rank_short) ? $trooper->rank_short : $trooper->rank])
+            ->filter(fn (?string $rank) => filled($rank))
+            ->toBase();
     }
 
     public function statusOf(int $cavId): ?TrooperStatus

@@ -290,11 +290,12 @@ it('finds troopers by cav id, keyed by it, leaving out unknown ids', function ()
         ->and(app(TrooperRepository::class)->byCavId([]))->toBeEmpty();
 });
 
-it('reads troopers\' ranks by cav id, leaving out unknown ids and unranked troopers', function () {
-    Trooper::factory()->create(['cav_id' => 11, 'rank' => 'Sergeant']);
-    Trooper::factory()->create(['cav_id' => 12, 'rank' => null]);
+it('reads troopers\' short ranks by cav id, falling back to the full rank, leaving out unknown ids and unranked troopers', function () {
+    Trooper::factory()->create(['cav_id' => 11, 'rank' => 'Captain', 'rank_short' => 'CPT']);
+    Trooper::factory()->create(['cav_id' => 12, 'rank' => null, 'rank_short' => null]);
+    Trooper::factory()->create(['cav_id' => 14, 'rank' => 'Sergeant', 'rank_short' => null]);
 
-    expect(app(TrooperRepository::class)->ranksByCavId([11, 12, 13])->all())->toBe([11 => 'Sergeant'])
+    expect(app(TrooperRepository::class)->ranksByCavId([11, 12, 13, 14])->all())->toBe([11 => 'CPT', 14 => 'Sergeant'])
         ->and(app(TrooperRepository::class)->ranksByCavId([])->all())->toBe([]);
 });
 

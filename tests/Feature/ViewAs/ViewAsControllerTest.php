@@ -38,7 +38,7 @@ function vcLeaderOf(Unit $unit, int $cavId, string $username, ?string $rank = nu
 {
     UnitCommandMapping::factory()->create(['unit_id' => $unit->id, 'cav_position_id' => $cavId + 10000]);
     Trooper::factory()->create([
-        'cav_id' => $cavId, 'cav_position_id' => $cavId + 10000, 'status' => TrooperStatus::Combat, 'rank' => $rank,
+        'cav_id' => $cavId, 'cav_position_id' => $cavId + 10000, 'status' => TrooperStatus::Combat, 'rank' => $rank, 'rank_short' => $rank,
     ]);
 
     return User::factory()->create(['cav_id' => $cavId, 'username' => $username]);

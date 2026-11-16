@@ -23,7 +23,7 @@ use Inertia\Testing\AssertableInertia as Assert;
 
 function leaderPerson(int $cavId, string $username, ?int $position, ?TrooperStatus $status = null, array $user = []): User
 {
-    $trooper = Trooper::factory()->create(['cav_id' => $cavId, 'cav_position_id' => $position, 'status' => $status ?? TrooperStatus::Combat, 'rank' => 'SGT', 'username' => $username]);
+    $trooper = Trooper::factory()->create(['cav_id' => $cavId, 'cav_position_id' => $position, 'status' => $status ?? TrooperStatus::Combat, 'rank' => 'Sergeant', 'rank_short' => 'SGT', 'username' => $username]);
 
     return User::factory()->create(['cav_id' => $cavId, 'forum_user_id' => $trooper->forum_user_id, 'username' => $username] + $user);
 }
