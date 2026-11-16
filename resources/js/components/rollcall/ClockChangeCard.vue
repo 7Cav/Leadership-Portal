@@ -74,7 +74,7 @@ async function confirm(move) {
 </script>
 
 <template>
-    <WarningBanner class="mt-3" data-testid="clock-change">
+    <WarningBanner :level="change.confirmed ? 'medium' : 'critical'" class="mt-3" data-testid="clock-change">
         <p class="flex items-center gap-1.5 font-medium">
             <PhClockClockwise class="size-4" aria-hidden="true" />Clocks {{ change.phase === 'before' ? 'change' : 'changed' }} on {{ when }}
         </p>
