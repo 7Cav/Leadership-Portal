@@ -70,6 +70,20 @@ describe('AppLayout', () => {
         expect(wrapper.find('a[href="#main"]').text()).toBe('Skip to content');
     });
 
+    // A standing tabindex let any click focus <main>, and a dialog closing focused it again, scrolling the page.
+    it('lets only the skip link focus the main landmark, and only until focus leaves it', async () => {
+        wrapper = mountLayout();
+        const main = wrapper.find('main#main').element;
+        expect(main.hasAttribute('tabindex')).toBe(false);
+
+        await wrapper.find('a[href="#main"]').trigger('click');
+        expect(document.activeElement).toBe(main);
+        expect(main.getAttribute('tabindex')).toBe('-1');
+
+        main.blur();
+        expect(main.hasAttribute('tabindex')).toBe(false);
+    });
+
     describe('navigation', () => {
         it('shows Home, Roster, Rollcall, Reports and Game identities to everyone', () => {
             wrapper = mountLayout();
