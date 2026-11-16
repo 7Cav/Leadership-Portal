@@ -217,6 +217,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::post('/rollcall/{unit}/unmatched/link', [RollcallController::class, 'linkUnmatched'])->middleware('throttle:audited-writes')->name('rollcall.unmatched.link');
     Route::post('/rollcall/{unit}/unmatched/dismiss', [RollcallController::class, 'dismissUnmatched'])->middleware('throttle:audited-writes')->name('rollcall.unmatched.dismiss');
     Route::post('/rollcall/{unit}/unmatched/restore', [RollcallController::class, 'restoreUnmatched'])->middleware('throttle:audited-writes')->name('rollcall.unmatched.restore');
+    Route::post('/rollcall/{unit}/unmatched/unlink', [RollcallController::class, 'unlinkUnmatched'])->middleware('throttle:audited-writes')->name('rollcall.unmatched.unlink');
     Route::post('/rollcall/{unit}/capture', [RollcallController::class, 'retryCapture'])->middleware('throttle:practice-capture')->name('rollcall.capture');
     Route::post('/rollcall/{unit}/confirm', [RollcallController::class, 'confirm'])->middleware('throttle:audited-writes')->name('rollcall.confirm');
     Route::post('/rollcall/{unit}/posted', [RollcallController::class, 'posted'])->middleware('throttle:audited-writes')->name('rollcall.posted');

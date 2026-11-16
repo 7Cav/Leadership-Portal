@@ -42,6 +42,12 @@ class UnmatchedPlayerResolutionException extends RuntimeException
         return new self('That player is not dismissed, so there is nothing to undo. Reload to see the current list.');
     }
 
+    /** Undo of a link whose identity is no longer the one the link wrote: changed or removed since, so it stays. */
+    public static function linkChanged(): self
+    {
+        return new self("That trooper's ID on this game has changed since the link, so it was not undone. Check it on Game identities.");
+    }
+
     public static function notInSection(): self
     {
         return new self("Choose a trooper from this section: a pre-mark counts only in a trooper's own section.");

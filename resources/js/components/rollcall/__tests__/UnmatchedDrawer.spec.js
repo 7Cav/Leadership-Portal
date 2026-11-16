@@ -327,6 +327,49 @@ describe('UnmatchedDrawer', () => {
         });
     });
 
+    describe('a player linked from here', () => {
+        const LINKED = [{ player: { platform: 'hll', platformLabel: 'Hell Let Loose', playerName: 'Lurker', platformId: '7656119000000077' }, trooperId: 4, trooperName: 'CPL Milkovic.D' }];
+
+        it('stays in its place, greyed out with who it was linked to, and undoes through the rollcall', async () => {
+            let answer;
+            const undoLink = vi.fn(() => new Promise((resolve) => (answer = resolve)));
+            const wrapper = factory({ linked: LINKED, undoLink });
+            const row = wrapper.get('[data-testid="linked-7656119000000077"]');
+
+            expect(row.text()).toContain('Lurker');
+            expect(row.get('[data-testid="linked-note"]').text()).toBe('Linked to CPL Milkovic.D');
+            expect(row.find('.opacity-60').exists()).toBe(true);
+
+            const undo = row.get('[data-testid="undo-link"]');
+            await undo.trigger('click');
+            expect(undoLink).toHaveBeenCalledWith(LINKED[0]);
+            expect(undo.attributes('disabled')).toBeDefined();
+            await undo.trigger('click');
+            expect(undoLink).toHaveBeenCalledTimes(1);
+
+            answer(true);
+            await flushPromises();
+            expect(undo.attributes('disabled')).toBeUndefined();
+        });
+
+        it('offers no undo when not editable', () => {
+            const wrapper = factory({ linked: LINKED, undoLink: vi.fn(), editable: false });
+
+            expect(wrapper.get('[data-testid="undo-link"]').attributes('disabled')).toBeDefined();
+        });
+
+        it('passes the ID a replace overwrote along with the link', async () => {
+            post.mockResolvedValueOnce({ ok: true, status: 200, data: { marked: true, trooper: { id: 1, status: 'present', source: 'auto' }, before: { status: null, source: null } } });
+            const wrapper = factory();
+            const first = card(wrapper, '7656119000000001');
+            await chooseSearch(first, 'unmatched-trooper', '1');
+            await first.find('[data-testid="unmatched-link"]').trigger('click');
+            await flushPromises();
+
+            expect(wrapper.emitted('linked')[0][0]).toMatchObject({ replaced: null, before: { status: null, source: null } });
+        });
+    });
+
     it('can back out of a dismissal', async () => {
         const wrapper = factory();
         const second = card(wrapper, '7656119000000002');

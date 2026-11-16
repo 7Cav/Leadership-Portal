@@ -36,6 +36,8 @@ use App\Commands\GameIdentities\LinkUnmatchedPlayer;
 use App\Commands\GameIdentities\LinkUnmatchedPlayerHandler;
 use App\Commands\GameIdentities\RestoreDismissedPlayer;
 use App\Commands\GameIdentities\RestoreDismissedPlayerHandler;
+use App\Commands\GameIdentities\UndoUnmatchedLink;
+use App\Commands\GameIdentities\UndoUnmatchedLinkHandler;
 use App\Commands\GameIdentities\UnmatchedPlayerResolutionException;
 use App\Commands\Practices\PracticeSchedule;
 use App\Commands\Practices\SectionsWithoutSlot;
@@ -571,6 +573,15 @@ class RollcallController extends Controller
         $game = $this->games->findBySlug($request->input('platform')) ?? abort(404);
         $trooperId = (int) $request->input('trooper_id');
 
+        // The trooper's mark before the link, so the screen can offer an Undo that puts back an automatic `missed`.
+        try {
+            $before = $this->practices->find($unit, $weekStart);
+            $before = $before ? $this->attendance->forPractice($before)->firstWhere('trooper_id', $trooperId) : null;
+        } catch (Throwable $e) {
+            report($e);
+            $before = null;
+        }
+
         try {
             $result = $handler->handle($request->user(), new LinkUnmatchedPlayer(
                 $unit, $weekStart, $game, $request->input('platform_id'), $trooperId, $request->boolean('replace'),
@@ -612,6 +623,67 @@ class RollcallController extends Controller
 
         return response()->json([
             'marked' => $result->marked > 0,
+            'trooper' => ['id' => $trooperId, 'status' => $mark?->status?->value, 'source' => $mark?->source?->value],
+            // What the mark was before the link: an Undo puts an automatic `missed` back, and leaves anything else unmarked.
+            'before' => ['status' => $before?->status?->value, 'source' => $before?->source?->value],
+            'atRisk' => $atRisk,
+        ]);
+    }
+
+    /**
+     * A leader undoes a link they made from the unmatched list: the player is unmatched again, the trooper keeps the ID
+     * they had before (`replaced`) or none, and the attended mark the link gave goes back to what it was, unless anyone
+     * changed it since. Audited through the same writers as the link.
+     */
+    public function unlinkUnmatched(Request $request, int $unit, UndoUnmatchedLinkHandler $handler): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'week' => ['required', 'date_format:Y-m-d'],
+            'platform' => ['required', 'string', 'exists:games,slug'],
+            'platform_id' => ['required', 'string', 'max:255'],
+            'trooper_id' => ['required', 'integer'],
+            'replaced' => ['nullable', 'string', 'max:255'],
+            'clear_mark' => ['sometimes', 'boolean'],
+            'restore_missed' => ['sometimes', 'boolean'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => $validator->errors()->first(), 'errors' => $validator->errors()], 422);
+        }
+
+        $weekStart = $this->requestedWeek($request->input('week'), WeekOf::start(CarbonImmutable::now()));
+        $game = $this->games->findBySlug($request->input('platform')) ?? abort(404);
+        $trooperId = (int) $request->input('trooper_id');
+
+        try {
+            $cleared = $handler->handle($request->user(), new UndoUnmatchedLink(
+                $unit, $weekStart, $game, $request->input('platform_id'), $trooperId, $request->input('replaced'),
+                $request->boolean('clear_mark'), $request->boolean('restore_missed'),
+            ));
+        } catch (GameIdentityForbiddenException $e) {
+            return response()->json(['message' => $e->getMessage()], 403);
+        } catch (UnmatchedPlayerResolutionException|GameRetiredException|InvalidGameIdentityException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (GameIdentityLinkException) {
+            return response()->json(['message' => $this->collisionMessage($game, (string) $request->input('replaced'))], 422);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'The portal hit an error undoing this link. Reload to see whether it was undone, and check their mark.'], 500);
+        }
+
+        try {
+            $practice = $this->practices->find($unit, $weekStart);
+            $mark = $practice ? $this->attendance->forPractice($practice)->firstWhere('trooper_id', $trooperId) : null;
+            $atRisk = $this->atRisk($this->units->find($unit), $weekStart);
+        } catch (Throwable $e) {
+            report($e);
+            $mark = null;
+            $atRisk = null;
+        }
+
+        return response()->json([
+            'cleared' => $cleared,
             'trooper' => ['id' => $trooperId, 'status' => $mark?->status?->value, 'source' => $mark?->source?->value],
             'atRisk' => $atRisk,
         ]);

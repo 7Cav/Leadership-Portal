@@ -48,9 +48,15 @@ const props = defineProps({
     // Players linked to a trooper who has left, in the `players` shape plus `trooperName`: listed so they are not lost,
     // with nothing to link or mark (the link exists, and a departed trooper is on no rollcall).
     departed: { type: Array, default: () => [] },
+    // Players linked from this list since the page loaded: `[{ player, trooperId, trooperName }]`, kept greyed out in
+    // their place with an Undo each, so a wrong link is taken back where it was made.
+    linked: { type: Array, default: () => [] },
+    // Undoes one link (the rollcall's, shared with its toast): resolves true once the player is unmatched again.
+    undoLink: { type: Function, default: null },
 });
 
-// `linked` carries the server's answer ({ marked, trooper, atRisk }); `dismissed` the player.
+// `linked` carries the server's answer ({ marked, trooper, before, atRisk }) and the ID the link replaced (`replaced`);
+// `dismissed` the player.
 const emit = defineEmits(['linked', 'dismissed']);
 
 const keyOf = (player) => `${player.platform}:${player.platformId}`;
@@ -126,7 +132,7 @@ async function link(player, replace = null) {
             ...(replace !== null ? { replace: true, replacing: replace } : {}),
         }).catch(unreachable);
         const current = result.data?.reason === 'has_other_identity' ? result.data.current : null;
-        if (result.ok) emit('linked', { player, ...result.data });
+        if (result.ok) emit('linked', { player, replaced: replace, ...result.data });
         // Asked for the first time, or asked again because the ID changed since the leader answered. The same ID
         // refused twice would only loop the question, so it shows inline instead.
         else if (current && current.platformId !== replace) replacing.value = { player, trooperId, current };
@@ -138,6 +144,20 @@ async function link(player, replace = null) {
 
 // The dismissals being undone right now, by key, so each Undo shows it is busy and cannot be sent twice.
 const restoring = reactive(new Set());
+// The same for the links being undone.
+const unlinking = reactive(new Set());
+
+async function undoLinked(entry) {
+    const key = keyOf(entry.player);
+    if (!props.editable || !props.undoLink || unlinking.has(key)) return;
+
+    unlinking.add(key);
+    try {
+        await props.undoLink(entry);
+    } finally {
+        unlinking.delete(key);
+    }
+}
 
 async function undoDismissal(player) {
     const key = keyOf(player);
@@ -194,6 +214,7 @@ async function dismiss(player) {
             </h3>
             <p class="mt-0.5 text-xs text-muted-foreground tabular-nums">
                 <template v-if="players.length">{{ players.length }} seen on the game server</template>
+                <template v-else-if="linked.length">Everyone seen on the game server is linked, dismissed or undone</template>
                 <template v-else>Everyone seen on the game server is linked or dismissed</template>{{ disabledReason ? `. ${disabledReason}` : '' }}
             </p>
         </div>
@@ -261,6 +282,31 @@ async function dismiss(player) {
                         Dismiss
                     </Button>
                 </div>
+            </li>
+        </ul>
+
+        <!-- Linked from here since the page loaded: greyed out where they were, with an Undo. -->
+        <ul v-if="linked.length" class="divide-y divide-border border-t border-border" data-testid="linked-list">
+            <li v-for="entry in linked" :key="keyOf(entry.player)" class="flex items-center gap-2 px-4 py-2" :data-testid="`linked-${entry.player.platformId}`">
+                <div class="min-w-0 flex-1 opacity-60">
+                    <p class="flex items-center gap-2">
+                        <span class="truncate">{{ entry.player.playerName }}</span>
+                        <Badge variant="outline" class="shrink-0">{{ entry.player.platformLabel }}</Badge>
+                    </p>
+                    <p class="truncate text-xs text-muted-foreground" data-testid="linked-note">
+                        Linked to <bdi>{{ entry.trooperName }}</bdi>
+                    </p>
+                </div>
+                <Button
+                    variant="outline"
+                    size="xs"
+                    data-testid="undo-link"
+                    :disabled="!editable || !undoLink || unlinking.has(keyOf(entry.player))"
+                    :title="disabledReason ?? undefined"
+                    @click="undoLinked(entry)"
+                >
+                    <PhCircleNotch v-if="unlinking.has(keyOf(entry.player))" class="animate-spin" aria-hidden="true" />Undo
+                </Button>
             </li>
         </ul>
 
