@@ -55,6 +55,16 @@ The card at the top of the roll call shows when practice starts this week and th
 2. Type a new topic and choose **Save**. It is the weekly report's training subject, so the report shows it too. A topic your platoon enforces is locked.
 3. If the post is already on the forum, a changed date or topic makes it out of date: copy it again and edit your forum post.
 
+## Events this week
+
+Under the training card, **Events this week** lists the events on the 7Cav calendar for your section's game that start this week, with the start in Zulu and the name. A weekly event shows once for each time it falls in the week.
+
+1. Your template prints them where it has `{{events}}`. See [Roll call templates](/docs/admin/rollcall-templates).
+2. If your section plays no game, none are listed and the card says so. An Admin sets a unit's game on Org structure, and which events belong to a game on Games.
+3. Once your section's report is sent, the post keeps the events it had, even if the calendar changes.
+
+The events are only listed. Nothing here marks anyone as having been at one.
+
 ## Record the signatures
 
 Once the roll call is marked posted with its thread link, the portal reads the replies in that thread every hour and signs each trooper from their reply. It reads until the week's report is sent.
@@ -142,7 +152,7 @@ On the new roll call, closing the week is sending its weekly report.
 1. When everyone is signed and marked, confirm the practice, then choose **Continue to close** (or step 4, **Close for review**).
 2. Under **A. Update your forum post**, choose **Copy updated BBCode**, edit your roll call post on the forum with it (**Open your forum post** takes you there when you gave its link), then tick **I edited the forum post**.
 3. Under **B. Weekly report for Platoon Staff**, check the training and the attendance it will report, write your **Notes to send with this report**, and choose a reason for each trooper who missed practice. They save as you type and are the report's own notes and reasons.
-4. Under **Before you close**, check **Practice confirmed**, **Every trooper has a mark**, **Forum post edited** and a reason for each trooper who missed. **Close and send for review** opens once the practice is confirmed.
+4. Under **Before you close**, check **Practice slot set** (listed only while your section has none), **Practice confirmed**, **Every trooper has a mark**, **Forum post edited** and a reason for each trooper who missed. **Close and send for review** opens once the section has a practice slot and the practice is confirmed.
 5. Choose **Close and send for review**. The report opens with its send window: answer any make-up still owed, then send it. See [Write and send your report](/docs/weekly-report/send-your-report).
 
 > [!good-to-know] Once your section's report is sent, that week's roll call is locked: marks, the training topic, the practice confirmation and guests can no longer change. Choosing **Edit report** on the report before it is due opens the roll call again until you send the report again or the deadline passes. On the new roll call you then close it again from **Close for review**. A week too far back is read only too.

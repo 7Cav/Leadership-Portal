@@ -308,6 +308,8 @@ describe('previewing with a real section', function () {
                 'resultImages' => $rollcall['resultImages'],
                 // The section's chain of command, which the post prints as `{{coc}}`, as the rollcall page has it.
                 'chainOfCommand' => $rollcall['chainOfCommand'],
+                // The week's calendar events (#751), as the rollcall page lists them.
+                'events' => $rollcall['events']['items'],
                 'troopers' => $rollcall['troopers'],
                 // How the post shows fireteams, as the rollcall page has it; the preview lets nobody change it.
                 'fireteams' => [...$rollcall['fireteams'], 'can' => ['edit' => false, 'editPolicy' => false]],

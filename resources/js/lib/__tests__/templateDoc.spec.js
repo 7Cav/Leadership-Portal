@@ -150,21 +150,28 @@ describe('what may go at the cursor', () => {
     it('knows the cursor is inside the trooper loop, and only there', () => {
         const source = 'a {{#troopers}}b {{name}} c{{/troopers}} d';
 
-        expect(contextAt(source, 0)).toEqual({ inRow: false });
-        expect(contextAt(source, source.indexOf('b '))).toEqual({ inRow: true });
-        expect(contextAt(source, source.indexOf(' c'))).toEqual({ inRow: true });
-        expect(contextAt(source, source.indexOf(' d'))).toEqual({ inRow: false });
+        expect(contextAt(source, 0)).toEqual({ inRow: false, inEvents: false });
+        expect(contextAt(source, source.indexOf('b '))).toEqual({ inRow: true, inEvents: false });
+        expect(contextAt(source, source.indexOf(' c'))).toEqual({ inRow: true, inEvents: false });
+        expect(contextAt(source, source.indexOf(' d'))).toEqual({ inRow: false, inEvents: false });
     });
 
     it('reads a cursor in the middle of a code as just before it', () => {
         const source = '{{#troopers}}x{{/troopers}}';
 
-        expect(contextAt(source, 3)).toEqual({ inRow: false });
-        expect(contextAt(source, source.indexOf('{{/') + 3)).toEqual({ inRow: true });
+        expect(contextAt(source, 3)).toEqual({ inRow: false, inEvents: false });
+        expect(contextAt(source, source.indexOf('{{/') + 3)).toEqual({ inRow: true, inEvents: false });
+    });
+
+    it("knows the cursor is inside the week's events loop (#751)", () => {
+        const source = 'a {{#events}}b {{event_name}}{{/events}} c';
+
+        expect(contextAt(source, source.indexOf('b '))).toEqual({ inRow: false, inEvents: true });
+        expect(contextAt(source, source.indexOf(' c'))).toEqual({ inRow: false, inEvents: false });
     });
 
     it('still answers for a template that is not valid yet', () => {
-        expect(contextAt('{{#troopers}}{{nme}} x', 20)).toEqual({ inRow: true });
-        expect(contextAt('x{{/troopers}} y', 15)).toEqual({ inRow: false });
+        expect(contextAt('{{#troopers}}{{nme}} x', 20)).toEqual({ inRow: true, inEvents: false });
+        expect(contextAt('x{{/troopers}} y', 15)).toEqual({ inRow: false, inEvents: false });
     });
 });

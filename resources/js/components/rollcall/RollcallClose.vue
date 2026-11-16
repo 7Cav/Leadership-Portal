@@ -28,6 +28,8 @@ const props = defineProps({
     // `countsOf()` of the section's troopers.
     counts: { type: Object, required: true },
     confirmed: { type: Boolean, default: false },
+    // False while the section needs a weekly practice slot and has none: the report cannot be sent until it has one.
+    slotSet: { type: Boolean, default: true },
     // When practice starts this week (ISO), or null, and the training topic, or null.
     trainingStart: { type: String, default: null },
     topic: { type: String, default: null },
@@ -67,6 +69,7 @@ const trainingLabel = computed(() => {
 const edited = computed(() => Boolean(props.posted) && !props.editedSincePost);
 const allMarked = computed(() => props.counts.total > 0 && props.counts.unmarked === 0);
 const checks = computed(() => [
+    ...(props.slotSet ? [] : [{ key: 'slot', label: 'Practice slot set', done: false }]),
     { key: 'confirmed', label: 'Practice confirmed', done: props.confirmed },
     { key: 'marked', label: 'Every trooper has a mark', done: allMarked.value },
     { key: 'edited', label: 'Forum post edited', done: edited.value },
@@ -187,8 +190,8 @@ function onEdited(value) {
                 <Button
                     v-if="!report.sent"
                     class="h-11 w-full sm:h-9"
-                    :disabled="Boolean(disabledReason) || sending || !confirmed"
-                    :title="disabledReason ?? (confirmed ? undefined : 'Confirm the practice took place first')"
+                    :disabled="Boolean(disabledReason) || sending || !slotSet || !confirmed"
+                    :title="disabledReason ?? (!slotSet ? 'Set the practice slot first' : confirmed ? undefined : 'Confirm the practice took place first')"
                     data-testid="close-send"
                     @click="emit('send')"
                 >

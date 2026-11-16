@@ -6,6 +6,7 @@ use App\Authorization\ScopeResolver;
 use App\Commands\Attendance\AttendanceMark;
 use App\Commands\Attendance\MarkAttendance;
 use App\Commands\Attendance\MarkAttendanceHandler;
+use App\Commands\Practices\SectionsWithoutSlot;
 use App\Commands\Practices\ConfirmClockChange;
 use App\Kpi\KpiService;
 use App\Kpi\ReportKpisUnavailableException;
@@ -23,6 +24,7 @@ use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportAlreadySentException;
 use App\Repositories\WeeklyReportRepository;
+use App\Rollcall\WeekEvents;
 use App\Support\Audit\ActingFor;
 use App\Support\Audit\AuditEnvelope;
 use App\Support\Audit\ReasonRequiredException;
@@ -78,10 +80,18 @@ use Carbon\CarbonInterface;
  * frozen numbers count it; a "did not" leaves the mark as it is. Both answers are frozen with the report as
  * `makeup_checks`. If the send then fails, the make-ups stay recorded: the leader said they happened.
  *
+ * **Calendar events.** A section's send also keeps the week's events from the 7Cav calendar as its roll call lists them
+ * then ({@see WeekEvents}, #751), so the post prints the same events after the calendar changes. They are what the post
+ * printed, not what was reported, so they are not part of the content digest.
+ *
  * **Practice confirmed.** A section's send is refused with {@see PracticeNotConfirmedException} until its leader has
  * confirmed the week's practice as held or as not held on the roll call (#634), checked before anything is written and
  * again under the report's lock (a mark saved meanwhile clears the confirmation). A section with nobody on its roll
  * call has nothing to confirm, and a platoon's or company's send is not asked.
+ *
+ * **Practice slot set.** A section that needs a weekly practice slot ({@see SectionsWithoutSlot}: it plays a game and has
+ * someone placed in it) is refused with {@see PracticeSlotMissingException} until it has one, held week or not: the slot
+ * is the regular practice time, set once and kept. Checked before anything is written.
  */
 class SendWeeklyReportHandler
 {
@@ -101,6 +111,8 @@ class SendWeeklyReportHandler
         private readonly KpiService $kpis,
         private readonly MarkAttendanceHandler $attendance,
         private readonly SectionPracticeRepository $practices,
+        private readonly WeekEvents $weekEvents,
+        private readonly SectionsWithoutSlot $withoutSlot,
         private readonly ConfirmClockChange $clockChange,
     ) {}
 
@@ -113,6 +125,7 @@ class SendWeeklyReportHandler
      * @throws TrainingSubjectEnforcedException when the platoon enforces a different subject.
      * @throws ReportKpisUnavailableException when the unit's KPIs cannot be reported yet, or the
      *                                        prior week's sent snapshot is unreadable.
+     * @throws PracticeSlotMissingException when a section that needs a weekly practice slot has none.
      * @throws PracticeNotConfirmedException when a section's practice is not confirmed as held or not held.
      */
     public function handle(User $actor, SendWeeklyReport $command): SentWeeklyReport
@@ -140,6 +153,10 @@ class SendWeeklyReportHandler
 
         if (ReportEditWindow::isFrozen($existing)) {
             return new SentWeeklyReport($existing, alreadySent: true);
+        }
+
+        if ($unit->type === UnitType::Section && $this->withoutSlot->among([$unit->id]) !== []) {
+            throw new PracticeSlotMissingException;
         }
 
         $this->refuseUnconfirmedPractice($unit, $weekStart);
@@ -185,6 +202,8 @@ class SendWeeklyReportHandler
                     $this->refuseUnconfirmedPractice($unit, $weekStart);
 
                     $kpis = $this->snapshots->snapshot($unit, $weekStart)->toArray();
+                    // The week's calendar events as the roll call lists them now, so its post keeps them (#751).
+                    $calendarEvents = $unit->type === UnitType::Section ? $this->weekEvents->forSection($unit, $weekStart) : null;
 
                     return $this->reports->send(
                         $unit->id,
@@ -202,6 +221,7 @@ class SendWeeklyReportHandler
                         $this->acting->billetOf($actor->id),
                         $makeupChecks,
                         $command->sentFrom,
+                        $calendarEvents,
                     );
                 },
             );

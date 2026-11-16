@@ -4,7 +4,7 @@ summary: When the portal refreshes the roster and leave, and when to run one by 
 section: admin
 order: 6
 audience: admin
-updated: 2026-11-12
+updated: 2026-11-14
 ---
 
 > [!why] The portal reads the Cav roster and the forum's leave threads, it never writes to them. If either is out of date, roll calls show the wrong troopers or miss someone on leave.
@@ -13,9 +13,10 @@ updated: 2026-11-12
 
 1. The roster syncs every hour.
 2. Leave syncs every hour at a quarter past, reading the last two weeks, and once a day at 0330Z reading the whole year again. Leave a trooper cancelled by deleting their thread is removed from the portal by that daily run.
-3. Pages that show roster or leave data say when it last synced, and warn when a sync failed.
-4. Leave has no sync button yet. If leave is wrong after the hourly run, ask S6 to run the leave sync on the server.
-5. The first leave sync reads the whole year in one run. Only ELOA, which is read from the forum, still goes back a share at a time; until that is done, the leave note says "Older leave is still being read" and how far back it has got.
+3. The 7Cav calendar is read every hour at ten to the hour, for the events a roll call lists. A roll call never waits on the forum: it shows what the last read found.
+4. Pages that show roster or leave data say when it last synced, and warn when a sync failed.
+5. Leave has no sync button yet. If leave is wrong after the hourly run, ask S6 to run the leave sync on the server.
+6. The first leave sync reads the whole year in one run. Only ELOA, which is read from the forum, still goes back a share at a time; until that is done, the leave note says "Older leave is still being read" and how far back it has got.
 
 ## Sync the whole roster now
 

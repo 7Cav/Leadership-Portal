@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { nextTick, reactive } from 'vue';
 import Templates from '../Templates.vue';
 import { chooseSearch, searchLabels, searchValue } from '@/testing/searchSelect';
-import { FILTERS, LISTS, ROW_FLAGS, ROW_STRINGS, TOP_STRINGS } from '@/lib/bbcode';
+import { EVENT_STRINGS, FILTERS, LISTS, ROW_FLAGS, ROW_STRINGS, TOP_STRINGS } from '@/lib/bbcode';
 
 const post = vi.fn();
 const toastError = vi.fn();
@@ -511,6 +511,7 @@ describe('Settings/Templates', () => {
             ['lists', LISTS, (name) => `{{#${name}}}...{{/${name}}}`],
             ['rowValues', ROW_STRINGS, (name) => `{{${name}}}`],
             ['rowFlags', ROW_FLAGS, (name) => `{{#${name}}}...{{/${name}}}`],
+            ['eventValues', EVENT_STRINGS, (name) => `{{${name}}}`],
             ['filters', FILTERS, (name) => `{{value|${name}}}`],
         ];
 

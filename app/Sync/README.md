@@ -21,3 +21,9 @@ Leader on their platoon, the RCO on the regiment). `troopers.primary_section_id`
 unit. A trooper the sync moves from a line unit into the ELOA group keeps that unit in `last_line_unit_id` (the "was");
 one first seen on ELOA has none, and any later placement elsewhere clears it. A manual placement still stands only
 until the billet resolves.
+
+**Calendar (#751).** `SyncCalendarHandler` is the one writer of `calendar_events`: hourly, it reads the forum calendar's
+public iCalendar export through `ForumApi::exportCalendar()`, parses it with `Calendar\ICalendar` (no dependency) and
+stores each time an event takes place in the running week and the next two (`Calendar\Occurrences`). Rows are matched
+by the forum's event id and the start, never truncated; what took place before the read is kept, and what is still to
+come and was not read again is deleted.

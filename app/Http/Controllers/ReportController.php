@@ -7,11 +7,13 @@ use App\Authorization\StaffReportAccess;
 use App\Commands\Attendance\InvalidAttendanceMarkException;
 use App\Commands\Practices\ConfirmClockChange;
 use App\Commands\Practices\PracticeSchedule;
+use App\Commands\Practices\SectionsWithoutSlot;
 use App\Commands\WeeklyReports\ClockChangeNotConfirmedException;
 use App\Commands\WeeklyReports\InvalidPlatoonTrainingTopicException;
 use App\Commands\WeeklyReports\InvalidReportContentException;
 use App\Commands\WeeklyReports\MakeupChecksIncompleteException;
 use App\Commands\WeeklyReports\PracticeNotConfirmedException;
+use App\Commands\WeeklyReports\PracticeSlotMissingException;
 use App\Commands\WeeklyReports\ReopenWeeklyReport;
 use App\Commands\WeeklyReports\ReopenWeeklyReportHandler;
 use App\Commands\WeeklyReports\SaveReportDraft;
@@ -113,6 +115,7 @@ class ReportController extends Controller
         private readonly PracticeSchedule $schedule,
         private readonly RollcallRoster $rollcallRoster,
         private readonly LoaCoverage $loaCoverage,
+        private readonly SectionsWithoutSlot $withoutSlot,
         private readonly ConfirmClockChange $clockChange,
     ) {}
 
@@ -261,17 +264,23 @@ class ReportController extends Controller
     }
 
     /**
+     * `slotSet` is false when the section needs a weekly practice slot and has none: the send is refused until it has.
      * `clockChange` is a clock change in the week before it or the week of it that the platoon leader has yet to answer,
      * or has answered (16NOV26), else null.
      *
-     * @return array{confirmed: bool, held: ?bool, clockChange: ?array<string, mixed>}
+     * @return array{confirmed: bool, held: ?bool, slotSet: bool, clockChange: ?array<string, mixed>}
      */
     private function practiceProps(Unit $section, CarbonImmutable $weekStart): array
     {
         $practice = $this->practices->find($section->id, $weekStart);
         $confirmed = $practice?->confirmed_at !== null;
 
-        return ['confirmed' => $confirmed, 'held' => $confirmed ? ! $practice->not_held : null, 'clockChange' => $this->clockChange->notice($section, $weekStart)];
+        return [
+            'confirmed' => $confirmed,
+            'held' => $confirmed ? ! $practice->not_held : null,
+            'slotSet' => $this->withoutSlot->among([$section->id]) === [],
+            'clockChange' => $this->clockChange->notice($section, $weekStart),
+        ];
     }
 
     /**
@@ -458,7 +467,7 @@ class ReportController extends Controller
         } catch (TrainingSubjectEnforcedException) {
             // The platoon leader locked the topic after this page loaded.
             throw ValidationException::withMessages(['training_subject' => "Your platoon set this week's training topic and locked it, so it cannot be changed here. Reload the page to see it."]);
-        } catch (PracticeNotConfirmedException $e) {
+        } catch (PracticeNotConfirmedException|PracticeSlotMissingException $e) {
             // A mark saved since the page loaded clears the confirmation too.
             throw ValidationException::withMessages(['practice' => $e->getMessage()]);
         } catch (ClockChangeNotConfirmedException $e) {

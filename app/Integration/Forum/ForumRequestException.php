@@ -107,6 +107,19 @@ class ForumRequestException extends RuntimeException
         return $exception;
     }
 
+    public static function calendarExportFailed(int $status): self
+    {
+        $exception = new self("The forum calendar export failed (HTTP {$status}).");
+        $exception->httpStatus = $status;
+
+        return $exception;
+    }
+
+    public static function malformedCalendar(): self
+    {
+        return new self('The forum calendar export did not answer with a calendar.');
+    }
+
     public static function unreachable(Throwable $previous): self
     {
         return new self('The 7Cav forum could not be reached.', previous: $previous);

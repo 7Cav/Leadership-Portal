@@ -115,8 +115,9 @@ export function unaccountedTroopers(troopers) {
 // The readiness checklist (P3). `content` is the leader's live form state; `reviewed` the local
 // "I have read the preview" tick. Leaf and roll-up reports check different things. `suggested` lists the troopers
 // whose reason is a pre-selected suggestion the leader has not kept yet: their check stays open until they do.
-// `practice` is `{ confirmed, held }` for a section with troopers on its roll call, null when nothing needs confirming:
-// its check is `blocking`, since the server refuses the send until the practice is confirmed as held or not held.
+// `practice` is `{ confirmed, held, slotSet }` for a section with troopers on its roll call, null when nothing needs
+// confirming. Its checks are `blocking`, since the server refuses the send until the practice is confirmed as held or not
+// held, and, when the section needs a weekly practice slot (`slotSet` false), until it has one.
 export function readinessChecks({ isLeaf, troopers, children, content, reviewed, suggested = [], practice = null }) {
     const reviewCheck = {
         id: 'reviewed',
@@ -179,6 +180,19 @@ export function readinessChecks({ isLeaf, troopers, children, content, reviewed,
                 next: 'Mark the rest of practice in roll call',
             },
         ].map(notApplicable),
+        ...(practice && practice.slotSet === false
+            ? [
+                  {
+                      id: 'slot',
+                      title: 'Practice slot set',
+                      done: false,
+                      count: '',
+                      detail: "Set your section's regular practice time on the roll call. It is set once and kept every week, and the report cannot be sent until it is.",
+                      next: 'Set the practice slot in roll call',
+                      blocking: true,
+                  },
+              ]
+            : []),
         ...(practice
             ? [
                   {

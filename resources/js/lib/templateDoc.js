@@ -161,8 +161,9 @@ export function serialize(nodes) {
 }
 
 /**
- * What may go at a place in a template: inside the trooper loop, the trooper's own codes may; outside it they may not.
- * A cursor in the middle of a code counts as just before it. Answers for a template that is not valid yet as well.
+ * What may go at a place in a template: inside the trooper loop, the trooper's own codes may; inside the events loop
+ * (#751), an event's own; outside them neither may. A cursor in the middle of a code counts as just before it. Answers
+ * for a template that is not valid yet as well.
  */
 export function contextAt(source, offset) {
     const open = [];
@@ -177,7 +178,7 @@ export function contextAt(source, offset) {
         }
     }
 
-    return { inRow: open.includes('troopers') };
+    return { inRow: open.includes('troopers'), inEvents: open.includes('events') };
 }
 
 const whitespace = (node) => node.type === 'text' && node.value.trim() === '';

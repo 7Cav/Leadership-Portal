@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import cases from '../../../../tests/Fixtures/bbcode-templates.json';
 import { buildDoc } from '../templateDoc';
-import { crossesStructure, drawDoc, hasForeignMarkup, hasLoneEdge, pointAt, readDom, toVisibleEdges } from '../templateDom';
+import { crossesStructure, drawDoc, hasForeignMarkup, hasLoneEdge, pointAt, readDom, sectionLabel, toVisibleEdges, valueLabel } from '../templateDom';
 import { STARTER } from './templateStarter';
 
 // The visual mode is a page element the leader types into, drawn from the template and read back from what is on the
@@ -62,6 +62,14 @@ describe('the visual surface', () => {
         expect(root.querySelector('[data-raw="{{nme}}"]').classList.contains('tpl-unknown')).toBe(true);
         expect(root.querySelector('[data-raw="{{nme}}"]').textContent).toBe('nme');
         expect(root.querySelector('[data-raw="{{name}}"]').classList.contains('tpl-unknown')).toBe(false);
+    });
+
+    it("names the week's events and their loop for what they print (#751)", () => {
+        expect(valueLabel('events')).toBe('Events');
+        expect(valueLabel('event_start')).toBe('Event start');
+        expect(sectionLabel('events', false)).toBe('Each event');
+        expect(sectionLabel('events', true)).toBe('No events');
+        expect(surface('{{#events}}{{event_name}}{{/events}}').querySelector('[data-raw="{{event_name}}"]').textContent).toBe('Event name');
     });
 
     it('names a filtered code for what it prints', () => {

@@ -4,6 +4,7 @@ use App\Commands\Attendance\AttendanceMark;
 use App\Commands\Attendance\MarkAttendance;
 use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Commands\WeeklyReports\PracticeNotConfirmedException;
+use App\Commands\WeeklyReports\PracticeSlotMissingException;
 use App\Commands\WeeklyReports\ReopenWeeklyReport;
 use App\Commands\WeeklyReports\ReopenWeeklyReportHandler;
 use App\Commands\WeeklyReports\SendWeeklyReport;
@@ -172,6 +173,35 @@ it('refuses to send a section\'s report until its practice is confirmed, writing
         ->assertSessionHasErrors(['practice' => "Confirm on the roll call whether this week's practice was held before you send the report."]);
 });
 
+it('refuses to send while a section that plays a game has no practice slot, held week or not, writing nothing', function (bool $held) {
+    $this->platoon->forceFill(['game_id' => game('hll')->id])->save();
+    SectionPracticeSlot::query()->delete();
+    $this->practice->forceFill(['confirmed_at' => now(), 'confirmed_by' => $this->leader->id, 'not_held' => ! $held])->save();
+
+    expect(fn () => ptSend($this))->toThrow(PracticeSlotMissingException::class);
+    expect(WeeklyReport::query()->count())->toBe(0);
+
+    $this->actingAs($this->leader)->post("/reports/{$this->section->id}/2026-10-03/send", ['reason' => 'Weekly report'])
+        ->assertSessionHasErrors(['practice' => "Set your section's practice slot on the roll call before you send the report."]);
+    $this->actingAs($this->leader)->get("/reports/{$this->section->id}/2026-10-03")
+        ->assertOk()->assertInertia(fn (Assert $p) => $p->where('practice.slotSet', false));
+
+    SectionPracticeSlot::query()->create(['section_id' => $this->section->id, 'weekday' => 4, 'start_minute' => 1200]);
+    $this->actingAs($this->leader)->get("/reports/{$this->section->id}/2026-10-03")
+        ->assertOk()->assertInertia(fn (Assert $p) => $p->where('practice.slotSet', true));
+    ptSend($this);
+    expect(WeeklyReport::query()->sole()->status)->toBe(WeeklyReportStatus::Sent);
+})->with(['held' => [true], 'not held' => [false]]);
+
+it('asks no slot of a section whose unit plays no game', function () {
+    SectionPracticeSlot::query()->delete();
+    $this->practice->forceFill(['confirmed_at' => now(), 'confirmed_by' => $this->leader->id])->save();
+
+    ptSend($this);
+
+    expect(WeeklyReport::query()->sole()->status)->toBe(WeeklyReportStatus::Sent);
+});
+
 it('sends once the practice is confirmed, as held or as not held', function (bool $held) {
     $this->practice->forceFill(['confirmed_at' => now(), 'confirmed_by' => $this->leader->id, 'not_held' => ! $held])->save();
 
@@ -197,10 +227,10 @@ it('asks no confirmation of a section with nobody on its roll call, nor of a pla
 it('tells the report page whether the practice is confirmed, and nothing once it is sent', function () {
     $page = fn () => $this->actingAs($this->leader)->get("/reports/{$this->section->id}/2026-10-03");
 
-    $page()->assertInertia(fn (Assert $p) => $p->where('practice', ['confirmed' => false, 'held' => null, 'clockChange' => null]));
+    $page()->assertInertia(fn (Assert $p) => $p->where('practice', ['confirmed' => false, 'held' => null, 'slotSet' => true, 'clockChange' => null]));
 
     $this->practice->forceFill(['confirmed_at' => now(), 'confirmed_by' => $this->leader->id, 'not_held' => true])->save();
-    $page()->assertInertia(fn (Assert $p) => $p->where('practice', ['confirmed' => true, 'held' => false, 'clockChange' => null]));
+    $page()->assertInertia(fn (Assert $p) => $p->where('practice', ['confirmed' => true, 'held' => false, 'slotSet' => true, 'clockChange' => null]));
 
     ptSend($this);
     $page()->assertInertia(fn (Assert $p) => $p->where('practice', null)->where('report.status', 'sent'));

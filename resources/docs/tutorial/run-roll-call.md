@@ -18,6 +18,8 @@ Roll call is the weekly task the rest of the portal is built on. Your section's 
 3. Check the training topic. It comes from your platoon's topic, and is locked when your platoon enforces it.
 4. Choose **Create roll call**.
 
+> [!good-to-know] **Events this week**, above the steps, lists the 7Cav calendar events for your section's game that week. The template code `{{events}}` puts them in your post, each linked to its calendar page.
+
 ## Post it
 
 1. In step 2, **Post**, pick your **Template** and choose **Copy BBCode**.
@@ -37,6 +39,6 @@ Troopers on leave are already locked under **On LOA**. You do not mark them.
 
 1. In step 4, **Close for review**, choose **Copy updated BBCode**, edit your forum post with it, then tick **I edited the forum post**.
 2. Write your notes, and give a reason for anyone who missed practice.
-3. Choose **Close and send for review**. The weekly report opens to send; the next tutorial step walks it.
+3. Choose **Close and send for review**. It opens once your section has a practice slot and the practice is confirmed. The weekly report opens to send; the next tutorial step walks it.
 
 > [!warning] If you change a mark or the topic after posting, the page says the copied BBCode is out of date. Copy it again and edit your forum post.
