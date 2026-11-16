@@ -30,6 +30,7 @@ use App\Repositories\SectionPracticeRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitGame;
 use App\Repositories\UnitRepository;
+use App\Rollcall\WeekEvents;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Bus\Dispatcher;
@@ -79,7 +80,7 @@ class StaffReportController extends Controller
         ]);
     }
 
-    public function show(Request $request, AuditLogRepository $audit, ReportEditProps $editProps, SelfReportedGame $selfReported, StaffReportOwed $owed, int $trooper, string $week): Response
+    public function show(Request $request, AuditLogRepository $audit, ReportEditProps $editProps, SelfReportedGame $selfReported, StaffReportOwed $owed, WeekEvents $weekEvents, int $trooper, string $week): Response
     {
         $trooper = $this->troopers->find($trooper) ?? abort(404);
         $weekStart = $this->weekStart($week);
@@ -139,6 +140,9 @@ class StaffReportController extends Controller
             'sections' => $canSend || $canEdit ? $this->sections($hq, $weekStart) : [],
             // What the HQ reports under its accountability options, and how far the picker reaches.
             'accountability' => ($canSend || $canEdit) && $hq !== null ? array_diff_key($this->accountability->staff($hq), ['counts' => true]) : null,
+            // The week's 7Cav calendar events for the HQ's game (#553), as the roll call lists them: an FTX is picked from
+            // them, filling in its name and date. Typing them stays the fallback when none is listed.
+            'events' => ($canSend || $canEdit) && $hq !== null ? $weekEvents->forSection($hq, $weekStart) : null,
             'maxPractices' => SendStaffReportHandler::MAX_PRACTICES,
             'limits' => [
                 'ftxName' => SendStaffReportHandler::MAX_FTX_NAME,
