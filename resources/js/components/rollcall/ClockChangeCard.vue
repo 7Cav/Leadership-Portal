@@ -38,6 +38,11 @@ const before = computed(() => {
 });
 const after = computed(() => (before.value ? new Date(before.value.getTime() + WEEK_MS) : null));
 const local = (date) => (date ? localLabel(date, undefined, props.timeZone) : '');
+// Where the clocks change: the platoon leader's zone, whose clock the slot follows.
+const there = (date) => (date ? localLabel(date, undefined, props.change.timezone) : '');
+const place = computed(() => (props.change.timezone.split('/').pop() ?? props.change.timezone).replaceAll('_', ' '));
+// The viewer's own clock, worth a line only where it reads differently from the platoon leader's.
+const ownDiffers = computed(() => before.value && (local(before.value) !== there(before.value) || local(after.value) !== there(after.value)));
 // The slot that keeps the practice at its old local time, a week after the one before.
 const movedStart = computed(() => {
     if (!before.value) return null;
@@ -79,10 +84,14 @@ async function confirm(move) {
             <PhClockClockwise class="size-4" aria-hidden="true" />Clocks {{ change.phase === 'before' ? 'change' : 'changed' }} on {{ when }}
         </p>
         <p v-if="before" data-testid="clock-change-times">
-            Practice at {{ current }} was {{ local(before) }} your time and is {{ local(after) }} from
-            {{ change.phase === 'before' ? 'next week' : 'this week' }}. Move it to {{ moved }} to keep it at {{ local(before) }}.
+            In {{ place }}, where your platoon leader is, practice at {{ current }} was {{ there(before) }} and is {{ there(after) }} from
+            {{ change.phase === 'before' ? 'next week' : 'this week' }}. Move it to {{ moved }} to keep it at {{ there(before) }} there.
         </p>
-        <p class="text-xs" data-testid="clock-change-zone">The clocks change where your platoon leader is ({{ change.timezone }}).</p>
+        <p v-if="ownDiffers" class="text-xs" data-testid="clock-change-own">
+            Your own time:
+            <template v-if="local(before) === local(after)">{{ local(after) }}, which stays the same if the slot is kept.</template>
+            <template v-else>{{ local(before) }} before, {{ local(after) }} after.</template>
+        </p>
 
         <p v-if="answer" class="mt-1" data-testid="clock-change-answer">
             <template v-if="answer.moved">{{ answer.by ?? 'Your platoon leader' }} moved it to {{ moved }}.</template>
@@ -90,10 +99,10 @@ async function confirm(move) {
         </p>
         <div v-else-if="change.canConfirm" class="mt-2 flex flex-wrap gap-2">
             <Button size="sm" :disabled="busy" data-testid="clock-change-move" @click="confirm(true)">
-                Move to {{ moved }}<template v-if="movedStart"> ({{ local(movedStart) }})</template>
+                Move to {{ moved }}<template v-if="movedStart"> ({{ there(movedStart) }} in {{ place }})</template>
             </Button>
             <Button size="sm" variant="outline" :disabled="busy" data-testid="clock-change-keep" @click="confirm(false)">
-                Keep {{ current }}<template v-if="after"> ({{ local(after) }})</template>
+                Keep {{ current }}<template v-if="after"> ({{ there(after) }} in {{ place }})</template>
             </Button>
         </div>
         <p v-else class="mt-1" data-testid="clock-change-waiting">Your platoon leader confirms the slot here. The weekly report waits for it.</p>

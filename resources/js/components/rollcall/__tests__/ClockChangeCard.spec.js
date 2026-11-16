@@ -14,19 +14,29 @@ const factory = (change = {}) =>
 describe('ClockChangeCard', () => {
     beforeEach(() => post.mockReset());
 
-    it('shows the practice in Zulu and in the viewer\'s own time, before and after the change', () => {
-        const text = factory().get('[data-testid="clock-change-times"]').text();
+    it('shows the practice in Zulu and in the platoon leader\'s time, before and after the change', () => {
+        const wrapper = factory();
+        const text = wrapper.get('[data-testid="clock-change-times"]').text();
 
-        expect(text).toContain('Thu 02 00Z');
-        expect(text).toMatch(/Wed 22:00 your time and is Wed 21:00 from next week/);
-        expect(text).toContain('Move it to Thu 03 00Z to keep it at Wed 22:00');
+        expect(text).toContain('In New York, where your platoon leader is, practice at Thu 02 00Z was Wed 22:00 and is Wed 21:00 from next week');
+        expect(text).toContain('Move it to Thu 03 00Z to keep it at Wed 22:00 there');
+        // The viewer is in the same zone: no second line.
+        expect(wrapper.find('[data-testid="clock-change-own"]').exists()).toBe(false);
+    });
+
+    it('adds the viewer\'s own time where it reads differently', () => {
+        const wrapper = mount(ClockChangeCard, {
+            props: { sectionId: 98, week: '2026-10-31', change: { ...CHANGE, phase: 'of' }, practiceStart: '2026-11-05T02:00:00Z', timeZone: 'Europe/Amsterdam' },
+        });
+
+        expect(wrapper.get('[data-testid="clock-change-own"]').text()).toBe('Your own time: Thu 03:00, which stays the same if the slot is kept.');
     });
 
     it('lets the platoon leader move or keep the slot, and passes on the answer', async () => {
         post.mockResolvedValue({ ok: true, status: 200, data: { practiceSlot: { weekday: 4 }, clockChange: { ...CHANGE, confirmed: { moved: true, by: 'Pike.S', slot: [4, 180] } } } });
         const wrapper = factory();
 
-        expect(wrapper.get('[data-testid="clock-change-move"]').text()).toContain('(Wed 22:00)');
+        expect(wrapper.get('[data-testid="clock-change-move"]').text()).toContain('(Wed 22:00 in New York)');
         await wrapper.get('[data-testid="clock-change-move"]').trigger('click');
         await flushPromises();
 
