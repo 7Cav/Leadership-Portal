@@ -483,9 +483,16 @@ describe('AppLayout', () => {
 
             const banner = wrapper.find('[data-testid="view-as-banner"]');
             expect(banner.attributes('role')).toBe('status');
-            expect(banner.text()).toContain('Viewing as SGT Vasquez.R');
-            expect(banner.text()).toContain('2/1/A/1-7');
-            expect(banner.text()).toContain('Read only: nothing can be changed while viewing as.');
+            expect(banner.text()).toContain('Viewing as SGT Vasquez.R (2/1/A/1-7)');
+            expect(banner.text()).toContain('This view is read only and nothing can be changed while viewing as.');
+        });
+
+        it('names the person with their billet when they have one', () => {
+            wrapper = mountLayout({ viewAs: { ...AS_PERSON, label: 'Lieutenant General Tharen.R', billet: 'Chief of Staff', designation: 'COS' } });
+
+            const banner = wrapper.find('[data-testid="view-as-banner"]');
+            expect(banner.text()).toContain('Viewing as Lieutenant General Tharen.R (Chief of Staff)');
+            expect(banner.get('[data-testid="view-as-read-only"]').text()).toBe('. This view is read only and nothing can be changed while viewing as.');
         });
 
         it('names a unit preview as its leader\'s view', () => {

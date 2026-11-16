@@ -873,6 +873,7 @@ class ScopeResolver
             unitName: $unit?->name,
             // A previewed billet Admin shows the Admin screens, as a previewed flag Admin does: the viewer is one anyway.
             admin: $this->isAdmin($user),
+            billet: $user->cav_id !== null ? self::billetOf($this->troopers->byCavId([$user->cav_id])->first()?->billet) : null,
         );
     }
 
@@ -937,6 +938,14 @@ class ScopeResolver
             ->values();
     }
 
+    /** A billet as the view-as banner names it, or null when there is none to name. */
+    private static function billetOf(?string $billet): ?string
+    {
+        $billet = trim((string) $billet);
+
+        return $billet === '' ? null : $billet;
+    }
+
     private function asTrooper(ViewAsTarget $target): ?ActiveViewAs
     {
         $account = $this->rosterAccount($target->id);
@@ -954,6 +963,7 @@ class ScopeResolver
             designation: $unit ? ($unit->callsign ?? $unit->name) : null,
             unitName: $unit?->name,
             admin: false,
+            billet: self::billetOf($trooper->billet),
         );
     }
 }

@@ -31,6 +31,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import OrgTreeNode from './OrgTreeNode.vue';
 import { Checkbox } from '@/components/ui/checkbox';
 import AccountabilityPanel from '@/components/roster/AccountabilityPanel.vue';
+import OrgStructureTabs from '@/components/settings/OrgStructureTabs.vue';
 import AccountabilityUnderBattalion from '@/components/roster/AccountabilityUnderBattalion.vue';
 import AddStaffGroup from '@/components/org/AddStaffGroup.vue';
 import BilletNotices from '@/components/org/BilletNotices.vue';
@@ -950,6 +951,8 @@ function confirmDelete() {
                 </Button>
             </div>
         </div>
+
+        <OrgStructureTabs v-if="isAdmin" current="units" />
 
         <p
             v-if="importError"

@@ -172,12 +172,12 @@ class Eloquent implements TrooperRepository
             ->all();
     }
 
-    public function place(int $trooperId, int $sectionId): ?Trooper
+    public function place(int $trooperId, int $sectionId, ?int $by = null): ?Trooper
     {
         // One conditional UPDATE rather than read-then-write: it only lands while the trooper is
         // still unplaced and still on a roster, so two Admins placing the same trooper at once
         // cannot both win, and neither can overwrite a placement the sync just made.
-        return DB::transaction(function () use ($trooperId, $sectionId) {
+        return DB::transaction(function () use ($trooperId, $sectionId, $by) {
             $placed = Trooper::query()
                 ->whereKey($trooperId)
                 ->whereNull('primary_section_id')
@@ -188,7 +188,7 @@ class Eloquent implements TrooperRepository
                 return null;
             }
 
-            $this->placements->record([$trooperId => [null, $sectionId]], PlacementSource::Manual, CarbonImmutable::now());
+            $this->placements->record([$trooperId => [null, $sectionId]], PlacementSource::Manual, CarbonImmutable::now(), $by);
 
             return Trooper::find($trooperId);
         });

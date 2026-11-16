@@ -66,7 +66,7 @@ class PlaceTrooperInSectionHandler
             action: 'trooper.placed',
             reason: $command->reason,
             reasonRequired: true,
-            mutation: fn () => $this->troopers->place($trooper->id, $command->sectionId)
+            mutation: fn () => $this->troopers->place($trooper->id, $command->sectionId, $actor->id)
                 ?? throw InvalidTrooperPlacementException::changedMeanwhile($trooper->id),
         );
     }

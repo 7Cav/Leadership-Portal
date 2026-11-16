@@ -6,10 +6,12 @@ use App\Models\Attendance;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\CrossSectionSighting;
+use App\Models\RollcallReply;
 use App\Models\Trooper;
 use App\Models\Unit;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\CrossSectionSightingRepository;
+use App\Repositories\RollcallReplyRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\SectionWeekRoster;
 use App\Repositories\TrooperRepository;
@@ -32,6 +34,7 @@ final class RollcallRoster
         private readonly AttendanceRepository $attendance,
         private readonly SectionFireteams $fireteams,
         private readonly CrossSectionSightingRepository $sightings,
+        private readonly RollcallReplyRepository $replies,
     ) {}
 
     /**
@@ -89,6 +92,8 @@ final class RollcallRoster
     {
         $practice = $this->practices->find($section->id, $weekStart);
         $marks = $practice ? $this->attendance->forPractice($practice)->keyBy('trooper_id') : collect();
+        // Each trooper's latest reply on the week's thread, as the reply reader last found it.
+        $replies = $practice?->rollcall_thread_url ? $this->replies->forPractice($practice) : collect();
 
         $priorPractice = $this->practices->find($section->id, $weekStart->subWeek());
         $prior = $priorPractice
@@ -113,6 +118,10 @@ final class RollcallRoster
             'name' => $trooper->username,
             'displayName' => $trooper->display_name,
             'rollcall' => $marks->get($trooper->id)?->rollcall->value ?? 'unsigned',
+            // Who set the signature: `manual` (a leader), `reply` (read from the thread), or null with none.
+            'rollcallSource' => $marks->get($trooper->id)?->rollcall_source?->value,
+            // Their latest reply on the thread, with the answer read from it (null when none was recognised).
+            'reply' => $this->reply($replies->get($trooper->id)),
             'status' => $marks->get($trooper->id)?->status?->value,
             'source' => $marks->get($trooper->id)?->source?->value,
             // An automatic make-up names the practice that earned it, and whether the game server saw them there (#558).
@@ -131,6 +140,18 @@ final class RollcallRoster
         ])->sortBy(fn (array $row) => mb_strtolower($row['name'] ?? "~{$row['cavId']}"))->values()->all();
 
         return new RollcallRosterWeek($practice, $marks, $troopers, $prior->isNotEmpty());
+    }
+
+    /**
+     * @return array{answer: ?string, url: ?string, postedAt: string}|null
+     */
+    private function reply(?RollcallReply $reply): ?array
+    {
+        return $reply === null ? null : [
+            'answer' => $reply->answer?->value,
+            'url' => $reply->post_url,
+            'postedAt' => $reply->posted_at->toIso8601String(),
+        ];
     }
 
     /**

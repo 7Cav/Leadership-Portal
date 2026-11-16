@@ -109,6 +109,17 @@ interface SectionPracticeRepository
     public function undoRollcallPosted(SectionPractice $practice): ?SectionPractice;
 
     /**
+     * The practices from `$firstWeek` on whose roll call was marked posted with a thread link (#703), for the reader of
+     * the thread's replies, in id order. Generated demo practices (#115) are left out. Whether a week's report was sent
+     * is not looked at here: the reader asks {@see WeeklyReportRepository::isSentFor()} for each. Never creates a row.
+     *
+     * @return Collection<int, SectionPractice>
+     *
+     * @throws InvalidArgumentException when `$firstWeek` is not a Saturday 00:00 UTC.
+     */
+    public function postedWithThreadFrom(CarbonInterface $firstWeek): Collection;
+
+    /**
      * Record that a leader reviewed and confirmed the practice's marks (7.8): `confirmed_at` = now,
      * `confirmed_by` = `$userId`, and `not_held` when the leader says it did not take place (#634);
      * confirming again re-stamps. Returns the row with `confirmedBy` loaded. Callers route it through

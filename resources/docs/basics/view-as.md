@@ -12,7 +12,7 @@ audience: everyone
 
 1. Choose **View as** in the top bar.
 2. Pick a unit you lead, or a unit under it. Admins can also pick a person. A unit with no troopers in it or under it is not listed.
-3. A gold bar at the top says who you are viewing as.
+3. A gold bar at the top says who you are viewing as, with their billet, such as "Viewing as Lieutenant General Tharen.R (Chief of Staff)", and that the view is read only.
 4. You stay on the same page, for the unit you picked: from a battalion's roster you land on the roster of the section you picked. Any other page stays open. If the unit or person you picked cannot see it, the page says so; the gold bar stays.
 
 ## Look around, then exit
