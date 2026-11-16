@@ -696,10 +696,14 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                                 <li
                                     v-for="entry in group.entries"
                                     :key="entry.name"
-                                    class="border-b border-border/60 py-3.5 lg:[&:nth-last-child(2):nth-child(odd)]:border-b-0 last:border-b-0"
+                                    :class="['border-b border-border/60 py-3.5 lg:[&:nth-last-child(2):nth-child(odd)]:border-b-0 last:border-b-0', entry.soon && 'opacity-55']"
                                     :data-testid="`legend-entry-${entry.name}`"
                                 >
-                                    <div class="flex items-start justify-between gap-2">
+                                    <div v-if="entry.soon" class="flex items-baseline gap-2">
+                                        <code class="rounded-sm border border-border bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground" data-testid="legend-code">{{ entry.code }}</code>
+                                        <span class="text-xs text-muted-foreground" data-testid="legend-soon">(Coming soon)</span>
+                                    </div>
+                                    <div v-else class="flex items-start justify-between gap-2">
                                         <button
                                             v-if="canInsert"
                                             type="button"
@@ -727,7 +731,7 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                                         </Button>
                                     </div>
                                     <p class="mt-2 text-[13px] leading-relaxed text-foreground/85" data-testid="legend-meaning">{{ entry.meaning }}.</p>
-                                    <p class="mt-1.5 flex items-baseline gap-2 text-xs">
+                                    <p v-if="entry.example" class="mt-1.5 flex items-baseline gap-2 text-xs">
                                         <span class="shrink-0 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Example</span>
                                         <code class="font-mono break-all text-muted-foreground" data-testid="legend-example">{{ entry.example }}</code>
                                     </p>

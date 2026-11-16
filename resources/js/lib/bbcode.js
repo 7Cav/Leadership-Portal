@@ -149,6 +149,11 @@ export function codeLabel(name) {
  *
  * @returns {{key: string, title: string, where: string, entries: {name: string, label: string, code: string, open: string, close: string, meaning: string, example: string}[]}[]}
  */
+// What each Coming soon code will print.
+const COMING_SOON = {
+    patch: "The section's unit patch as an image 100 pixels high: its own, or the nearest unit above it that has one",
+};
+
 export function templateLegend() {
     const group = (key, title, where, names, codeOf) => ({
         key,
@@ -160,8 +165,13 @@ export function templateLegend() {
     const tag = (name) => single(`{{${name}}}`);
     const block = (name) => ({ code: `{{#${name}}}...{{/${name}}}`, open: `{{#${name}}}`, close: `{{/${name}}}` });
 
+    // Codes announced but not built yet: listed greyed out, marked Coming soon, and never inserted. The template check
+    // does not know them, so one typed by hand is refused like any unknown code.
+    const values = group('values', 'Values', 'Anywhere in the template', TOP_STRINGS, tag);
+    values.entries.push({ name: 'patch', ...tag('patch'), label: 'Unit patch', meaning: COMING_SOON.patch, example: '', soon: true });
+
     return [
-        group('values', 'Values', 'Anywhere in the template', TOP_STRINGS, tag),
+        values,
         group('topFlags', 'Yes/no flags for the post', 'Anywhere in the template', TOP_FLAGS, block),
         group('lists', 'The trooper list', '', LISTS, block),
         group('rowValues', 'Trooper values', 'Inside {{#troopers}}', ROW_STRINGS, tag),
