@@ -6,6 +6,7 @@ use App\Authorization\ScopeResolver;
 use App\Commands\Attendance\AttendanceMark;
 use App\Commands\Attendance\MarkAttendance;
 use App\Commands\Attendance\MarkAttendanceHandler;
+use App\Commands\Practices\SectionsWithoutSlot;
 use App\Kpi\KpiService;
 use App\Kpi\ReportKpisUnavailableException;
 use App\Kpi\TrooperAttendance;
@@ -86,6 +87,10 @@ use Carbon\CarbonInterface;
  * confirmed the week's practice as held or as not held on the roll call (#634), checked before anything is written and
  * again under the report's lock (a mark saved meanwhile clears the confirmation). A section with nobody on its roll
  * call has nothing to confirm, and a platoon's or company's send is not asked.
+ *
+ * **Practice slot set.** A section that needs a weekly practice slot ({@see SectionsWithoutSlot}: it plays a game and has
+ * someone placed in it) is refused with {@see PracticeSlotMissingException} until it has one, held week or not: the slot
+ * is the regular practice time, set once and kept. Checked before anything is written.
  */
 class SendWeeklyReportHandler
 {
@@ -106,6 +111,7 @@ class SendWeeklyReportHandler
         private readonly MarkAttendanceHandler $attendance,
         private readonly SectionPracticeRepository $practices,
         private readonly WeekEvents $weekEvents,
+        private readonly SectionsWithoutSlot $withoutSlot,
     ) {}
 
     /**
@@ -117,6 +123,7 @@ class SendWeeklyReportHandler
      * @throws TrainingSubjectEnforcedException when the platoon enforces a different subject.
      * @throws ReportKpisUnavailableException when the unit's KPIs cannot be reported yet, or the
      *                                        prior week's sent snapshot is unreadable.
+     * @throws PracticeSlotMissingException when a section that needs a weekly practice slot has none.
      * @throws PracticeNotConfirmedException when a section's practice is not confirmed as held or not held.
      */
     public function handle(User $actor, SendWeeklyReport $command): SentWeeklyReport
@@ -144,6 +151,10 @@ class SendWeeklyReportHandler
 
         if (ReportEditWindow::isFrozen($existing)) {
             return new SentWeeklyReport($existing, alreadySent: true);
+        }
+
+        if ($unit->type === UnitType::Section && $this->withoutSlot->among([$unit->id]) !== []) {
+            throw new PracticeSlotMissingException;
         }
 
         $this->refuseUnconfirmedPractice($unit, $weekStart);

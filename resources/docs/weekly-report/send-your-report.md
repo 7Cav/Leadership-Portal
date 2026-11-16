@@ -3,7 +3,7 @@ title: Write and send your report
 summary: Check your numbers, fill in the subject and notes, then freeze and send the report up the chain.
 section: weekly-report
 order: 1
-updated: 2026-11-13
+updated: 2026-11-15
 audience: leader
 page: /reports
 weekly: true
@@ -26,7 +26,7 @@ minutes: 10
 
 ## Work through Ready to send
 
-1. **Ready to send** lists what is still open: roll call complete, practice marked, practice confirmed, unaccounted troopers explained, training subject filled, notes reviewed. Roll call counts only troopers who signed, of those due. Troopers on leave or excused have nothing to sign, so they are left out of both numbers and named after them, as in "Roll call signed by 2 of 3, 2 on LOA". That is how RC leaves them out.
+1. **Ready to send** lists what is still open: roll call complete, practice marked, practice slot set, practice confirmed, unaccounted troopers explained, training subject filled, notes reviewed. Roll call counts only troopers who signed, of those due. Troopers on leave or excused have nothing to sign, so they are left out of both numbers and named after them, as in "Roll call signed by 2 of 3, 2 on LOA". That is how RC leaves them out.
 2. Under **Unaccounted troopers**, pick a reason for each one. When the portal knows why, such as a trooper who moved out of your section this week, left the Cav, or posted leave the sync could not read, that reason is already chosen and the hint says why. Choose **Keep suggested reason**, or pick another. A suggestion you have not kept is not saved or sent.
 3. Fill in the **Training subject**. Last week's subject is offered; choose **Use it again** to keep it. It is the same topic as the roll call's training topic, so one set on the roll call is already here, as are notes and reasons written on its close step. A section's report opens with a summary of its roll call: the training, the topic, the forum thread, and how the week signed and attended, with those on leave or excused named apart.
 4. Write your **Notes to send with this report**.
@@ -42,6 +42,8 @@ minutes: 10
 3. If something is still open and the report must go out anyway, choose **Send anyway**. What was open is recorded with it.
 
 > [!good-to-know] The practice must be confirmed before the report can be sent, even with **Send anyway**. On the roll call, choose **Confirm practice took place** or **Practice did not take place** once the practice is over. A section with nobody on its roll call has nothing to confirm.
+
+> [!good-to-know] A section that plays a game also needs its practice slot, its regular practice time, before the report can be sent, even when the practice did not take place that week. Set it once on the roll call and it is kept every week.
 
 > [!good-to-know] If a trooper asked for a make-up this week and none is recorded, the dialog lists them under **Make-ups still owed**. Answer **Made it up** or **Did not** for each before you send. **Made it up** marks them **Make-up complete** on the roll call; **Did not** leaves their mark as it is. Your answers are kept with the report.
 

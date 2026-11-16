@@ -1546,6 +1546,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
             :post-ready="post.state === 'ready'"
             :counts="counts"
             :confirmed="Boolean(confirmation)"
+            :slot-set="!slotMissing"
             :training-start="trainingStart"
             :topic="training?.subject ?? null"
             :platoon="training?.platoon ?? null"

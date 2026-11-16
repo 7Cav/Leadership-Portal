@@ -39,6 +39,6 @@ Troopers on leave are already locked under **On LOA**. You do not mark them.
 
 1. In step 4, **Close for review**, choose **Copy updated BBCode**, edit your forum post with it, then tick **I edited the forum post**. Ticked it by mistake? Untick it.
 2. Write your notes, and give a reason for anyone who missed practice.
-3. Choose **Close and send for review**. The weekly report opens to send; the next tutorial step walks it.
+3. Choose **Close and send for review**. It opens once your section has a practice slot and the practice is confirmed. The weekly report opens to send; the next tutorial step walks it.
 
 > [!warning] If you change a mark or the topic after posting, the page says the copied BBCode is out of date. Copy it again and edit your forum post.

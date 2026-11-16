@@ -9,7 +9,7 @@ try: Set the slot on roll call
 minutes: 2
 ---
 
-With a practice slot, the portal reads the game server within ten minutes of your practice ending and marks who was there. Without one, you mark everyone by hand and make-ups are not given from the game server.
+With a practice slot, the portal reads the game server within ten minutes of your practice ending and marks who was there. Without one, you mark everyone by hand, make-ups are not given from the game server, and your weekly report can't be sent. You set it once and it is kept every week.
 
 ## Set the slot
 
