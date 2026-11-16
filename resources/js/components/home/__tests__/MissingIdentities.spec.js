@@ -38,6 +38,12 @@ describe('MissingIdentities', () => {
         expect(wrapper.find('[data-testid="missing-identities-link"]').text()).toBe('Link it on Game identities');
     });
 
+    it('asks for the one ID kind a game is read by, by name', () => {
+        const wrapper = mount(MissingIdentities, { props: { own: true, groups: [{ gameId: 4, game: 'Hell Let Loose: Vietnam', kind: 'EOS ID', count: 2, troopers: [{ id: 1, name: 'PFC Snow.G' }, { id: 2, name: 'CPL Walker.TR' }] }] } });
+
+        expect(wrapper.text()).toContain('2 of your troopers have no Hell Let Loose: Vietnam EOS ID linked');
+    });
+
     it('leaves the consequence out for a game whose attendance is marked by hand, per game', () => {
         const wrapper = mount(MissingIdentities, {
             props: {
