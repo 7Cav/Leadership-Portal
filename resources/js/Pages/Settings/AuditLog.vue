@@ -16,7 +16,8 @@ import { forumZulu } from '@/lib/forumDate';
 // Flat entries + option lists (mirrors `StaffGrants.vue`'s flat-props pattern). `entries` is a
 // Laravel paginator serialized as-is — `data` plus the standard pagination metadata — so no
 // reshaping happens here. Each entry's `subject` (or null) names what it is about, `changes` (`[{ field, from, to }]`) lists
-// what it changed, and `link` (`{ href, label }`, or null) is where to see it, all resolved
+// what it changed, `link` (`{ href, label }`, or null) is where to see it, and `page` (the same shape, or null) the page
+// the change was made on, all resolved
 // by the server for the whole page at once.
 const props = defineProps({
     entries: { type: Object, required: true },
@@ -177,6 +178,12 @@ function goTo(url) {
                                 >{{ entry.link.label }}</Link
                             >
                             <div class="font-mono text-muted-foreground" :class="{ 'mt-0.5': entry.link }">{{ entry.target_type }}#{{ entry.target_id }}</div>
+                            <p v-if="entry.page" class="mt-0.5 text-muted-foreground" :data-testid="`page-link-${entry.id}`">
+                                Made on
+                                <Link :href="entry.page.href" class="text-foreground underline underline-offset-2 hover:decoration-2" :title="entry.page.href">{{
+                                    entry.page.label
+                                }}</Link>
+                            </p>
                         </TableCell>
                         <TableCell class="max-w-[28ch] whitespace-normal">
                             <template v-if="entry.reason">{{ entry.reason }}</template>
