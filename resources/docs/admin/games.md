@@ -29,13 +29,15 @@ page: /settings/games
 2. For a game no longer played, choose **Retire**. Its links stay, but no new ones can be made, and it stops being captured.
 3. Choose **Bring back** to reinstate it.
 
-## Set its calendar tags
+## Set its forum calendars and calendar tags
 
-A section's roll call lists the week's events on the 7Cav calendar for the game it plays. **Calendar tags** say which events are the game's.
+A section's roll call lists the week's events on the 7Cav calendar for the game it plays, and a staff report offers them to pick as the FTX, operation or class. The forum files each game's events in its own calendars under Operations, Classes and FTX, such as Operations / Battlefield 6.
 
-1. Choose **Edit** next to the game and fill in **Calendar tags**: the text in a calendar event's title that marks it as the game's, separated by commas, such as `[HLL]` or `SQUAD |`. Case is ignored, and a tag can be anywhere in the title.
-2. Choose **Save changes**. The next roll call that opens lists the game's events.
-3. A game with no tags lists no events. An event whose title names no game, such as a company FTX, is listed for no section.
+1. Choose **Edit** next to the game. Under **Forum calendars**, paste the link of each of its calendars into **Operations**, **Classes** and **FTX**, such as `https://7cav.us/calendar/46/`. Open the calendar on the forum to copy its link. Leave a kind empty when the game has no calendar for it.
+2. **Calendar tags** catch the game's events filed anywhere else: the text in an event's title that marks it as the game's, separated by commas, such as `[HLL]` or `SQUAD |`. Case is ignored, and a tag can be anywhere in the title.
+3. Choose **Save changes**. The calendar sync reads the new calendars within the hour, and the next roll call that opens lists their events.
+
+An event filed in one of the game's calendars is the game's whatever its title says. A game with no calendars and no tags lists no events.
 
 ## Apply existing Steam or Epic links
 
