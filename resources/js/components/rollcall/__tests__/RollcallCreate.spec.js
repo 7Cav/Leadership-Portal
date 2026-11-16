@@ -26,7 +26,7 @@ describe('RollcallCreate (#703)', () => {
         const wrapper = factory();
 
         expect(wrapper.get('[data-testid="create-day"]').element.value).toBe('3');
-        expect(wrapper.get('[data-testid="create-time"]').element.value).toBe('23:00');
+        expect(wrapper.get('[data-testid="create-time"]').element.value).toBe('2300');
         expect(wrapper.findAll('[data-testid="create-day"] option').map((o) => o.text())).toEqual([
             'Sat 14NOV26', 'Sun 15NOV26', 'Mon 16NOV26', 'Tue 17NOV26', 'Wed 18NOV26', 'Thu 19NOV26', 'Fri 20NOV26',
         ]);
@@ -39,6 +39,28 @@ describe('RollcallCreate (#703)', () => {
         expect(input.attributes('placeholder')).toBe("Type this week's training topic");
         expect(input.attributes('aria-label')).toBe('Training topic');
         expect(factory().find('label[for="create-topic"]').exists()).toBe(false);
+    });
+
+    it('keeps a typed topic when the practice slot is set, and takes the date from the new slot', async () => {
+        const wrapper = factory({ slot: null });
+
+        await wrapper.get('[data-testid="create-topic"]').setValue('Land navigation');
+        // Setting the slot reloads the page's props: the slot, and the training as the server has it (no topic yet).
+        await wrapper.setProps({ slot: SLOT, training: { ...TRAINING } });
+
+        expect(wrapper.get('[data-testid="create-topic"]').element.value).toBe('Land navigation');
+        expect(wrapper.get('[data-testid="create-day"]').element.value).toBe('3');
+    });
+
+    it('takes a new topic from the platoon when nothing was typed, and always shows an enforced one', async () => {
+        const wrapper = factory();
+
+        await wrapper.setProps({ training: { ...TRAINING, subject: 'Radio', platoon: '1/C/ACD' } });
+        expect(wrapper.get('[data-testid="create-topic"]').element.value).toBe('Radio');
+
+        await wrapper.get('[data-testid="create-topic"]').setValue('Mine');
+        await wrapper.setProps({ training: { ...TRAINING, subject: 'Convoy', platoon: '1/C/ACD', enforced: true } });
+        expect(wrapper.get('[data-testid="create-topic"]').element.value).toBe('Convoy');
     });
 
     it('creates the roll call with the date as offered and the typed topic', async () => {
@@ -56,7 +78,7 @@ describe('RollcallCreate (#703)', () => {
         const wrapper = factory();
 
         await wrapper.get('[data-testid="create-day"]').setValue('4');
-        await wrapper.get('[data-testid="create-time"]').setValue('20:30');
+        await wrapper.get('[data-testid="create-time"]').setValue('2030');
         await wrapper.get('form').trigger('submit');
         await flushPromises();
 

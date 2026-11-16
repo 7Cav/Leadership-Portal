@@ -18,9 +18,10 @@ interface PracticeCapturePlayerRepository
      * never leaves the earlier run's players behind or duplicates them. A player listed twice is
      * stored once, and so is an ID listed in two letter cases (the first is kept).
      *
-     * `id_source` marks an ID that is not a game ID (`CrconPlayer::$idSource`); absent or null for a game ID.
+     * `id_source` marks an ID that is not a game ID (`CrconPlayer::$idSource`); absent or null for a game ID. `minutes`
+     * is the player's time on the server inside the window (`CrconPlayer::$minutes`); absent or null when not known.
      *
-     * @param  list<array{platform_id: string, player_name: string, trooper_id: ?int, id_source?: ?string}>  $players
+     * @param  list<array{platform_id: string, player_name: string, trooper_id: ?int, id_source?: ?string, minutes?: ?int}>  $players
      */
     public function replaceForPractice(int $practiceId, Game $game, array $players): void;
 

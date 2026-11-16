@@ -121,6 +121,17 @@ describe('Settings/AuditLog', () => {
         expect(wrapper.get('[data-testid="entry-row-1"]').text()).toContain('Unit#7');
     });
 
+    it('links an entry to the page the change was made on, and says nothing when no page was kept', () => {
+        const wrapper = makeWrapper({
+            entries: { ...ENTRIES, data: [{ ...ENTRY, page: { href: '/rollcall/7?week=2026-11-14', label: 'Roll call' } }, { ...ENTRY, id: 2, page: null }] },
+        });
+        const made = wrapper.get('[data-testid="page-link-1"]');
+
+        expect(made.text()).toBe('Made on Roll call');
+        expect(made.get('a').attributes('href')).toBe('/rollcall/7?week=2026-11-14');
+        expect(wrapper.find('[data-testid="page-link-2"]').exists()).toBe(false);
+    });
+
     it('names what an entry is about and lists what it changed, before and after', () => {
         const wrapper = makeWrapper({
             entries: {

@@ -3,7 +3,7 @@ title: Link a trooper's in-game identity
 summary: Record each trooper's player ID, one per game, so the game server's data finds them.
 section: your-troopers
 order: 1
-updated: 2026-11-02
+updated: 2026-11-16
 audience: leader
 page: /game-identities
 ---
@@ -51,7 +51,7 @@ Nothing is linked at all if the ID already belongs to another trooper on one of 
 
 ## Troopers missing an identity
 
-When a trooper you lead has no identity for the game their unit plays, a warning shows at the top of **Home**, of the section's roll call and of the roster, and a warning icon sits beside their name. The game server cannot see them, so their practice attendance and make-ups will not be recorded automatically. Any of the game's ID kinds counts, so a Steam ID or an Epic ID both clear it. Departed troopers, groups such as ELOA or Reservists, and units with no game set are left out. The warning goes away once they are linked here.
+When a trooper you lead has no identity for the game their unit plays, a warning shows at the top of **Home**, of the section's roll call and of the roster, and a warning icon sits beside their name. The game server cannot see them, so their practice attendance and make-ups will not be recorded automatically. Any of the game's ID kinds counts, so a Steam ID or an Epic ID both clear it, except on a game that takes an EOS ID, such as Hell Let Loose: Vietnam. Its servers log every player by their EOS ID, so only an EOS ID clears the warning there, which then asks for one by name. Capture still finds a trooper linked by a Steam, Xbox or PlayStation ID through their game server profile, but link the EOS ID to be sure. Departed troopers, groups such as ELOA or Reservists, and units with no game set are left out. The warning goes away once they are linked here.
 
 ## Change or remove one
 

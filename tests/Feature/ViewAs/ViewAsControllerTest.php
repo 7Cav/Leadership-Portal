@@ -172,6 +172,7 @@ describe('entering and leaving', function () {
             'designation' => '1/A/1-7',
             'unitName' => '1st Platoon',
             'admin' => false,
+            'billet' => null,
             // A leader is never offered act as from their preview.
             'actAs' => false,
         ]));

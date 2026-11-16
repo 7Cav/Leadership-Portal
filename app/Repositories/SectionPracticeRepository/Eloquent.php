@@ -164,6 +164,18 @@ class Eloquent implements SectionPracticeRepository
         return $practice->load('rollcallPostedBy');
     }
 
+    public function postedWithThreadFrom(CarbonInterface $firstWeek): Collection
+    {
+        return SectionPractice::query()
+            ->whereNotNull('rollcall_posted_at')
+            ->whereNotNull('rollcall_thread_url')
+            ->where('is_demo', false)
+            ->where('week_start', '>=', WeekOf::requireStart($firstWeek))
+            ->orderBy('id')
+            ->get()
+            ->toBase();
+    }
+
     public function confirm(SectionPractice $practice, int $userId, bool $held = true): SectionPractice
     {
         $practice->forceFill(['confirmed_at' => now(), 'confirmed_by' => $userId, 'not_held' => ! $held])->save();

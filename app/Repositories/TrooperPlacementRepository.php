@@ -24,11 +24,13 @@ interface TrooperPlacementRepository
      * Record placement changes made at `$at`: for each trooper, the unit they leave and the unit they join (either
      * may be null: a first placement, or a trooper left unplaced). The open row is closed at `$at` and a new open row
      * starts there. A trooper with no history yet gets their old placement recorded first, open-ended into the past,
-     * so their earlier weeks still read against it. A change to the same unit records nothing.
+     * so their earlier weeks still read against it. A change to the same unit records nothing. `$by` is the Admin who
+     * made a manual change, kept on the rows it opens (`placed_by`) and closes (`closed_by`) so Placement changes can
+     * name them; null for the roster sync.
      *
      * @param  array<int, array{0: ?int, 1: ?int}>  $changes  trooper id => [old unit id, new unit id]
      */
-    public function record(array $changes, PlacementSource $source, CarbonInterface $at): void;
+    public function record(array $changes, PlacementSource $source, CarbonInterface $at, ?int $by = null): void;
 
     /**
      * Every placement of one trooper, oldest first, each with its unit loaded (null for a unit since deleted).
@@ -36,6 +38,15 @@ interface TrooperPlacementRepository
      * @return Collection<int, TrooperPlacement>
      */
     public function historyOf(int $trooperId): Collection;
+
+    /**
+     * {@see historyOf()} for every trooper whose placement changed at or after `$since`, with their whole history so a
+     * move can be read against the one before it: trooper id => their rows, oldest first, each with its unit and
+     * trooper loaded. Two queries, however many troopers. What the Admin's list of placement changes reads.
+     *
+     * @return Collection<int, Collection<int, TrooperPlacement>>
+     */
+    public function historiesChangedSince(CarbonInterface $since): Collection;
 
     /**
      * The units, of any type, one trooper was placed in at any moment of the Cav week starting `$weekStart` (audit
@@ -192,7 +203,9 @@ interface TrooperPlacementRepository
      * including) `$until`, in one query (2026-10-30, read by `Kpi\AutoExcused`):
      *
      * - `transfer`: placed into a section, the start of a placement row in a unit of type section. A placement from
-     *   before the history began (`placed_from` null) is not one;
+     *   before the history began (`placed_from` null) is not one. Nor is a move back into the section the trooper was
+     *   already in when that Cav week began, or a stay they left again before the week was over: out and straight
+     *   back is most likely a wrong milpac edit put right;
      * - `recruit`: joined the Cav, by their join date (`troopers.tis`).
      *
      * @param  list<int>  $trooperIds
