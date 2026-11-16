@@ -120,7 +120,7 @@ interface TrooperRepository
      * concurrent placements cannot both win. The returned model is the post-update row, and what the
      * audit envelope's digest is computed from. The placement goes into the placement history in the same transaction.
      */
-    public function place(int $trooperId, int $sectionId): ?Trooper;
+    public function place(int $trooperId, int $sectionId, ?int $by = null): ?Trooper;
 
     /**
      * Which of `$trooperIds` have `$sectionId` as their primary section — the attendance writer

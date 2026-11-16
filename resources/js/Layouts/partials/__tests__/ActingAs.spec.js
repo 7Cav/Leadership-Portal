@@ -40,7 +40,7 @@ describe('act as (#379)', () => {
         page.props = { auth: { user: { id: 1, is_admin: false } }, actingAs: null, viewAs: { kind: 'unit', id: 3, label: '2/1/A/1-7', designation: '2/1/A/1-7', unitName: '2nd Section', admin: false, actAs: false } };
         const banner = mount(ViewAsBanner);
 
-        expect(banner.get('[data-testid="view-as-read-only"]').text()).toBe('. Read only: nothing can be changed while viewing as.');
+        expect(banner.get('[data-testid="view-as-read-only"]').text()).toBe('. This view is read only and nothing can be changed while viewing as.');
         expect(banner.get('[data-testid="view-as-read-only-short"]').text()).toBe('. Read only.');
     });
 

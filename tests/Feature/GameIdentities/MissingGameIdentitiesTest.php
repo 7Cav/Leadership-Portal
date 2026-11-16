@@ -36,23 +36,27 @@ function trooperIn(Unit $unit, array $attributes = []): Trooper
 
 function linkOn(Trooper $trooper, string $slug, array $attributes = []): void
 {
-    TrooperGameIdentity::factory()->create(['trooper_id' => $trooper->id, 'game_id' => game($slug)->id, ...$attributes]);
+    // HLL Vietnam counts an EOS ID only (15NOV26), so a plain link there is one.
+    $eos = $slug === 'hll-vietnam' ? ['id_kind' => 'EOS ID', 'platform_id' => '0002'.bin2hex(random_bytes(14))] : [];
+    TrooperGameIdentity::factory()->create(['trooper_id' => $trooper->id, 'game_id' => game($slug)->id, ...$eos, ...$attributes]);
 }
 
 it('counts a trooper as missing only without an identity on the game their unit plays, inherited or own', function () {
+    // Hell Let Loose (WW2) is read by any of its ID kinds.
+    $this->platoon->forceFill(['game_id' => game('hll')->id])->save();
     $none = trooperIn($this->section);
     $steam = trooperIn($this->section);
     $epic = trooperIn($this->section);
     $wrongGame = trooperIn($this->section);
-    linkOn($steam, 'hll-vietnam');
+    linkOn($steam, 'hll');
     // Any of the game's ID kinds counts.
-    linkOn($epic, 'hll-vietnam', ['id_kind' => 'Epic ID', 'platform_id' => str_repeat('a', 32)]);
-    linkOn($wrongGame, 'hll');
+    linkOn($epic, 'hll', ['id_kind' => 'Epic ID', 'platform_id' => str_repeat('a', 32)]);
+    linkOn($wrongGame, 'hll-vietnam');
 
     $missing = app(MissingGameIdentities::class)->placedIn([$this->section->id]);
 
     expect(array_keys($missing))->toEqualCanonicalizing([$none->id, $wrongGame->id])
-        ->and($missing[$none->id]->slug)->toBe('hll-vietnam');
+        ->and($missing[$none->id]->slug)->toBe('hll');
 });
 
 it("uses a unit's own game over the one above it", function () {
@@ -174,4 +178,20 @@ it('says on the roll call and roster rows whether the missing game is read autom
     $this->actingAs($leader)->get("/roster/{$this->section->id}")->assertInertia(function (Assert $page) use ($missing) {
         expect(collect($page->toArray()['props']['troopers'])->keyBy('id')[$missing->id]['missingGameAutomatic'])->toBeTrue();
     });
+});
+
+// 15NOV26: HLL Vietnam's servers log every player by an EOS ID, so once the game takes EOS IDs only that kind counts.
+it('counts only an EOS ID as linked on a game that takes EOS IDs, and names the kind in the alert', function () {
+    game('hll-vietnam')->forceFill(['id_kinds' => ['Steam ID', 'Epic ID', 'EOS ID']])->save();
+    $steam = trooperIn($this->section);
+    $epic = trooperIn($this->section);
+    $eos = trooperIn($this->section);
+    linkOn($steam, 'hll-vietnam', ['id_kind' => 'Steam ID', 'platform_id' => '76561199046655053']);
+    linkOn($epic, 'hll-vietnam', ['id_kind' => 'Epic ID', 'platform_id' => str_repeat('a', 32)]);
+    linkOn($eos, 'hll-vietnam', ['id_kind' => 'EOS ID', 'platform_id' => '0002'.str_repeat('b', 28)]);
+
+    $missing = app(MissingGameIdentities::class);
+
+    expect(array_keys($missing->placedIn([$this->section->id])))->toEqualCanonicalizing([$steam->id, $epic->id])
+        ->and($missing->summaryFor([$this->section->id])[0])->toMatchArray(['game' => 'Hell Let Loose: Vietnam', 'kind' => 'EOS ID', 'count' => 2]);
 });

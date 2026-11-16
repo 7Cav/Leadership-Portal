@@ -18,13 +18,16 @@ import {
     practiceLabel,
     practiceOf,
     PRACTICE,
+    replyNote,
     sectionStatus,
     SIGNATURES,
     signatureGroups,
     signatureLabel,
+    signatureLine,
     signatureOf,
     stepsOf,
     unlinkedLabel,
+    unrecognisedReplies,
     weeksNeedingWork,
 } from '../rollcall';
 
@@ -310,5 +313,46 @@ describe('the weekly cycle on the new flow (#703)', () => {
         expect(cycleLandingStep([SIGNED], { created: true, postedAt: at }, true)).toBe(4);
         expect(cycleLandingStep([t(3, 'unsigned', 'present')], { created: true, postedAt: at }, false)).toBe(4);
         expect(cycleLandingStep([OPEN], { created: false, sent: true }, true)).toBe(4);
+    });
+});
+
+describe('thread replies', () => {
+    const reply = (answer, url = 'https://7cav.us/posts/9/') => ({ answer, url, postedAt: '2026-10-05T18:00:00+00:00' });
+
+    it('notes a reply with no answer recognised, and one that differs from the signature that stands', () => {
+        expect(replyNote({ rollcall: 'unsigned', reply: reply(null) })).toEqual({ kind: 'unrecognised', label: 'Replied, but no answer recognised', url: 'https://7cav.us/posts/9/' });
+        expect(replyNote({ rollcall: 'cannot_attend', rollcallSource: 'manual', reply: reply('will_attend') })).toEqual({
+            kind: 'differs',
+            label: 'Reply says will attend',
+            url: 'https://7cav.us/posts/9/',
+        });
+    });
+
+    it('says nothing when the reply agrees with the signature, or there is no reply', () => {
+        expect(replyNote({ rollcall: 'will_attend', rollcallSource: 'reply', reply: reply('will_attend') })).toBeNull();
+        expect(replyNote({ rollcall: 'will_attend', reply: null })).toBeNull();
+        expect(replyNote({ rollcall: 'will_attend' })).toBeNull();
+    });
+
+    it('keeps a reply without a link', () => {
+        expect(replyNote({ rollcall: 'unsigned', reply: { answer: null, postedAt: '2026-10-05T18:00:00+00:00' } }).url).toBeNull();
+    });
+
+    it('lists only the replies with no answer recognised', () => {
+        const troopers = [
+            { id: 1, rollcall: 'unsigned', reply: reply(null) },
+            { id: 2, rollcall: 'will_attend', reply: reply('will_attend') },
+            { id: 3, rollcall: 'unsigned', reply: null },
+        ];
+
+        expect(unrecognisedReplies(troopers).map((t) => t.id)).toEqual([1]);
+    });
+
+    it('says on the signature line who signed', () => {
+        expect(signatureLine({ rollcall: 'will_attend', rollcallSource: 'reply' }, 'Will attend')).toBe('Signed in the thread: Will attend');
+        expect(signatureLine({ rollcall: 'will_attend', rollcallSource: 'manual' }, 'Will attend')).toBe('Signed: Will attend');
+        expect(signatureLine({ rollcall: 'will_attend', rollcallSource: null }, 'Will attend')).toBe('Signed: Will attend');
+        expect(signatureLine({ rollcall: 'unsigned' }, 'Unsigned')).toBe('Not signed yet');
+        expect(signatureLine({ rollcall: 'excused' }, 'Excused')).toBe('Excused this week');
     });
 });

@@ -421,7 +421,7 @@ describe('trooper detail (Sheet)', function () {
             ->assertJsonPath('trooper.weeks.19.section', '1/1/A/1-7')
             ->assertJsonPath('trooper.kpis.sp', [2, 2])
             ->assertJsonPath('trooper.kpis.rc', [2, 3])
-            ->assertJsonPath('trooper.transfers', [['at' => '2026-09-30T18:00:00Z', 'from' => '1/2/A/1-7', 'to' => '1/1/A/1-7']]);
+            ->assertJsonPath('trooper.transfers', [['at' => '2026-09-30T18:00:00Z', 'from' => '1/2/A/1-7', 'to' => '1/1/A/1-7', 'reversedAt' => null, 'reverses' => false]]);
     });
 
     it('gives the first day of a leave starting next Cav week, for the "Leave from" chip, and null without one', function () {

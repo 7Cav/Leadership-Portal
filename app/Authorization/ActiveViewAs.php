@@ -16,6 +16,7 @@ final readonly class ActiveViewAs
      * @param  ?string  $designation  the unit the preview is anchored to, when there is one
      * @param  ?string  $unitName  that unit's name
      * @param  bool  $admin  whether the previewed view is an Admin's (a unit's leader never is)
+     * @param  ?string  $billet  the previewed person's billet, as the banner names them (`Chief of Staff`), when known
      */
     public function __construct(
         public ViewAsTarget $target,
@@ -24,6 +25,7 @@ final readonly class ActiveViewAs
         public ?string $designation,
         public ?string $unitName,
         public bool $admin,
+        public ?string $billet = null,
     ) {}
 
     /**
@@ -34,13 +36,13 @@ final readonly class ActiveViewAs
      */
     public function narrowedTo(Collection $ceiling): self
     {
-        return new self($this->target, $this->scope->intersect($ceiling)->values(), $this->label, $this->designation, $this->unitName, $this->admin);
+        return new self($this->target, $this->scope->intersect($ceiling)->values(), $this->label, $this->designation, $this->unitName, $this->admin, $this->billet);
     }
 
     /**
      * The shape the shell receives as the shared `viewAs` prop.
      *
-     * @return array{kind: string, id: int, label: string, designation: ?string, unitName: ?string, admin: bool}
+     * @return array{kind: string, id: int, label: string, designation: ?string, unitName: ?string, admin: bool, billet: ?string}
      */
     public function toArray(): array
     {
@@ -51,6 +53,7 @@ final readonly class ActiveViewAs
             'designation' => $this->designation,
             'unitName' => $this->unitName,
             'admin' => $this->admin,
+            'billet' => $this->billet,
         ];
     }
 }

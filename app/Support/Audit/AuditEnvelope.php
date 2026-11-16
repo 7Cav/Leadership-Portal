@@ -16,6 +16,8 @@ use Closure;
  *
  * While an Admin acts as someone (#379), an action done as that person is recorded with the Admin as actor and the
  * person as `on_behalf_of` ({@see ActingFor}), so the log always names who really did it.
+ *
+ * Each entry also keeps the portal page the change was made on ({@see AuditPage}), so the log can link to it.
  */
 class AuditEnvelope
 {
@@ -35,7 +37,7 @@ class AuditEnvelope
 
         [$actorId, $onBehalfOf, $onBehalfOfUnit] = $this->acting->attribute($actorId);
 
-        return $this->auditLog->recordWithMutation($actorId, $action, $reason, $mutation, $onBehalfOf, $onBehalfOfUnit);
+        return $this->auditLog->recordWithMutation($actorId, $action, $reason, $mutation, $onBehalfOf, $onBehalfOfUnit, page: AuditPage::current());
     }
 
     /**
@@ -50,7 +52,7 @@ class AuditEnvelope
     {
         [$actorId, $onBehalfOf, $onBehalfOfUnit] = $this->acting->attribute($actorId);
 
-        $this->auditLog->recordWithMutation($actorId, $action, null, fn () => $target, $onBehalfOf, $onBehalfOfUnit, $notes);
+        $this->auditLog->recordWithMutation($actorId, $action, null, fn () => $target, $onBehalfOf, $onBehalfOfUnit, $notes, AuditPage::current());
     }
 
     /**
@@ -68,6 +70,6 @@ class AuditEnvelope
 
         [$actorId, $onBehalfOf, $onBehalfOfUnit] = $this->acting->attribute($actorId);
 
-        return $this->auditLog->recordBatchWithMutation($actorId, $action, $reason, $mutation, $onBehalfOf, $onBehalfOfUnit);
+        return $this->auditLog->recordBatchWithMutation($actorId, $action, $reason, $mutation, $onBehalfOf, $onBehalfOfUnit, AuditPage::current());
     }
 }
