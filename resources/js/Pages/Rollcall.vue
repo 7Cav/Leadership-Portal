@@ -1410,7 +1410,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
 
         <MissingIdentityNotice :troopers="rows" />
         <!-- Not dismissible: it goes away once the section has a slot. -->
-        <WarningBanner v-if="slotMissing" class="mt-3" data-testid="slot-missing-banner">
+        <WarningBanner v-if="slotMissing" level="critical" class="mt-3" data-testid="slot-missing-banner">
             <p class="font-semibold">This section has no practice slot set</p>
             <p v-if="practiceSlotAutomatic" data-testid="slot-missing-consequence">Without a slot, its practices aren't captured automatically and make-ups aren't given from the game server.</p>
             <template v-if="canWrite" #action>

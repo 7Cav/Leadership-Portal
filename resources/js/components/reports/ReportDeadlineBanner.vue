@@ -33,12 +33,12 @@ const dueLabel = computed(() => `${forumDateTime(props.due)}Z`);
 <template>
     <div
         v-if="deadline"
-        class="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg border px-3.5 py-2 text-[13px]"
-        :class="deadline.overdue ? 'border-destructive/35 bg-destructive/7' : 'border-warning/35 bg-warning/8'"
+        class="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg px-3.5 py-2 text-[13px]"
+        :class="deadline.overdue ? 'border-[1.5px] border-alert-critical bg-warning/10' : 'border-[1.5px] border-alert-high bg-warning/10'"
         data-testid="report-deadline"
         :data-state="deadline.overdue ? 'overdue' : 'due'"
     >
-        <component :is="deadline.overdue ? PhWarning : PhClockCountdown" class="size-4 shrink-0" :class="deadline.overdue ? 'text-destructive' : 'text-warning'" aria-hidden="true" />
+        <component :is="deadline.overdue ? PhWarning : PhClockCountdown" class="size-4 shrink-0" :class="deadline.overdue ? 'text-alert-critical' : 'text-alert-high'" weight="fill" aria-hidden="true" />
         <p class="min-w-0 flex-1">
             <span class="font-semibold">{{ deadline.text }}</span>
             <span class="text-muted-foreground"> (due {{ dueLabel }})</span>

@@ -48,6 +48,11 @@
     --info: hsl(206 64% 40%);
     /* The "Changelog outdated" bar: a saturated blue under white text (8.5:1 contrast), apart from the calmer --info. */
     --changelog: #1100ff;
+    /* Alert banners by urgency (16NOV26): the outline and icon of a banner whose fill stays muted. Red blocks the week or
+       is late, orange breaks something until fixed, yellow is a heads-up. Bright in both themes. */
+    --alert-critical: hsl(0 84% 52%);
+    --alert-high: hsl(25 98% 52%);
+    --alert-medium: hsl(48 98% 54%);
 
     --sidebar: hsl(75 10% 95.5%);
     --sidebar-foreground: hsl(75 12% 16%);
@@ -147,6 +152,9 @@
     --color-warning: var(--warning);
     --color-info: var(--info);
     --color-changelog: var(--changelog);
+    --color-alert-critical: var(--alert-critical);
+    --color-alert-high: var(--alert-high);
+    --color-alert-medium: var(--alert-medium);
     --color-gold-ink: var(--gold-ink);
 
     /* The status palette by meaning (AC: good / warn / bad / info / neutral), for the
