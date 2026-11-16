@@ -226,7 +226,16 @@ function onFireteams({ fireteams: options, troopers }) {
 
 // The players still waiting for a trooper: leaves the list as the leader links or dismisses them.
 const unmatchedPlayers = ref(props.unmatched);
-watch(() => props.unmatched, (unmatched) => (unmatchedPlayers.value = unmatched));
+// Players linked from the drawer since the page loaded, kept there greyed out with an Undo: `{ player, trooperId,
+// trooperName, replaced, clearMark, restoreMissed }`. A reload drops them, as the link is then simply made.
+const linkedPlayers = ref([]);
+watch(
+    () => props.unmatched,
+    (unmatched) => {
+        unmatchedPlayers.value = unmatched;
+        linkedPlayers.value = [];
+    },
+);
 const showUnmatched = computed(() => Boolean(props.capture) && unmatchedPlayers.value.length > 0);
 // How many are left, for the stepper and the review step (#176): a leader on any step sees that someone who was
 // online is not accounted for yet. It follows the drawer, so it drops as each player is linked or dismissed.
@@ -236,7 +245,9 @@ const unlinkedCount = computed(() => (showUnmatched.value ? unmatchedPlayers.val
 const dismissedPlayers = ref(props.dismissed);
 watch(() => props.dismissed, (dismissed) => (dismissedPlayers.value = dismissed));
 const showDrawer = computed(
-    () => Boolean(props.capture) && (unmatchedPlayers.value.length > 0 || dismissedPlayers.value.length > 0 || props.departed.length > 0),
+    () =>
+        Boolean(props.capture) &&
+        (unmatchedPlayers.value.length > 0 || dismissedPlayers.value.length > 0 || linkedPlayers.value.length > 0 || props.departed.length > 0),
 );
 
 const liveAtRisk = ref(props.atRisk);
@@ -387,9 +398,19 @@ function beforeLink(trooperId) {
 // The server linked the player and pre-marked the trooper (a manual mark is kept, so the row takes
 // what the server says it now holds), unless the leader's own mark is newer than that answer: still
 // queued or held, or set while the link was in flight. That mark saves as manual and wins.
-function onLinked({ player, marked, trooper, atRisk }) {
+function onLinked({ player, marked, trooper, before, replaced, atRisk }) {
     unmatchedPlayers.value = unmatchedPlayers.value.filter((p) => !sameUnmatched(p, player));
     const row = rows.value.find((t) => t.id === trooper.id);
+    const entry = {
+        player,
+        trooperId: trooper.id,
+        trooperName: row ? displayName(row) : `trooper ${trooper.id}`,
+        replaced: replaced ?? null,
+        clearMark: Boolean(marked),
+        restoreMissed: before?.status === 'missed' && before?.source === 'auto',
+    };
+    linkedPlayers.value = [...linkedPlayers.value.filter((e) => !sameUnmatched(e.player, player)), entry];
+    const undo = { label: 'Undo', onClick: () => undoLink(entry) };
     const newerHere = autosave.isPending(trooper.id, 'status') || (practiceEdits.get(trooper.id) ?? 0) !== (editsAtLink.get(trooper.id) ?? 0);
     editsAtLink.delete(trooper.id);
     if (row && trooper.status && !newerHere) {
@@ -399,10 +420,45 @@ function onLinked({ player, marked, trooper, atRisk }) {
     }
     liveAtRisk.value = atRisk ?? liveAtRisk.value;
     const name = row ? displayName(row) : `trooper ${trooper.id}`;
-    if (newerHere) toast.success(`Linked ${player.playerName} to ${name}`, { description: 'The mark you just set stays.' });
-    else if (marked) toast.success(`Linked ${player.playerName} to ${name}`, { description: 'Marked attended for this practice.' });
-    else if (confirmation.value) toast.success(`Linked ${player.playerName} to ${name}`, { description: 'The practice is confirmed, so its marks were not changed.' });
-    else toast.success(`Linked ${player.playerName} to ${name}`, { description: 'Their existing mark was kept.' });
+    if (newerHere) toast.success(`Linked ${player.playerName} to ${name}`, { description: 'The mark you just set stays.', action: undo });
+    else if (marked) toast.success(`Linked ${player.playerName} to ${name}`, { description: 'Marked attended for this practice.', action: undo });
+    else if (confirmation.value) toast.success(`Linked ${player.playerName} to ${name}`, { description: 'The practice is confirmed, so its marks were not changed.', action: undo });
+    else toast.success(`Linked ${player.playerName} to ${name}`, { description: 'Their existing mark was kept.', action: undo });
+}
+
+// Undo a link made from the drawer, from its toast or its greyed-out row: the player is unmatched again, the trooper
+// keeps the ID they had before, and the attended mark the link gave goes back unless someone changed it since.
+// Resolves whether it worked; a refusal is said in a toast.
+async function undoLink(entry) {
+    if (!linkedPlayers.value.includes(entry)) return false;
+    const result = await postJson(`/rollcall/${props.section.id}/unmatched/unlink`, {
+        week: props.week.date,
+        platform: entry.player.platform,
+        platform_id: entry.player.platformId,
+        trooper_id: entry.trooperId,
+        replaced: entry.replaced,
+        clear_mark: entry.clearMark,
+        restore_missed: entry.restoreMissed,
+    }).catch(unreachable);
+    if (!result.ok) {
+        toast.error(`Could not undo linking ${entry.player.playerName}`, { description: messageFor(result) });
+
+        return false;
+    }
+    linkedPlayers.value = linkedPlayers.value.filter((e) => e !== entry);
+    unmatchedPlayers.value = moveTo(unmatchedPlayers.value, entry.player);
+    const { trooper, cleared, atRisk } = result.data ?? {};
+    const row = rows.value.find((t) => t.id === entry.trooperId);
+    if (row && trooper && cleared && !autosave.isPending(entry.trooperId, 'status')) {
+        Object.assign(row, { status: trooper.status ?? null, source: trooper.source ?? null });
+        if (posted.value) editedSincePost.value = true;
+    }
+    liveAtRisk.value = atRisk ?? liveAtRisk.value;
+    toast.success(`Unlinked ${entry.player.playerName}`, {
+        description: cleared ? `${entry.trooperName}'s attended mark was taken back.` : entry.clearMark ? `${entry.trooperName}'s mark was changed since, so it stays.` : `${entry.trooperName}'s mark is unchanged.`,
+    });
+
+    return true;
 }
 
 // Both lists are kept in the server's order, by name, so a player moved between them lands where a reload puts them.
@@ -685,6 +741,24 @@ function onCreated({ flow, training: saved, practiceSlot }) {
     training.value = saved;
     slotOverride.value = practiceSlot;
     go(2);
+}
+
+// Unticking "I edited the forum post" after a misclick (#766): the server puts back the stamp the tick replaced, so a
+// reload, and command, see the post as not edited again. Before the tick the post needed editing, or was never stamped.
+async function unmarkEdited() {
+    posting.value = true;
+    try {
+        const result = await postJson(`/rollcall/${props.section.id}/posted/undo`, { week: props.week.date }).catch(unreachable);
+        if (result.ok) {
+            posted.value = result.data?.posted ?? null;
+            editedSincePost.value = posted.value !== null;
+        } else {
+            toast.error('Could not untick it', { description: messageFor(result) });
+            if (result.status === 409 && result.data?.locked) router.reload();
+        }
+    } finally {
+        posting.value = false;
+    }
 }
 
 // "Mark as posted, continue" on the post step: the same stamp as "Mark roll call posted", then on to sign and mark.
@@ -1506,6 +1580,7 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
             :sending="sendingForReview"
             @copy="copyBbcode"
             @mark-posted="markPosted"
+            @unmark-edited="unmarkEdited"
             @send="sendForReview"
             :troopers="orderedRows"
             :draft="reportDraft"
@@ -1933,6 +2008,8 @@ const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOw
                     :editable="editable"
                     :disabled-reason="readOnlyReason"
                     :before-link="beforeLink"
+                    :linked="linkedPlayers"
+                    :undo-link="undoLink"
                     @linked="onLinked"
                     @dismissed="onDismissed"
                 />

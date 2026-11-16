@@ -121,7 +121,8 @@ export function toggleTag(source, start, end, name) {
 
         return { source: result, start: map(start), end: map(end) };
     }
-    const tag = name.toUpperCase();
+    // Lowercase, as every tag the portal writes (15NOV26); the forum reads either case.
+    const tag = name.toLowerCase();
 
     return wrap(source, start, end, `[${tag}]`, `[/${tag}]`);
 }
@@ -135,17 +136,21 @@ export function toggleTag(source, start, end, name) {
 export function setOption(source, start, end, name, value) {
     const option = String(value).trim();
     if (!bbcodeElement(name, option)) return null;
-    const open = `[${name.toUpperCase()}=${option}]`;
+    const open = `[${name.toLowerCase()}=${option}]`;
 
     const found = enclosing(buildDoc(source), start, end, tagName(name));
     if (found) {
         const { node } = found;
-        const { source: result, map } = apply(source, [{ start: node.start, end: node.openEnd, text: open }]);
+        const { source: result, map } = apply(source, [
+            { start: node.start, end: node.openEnd, text: open },
+            // Its close too, so an older uppercase pair does not end up half lowercase.
+            { start: node.closeStart, end: node.end, text: `[/${name.toLowerCase()}]` },
+        ]);
 
         return { source: result, start: map(start), end: map(end) };
     }
 
-    return wrap(source, start, end, open, `[/${name.toUpperCase()}]`);
+    return wrap(source, start, end, open, `[/${name.toLowerCase()}]`);
 }
 
 /**
@@ -246,9 +251,9 @@ export function toSourceOffset(source, place) {
 export function insertLink(source, start, end, address) {
     if (!usableAddress(address)) return null;
     const written = String(address).trim();
-    if (start === end) return replace(source, start, end, `[URL=${written}]${written}[/URL]`);
+    if (start === end) return replace(source, start, end, `[url=${written}]${written}[/url]`);
 
-    return wrap(source, start, end, `[URL=${written}]`, '[/URL]', true);
+    return wrap(source, start, end, `[url=${written}]`, '[/url]', true);
 }
 
 const ONE_CODE = /^\{\{[a-z_]+\}\}$/;
@@ -262,7 +267,7 @@ export function insertImage(source, start, end, address) {
     const written = String(address).trim();
     if (!ONE_CODE.test(written) && !usableAddress(written)) return null;
 
-    return replace(source, start, end, `[IMG]${written}[/IMG]`);
+    return replace(source, start, end, `[img]${written}[/img]`);
 }
 
 /**
@@ -278,10 +283,10 @@ export function insertCode(source, start, end, entry) {
     return wrap(source, start, end, entry.open, entry.close, true);
 }
 
-const TABLE = `[TABLE]
-[TR][TH]#[/TH][TH]Name[/TH][TH]Signed RC[/TH][TH]Attended SP[/TH][/TR]
-{{#troopers}}[TR][TD]{{n}}[/TD][TD]{{display_name}}[/TD][TD]{{rc}}[/TD][TD]{{sp}}[/TD][/TR]
-{{/troopers}}[/TABLE]`;
+const TABLE = `[table]
+[tr][th]#[/th][th]Name[/th][th]Signed RC[/th][th]Attended SP[/th][/tr]
+{{#troopers}}[tr][td]{{n}}[/td][td]{{display_name}}[/td][td]{{rc}}[/td][td]{{sp}}[/td][/tr]
+{{/troopers}}[/table]`;
 
 /**
  * A trooper table at the cursor: a header row and one row repeated for each trooper. Not inside the trooper loop, where
@@ -335,12 +340,14 @@ export function addColumn(source, place) {
 
     const edits = found.rows.map((entries) => {
         const { cell, span } = entries[found.index];
+        // In the case of the cell it follows, so an older uppercase table stays one case; lowercase otherwise.
+        const name = source.slice(span.start + 1, span.start + 3) === cell.name.toUpperCase() ? cell.name.toUpperCase() : cell.name;
 
-        return { start: span.end, end: span.end, text: cell.name === 'th' ? '[TH]Column[/TH]' : '[TD][/TD]' };
+        return { start: span.end, end: span.end, text: cell.name === 'th' ? `[${name}]Column[/${name}]` : `[${name}][/${name}]` };
     });
     const { source: result, map } = apply(source, edits);
     const { cell, span } = found.row[found.index];
-    const start = map(span.end) + '[TH]'.length;
+    const start = map(span.end) + '[th]'.length;
 
     return { source: result, start, end: cell.name === 'th' ? start + 'Column'.length : start };
 }

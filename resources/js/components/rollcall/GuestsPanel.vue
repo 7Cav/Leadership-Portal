@@ -43,6 +43,8 @@ const MAKEUP_ADDED = {
     kept: 'Their own roll call already had a mark for this week, so it stayed.',
     locked: 'Their own section\'s week is locked, so no make-up was recorded there.',
     pending: 'Their own section\'s roll call gets Make-up complete once this practice is over.',
+    staff: 'HQ staff have no roll call of their own, so no make-up is needed. Their staff report is still theirs to send.',
+    none: 'They have no section roll call this week, so no make-up is needed.',
 };
 const MAKEUP_REMOVED = {
     withdrawn: 'The Make-up complete it put on their own roll call was taken back.',
@@ -147,7 +149,7 @@ async function add(trooper) {
         }
         const guest = result.data.guest;
         list.value = [...list.value.filter((g) => g.trooperId !== guest.trooperId), guest].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '', undefined, { sensitivity: 'base' }));
-        toast.success(`Added ${label(guest)} as a guest`, { description: MAKEUP_ADDED[result.data.makeup] ?? MAKEUP_ADDED.marked });
+        toast.success(`Added ${label(guest)} as a ${guest.staffGuest ? 'staff guest' : 'guest'}`,{ description: MAKEUP_ADDED[result.data.makeup] ?? MAKEUP_ADDED.marked });
         closePicker();
     } finally {
         busy.value = null;
@@ -200,7 +202,7 @@ async function undo(guest) {
                     <span class="text-xs font-normal text-muted-foreground tabular-nums">{{ list.length }}</span>
                 </h3>
                 <p class="mt-0.5 max-w-[62ch] text-xs text-muted-foreground">
-                    Add troopers from other sections who attended. Each one counts as Make-up complete on their own section's roll call. The
+                    Add anyone from outside this section who attended. A trooper from another section counts as Make-up complete on their own roll call. The
                     game server does not add guests yet; it will once practices have set times. Staff who attended are listed from their
                     own entries and never count here.{{
                         disabledReason ? ` ${disabledReason}.` : ''
@@ -228,7 +230,7 @@ async function undo(guest) {
                     autocomplete="off"
                     spellcheck="false"
                     :maxlength="MAX_CHARS"
-                    placeholder="Find a trooper from another section by name"
+                    placeholder="Find a trooper by name"
                     aria-label="Find a guest by name"
                     data-testid="guest-search"
                 />
@@ -246,7 +248,7 @@ async function undo(guest) {
             </p>
             <p v-else-if="status === 'throttled'" role="alert" class="mt-2 text-xs text-muted-foreground">Too many searches in a short time. Wait a moment, then keep typing.</p>
             <p v-else-if="!results.length" class="mt-2 text-xs text-muted-foreground" data-testid="guest-search-empty">
-                No serving trooper in another section matches "{{ query.trim() }}".
+                No trooper outside this section matches "{{ query.trim() }}".
             </p>
             <ul v-else class="mt-2 divide-y divide-border rounded-md border border-border" data-testid="guest-results">
                 <li v-for="trooper in results" :key="trooper.id">
@@ -261,7 +263,7 @@ async function undo(guest) {
                         <span class="min-w-0 truncate font-medium">{{ trooper.name }}</span>
                         <span class="ml-auto shrink-0 font-mono text-xs text-muted-foreground">
                             <template v-if="trooper.listed">Already listed</template>
-                            <template v-else>{{ trooper.section ?? 'No section' }}</template>
+                            <template v-else>{{ trooper.section ?? 'No section' }}<template v-if="trooper.serving === false"> · not serving</template></template>
                         </span>
                         <PhCircleNotch v-if="busy === trooper.id" class="size-3.5 animate-spin" aria-hidden="true" />
                     </button>
@@ -282,9 +284,12 @@ async function undo(guest) {
                     <Badge variant="secondary" class="font-normal" data-testid="guest-source">{{ guest.staffGuest ? 'Staff guest' : 'Guest' }}</Badge>
                     <span class="text-xs text-muted-foreground" data-testid="guest-staff-note">Staff, not counted here</span>
                 </template>
-                <Badge v-else variant="outline" class="font-normal" data-testid="guest-source">
-                    <template v-if="guest.recordedBy">Added by {{ guest.recordedBy }}</template><template v-else>Added by hand</template>
-                </Badge>
+                <template v-else>
+                    <Badge v-if="guest.staffGuest" variant="secondary" class="font-normal" data-testid="guest-staff-guest">Staff guest</Badge>
+                    <Badge variant="outline" class="font-normal" data-testid="guest-source">
+                        <template v-if="guest.recordedBy">Added by {{ guest.recordedBy }}</template><template v-else>Added by hand</template>
+                    </Badge>
+                </template>
                 <span v-if="guest.source === 'manual' && guest.makeupMissing" class="text-xs text-muted-foreground" data-testid="guest-makeup-missing">
                     No make-up on their own roll call yet
                 </span>

@@ -169,7 +169,8 @@ class HandleInertiaRequests extends Middleware
             // user last opened it; `changelogOutdated` shows a changelog editor, signed in as themselves, the blue
             // "Changelog outdated" bar after a redeploy nobody has written an entry for or dismissed.
             'changelogUnseen' => fn () => $request->user() !== null && $this->changelog->hasUnseen($request->user()),
-            'changelogOutdated' => fn () => $request->user() !== null && $this->changelog->showsOutdated($request->user()),
+            // Never in the tutorial: its practice copy of the database has no record of the deploy being acknowledged.
+            'changelogOutdated' => fn () => $request->user() !== null && ! $this->sandbox->entered() && $this->changelog->showsOutdated($request->user()),
             // The header's bell: how many of the user's own notifications are unread, or null to hide the bell during a
             // view-as preview, while an Admin acts as someone, or in the tutorial, whose database is the practice copy
             // (the list is read when the bell opens, `/notifications`).

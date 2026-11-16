@@ -61,12 +61,12 @@ it('still accepts a template saved with the retired sp_attached flag, so it keep
 });
 
 it('starts each trooper with their rank insignia, only when Cav has one, so a missing icon prints no empty [IMG]', function () {
-    expect(TemplateSyntax::STARTER)->toContain('[TD]{{#rank_icon}}[IMG width="{{rank_icon_width}}" height="auto"]{{rank_icon}}[/IMG] {{/rank_icon}}{{rank}} {{name}}[/TD]');
+    expect(TemplateSyntax::STARTER)->toContain('[td]{{#rank_icon}}[img width="{{rank_icon_width}}" height="auto"]{{rank_icon}}[/img] {{/rank_icon}}{{rank}} {{name}}[/td]');
 });
 
 it('adds a Role column to the starter only when the section shows fireteam leaders', function () {
-    expect(TemplateSyntax::STARTER)->toContain('[TH]Name[/TH]{{#fireteams_shown}}[TH]Role[/TH]{{/fireteams_shown}}[TH]Signed RC[/TH]')
-        ->and(TemplateSyntax::STARTER)->toContain('{{name}}[/TD]{{#fireteams_shown}}[TD]{{role}}[/TD]{{/fireteams_shown}}[TD]');
+    expect(TemplateSyntax::STARTER)->toContain('[th]Name[/th]{{#fireteams_shown}}[th]Role[/th]{{/fireteams_shown}}[th]Signed RC[/th]')
+        ->and(TemplateSyntax::STARTER)->toContain('{{name}}[/td]{{#fireteams_shown}}[td]{{role}}[/td]{{/fireteams_shown}}[td]');
 });
 
 it('accepts the fireteams flag as a section anywhere, never printed', function () {

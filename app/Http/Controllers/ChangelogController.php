@@ -10,7 +10,9 @@ use App\Commands\Changelog\ChangelogExport;
 use App\Commands\Changelog\ChangelogSettings;
 use App\Docs\SafeMarkdown;
 use App\Models\ChangelogEntry;
+use App\Models\User;
 use App\Repositories\ChangelogRepository;
+use App\Tutorial\TutorialSandbox;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -38,14 +40,24 @@ class ChangelogController extends Controller
         private readonly ChangelogRepository $changelog,
         private readonly ChangelogAccess $access,
         private readonly ScopeResolver $scope,
+        private readonly TutorialSandbox $sandbox,
     ) {}
+
+    /**
+     * Whether `$user` may write the changelog here: an editor as {@see ChangelogAccess::mayEdit()} says, and not in the
+     * tutorial, whose practice copy would lose every entry on exit (#766).
+     */
+    private function mayEdit(User $user): bool
+    {
+        return $this->access->mayEdit($user) && ! $this->sandbox->entered();
+    }
 
     public function index(Request $request, SafeMarkdown $markdown): Response
     {
         $user = $request->user();
-        $editor = $this->access->mayEdit($user);
+        $editor = $this->mayEdit($user);
         $technicalEnabled = $this->changelog->technicalEnabled();
-        $mayManage = $this->access->mayManageSettings($user);
+        $mayManage = $this->access->mayManageSettings($user) && ! $this->sandbox->entered();
 
         if ($request->attributes->get(ActAs::ADMIN_ATTRIBUTE) === null && $this->scope->activeViewAs($user) === null) {
             $this->changelog->markSeen($user->id, now());
@@ -232,8 +244,8 @@ class ChangelogController extends Controller
     /** The Admin setting: whether technical entries are available to everyone. */
     public function settings(Request $request, ChangelogSettings $command): RedirectResponse
     {
-        if (! $this->access->mayManageSettings($request->user())) {
-            abort(403, 'Only an Admin, signed in as themselves, may change the changelog settings.');
+        if (! $this->access->mayManageSettings($request->user()) || $this->sandbox->entered()) {
+            abort(403, 'Only an Admin, signed in as themselves and not in the tutorial, may change the changelog settings.');
         }
         $data = $request->validate(['technical_enabled' => ['required', 'boolean']]);
 
@@ -261,8 +273,10 @@ class ChangelogController extends Controller
 
     private function authorizeEditor(Request $request): void
     {
-        if (! $this->access->mayEdit($request->user())) {
-            abort(403, 'Only the changelog editors may change the changelog, signed in as themselves.');
+        if (! $this->mayEdit($request->user())) {
+            abort(403, $this->sandbox->entered()
+                ? 'The changelog cannot be changed in the tutorial. Exit the tutorial first.'
+                : 'Only the changelog editors may change the changelog, signed in as themselves.');
         }
     }
 

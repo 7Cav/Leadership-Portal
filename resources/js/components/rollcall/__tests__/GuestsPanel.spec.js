@@ -47,6 +47,16 @@ describe('GuestsPanel', () => {
         expect(wrapper.find('[data-testid="guest-8"] [data-testid="guest-undo"]').exists()).toBe(true);
     });
 
+    it('labels HQ staff a leader added as a staff guest, with Undo, and a plain hand-added guest without the label', () => {
+        const manual = (trooperId, staffGuest) => ({ trooperId, name: `Hand${trooperId}.H`, displayName: `SFC Hand${trooperId}.H`, rank: 'SFC', section: '1/A/1-7', source: 'manual', recordedBy: 'Host.L', makeupMissing: false, staffGuest });
+        const wrapper = factory({ guests: [manual(30, true), manual(31, false)] });
+
+        expect(wrapper.find('[data-testid="guest-30"] [data-testid="guest-staff-guest"]').text()).toBe('Staff guest');
+        expect(wrapper.find('[data-testid="guest-30"] [data-testid="guest-source"]').text()).toBe('Added by Host.L');
+        expect(wrapper.find('[data-testid="guest-30"] [data-testid="guest-undo"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="guest-31"] [data-testid="guest-staff-guest"]').exists()).toBe(false);
+    });
+
     it('lists staff who attended as a staff guest or a guest, shown only, with nothing to undo', () => {
         const staff = (trooperId, staffGuest) => ({ trooperId, name: `Staff${trooperId}.S`, displayName: `SGT Staff${trooperId}.S`, rank: 'SGT', section: '1/A/1-7', source: 'staff', recordedBy: 'Staff.S', makeupMissing: false, staffGuest });
         const wrapper = factory({ guests: [SEEN, staff(20, true), staff(21, false)] });
@@ -93,6 +103,20 @@ describe('GuestsPanel', () => {
         await flushPromises();
 
         expect(toastSuccess).toHaveBeenCalledWith('Added PFC Visitor.V as a guest', { description: "Their own section's roll call gets Make-up complete once this practice is over." });
+    });
+
+    it('offers someone no longer serving, says so, and adds them with no make-up', async () => {
+        answerSearch([{ id: 70, name: 'Former.F', rank: 'SPC', section: '1/1/B/1-7', serving: false }]);
+        post.mockResolvedValue({ ok: true, status: 200, data: { guest: { trooperId: 70, name: 'Former.F', displayName: 'SPC Former.F', rank: 'SPC', section: '1/1/B/1-7', source: 'manual', recordedBy: 'Host.L', staffGuest: false }, makeup: 'none' } });
+        const wrapper = factory();
+
+        await search(wrapper, 'for');
+        expect(wrapper.find('[data-testid="guest-result-70"]').text()).toContain('1/1/B/1-7 · not serving');
+
+        await wrapper.find('[data-testid="guest-result-70"]').trigger('click');
+        await flushPromises();
+
+        expect(toastSuccess).toHaveBeenCalledWith('Added SPC Former.F as a guest', { description: 'They have no section roll call this week, so no make-up is needed.' });
     });
 
     it('says why a guest was refused, and keeps the list as it was', async () => {
@@ -152,7 +176,7 @@ describe('GuestsPanel', () => {
     it('asks for hand entries and does not promise that the game server adds guests', () => {
         const text = factory().text();
 
-        expect(text).toContain('Add troopers from other sections who attended.');
+        expect(text).toContain('Add anyone from outside this section who attended.');
         expect(text).toContain('The game server does not add guests yet; it will once practices have set times.');
     });
 

@@ -82,7 +82,7 @@ describe('the visual surface', () => {
 
         expect(loop).not.toBeNull();
         expect(loop.querySelector('[data-edge="open"]').textContent).toContain('Repeats for each trooper');
-        expect(loop.querySelectorAll('tr[data-open="[TR]"]')).toHaveLength(1);
+        expect(loop.querySelectorAll('tr[data-open="[tr]"]')).toHaveLength(1);
         expect(root.querySelector('tbody[data-section="troopers"][data-inverted]').querySelector('[data-edge="open"]').textContent).toContain('When the section has no troopers');
     });
 

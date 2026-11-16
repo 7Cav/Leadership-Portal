@@ -34,7 +34,9 @@ it('freezes the previous starter without LOA on the roll call, and the current o
     $previous = (new ReflectionClassConstant(require database_path('migrations/2026_11_19_095000_publish_starter_marks_on_default_template.php'), 'CURRENT'))->getValue();
 
     expect(rcLoaBody('SEEDED'))->toBe($previous)->not->toContain('rc_loa')
-        ->and(rcLoaBody('CURRENT'))->toBe(TemplateSyntax::STARTER)->toContain('{{#rc_loa}}LOA{{/rc_loa}}');
+        ->and(rcLoaBody('CURRENT'))->toContain('{{#rc_loa}}LOA{{/rc_loa}}')
+        // The starter since is this one with its tags lowercase (2026_11_29_100002).
+        ->and((require database_path('migrations/2026_11_29_100002_lowercase_bbcode_in_portal_templates.php'))->lowercaseTags(rcLoaBody('CURRENT')))->toBe(TemplateSyntax::STARTER);
 });
 
 it('publishes the starter with LOA on an unchanged regiment default, and rolls back', function () {
@@ -42,7 +44,7 @@ it('publishes the starter with LOA on an unchanged regiment default, and rolls b
 
     rcLoaMigration()->up();
 
-    expect(activeRollcallVersion($default))->toMatchObject(['version' => 2, 'body' => TemplateSyntax::STARTER, 'created_by' => null]);
+    expect(activeRollcallVersion($default))->toMatchObject(['version' => 2, 'body' => rcLoaBody('CURRENT'), 'created_by' => null]);
 
     rcLoaMigration()->down();
 

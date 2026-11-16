@@ -7,6 +7,7 @@ use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Commands\Attendance\RollcallWeekLockedException;
 use App\Models\CrossSectionSighting;
 use App\Models\SectionPractice;
+use App\Models\Trooper;
 use App\Models\User;
 use App\Repositories\AuditedBatch;
 use App\Repositories\CrossSectionSightingRepository;
@@ -26,8 +27,8 @@ use Carbon\CarbonImmutable;
  * is recorded and acted on exactly like a capture sighting, with `source = manual` and the leader as `recorded_by`.
  *
  * Refused before anything is written: a host section outside the actor's write scope (AD-8, 403), a unit that is not a
- * section, a week before `WeekOf::floor()`, a trooper who is unknown, not serving, unplaced or in the host section
- * itself ({@see GuardsHostPractice}), and a trooper already recorded at this practice by the capture or as staff (a
+ * section, a week before `WeekOf::floor()`, a trooper who is unknown or on the host section's own rollcall
+ * that week ({@see GuardsHostPractice}), and a trooper already recorded at this practice by the capture or as staff (a
  * staff entry from before they moved into a section is named as one, since it shows on their milpac page, not here). Then one audited
  * transaction (`guest.recorded`, AD-16, target the host practice, digest over the new entry): a host week whose report
  * was really sent is refused first, under the report's shared lock (AD-12, `RollcallWeekLockedException`, as every
@@ -101,7 +102,7 @@ class RecordGuestAttendanceHandler
                 throw RollcallWeekLockedException::for($command->sectionId, $weekStart);
             }
 
-            return $this->withMakeup($listed, $existing, $trooper->id, $actor->id);
+            return $this->withMakeup($listed, $existing, $trooper, $actor->id);
         }
 
         $practice = null;
@@ -132,7 +133,7 @@ class RecordGuestAttendanceHandler
             },
         );
 
-        return $this->withMakeup($sighting, $practice, $trooper->id, $actor->id);
+        return $this->withMakeup($sighting, $practice, $trooper, $actor->id);
     }
 
     /**
@@ -147,15 +148,22 @@ class RecordGuestAttendanceHandler
     }
 
     /** The automatic makeup on the guest's own rollcall, through the capture's own path, and what became of it. */
-    private function withMakeup(CrossSectionSighting $sighting, SectionPractice $practice, int $trooperId, int $actorId): RecordedGuest
+    private function withMakeup(CrossSectionSighting $sighting, SectionPractice $practice, Trooper $trooper, int $actorId): RecordedGuest
     {
+        // Only a trooper whose own section takes a makeup gets one: HQ staff and everyone else are listed only (15NOV26).
+        $kind = $this->guestKind($trooper, $practice->week_start, $this->units, $this->troopers);
+
+        if ($kind !== 'section') {
+            return new RecordedGuest(sighting: $sighting, practice: $practice, makeup: $kind);
+        }
+
         $end = PracticeTiming::hourEnd($practice->week_start, $practice, $this->slots->forSection($practice->section_id));
 
         if ($end !== null && $end->greaterThan(CarbonImmutable::now())) {
             return new RecordedGuest(sighting: $sighting, practice: $practice, makeup: 'pending');
         }
 
-        $makeups = $this->attendance->preMarkMakeups($practice, [$trooperId], $actorId);
+        $makeups = $this->attendance->preMarkMakeups($practice, [$trooper->id], $actorId);
 
         return new RecordedGuest(
             sighting: $sighting,

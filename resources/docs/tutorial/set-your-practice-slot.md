@@ -14,7 +14,7 @@ With a practice slot, the portal reads the game server within ten minutes of you
 ## Set the slot
 
 1. On **Roll call**, choose the pencil next to the practice time, or next to **No practice slot**.
-2. Pick the weekday and the start time in Zulu, then choose **Save slot**.
+2. Pick the weekday and type the start time in Zulu as 24-hour time, such as 2300, then choose **Save slot**.
 
 A section practice is always one hour. A trooper counts as attended after 40 minutes on the server during that hour, unless your battalion set another minimum.
 

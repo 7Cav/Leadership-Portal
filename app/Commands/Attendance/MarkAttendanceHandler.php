@@ -548,6 +548,45 @@ class MarkAttendanceHandler
         return $outcome;
     }
 
+    /**
+     * Take back the attended mark {@see preMark()} gave `$trooperId` when a leader linked an unmatched player, as that
+     * leader undoes the link: through {@see AttendanceRepository::clearPracticeAuto()}, so only a mark nobody changed
+     * since goes, back to an automatic `missed` when that is what it was before (`$restoreMissed`), else to unmarked.
+     * Nothing changes in a week before `WeekOf::floor()`, a week whose report was really sent (AD-12) or a practice its
+     * leader confirmed (7.8): checked first and again under the locks, a refusal rolling back without an entry. Audited
+     * as `attendance.auto_unmarked`, as a withdrawn makeup is. Returns whether the mark was taken back.
+     */
+    public function undoPreMark(SectionPractice $practice, int $trooperId, bool $restoreMissed, int $triggeredBy): bool
+    {
+        $sectionId = $practice->section_id;
+        $weekStart = $practice->week_start;
+
+        if (WeekOf::isBeforeFloor($weekStart) || $this->reports->isSentFor($sectionId, $weekStart) || $this->practices->findById($practice->id)?->confirmed_at !== null) {
+            return false;
+        }
+
+        try {
+            $this->audit->recordBatch($triggeredBy, 'attendance.auto_unmarked', null, false, function () use ($practice, $sectionId, $weekStart, $trooperId, $restoreMissed) {
+                if ($this->reports->isSentFor($sectionId, $weekStart)) {
+                    throw RollcallWeekLockedException::for($sectionId, $weekStart);
+                }
+
+                if ($this->practices->lockById($practice->id)?->confirmed_at !== null) {
+                    throw new PracticeConfirmedMeanwhileException($practice);
+                }
+
+                // Nothing to take back: thrown so the audited transaction rolls back without an empty entry.
+                $cleared = $this->attendance->clearPracticeAuto($practice, $trooperId, $restoreMissed) ?? throw new NoAutoMakeupException;
+
+                return new AuditedBatch($practice, $cleared);
+            });
+        } catch (RollcallWeekLockedException|PracticeConfirmedMeanwhileException|NoAutoMakeupException) {
+            return false;
+        }
+
+        return true;
+    }
+
     /** {@see withdrawMakeup()} for one practice holding the makeup. */
     private function withdrawMakeupFrom(SectionPractice $practice, int $trooperId, CarbonImmutable $weekStart, int $triggeredBy): MakeupWithdrawal
     {

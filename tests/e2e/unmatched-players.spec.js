@@ -64,7 +64,8 @@ test('a section leader links unmatched players to troopers, replacing an old ID 
     await expect(page.getByTestId('unmatched-banner')).toHaveCount(0);
 
     // A dismissal can be undone (#176): from the toast...
-    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    // The dismissal's own toast: the link toasts and the linked rows have an Undo of their own (#760).
+    await page.locator('[data-sonner-toast]').filter({ hasText: 'Dismissed ' }).getByRole('button', { name: 'Undo', exact: true }).click();
     await expect(rando).toBeVisible();
     await expect(count).toHaveText('1 unmatched player');
 

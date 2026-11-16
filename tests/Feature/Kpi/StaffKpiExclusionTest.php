@@ -1,6 +1,5 @@
 <?php
 
-use App\Commands\Guests\GuestAttendanceRefusedException;
 use App\Commands\Guests\RecordGuestAttendance;
 use App\Commands\Guests\RecordGuestAttendanceHandler;
 use App\Kpi\ChainNode;
@@ -8,6 +7,7 @@ use App\Kpi\KpiService;
 use App\Kpi\ReportChain;
 use App\Kpi\ReportSnapshot;
 use App\Kpi\RollupKpis;
+use App\Models\Attendance;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\RollcallSignature;
@@ -27,7 +27,7 @@ use Illuminate\Support\Carbon;
 
 // HQ staff and groups are counted in strength on the org page and roster, but are on no rollcall and are not measured
 // (decided 2026-10-24): a non-leaf's live KPIs stay the sum of its sections', so they still equal the sum of the
-// children's sent snapshots, and a group is never a report, a rollcall or a guest.
+// children's sent snapshots, and a group is never a report or a rollcall. Both may be listed as guests, with no makeup (15NOV26).
 
 function skWeek(): CarbonImmutable
 {
@@ -106,13 +106,15 @@ it('keeps HQ staff off every rollcall and refuses a group\'s rollcall and report
     $this->actingAs($admin)->get("/reports/{$this->eloa->id}/2026-10-03")->assertNotFound();
 });
 
-it('never offers or accepts HQ staff or a group member as a guest', function () {
+it('offers HQ staff and a group member as a guest, but gives neither a makeup or a place in any measure (15NOV26)', function () {
     $onLeave = skPlace($this->eloa, ['username' => 'Brendel.E', 'status' => TrooperStatus::Eloa]);
     $admin = User::factory()->admin()->create();
+    $before = app(KpiService::class)->forUnit($this->platoon, skWeek());
+    $handler = app(RecordGuestAttendanceHandler::class);
 
-    expect(app(TrooperRepository::class)->searchGuests('Bren', $this->s1->id, 10)->modelKeys())->toBe([])
-        ->and(fn () => app(RecordGuestAttendanceHandler::class)->handle($admin, new RecordGuestAttendance($this->s1->id, skWeek(), $this->pl->id)))
-        ->toThrow(GuestAttendanceRefusedException::class)
-        ->and(fn () => app(RecordGuestAttendanceHandler::class)->handle($admin, new RecordGuestAttendance($this->s1->id, skWeek(), $onLeave->id)))
-        ->toThrow(GuestAttendanceRefusedException::class);
+    expect(app(TrooperRepository::class)->searchGuests('Bren', $this->s1->id, 10)->modelKeys())->toBe([$onLeave->id, $this->pl->id])
+        ->and($handler->handle($admin, new RecordGuestAttendance($this->s1->id, skWeek(), $this->pl->id))->makeup)->toBe('staff')
+        ->and($handler->handle($admin, new RecordGuestAttendance($this->s1->id, skWeek(), $onLeave->id))->makeup)->toBe('none')
+        ->and(Attendance::query()->whereIn('trooper_id', [$this->pl->id, $onLeave->id])->exists())->toBeFalse()
+        ->and(app(KpiService::class)->forUnit($this->platoon, skWeek()))->toEqual($before);
 });

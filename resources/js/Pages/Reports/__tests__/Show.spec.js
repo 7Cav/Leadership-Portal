@@ -877,7 +877,18 @@ describe('Reports/Show deadline banner', () => {
     it('says how long an unsent report is overdue', () => {
         vi.useFakeTimers({ now: new Date('2026-10-12T00:30:00Z') });
 
-        expect(mountShow().find('[data-testid="report-deadline"]').text()).toContain('Report overdue by 24 h');
+        const wrapper = mountShow();
+        expect(wrapper.find('[data-testid="report-deadline"]').text()).toContain('Report overdue by 24 h');
+        // The banner says it; the header does not say "Deadline passed" as well.
+        expect(wrapper.find('[data-testid="countdown"]').exists()).toBe(false);
+    });
+
+    it('says "Deadline passed" once the week has left the overdue window and the banner is gone', () => {
+        vi.useFakeTimers({ now: new Date('2026-11-02T00:00:00Z') });
+        const wrapper = mountShow();
+
+        expect(wrapper.find('[data-testid="report-deadline"]').exists()).toBe(false);
+        expect(wrapper.get('[data-testid="countdown"]').text()).toBe('Deadline passed');
     });
 
     it('hides for a sent report and while more than a day is left', () => {

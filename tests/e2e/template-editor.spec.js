@@ -181,9 +181,9 @@ test('a leader formats text with the keyboard alone, through the toolbar and its
     await expect(page.getByTestId('tool-size-5')).toBeFocused();
     await page.keyboard.press('Enter');
 
-    await expect(page.getByTestId('template-visual').locator('[data-open="[SIZE=5]"]')).toHaveText('Roll');
+    await expect(page.getByTestId('template-visual').locator('[data-open="[size=5]"]')).toHaveText('Roll');
     await page.getByTestId('template-mode-source').click();
-    await expect(page.getByTestId('template-body')).toHaveValue('[SIZE=5]Roll[/SIZE] call');
+    await expect(page.getByTestId('template-body')).toHaveValue('[size=5]Roll[/size] call');
 });
 
 test('in the Source tab the toolbar edits through the browser, so Ctrl+Z takes it back', async ({ page }) => {
@@ -198,7 +198,7 @@ test('in the Source tab the toolbar edits through the browser, so Ctrl+Z takes i
     });
 
     await page.getByTestId('tool-bold').click();
-    await expect(body).toHaveValue('aa bb [B]aa[/B]\nsecond line');
+    await expect(body).toHaveValue('aa bb [b]aa[/b]\nsecond line');
     await expect(body).toBeFocused();
 
     await page.keyboard.press('ControlOrMeta+z');

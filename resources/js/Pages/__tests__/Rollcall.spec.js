@@ -1401,9 +1401,30 @@ describe('Rollcall page', () => {
             await wrapper.find('[data-testid="unmatched-link"]').trigger('click');
             await flushPromises();
 
-            expect(wrapper.find('[data-testid="unmatched-drawer"]').exists()).toBe(false);
+            // The player stays in the drawer, greyed out with an Undo, until the page reloads.
+            expect(wrapper.find('[data-testid="linked-list"]').text()).toContain('Linked to');
             expect(wrapper.find('[data-testid="unmatched-banner"]').exists()).toBe(false);
             expect(wrapper.find('[data-trooper="3"]').text()).toContain('Attended');
+        });
+
+        it('undoes a link from its row: posts what to put back, lists the player again and takes the mark back', async () => {
+            post.mockResolvedValueOnce({ ok: true, status: 200, data: { marked: true, trooper: { id: 3, status: 'present', source: 'auto' }, before: { status: 'missed', source: 'auto' }, atRisk: [] } });
+            const wrapper = factory({ capture: CAPTURE, unmatched: UNMATCHED });
+            await chooseSearch(wrapper, 'unmatched-trooper', '3');
+            await wrapper.find('[data-testid="unmatched-link"]').trigger('click');
+            await flushPromises();
+
+            post.mockResolvedValueOnce({ ok: true, status: 200, data: { cleared: true, trooper: { id: 3, status: 'missed', source: 'auto' }, atRisk: [] } });
+            await wrapper.find('[data-testid="undo-link"]').trigger('click');
+            await flushPromises();
+
+            expect(post).toHaveBeenLastCalledWith('/rollcall/12/unmatched/unlink', {
+                week: expect.any(String), platform: UNMATCHED[0].platform, platform_id: UNMATCHED[0].platformId, trooper_id: 3, replaced: null, clear_mark: true, restore_missed: true,
+            });
+            expect(wrapper.find('[data-testid="linked-list"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="unmatched-banner"]').exists()).toBe(true);
+            expect(wrapper.find('[data-trooper="3"] button[data-value="missed"]').attributes('aria-pressed')).toBe('true');
+            expect(wrapper.find('[data-trooper="3"] button[data-value="present"]').attributes('aria-pressed')).toBe('false');
         });
 
         describe('the unlinked count in the stepper (#176)', () => {
@@ -1554,7 +1575,7 @@ describe('Rollcall page', () => {
             expect(post.mock.calls.map(([url]) => url)).toEqual(['/rollcall/12', '/rollcall/12/unmatched/link']);
             expect(post.mock.calls[0][1]).toEqual({ week: '2026-10-03', marks: [{ trooper_id: 3, status: 'missed' }] });
             expect(pressed(wrapper, 'missed')).toBe('true');
-            expect(toastSuccess).toHaveBeenLastCalledWith('Linked Trooper1 to Trooper3.A', { description: 'Their existing mark was kept.' });
+            expect(toastSuccess).toHaveBeenLastCalledWith('Linked Trooper1 to Trooper3.A', expect.objectContaining({ description: 'Their existing mark was kept.', action: expect.objectContaining({ label: 'Undo' }) }));
         });
 
         it('keeps a mark the leader sets while the link is in flight', async () => {
@@ -1571,7 +1592,7 @@ describe('Rollcall page', () => {
 
             expect(pressed(wrapper, 'makeup')).toBe('true');
             expect(pressed(wrapper, 'present')).toBe('false');
-            expect(toastSuccess).toHaveBeenLastCalledWith('Linked Trooper1 to Trooper3.A', { description: 'The mark you just set stays.' });
+            expect(toastSuccess).toHaveBeenLastCalledWith('Linked Trooper1 to Trooper3.A', expect.objectContaining({ description: 'The mark you just set stays.' }));
         });
     });
 
@@ -2387,7 +2408,7 @@ describe('Rollcall page: a week on each flow (#703)', () => {
     const TRAINING = { subject: 'Land navigation', enforced: false, platoon: '1st Platoon', canEdit: true };
     const REPORT = { due: '2026-10-10T23:59:00+00:00', overdueUntil: '2026-10-31T00:00:00+00:00', sent: false, href: '/reports/12/2026-10-03' };
     const CREATED = { version: 2, created: { at: '2026-10-04T10:00:00+00:00', by: 'Vasquez.R' } };
-    const POSTED = { lastMarkedAt: null, posted: { at: '2026-10-04T11:00:00+00:00', by: 'Vasquez.R' } };
+    const POSTED = { lastMarkedAt: null, posted: { at: '2026-10-04T11:00:00+00:00', by: 'Vasquez.R', canUndo: true } };
     const cycle = (props = {}) => factory({ practiceSlot: SLOT, training: TRAINING, report: REPORT, flow: { version: 2, created: null }, ...props });
     const stepTitles = (wrapper) => wrapper.findAll('[data-step]').map((b) => b.text());
 
@@ -2509,6 +2530,19 @@ describe('Rollcall page: a week on each flow (#703)', () => {
 
         expect(visit).not.toHaveBeenCalled();
         expect(toastWarning).toHaveBeenCalledWith('Save the training topic first', expect.anything());
+    });
+
+    it('puts the previous posted stamp back on the server when "I edited the forum post" is unticked (#766)', async () => {
+        page.url = '/rollcall/12?step=4';
+        const wrapper = cycle({ flow: CREATED, practice: POSTED });
+        expect(wrapper.get('[data-testid="close-edited"]').attributes('data-state')).toBe('checked');
+        post.mockResolvedValue({ ok: true, status: 200, data: { posted: { at: '2026-10-03T09:00:00+00:00', by: 'Vasquez.R', threadUrl: null } } });
+
+        wrapper.findComponent({ name: 'RollcallClose' }).vm.$emit('unmark-edited');
+        await flushPromises();
+
+        expect(post).toHaveBeenCalledWith('/rollcall/12/posted/undo', { week: '2026-10-03' });
+        expect(wrapper.get('[data-testid="close-edited"]').attributes('data-state')).toBe('unchecked');
     });
 
     it('sends the forum thread link with the post, and the close step links to it', async () => {

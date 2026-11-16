@@ -17,7 +17,7 @@ import { displayName, signatureOf } from '@/lib/rollcall';
 // reasons for anyone unaccounted for and the make-up checks are asked there, as always). Sending locks signatures and
 // marks (AD-12); an edit of the report reopens the roll call.
 const props = defineProps({
-    // `{ at, by, threadUrl }` of the latest "posted" stamp, or null.
+    // `{ at, by, threadUrl, canUndo }` of the latest "posted" stamp, or null.
     posted: { type: Object, default: null },
     // Marks or the post changed since that stamp: the forum post needs editing again.
     editedSincePost: { type: Boolean, default: false },
@@ -47,7 +47,7 @@ const props = defineProps({
     draft: { type: Object, default: () => ({ notes: null, unaccounted: [], reasons: [] }) },
 });
 
-const emit = defineEmits(['copy', 'mark-posted', 'send', 'update:draft']);
+const emit = defineEmits(['copy', 'mark-posted', 'unmark-edited', 'send', 'update:draft']);
 
 // Who missed practice with no make-up (mockup 703-4): each is reported with a reason, as on the weekly report.
 const missed = computed(() => unaccountedTroopers(props.troopers));
@@ -67,6 +67,14 @@ const trainingLabel = computed(() => {
     return props.topic ? `${date} · ${props.topic}` : date;
 });
 const edited = computed(() => Boolean(props.posted) && !props.editedSincePost);
+// Why the tick cannot change: it needs the copy first, or, once ticked, there is no edit to undo (the post itself is
+// current, or the undo was used), as the server says with `posted.canUndo` (#766).
+const editedTitle = computed(() => {
+    if (!edited.value && !props.copied) return 'Copy the updated BBCode first';
+    if (edited.value && !props.posted?.canUndo) return 'Your forum post already has every mark. There is no edit to undo.';
+
+    return undefined;
+});
 const allMarked = computed(() => props.counts.total > 0 && props.counts.unmarked === 0);
 const checks = computed(() => [
     ...(props.slotSet ? [] : [{ key: 'slot', label: 'Practice slot set', done: false }]),
@@ -77,8 +85,10 @@ const checks = computed(() => [
 ]);
 const destination = computed(() => (props.platoon ? `${props.platoon} staff` : 'Platoon Staff'));
 
+// Ticking stamps the post as edited; unticking (a misclick) puts the step back to needing the edit.
 function onEdited(value) {
     if (value && !edited.value) emit('mark-posted');
+    if (!value && edited.value) emit('unmark-edited');
 }
 </script>
 
@@ -123,8 +133,8 @@ function onEdited(value) {
                     <label class="ml-auto inline-flex items-center gap-2 text-[13px]">
                         <Checkbox
                             :model-value="edited"
-                            :disabled="edited || Boolean(disabledReason) || posting || !copied"
-                            :title="!copied && !edited ? 'Copy the updated BBCode first' : undefined"
+                            :disabled="Boolean(disabledReason) || posting || (!edited && !copied) || (edited && !posted?.canUndo)"
+                            :title="editedTitle"
                             data-testid="close-edited"
                             @update:model-value="onEdited"
                         />

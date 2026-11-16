@@ -94,7 +94,7 @@ Once the roll call is marked posted with its thread link, the portal reads the r
 The header shows when your section practices, in Zulu, with your own time beside it. A section practice is always one hour.
 
 1. Choose the pencil next to the practice time (or next to **No practice slot**).
-2. Pick the weekday and the start time in Zulu, then choose **Save slot**. **Remove slot** takes it away.
+2. Pick the weekday and type the start time in Zulu as 24-hour time, such as 2300, then choose **Save slot**. **Remove slot** takes it away.
 3. To change one week only, use **This week only**: pick another day and time in the same Cav week and choose **Move this week**, or choose **Cancel this week**. **Back to the usual time** undoes either.
 
 A change or removal never touches a week before the one it starts with: those weeks keep the slot they had. The editor always names the first week it changes. On the current week that is this week, unless the game server already read it or its report was sent (or reopened for editing): it then keeps its time and the new slot starts with the next Cav week, shown in the header as, for example, "Practice Wed 23 59Z from 07NOV26". Opened from a past week, the editor changes the weekly slot from the first week it can, not that past week. This week only cannot be used on a week whose report was sent.
@@ -124,10 +124,10 @@ The practice slot is kept in Zulu, so when daylight saving starts or ends where 
 
 ## Guests and make-ups
 
-1. A trooper from another section who came to your practice is a guest. It records **Make-up complete** on their own section's roll call. See [Add a guest to practice](/docs/weekly-rollcall/add-a-guest).
+1. Anyone from outside your section who came to your practice is a guest. A trooper from another section gets **Make-up complete** on their own section's roll call. HQ staff, ELOA, Reservists and troopers no longer serving are listed with no make-up. See [Add a guest to practice](/docs/weekly-rollcall/add-a-guest).
 2. With a practice slot set, the game server adds guests by itself: a trooper from another section who was on the server for at least 40 minutes of your practice hour (or the minimum your battalion set) gets **Make-up complete** on their own roll call. A trooper whose own section practises at the same time on the same server is at their own practice, not a make-up.
 3. On your own roll call, a make-up the portal recorded says which practice it came from, for example "Make-up at 1/2/B/2-7, seen on the game server". You can change it like any mark, and the portal does not put it back.
-4. Staff who say they attended show as **Staff guest**, marked **Staff, not counted here**.
+4. Staff who say they attended show as **Staff guest**, marked **Staff, not counted here**. HQ staff you add yourself show as **Staff guest** too, when your section is under their HQ.
 5. A guest added before the practice is over gets their make-up once the practice hour ends.
 6. If a guest's make-up did not reach their own roll call, choose **Retry make-up**.
 7. Once the practice is confirmed, its guests can no longer change.
@@ -150,7 +150,7 @@ The practice slot is kept in Zulu, so when daylight saving starts or ends where 
 On the new roll call, closing the week is sending its weekly report.
 
 1. When everyone is signed and marked, confirm the practice, then choose **Continue to close** (or step 4, **Close for review**).
-2. Under **A. Update your forum post**, choose **Copy updated BBCode**, edit your roll call post on the forum with it (**Open your forum post** takes you there when you gave its link), then tick **I edited the forum post**.
+2. Under **A. Update your forum post**, choose **Copy updated BBCode**, edit your roll call post on the forum with it (**Open your forum post** takes you there when you gave its link), then tick **I edited the forum post**. Ticked it by mistake? Untick it.
 3. Under **B. Weekly report for Platoon Staff**, check the training and the attendance it will report, write your **Notes to send with this report**, and choose a reason for each trooper who missed practice. They save as you type and are the report's own notes and reasons.
 4. Under **Before you close**, check **Practice slot set** (listed only while your section has none), **Practice confirmed**, **Every trooper has a mark**, **Forum post edited** and a reason for each trooper who missed. **Close and send for review** opens once the section has a practice slot and the practice is confirmed.
 5. Choose **Close and send for review**. The report opens with its send window: answer any make-up still owed, then send it. See [Write and send your report](/docs/weekly-report/send-your-report).

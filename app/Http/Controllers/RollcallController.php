@@ -17,6 +17,8 @@ use App\Commands\Attendance\MarkRollcallPosted;
 use App\Commands\Attendance\MarkRollcallPostedForbiddenException;
 use App\Commands\Attendance\MarkRollcallPostedHandler;
 use App\Commands\Attendance\RollcallWeekLockedException;
+use App\Commands\Attendance\UndoRollcallPosted;
+use App\Commands\Attendance\UndoRollcallPostedHandler;
 use App\Commands\Capture\AutomaticAttendance;
 use App\Commands\Capture\CaptureRetryForbiddenException;
 use App\Commands\Capture\CaptureRetryRefusedException;
@@ -34,6 +36,8 @@ use App\Commands\GameIdentities\LinkUnmatchedPlayer;
 use App\Commands\GameIdentities\LinkUnmatchedPlayerHandler;
 use App\Commands\GameIdentities\RestoreDismissedPlayer;
 use App\Commands\GameIdentities\RestoreDismissedPlayerHandler;
+use App\Commands\GameIdentities\UndoUnmatchedLink;
+use App\Commands\GameIdentities\UndoUnmatchedLinkHandler;
 use App\Commands\GameIdentities\UnmatchedPlayerResolutionException;
 use App\Commands\Practices\ConfirmClockChange;
 use App\Commands\Practices\PracticeSchedule;
@@ -408,6 +412,37 @@ class RollcallController extends Controller
     }
 
     /**
+     * Unticking "I edited the forum post" (#766): puts back the posted stamp the tick replaced, one audited Command.
+     * Answers the stamp now on record (null when the tick was the first), or a 409 with `locked` once the report is sent.
+     */
+    public function unposted(Request $request, int $unit, UndoRollcallPostedHandler $handler): JsonResponse
+    {
+        $validator = Validator::make($request->all(), ['week' => ['required', 'date_format:Y-m-d']]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => $validator->errors()->first()], 422);
+        }
+
+        $weekStart = $this->requestedWeek($request->input('week'), WeekOf::start(CarbonImmutable::now()));
+
+        try {
+            $practice = $handler->handle($request->user(), new UndoRollcallPosted($unit, $weekStart));
+        } catch (MarkRollcallPostedForbiddenException $e) {
+            return response()->json(['message' => $e->getMessage()], 403);
+        } catch (InvalidAttendanceMarkException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (RollcallWeekLockedException $e) {
+            return response()->json(['message' => $e->getMessage(), 'locked' => true], 409);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'The portal hit an error undoing the posted mark. Reload to see whether it was undone.'], 500);
+        }
+
+        return response()->json(['posted' => $this->postedProps($practice)]);
+    }
+
+    /**
      * The leader confirms the practice's marks as reviewed (Story 7.8): one audited Command,
      * scope-gated (AD-8). Marking it again re-stamps. Answers the confirmation for the badge, or a
      * 409 with `locked` once the section's report for the week has been sent (AD-12).
@@ -549,6 +584,15 @@ class RollcallController extends Controller
         $game = $this->games->findBySlug($request->input('platform')) ?? abort(404);
         $trooperId = (int) $request->input('trooper_id');
 
+        // The trooper's mark before the link, so the screen can offer an Undo that puts back an automatic `missed`.
+        try {
+            $before = $this->practices->find($unit, $weekStart);
+            $before = $before ? $this->attendance->forPractice($before)->firstWhere('trooper_id', $trooperId) : null;
+        } catch (Throwable $e) {
+            report($e);
+            $before = null;
+        }
+
         try {
             $result = $handler->handle($request->user(), new LinkUnmatchedPlayer(
                 $unit, $weekStart, $game, $request->input('platform_id'), $trooperId, $request->boolean('replace'),
@@ -590,6 +634,67 @@ class RollcallController extends Controller
 
         return response()->json([
             'marked' => $result->marked > 0,
+            'trooper' => ['id' => $trooperId, 'status' => $mark?->status?->value, 'source' => $mark?->source?->value],
+            // What the mark was before the link: an Undo puts an automatic `missed` back, and leaves anything else unmarked.
+            'before' => ['status' => $before?->status?->value, 'source' => $before?->source?->value],
+            'atRisk' => $atRisk,
+        ]);
+    }
+
+    /**
+     * A leader undoes a link they made from the unmatched list: the player is unmatched again, the trooper keeps the ID
+     * they had before (`replaced`) or none, and the attended mark the link gave goes back to what it was, unless anyone
+     * changed it since. Audited through the same writers as the link.
+     */
+    public function unlinkUnmatched(Request $request, int $unit, UndoUnmatchedLinkHandler $handler): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'week' => ['required', 'date_format:Y-m-d'],
+            'platform' => ['required', 'string', 'exists:games,slug'],
+            'platform_id' => ['required', 'string', 'max:255'],
+            'trooper_id' => ['required', 'integer'],
+            'replaced' => ['nullable', 'string', 'max:255'],
+            'clear_mark' => ['sometimes', 'boolean'],
+            'restore_missed' => ['sometimes', 'boolean'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => $validator->errors()->first(), 'errors' => $validator->errors()], 422);
+        }
+
+        $weekStart = $this->requestedWeek($request->input('week'), WeekOf::start(CarbonImmutable::now()));
+        $game = $this->games->findBySlug($request->input('platform')) ?? abort(404);
+        $trooperId = (int) $request->input('trooper_id');
+
+        try {
+            $cleared = $handler->handle($request->user(), new UndoUnmatchedLink(
+                $unit, $weekStart, $game, $request->input('platform_id'), $trooperId, $request->input('replaced'),
+                $request->boolean('clear_mark'), $request->boolean('restore_missed'),
+            ));
+        } catch (GameIdentityForbiddenException $e) {
+            return response()->json(['message' => $e->getMessage()], 403);
+        } catch (UnmatchedPlayerResolutionException|GameRetiredException|InvalidGameIdentityException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (GameIdentityLinkException) {
+            return response()->json(['message' => $this->collisionMessage($game, (string) $request->input('replaced'))], 422);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'The portal hit an error undoing this link. Reload to see whether it was undone, and check their mark.'], 500);
+        }
+
+        try {
+            $practice = $this->practices->find($unit, $weekStart);
+            $mark = $practice ? $this->attendance->forPractice($practice)->firstWhere('trooper_id', $trooperId) : null;
+            $atRisk = $this->atRisk($this->units->find($unit), $weekStart);
+        } catch (Throwable $e) {
+            report($e);
+            $mark = null;
+            $atRisk = null;
+        }
+
+        return response()->json([
+            'cleared' => $cleared,
             'trooper' => ['id' => $trooperId, 'status' => $mark?->status?->value, 'source' => $mark?->source?->value],
             'atRisk' => $atRisk,
         ]);
@@ -691,6 +796,8 @@ class RollcallController extends Controller
             'at' => $practice->rollcall_posted_at->toIso8601String(),
             'by' => $practice->rollcallPostedBy?->username,
             'threadUrl' => $practice->rollcall_thread_url,
+            // Whether unticking "I edited the forum post" can put back the stamp this one replaced (#766).
+            'canUndo' => is_array($practice->rollcall_post_undo) && ($practice->rollcall_post_undo['at'] ?? null) !== null,
         ];
     }
 

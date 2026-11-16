@@ -103,6 +103,12 @@ interface SectionPracticeRepository
     public function markRollcallPosted(SectionPractice $practice, int $userId, ?string $threadUrl = null): SectionPractice;
 
     /**
+     * Puts back the posted stamp the last {@see markRollcallPosted()} replaced, once: the undo is used up. Null when
+     * there is nothing to undo: none was replaced (the first stamp is the post itself), or it was undone already.
+     */
+    public function undoRollcallPosted(SectionPractice $practice): ?SectionPractice;
+
+    /**
      * The practices from `$firstWeek` on whose roll call was marked posted with a thread link (#703), for the reader of
      * the thread's replies, in id order. Generated demo practices (#115) are left out. Whether a week's report was sent
      * is not looked at here: the reader asks {@see WeeklyReportRepository::isSentFor()} for each. Never creates a row.

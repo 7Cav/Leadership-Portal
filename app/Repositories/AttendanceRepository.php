@@ -83,6 +83,16 @@ interface AttendanceRepository
     public function clearMakeupAuto(SectionPractice $practice, int $trooperId): ?Attendance;
 
     /**
+     * Take back the automatic attended mark {@see markPracticeAuto()} wrote when a leader linked an unmatched player,
+     * once they undo that link: only while the row still is that mark (`present`, `source = auto`), so a mark anyone
+     * changed since stays. It goes back to what it was before the link: an automatic `missed` when `$restoreMissed`, else
+     * unmarked (`status` and `source` null; the row and its rollcall signature stay), or, with no signature, the row is
+     * deleted (the returned model then no longer `exists`). Decided against a locking read inside this write's own
+     * transaction. Returns the row changed, or null when nothing was.
+     */
+    public function clearPracticeAuto(SectionPractice $practice, int $trooperId, bool $restoreMissed): ?Attendance;
+
+    /**
      * The practices of `$weekStart`'s Cav week, of any section, on which `$trooperId` holds an automatic makeup
      * ({@see markMakeupAuto()}), in id order. Where the makeup is, not where the trooper is placed now: a trooper moved
      * to another section since keeps it on the old section's practice.
