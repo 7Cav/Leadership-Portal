@@ -83,6 +83,8 @@ class RollcallGuestController extends Controller
                 'name' => $t->username,
                 'rank' => $t->rank_short ?? $t->rank,
                 'section' => ($section = $units->get($t->primary_section_id)) instanceof Unit ? ($section->callsign ?? $section->name) : null,
+                // Anyone may be a guest (15NOV26); the picker says who is no longer serving, so the right person is picked.
+                'serving' => $t->status->isServing(),
             ])->values(),
             'more' => $found->count() > self::LIMIT,
         ]);
@@ -98,8 +100,11 @@ class RollcallGuestController extends Controller
     {
         return $this->attempt($request, 'adding this guest', function (CarbonImmutable $week, int $trooperId) use ($request, $unit, $handler) {
             $recorded = $handler->handle($request->user(), new RecordGuestAttendance($unit, $week, $trooperId));
-            // Read again, so a retry that could not write the makeup still offers the next one.
-            $missing = $this->makeups->makeupsMissing($recorded->practice, [$trooperId]) !== [];
+            // Read again, so a retry that could not write the makeup still offers the next one. Only a makeup that is due
+            // can be missing: a pending one waits for the practice hour (#634), and staff and others get none, as the
+            // rollcall page reads it.
+            $missing = in_array($recorded->makeup, ['marked', 'kept', 'locked'], true)
+                && $this->makeups->makeupsMissing($recorded->practice, [$trooperId]) !== [];
 
             return [
                 'guest' => $this->guests->one($recorded->sighting, $this->troopers->find($trooperId), $missing),

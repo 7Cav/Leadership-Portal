@@ -16,9 +16,10 @@ audience: leader
 ## Add the guest
 
 1. Choose **Add guest**.
-2. Type part of the trooper's name and pick them. Only serving troopers from other sections are offered.
+2. Type part of the trooper's name and pick them. Anyone outside your section can be found, including HQ staff, ELOA, Reservists and troopers no longer serving, who are marked **not serving**.
 3. They are listed as **Added by hand**.
-4. Their make-up goes on their own section's roll call once your practice is over. Added after it ended, they get it straight away.
+4. A trooper from another section gets their make-up on their own section's roll call once your practice is over. Added after it ended, they get it straight away.
+5. Anyone without a section roll call that week, such as ELOA, Reservists or someone no longer serving, is listed with no make-up.
 
 > [!good-to-know] On a past week, their make-up goes to the roll call that listed them that week, even if they have moved since. Someone on your own roll call that week cannot be added as a guest.
 
@@ -35,3 +36,4 @@ audience: leader
 
 1. Staff who attended your practice are listed from their own staff entries: **Staff guest** when your section is in their platoon or company, **Guest** otherwise.
 2. They are shown only. They never count in your numbers, get no make-up, and cannot be removed here.
+3. You can also add HQ staff yourself with **Add guest**, such as your Platoon Sergeant. They are listed the same way and get no make-up. Their staff report is still theirs to send, and you can take them back off with **Undo**.

@@ -39,6 +39,8 @@ class SectionPractice extends Model
             // Demo history (#115): set only by the demo writer, never mass-assigned.
             'is_demo' => 'boolean',
             'rollcall_posted_at' => 'immutable_datetime',
+            // The stamp a "mark posted" replaced, for Undo (`{at, by, threadUrl}`): written only by the Repository layer.
+            'rollcall_post_undo' => 'array',
             'confirmed_at' => 'immutable_datetime',
             'flow_version' => 'integer',
             'rollcall_created_at' => 'immutable_datetime',

@@ -17,6 +17,8 @@ use App\Commands\Attendance\MarkRollcallPosted;
 use App\Commands\Attendance\MarkRollcallPostedForbiddenException;
 use App\Commands\Attendance\MarkRollcallPostedHandler;
 use App\Commands\Attendance\RollcallWeekLockedException;
+use App\Commands\Attendance\UndoRollcallPosted;
+use App\Commands\Attendance\UndoRollcallPostedHandler;
 use App\Commands\Capture\AutomaticAttendance;
 use App\Commands\Capture\CaptureRetryForbiddenException;
 use App\Commands\Capture\CaptureRetryRefusedException;
@@ -397,6 +399,37 @@ class RollcallController extends Controller
     }
 
     /**
+     * Unticking "I edited the forum post" (#766): puts back the posted stamp the tick replaced, one audited Command.
+     * Answers the stamp now on record (null when the tick was the first), or a 409 with `locked` once the report is sent.
+     */
+    public function unposted(Request $request, int $unit, UndoRollcallPostedHandler $handler): JsonResponse
+    {
+        $validator = Validator::make($request->all(), ['week' => ['required', 'date_format:Y-m-d']]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => $validator->errors()->first()], 422);
+        }
+
+        $weekStart = $this->requestedWeek($request->input('week'), WeekOf::start(CarbonImmutable::now()));
+
+        try {
+            $practice = $handler->handle($request->user(), new UndoRollcallPosted($unit, $weekStart));
+        } catch (MarkRollcallPostedForbiddenException $e) {
+            return response()->json(['message' => $e->getMessage()], 403);
+        } catch (InvalidAttendanceMarkException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (RollcallWeekLockedException $e) {
+            return response()->json(['message' => $e->getMessage(), 'locked' => true], 409);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'The portal hit an error undoing the posted mark. Reload to see whether it was undone.'], 500);
+        }
+
+        return response()->json(['posted' => $this->postedProps($practice)]);
+    }
+
+    /**
      * The leader confirms the practice's marks as reviewed (Story 7.8): one audited Command,
      * scope-gated (AD-8). Marking it again re-stamps. Answers the confirmation for the badge, or a
      * 409 with `locked` once the section's report for the week has been sent (AD-12).
@@ -680,6 +713,8 @@ class RollcallController extends Controller
             'at' => $practice->rollcall_posted_at->toIso8601String(),
             'by' => $practice->rollcallPostedBy?->username,
             'threadUrl' => $practice->rollcall_thread_url,
+            // Whether unticking "I edited the forum post" can put back the stamp this one replaced (#766).
+            'canUndo' => is_array($practice->rollcall_post_undo) && ($practice->rollcall_post_undo['at'] ?? null) !== null,
         ];
     }
 

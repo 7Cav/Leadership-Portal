@@ -3,7 +3,7 @@ title: Write the changelog
 summary: Read what changed in the portal, and for the changelog editors, add and import entries.
 section: basics
 order: 8
-updated: 2026-11-02
+updated: 2026-11-15
 audience: everyone
 page: /changelog
 ---
@@ -22,7 +22,7 @@ Under the page title you see how many changes are recorded and since which date.
 
 > [!good-to-know] Admins choose whether technical and security items are available to everyone with **Make technical and security items available to everyone**, behind the gear button (**Changelog settings**) at the top of the page. When it is off, only the changelog editors see them. The same place shows when the portal was last deployed.
 
-> [!good-to-know] Only the changelog editors can change it, and only while signed in as themselves, never while someone acts as them or during View as.
+> [!good-to-know] Only the changelog editors can change it, and only while signed in as themselves, never while someone acts as them, during View as, or in the tutorial.
 
 ## Add entries
 

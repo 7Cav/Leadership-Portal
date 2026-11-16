@@ -21,12 +21,12 @@ beforeEach(function () {
 it('records when and by whom the rollcall was posted, and shows it on the page', function () {
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted", ['week' => '2026-10-03'])
         ->assertOk()
-        ->assertJsonPath('posted', ['at' => '2026-10-08T16:20:00+00:00', 'by' => 'Vasquez.R', 'threadUrl' => null]);
+        ->assertJsonPath('posted', ['at' => '2026-10-08T16:20:00+00:00', 'by' => 'Vasquez.R', 'threadUrl' => null, 'canUndo' => false]);
 
     expect(AuditLogEntry::query()->where('action', 'rollcall.posted')->count())->toBe(1);
 
     $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
-        ->assertInertia(fn ($page) => $page->where('practice.posted', ['at' => '2026-10-08T16:20:00+00:00', 'by' => 'Vasquez.R', 'threadUrl' => null]));
+        ->assertInertia(fn ($page) => $page->where('practice.posted', ['at' => '2026-10-08T16:20:00+00:00', 'by' => 'Vasquez.R', 'threadUrl' => null, 'canUndo' => false]));
 });
 
 it('shows a week never marked posted as not posted', function () {
@@ -101,3 +101,49 @@ it('refuses a thread link that is not on the forum, and writes nothing (#703)', 
     'not https' => 'http://7cav.us/threads/1/',
     'not a link' => 'roll call thread',
 ]);
+
+// #766: unticking "I edited the forum post" after a misclick puts back the stamp the tick replaced.
+it('puts back the stamp a mark posted replaced, once, audited', function () {
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted", ['week' => '2026-10-03'])->assertOk();
+    Carbon::setTestNow(CarbonImmutable::parse('2026-10-09 18:00:00', 'UTC'));
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted", ['week' => '2026-10-03'])
+        ->assertJsonPath('posted.at', '2026-10-09T18:00:00+00:00');
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted/undo", ['week' => '2026-10-03'])
+        ->assertOk()
+        ->assertJsonPath('posted', ['at' => '2026-10-08T16:20:00+00:00', 'by' => 'Vasquez.R', 'threadUrl' => null, 'canUndo' => false]);
+
+    expect(AuditLogEntry::query()->where('action', 'rollcall.post_undone')->count())->toBe(1);
+
+    // The undo is used up: a second one has nothing to put back, and changes nothing.
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted/undo", ['week' => '2026-10-03'])->assertStatus(422);
+    expect(SectionPractice::query()->sole()->rollcall_posted_at->toIso8601String())->toBe('2026-10-08T16:20:00+00:00');
+});
+
+it('never undoes the first stamp, which is the post itself, and says so with canUndo', function () {
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted", ['week' => '2026-10-03'])
+        ->assertJsonPath('posted.canUndo', false);
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted/undo", ['week' => '2026-10-03'])->assertStatus(422);
+    expect(SectionPractice::query()->sole()->rollcall_posted_at)->not->toBeNull();
+
+    // An edit after it can be undone, and the page knows it.
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted", ['week' => '2026-10-03'])
+        ->assertJsonPath('posted.canUndo', true);
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}?week=2026-10-03")
+        ->assertInertia(fn ($page) => $page->where('practice.posted.canUndo', true));
+});
+
+it('refuses an undo with nothing marked, outside scope, or once the report is sent', function () {
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted/undo", ['week' => '2026-10-03'])->assertStatus(422);
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted", ['week' => '2026-10-03'])->assertOk();
+
+    $this->actingAs(User::factory()->serving()->create())->postJson("/rollcall/{$this->section->id}/posted/undo", ['week' => '2026-10-03'])
+        ->assertForbidden();
+
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => '2026-10-03']);
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted/undo", ['week' => '2026-10-03'])
+        ->assertStatus(409)->assertJson(['locked' => true]);
+
+    expect(SectionPractice::query()->sole()->rollcall_posted_at)->not->toBeNull();
+});

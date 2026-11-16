@@ -6,6 +6,7 @@ use App\Models\CrossSectionSighting;
 use App\Models\SectionPractice;
 use App\Models\Trooper;
 use App\Models\Unit;
+use App\Models\UnitType;
 use App\Repositories\CrossSectionSightingRepository;
 use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\UnitRepository;
@@ -56,7 +57,11 @@ class RollcallGuests
         // Every staff guest's HQ at the week's end, read in one go rather than one query per guest.
         $hqs = $staff->isEmpty() ? [] : $this->placements->unitsOfTroopersAtWeekEnd($staff->map(fn (CrossSectionSighting $row) => $row->trooper), $practice->week_start);
 
-        return $rows->map(fn (CrossSectionSighting $row) => $this->shape($row, $row->trooper, $units, in_array($row->trooper_id, $makeupMissing, true)))
+        return $rows->map(fn (CrossSectionSighting $row) => [
+            ...$this->shape($row, $row->trooper, $units, in_array($row->trooper_id, $makeupMissing, true)),
+            // HQ staff a leader added: a staff guest when the section is under their HQ, as a staff entry is.
+            'staffGuest' => $host instanceof Unit && self::underOwnHq(self::hqOf($row->trooper, $units), $host),
+        ])
             ->concat($staff->map(fn (CrossSectionSighting $row) => [
                 ...$this->shape($row, $row->trooper, $units),
                 'recordedBy' => self::enteredBy($row),
@@ -73,6 +78,22 @@ class RollcallGuests
     private static function underOwnHq(?Unit $hq, Unit $host): bool
     {
         return $hq instanceof Unit && $hq->id !== $host->id && str_starts_with($host->path, $hq->path);
+    }
+
+    /**
+     * The line HQ `$trooper` serves on, or null for a trooper in a section, a group, nowhere, or no longer serving.
+     *
+     * @param  Collection<int, Unit>  $units
+     */
+    private static function hqOf(Trooper $trooper, Collection $units): ?Unit
+    {
+        if (! $trooper->status->isServing()) {
+            return null;
+        }
+
+        $unit = $units->get($trooper->primary_section_id);
+
+        return $unit instanceof Unit && $unit->type !== UnitType::Section && $unit->type !== UnitType::Group ? $unit : null;
     }
 
     /** Who entered a staff entry, as the milpac words it ("Hale.S for Vasquez.R" for an Admin acting as them). */
@@ -122,6 +143,12 @@ class RollcallGuests
      */
     public function one(CrossSectionSighting $row, Trooper $trooper, bool $makeupMissing = false): array
     {
-        return $this->shape($row, $trooper, $this->units->tree()->keyBy('id'), $makeupMissing);
+        $units = $this->units->tree()->keyBy('id');
+        $host = $units->get($row->practice?->section_id);
+
+        return [
+            ...$this->shape($row, $trooper, $units, $makeupMissing),
+            'staffGuest' => $host instanceof Unit && self::underOwnHq(self::hqOf($trooper, $units), $host),
+        ];
     }
 }
