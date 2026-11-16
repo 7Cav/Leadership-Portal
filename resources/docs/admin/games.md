@@ -3,7 +3,7 @@ title: Games
 summary: Add, edit and retire the games the regiment plays, and what reads their attendance.
 section: admin
 order: 4
-updated: 2026-11-13
+updated: 2026-11-14
 audience: admin
 page: /settings/games
 ---
@@ -28,6 +28,14 @@ page: /settings/games
 1. Choose **Edit** next to it, change it, and choose **Save changes**. The abbreviation is what Org structure shows on the row of the highest line unit in an AO that plays the game, usually a battalion; two games cannot share one.
 2. For a game no longer played, choose **Retire**. Its links stay, but no new ones can be made, and it stops being captured.
 3. Choose **Bring back** to reinstate it.
+
+## Set its calendar tags
+
+A section's roll call lists the week's events on the 7Cav calendar for the game it plays. **Calendar tags** say which events are the game's.
+
+1. Choose **Edit** next to the game and fill in **Calendar tags**: the text in a calendar event's title that marks it as the game's, separated by commas, such as `[HLL]` or `SQUAD |`. Case is ignored, and a tag can be anywhere in the title.
+2. Choose **Save changes**. The next roll call that opens lists the game's events.
+3. A game with no tags lists no events. An event whose title names no game, such as a company FTX, is listed for no section.
 
 ## Apply existing Steam or Epic links
 

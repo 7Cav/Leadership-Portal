@@ -55,6 +55,16 @@ The card at the top of the roll call shows when practice starts this week and th
 2. Type a new topic and choose **Save**. It is the weekly report's training subject, so the report shows it too. A topic your platoon enforces is locked.
 3. If the post is already on the forum, a changed date or topic makes it out of date: copy it again and edit your forum post.
 
+## Events this week
+
+Under the training card, **Events this week** lists the events on the 7Cav calendar for your section's game that start this week, with the start in Zulu and the name. A weekly event shows once for each time it falls in the week.
+
+1. Your template prints them where it has `{{events}}`. See [Roll call templates](/docs/admin/rollcall-templates).
+2. If your section plays no game, none are listed and the card says so. An Admin sets a unit's game on Org structure, and which events belong to a game on Games.
+3. Once your section's report is sent, the post keeps the events it had, even if the calendar changes.
+
+The events are only listed. Nothing here marks anyone as having been at one.
+
 ## Record the signatures
 
 Once the roll call is marked posted with its thread link, the portal reads the replies in that thread every hour and signs each trooper from their reply. It reads until the week's report is sent.

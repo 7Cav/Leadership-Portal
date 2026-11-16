@@ -47,6 +47,13 @@ interface GameRepository
      */
     public function update(Game $game, string $name, string $abbreviation, array $idKinds, TelemetryInterface $interface): Game;
 
+    /**
+     * Set the calendar title tags that mark the game's events (#751), replacing the ones it had.
+     *
+     * @param  list<string>  $tags
+     */
+    public function setEventTags(Game $game, array $tags): Game;
+
     /** Retire the game (`true`) or bring it back (`false`). Already in that state is left as it is. */
     public function setRetired(Game $game, bool $retired): Game;
 

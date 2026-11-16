@@ -126,6 +126,10 @@ interface WeeklyReportRepository
      *
      * `$sentFrom` is where the send started, `rollcall` or `report` (#703), kept for counting only.
      *
+     * `$calendarEvents` is a section's roll call events for the week as it listed them at the send (#751,
+     * `Rollcall\WeekEvents`), kept so the post keeps them; null for a platoon or company. Not part of the digest: it is
+     * what the post printed, not what was reported.
+     *
      * `$sentByAdmin` is the Admin who sent it while acting as `$sentBy` (#379), named beside them; `$sentAsUnit` the
      * unit whose billet `$sentBy` (an Admin) held when sending it. Null otherwise.
      *
@@ -150,6 +154,7 @@ interface WeeklyReportRepository
         ?int $sentAsUnit = null,
         ?array $makeupChecks = null,
         ?string $sentFrom = null,
+        ?array $calendarEvents = null,
     ): WeeklyReport;
 
     /**

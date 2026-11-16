@@ -29,6 +29,7 @@ use App\Rollcall\ResultImageUrls;
 use App\Rollcall\RollcallRoster;
 use App\Rollcall\SectionFireteams;
 use App\Rollcall\TemplateSyntax;
+use App\Rollcall\WeekEvents;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -171,7 +172,7 @@ class TemplatesController extends Controller
      * display goes along in the rollcall page's shape ({@see SectionFireteams::options()}), since it sets the post's
      * order and its FTL lines; the preview changes nothing, so it says the viewer may edit neither.
      */
-    public function previewSection(Request $request, int $unit, ScopeResolver $scope, LoaCoverage $loa, SectionFireteams $fireteams, AutoExcused $autoExcused, ChainOfCommand $chainOfCommand): JsonResponse
+    public function previewSection(Request $request, int $unit, ScopeResolver $scope, LoaCoverage $loa, SectionFireteams $fireteams, AutoExcused $autoExcused, ChainOfCommand $chainOfCommand, WeekEvents $weekEvents): JsonResponse
     {
         // Answered as JSON, like the rollcall page's own background calls: the page reads it with fetch, not a visit.
         $validator = Validator::make($request->query(), ['company' => ['required', 'integer']]);
@@ -203,6 +204,8 @@ class TemplatesController extends Controller
             'week' => [...$this->roster->week($week, $week), 'beforeFloor' => WeekOf::isBeforeFloor($week)],
             'resultImages' => ResultImageUrls::for($section, $week),
             'chainOfCommand' => $chainOfCommand->lines($section),
+            // The week's calendar events for the section's game (#751), which the post prints as `{{events}}`.
+            'events' => $weekEvents->forSection($section, $week)['items'],
             'troopers' => array_map(fn (array $row) => [
                 ...$row,
                 'loa' => $covers[$row['id']]->suppressesAtRisk() ? $covers[$row['id']]->toArray() : null,

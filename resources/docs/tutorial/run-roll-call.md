@@ -18,6 +18,8 @@ Roll call is the weekly task the rest of the portal is built on. Your section's 
 3. Check the training topic. It comes from your platoon's topic, and is locked when your platoon enforces it.
 4. Choose **Create roll call**.
 
+> [!good-to-know] **Events this week**, above the steps, lists the 7Cav calendar events for your section's game that week. The template code `{{events}}` puts them in your post, each linked to its calendar page.
+
 ## Post it
 
 1. In step 2, **Post**, pick your **Template** and choose **Copy BBCode**.

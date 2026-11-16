@@ -318,14 +318,23 @@ const columnAdd = () => run((source, start) => addColumn(source, start), NOT_IN_
 const columnRemove = () => run((source, start) => removeColumn(source, start), `${NOT_IN_CELL} A table keeps at least one column.`);
 
 // The code picker offers only the codes that may go at the cursor: the post's own values and flags anywhere, a trooper's
-// own codes as well inside the trooper loop, and the loop itself as well outside it. A filter is written by hand in the
-// Source tab.
+// own codes as well inside the trooper loop, an event's inside the events loop, and the loops themselves as well outside
+// them. A filter is written by hand in the Source tab.
 const legend = templateLegend();
 const pickerOpen = ref(false);
 const pickerSearch = ref('');
-const inRow = computed(() => contextAt(props.modelValue, clamp(saved.value).start).inRow);
+const cursorContext = computed(() => contextAt(props.modelValue, clamp(saved.value).start));
+const inRow = computed(() => cursorContext.value.inRow);
+const inEvents = computed(() => cursorContext.value.inEvents);
+// What the picker says of the cursor's place.
+const cursorWhere = computed(() => {
+    if (inRow.value) return "The cursor is inside the trooper loop: a trooper's own codes can go here.";
+    if (inEvents.value) return "The cursor is inside the events loop: an event's own codes can go here.";
+
+    return 'The cursor is outside the trooper loop.';
+});
 const pickable = computed(() => {
-    const keys = inRow.value ? ['values', 'topFlags', 'rowValues', 'rowFlags'] : ['values', 'topFlags', 'lists'];
+    const keys = inRow.value ? ['values', 'topFlags', 'rowValues', 'rowFlags'] : inEvents.value ? ['values', 'topFlags', 'eventValues'] : ['values', 'topFlags', 'lists'];
     const term = pickerSearch.value.trim().toLowerCase();
 
     return legend
@@ -558,7 +567,7 @@ defineExpose({ insert });
                     <div class="border-b border-border p-2">
                         <Input v-model="pickerSearch" aria-label="Find a code" placeholder="Find a code" class="h-8 text-xs" data-testid="code-picker-search" />
                         <p class="mt-1.5 px-0.5 text-[11px] text-muted-foreground" data-testid="code-picker-where">
-                            {{ inRow ? 'The cursor is inside the trooper loop: a trooper\'s own codes can go here.' : 'The cursor is outside the trooper loop.' }}
+                            {{ cursorWhere }}
                         </p>
                     </div>
                     <div class="max-h-80 overflow-y-auto p-1">

@@ -15,8 +15,10 @@ use LogicException;
  * but cannot be newly linked to a trooper (and, once games are assigned to units, #390, newly assigned). The shape an ID
  * of each kind must have is listed in {@see IdKindFormat}, by kind name (#450). `abbreviation` is the game's short code
  * (HLL, HLLV, ARMA), shown as the game chip on the row of the highest line unit in an AO that plays it (usually a battalion) in the org tree.
+ * `event_tags` is the text in a 7Cav calendar event's title that marks the event as the game's (`[HLL]`, `SQUAD |`, #751),
+ * so a section's roll call lists the events of the game it plays; null or empty lists none.
  */
-#[Fillable(['slug', 'name', 'abbreviation', 'id_kinds', 'interface', 'retired_at'])]
+#[Fillable(['slug', 'name', 'abbreviation', 'id_kinds', 'interface', 'event_tags', 'retired_at'])]
 class Game extends Model
 {
     /** @use HasFactory<GameFactory> */
@@ -50,6 +52,7 @@ class Game extends Model
     {
         return [
             'id_kinds' => 'array',
+            'event_tags' => 'array',
             'interface' => TelemetryInterface::class,
             'retired_at' => 'immutable_datetime',
         ];
@@ -96,6 +99,37 @@ class Game extends Model
     public function hasIdKind(string $kind): bool
     {
         return in_array($kind, $this->id_kinds, true);
+    }
+
+    /** The most calendar title tags a game may have, and the longest one. */
+    public const MAX_EVENT_TAGS = 20;
+
+    public const MAX_EVENT_TAG_LENGTH = 50;
+
+    /**
+     * The calendar title tags that mark this game's events (#751), as an Admin set them on Settings > Games.
+     *
+     * @return list<string>
+     */
+    public function eventTags(): array
+    {
+        return array_values(array_filter($this->event_tags ?? [], fn (mixed $tag) => is_string($tag) && trim($tag) !== ''));
+    }
+
+    /**
+     * Whether a calendar event's title carries one of this game's tags anywhere in it, ignoring case: `[HLL]` marks
+     * `[HLL] Operation Trenched n' Tuesday`, `SQUAD |` marks `SQUAD | Squad Saturday @1900Z`. A game with no tags
+     * marks nothing.
+     */
+    public function marksEvent(string $title): bool
+    {
+        foreach ($this->eventTags() as $tag) {
+            if (mb_stripos($title, trim($tag)) !== false) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function isRetired(): bool

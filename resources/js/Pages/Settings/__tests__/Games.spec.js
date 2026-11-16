@@ -22,12 +22,22 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => {
                 ...data,
                 errors: {},
                 processing: false,
-                // The fields as they stand when the form is sent, passed last so a test can check what was posted.
+                // The fields as they stand when the form is sent, through the form's transform, passed last so a test can
+                // check what was posted.
+                transformer: (fields) => fields,
+                transform(callback) {
+                    this.transformer = callback;
+
+                    return this;
+                },
+                sent() {
+                    return this.transformer({ name: this.name, abbreviation: this.abbreviation, id_kinds: this.id_kinds, interface: this.interface, event_tags: this.event_tags });
+                },
                 post(...args) {
-                    post(...args, { name: this.name, abbreviation: this.abbreviation, id_kinds: this.id_kinds, interface: this.interface });
+                    post(...args, this.sent());
                 },
                 patch(...args) {
-                    patch(...args, { name: this.name, abbreviation: this.abbreviation, id_kinds: this.id_kinds, interface: this.interface });
+                    patch(...args, this.sent());
                 },
                 clearErrors() {},
                 reset() {
@@ -45,7 +55,7 @@ const INTERFACES = [
     { value: 'impossible', label: 'None (impossible)' },
 ];
 const GAMES = [
-    { id: 1, slug: 'hll', name: 'Hell Let Loose', abbreviation: 'HLL', idKinds: ['Steam ID'], interface: 'crcon', retired: false, inUse: true },
+    { id: 1, slug: 'hll', name: 'Hell Let Loose', abbreviation: 'HLL', idKinds: ['Steam ID'], interface: 'crcon', eventTags: ['[HLL]'], retired: false, inUse: true },
     { id: 4, slug: 'squad', name: 'Squad', idKinds: ['EOS ID'], interface: 'none', retired: false, inUse: false },
     { id: 5, slug: 'foxhole', name: 'Foxhole', idKinds: ['Player ID'], interface: 'none', retired: true, inUse: true },
 ];
@@ -108,6 +118,7 @@ describe('Settings/Games', () => {
             abbreviation: '',
             id_kinds: ['EOS ID'],
             interface: 'battlemetrics',
+            event_tags: [],
         });
         expect(patch).not.toHaveBeenCalled();
     });
@@ -123,10 +134,34 @@ describe('Settings/Games', () => {
         await wrapper.get('[data-testid="game-id_kind-0"]').setValue('Steam64');
         await wrapper.get('[data-testid="game-interface"]').setValue('none');
         await wrapper.get('[data-testid="game-form"]').trigger('submit');
-        expect(patch).toHaveBeenCalledWith('/settings/games/1', expect.anything(), { name: 'Hell Let Loose', abbreviation: 'HLL', id_kinds: ['Steam64'], interface: 'none' });
+        expect(patch).toHaveBeenCalledWith('/settings/games/1', expect.anything(), {
+            name: 'Hell Let Loose',
+            abbreviation: 'HLL',
+            id_kinds: ['Steam64'],
+            interface: 'none',
+            event_tags: ['[HLL]'],
+        });
 
         await wrapper.get('[data-testid="cancel-edit"]').trigger('click');
         expect(wrapper.get('[data-testid="submit-game"]').text()).toBe('Add game');
+    });
+
+    it('shows the calendar tags of each game, and none for a game without', () => {
+        const wrapper = factory();
+
+        expect(wrapper.get('[data-testid="event-tags-hll"]').text()).toBe('Calendar tags: [HLL]');
+        expect(wrapper.get('[data-testid="event-tags-squad"]').text()).toBe('No calendar tags');
+    });
+
+    it('edits the calendar tags as one line and sends them as a list, blanks and spaces dropped', async () => {
+        const wrapper = factory();
+        await wrapper.get('[data-testid="edit-hll"]').trigger('click');
+
+        expect(wrapper.get('[data-testid="game-event-tags"]').element.value).toBe('[HLL]');
+        await wrapper.get('[data-testid="game-event-tags"]').setValue(' [HLL] , Hell Let Loose,, ');
+        await wrapper.get('[data-testid="game-form"]').trigger('submit');
+
+        expect(patch).toHaveBeenCalledWith('/settings/games/1', expect.anything(), expect.objectContaining({ event_tags: ['[HLL]', 'Hell Let Loose'] }));
     });
 
     it('offers None (impossible) apart from None, and saves it', async () => {
@@ -179,6 +214,7 @@ describe('Settings/Games', () => {
             abbreviation: 'HLL',
             id_kinds: ['Steam ID', 'Epic ID', 'Xbox ID'],
             interface: 'crcon',
+            event_tags: ['[HLL]'],
         });
 
         await wrapper.get('[data-testid="remove-kind-1"]').trigger('click');

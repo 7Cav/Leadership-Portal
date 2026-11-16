@@ -21,11 +21,17 @@
 import { LABELLED, codeLabel } from './bbcode';
 import { bbcodeElement } from './bbcodeRender';
 
-const LOOP_LABELS = { troopers: 'Repeats for each trooper', notroopers: 'When the section has no troopers' };
+const LOOP_LABELS = {
+    troopers: 'Repeats for each trooper',
+    notroopers: 'When the section has no troopers',
+    events: 'Repeats for each event',
+    noevents: 'When the week has no events',
+};
 
-/** What a section is called on its chip: "Each trooper", "If Rank insignia", "If not Will attend". */
+/** What a section is called on its chip: "Each trooper", "Each event", "If Rank insignia", "If not Will attend". */
 export function sectionLabel(name, inverted) {
     if (name === 'troopers') return inverted ? 'No troopers' : 'Each trooper';
+    if (name === 'events') return inverted ? 'No events' : 'Each event';
 
     return `${inverted ? 'If not' : 'If'} ${codeLabel(name)}`;
 }
@@ -93,7 +99,7 @@ function drawSection(doc, node, condition) {
         head.dataset.raw = node.open;
         const cell = doc.createElement('td');
         cell.colSpan = 99;
-        const named = node.name === 'troopers' ? LOOP_LABELS[node.inverted ? 'notroopers' : 'troopers'] : `Rows shown only ${label.toLowerCase()}`;
+        const named = Object.hasOwn(LOOP_LABELS, node.name) ? LOOP_LABELS[node.inverted ? `no${node.name}` : node.name] : `Rows shown only ${label.toLowerCase()}`;
         cell.textContent = named;
         head.append(cell);
 
