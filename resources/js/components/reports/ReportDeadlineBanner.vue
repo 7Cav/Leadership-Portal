@@ -34,7 +34,7 @@ const dueLabel = computed(() => `${forumDateTime(props.due)}Z`);
     <div
         v-if="deadline"
         class="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg px-3.5 py-2 text-[13px]"
-        :class="deadline.overdue ? 'border-2 border-alert-critical bg-warning/10' : 'border-2 border-alert-high bg-warning/10'"
+        :class="deadline.overdue ? 'border-[1.5px] border-alert-critical bg-warning/10' : 'border-[1.5px] border-alert-high bg-warning/10'"
         data-testid="report-deadline"
         :data-state="deadline.overdue ? 'overdue' : 'due'"
     >

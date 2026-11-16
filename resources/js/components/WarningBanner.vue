@@ -26,7 +26,7 @@ const look = computed(() => LOOKS[props.level] ?? LOOKS.high);
 <template>
     <div
         role="alert"
-        class="flex flex-wrap items-start gap-x-3 gap-y-2 rounded-lg border-2 bg-warning/10 px-4 py-3 text-[13px]"
+        class="flex flex-wrap items-start gap-x-3 gap-y-2 rounded-lg border-[1.5px] bg-warning/10 px-4 py-3 text-[13px]"
         :class="look.box"
         :data-level="level"
     >
