@@ -26,9 +26,9 @@ use Inertia\Testing\AssertableInertia as Assert;
 //   2-7 (no game)
 //     B/2-7 / 1/B/2-7 / 1/1/B/2-7
 
-function calEvent(string $uid, string $title, string $start, ?string $url = null): CalendarEvent
+function calEvent(string $uid, string $title, string $start, ?string $url = null, ?int $calendarId = null): CalendarEvent
 {
-    return CalendarEvent::query()->create(['uid' => $uid, 'title' => $title, 'starts_at' => CarbonImmutable::parse($start, 'UTC'), 'url' => $url]);
+    return CalendarEvent::query()->create(['uid' => $uid, 'calendar_id' => $calendarId, 'title' => $title, 'starts_at' => CarbonImmutable::parse($start, 'UTC'), 'url' => $url]);
 }
 
 function calRead(SyncRunStatus $status = SyncRunStatus::Success, string $at = '2026-11-18 11:50:00'): SyncRun
@@ -91,9 +91,9 @@ it('lists the events of the week for the game the section inherits, earliest fir
         ->where('events.lastReadFailed', false)
         ->where('events.readAt', '2026-11-18T11:50:00Z')
         ->where('events.items', [
-            ['name' => 'SQUAD | Squad Saturday @1900Z', 'start' => '2026-11-14T19:00:00Z', 'url' => 'https://7cav.us/events/1064/'],
-            ['name' => 'SQUAD | Operation Paper Trail', 'start' => '2026-11-15T20:00:00Z', 'url' => 'https://7cav.us/events/4075/'],
-            ['name' => 'squad | Warrior Wednesdays 2300 Zulu', 'start' => '2026-11-18T23:00:00Z', 'url' => null],
+            ['name' => 'SQUAD | Squad Saturday @1900Z', 'start' => '2026-11-14T19:00:00Z', 'url' => 'https://7cav.us/events/1064/', 'kind' => null],
+            ['name' => 'SQUAD | Operation Paper Trail', 'start' => '2026-11-15T20:00:00Z', 'url' => 'https://7cav.us/events/4075/', 'kind' => null],
+            ['name' => 'squad | Warrior Wednesdays 2300 Zulu', 'start' => '2026-11-18T23:00:00Z', 'url' => null, 'kind' => null],
         ]);
 });
 
@@ -147,7 +147,7 @@ it('freezes the events on the report when it is sent, so the post keeps them aft
 
     $kept = WeeklyReport::query()->where('unit_id', $this->section->id)->sole()->calendar_events;
     expect($kept['state'])->toBe(WeekEvents::LISTED)
-        ->and($kept['items'])->toBeIgnoringKeyOrder([['name' => 'SQUAD | Squad Saturday @1900Z', 'start' => '2026-11-14T19:00:00Z', 'url' => null]]);
+        ->and($kept['items'])->toBeIgnoringKeyOrder([['name' => 'SQUAD | Squad Saturday @1900Z', 'start' => '2026-11-14T19:00:00Z', 'url' => null, 'kind' => null]]);
 
     // The calendar changes after the send: the event is renamed and another is added.
     CalendarEvent::query()->update(['title' => 'SQUAD | Squad Saturday (renamed)']);
@@ -155,7 +155,7 @@ it('freezes the events on the report when it is sent, so the post keeps them aft
 
     calPage($this->section->id)
         ->where('events.frozen', true)
-        ->where('events.items', [['name' => 'SQUAD | Squad Saturday @1900Z', 'start' => '2026-11-14T19:00:00Z', 'url' => null]]);
+        ->where('events.items', [['name' => 'SQUAD | Squad Saturday @1900Z', 'start' => '2026-11-14T19:00:00Z', 'url' => null, 'kind' => null]]);
 });
 
 it('keeps no events on the report of a platoon, which has no roll call', function () {
@@ -184,4 +184,37 @@ it('gives the games the migrations create the tags the 7Cav calendar marks their
         ->and(game('hll-vietnam')->eventTags())->toBe(['[HLLV]', '[HLL:Vietnam]'])
         ->and(game('arma')->eventTags())->toBe(['Arma Reforger'])
         ->and(game('wardogs')->eventTags())->toBe(['Wardogs']);
+});
+
+it('lists an event filed in a forum calendar the game names whatever its title, with its kind, and leaves out other calendars', function () {
+    calRead();
+    $this->squad->update(['event_calendars' => ['operation' => [34], 'class' => [33], 'ftx' => [35]]]);
+    calEvent('4077', 'Operation Creeping Death | Campaign Metal Gods I', '2026-11-17 01:00', null, 34);
+    calEvent('4081', 'Basic Individual Training 1 [BIT1]', '2026-11-16 18:00', null, 33);
+    calEvent('4090', 'Field Exercise Dust', '2026-11-19 20:00', null, 35);
+    // Another game's calendar, untagged: not Squad's. Tagged, though, the title still makes it Squad's.
+    calEvent('4078', 'Operation Who Cares Wins', '2026-11-20 01:00', null, 46);
+    calEvent('4079', 'SQUAD | Joint op', '2026-11-19 01:00', null, 46);
+
+    calPage($this->section->id)->where('events.items', [
+        ['name' => 'Basic Individual Training 1 [BIT1]', 'start' => '2026-11-16T18:00:00Z', 'url' => null, 'kind' => 'class'],
+        ['name' => 'Operation Creeping Death | Campaign Metal Gods I', 'start' => '2026-11-17T01:00:00Z', 'url' => null, 'kind' => 'operation'],
+        ['name' => 'SQUAD | Joint op', 'start' => '2026-11-19T01:00:00Z', 'url' => null, 'kind' => null],
+        ['name' => 'Field Exercise Dust', 'start' => '2026-11-19T20:00:00Z', 'url' => null, 'kind' => 'ftx'],
+    ]);
+});
+
+it('reads the forum calendars of a game by kind, dropping what is not a calendar id', function () {
+    $game = new Game(['event_calendars' => ['operation' => [46, '46', 'x', 0], 'class' => ['38'], 'other' => [1]]]);
+
+    expect($game->eventCalendars())->toBe(['operation' => [46], 'class' => [38], 'ftx' => []])
+        ->and($game->eventCalendarIds())->toBe([46, 38])
+        ->and((new Game(['event_calendars' => null]))->eventCalendars())->toBe(['operation' => [], 'class' => [], 'ftx' => []]);
+});
+
+it('gives the games the migrations create the forum calendars their events are filed in', function () {
+    expect(game('hll')->eventCalendars())->toBe(['operation' => [15], 'class' => [20], 'ftx' => [27]])
+        ->and(game('hll-vietnam')->eventCalendars())->toBe(['operation' => [16], 'class' => [21], 'ftx' => [28]])
+        ->and(game('arma')->eventCalendars())->toBe(['operation' => [43], 'class' => [19], 'ftx' => []])
+        ->and(game('wardogs')->eventCalendars())->toBe(['operation' => [], 'class' => [49], 'ftx' => []]);
 });
