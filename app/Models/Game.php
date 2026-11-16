@@ -80,6 +80,19 @@ class Game extends Model
         return $this->id_kinds[0];
     }
 
+    /** The ID kind a game's servers log every player by, whatever their platform: CRCON on HLL Vietnam logs an EOS ID. */
+    public const LOGGED_ID_KIND = 'EOS ID';
+
+    /**
+     * The only kind that counts as linked for this game (15NOV26), or null when any kind does. A game whose kinds include
+     * {@see LOGGED_ID_KIND} is read by that ID alone, so a Steam, Epic, Xbox or PlayStation ID on it still leaves the
+     * trooper to link: capture only finds them through their CRCON profile, never by the ID itself.
+     */
+    public function requiredIdKind(): ?string
+    {
+        return in_array(self::LOGGED_ID_KIND, $this->id_kinds ?? [], true) ? self::LOGGED_ID_KIND : null;
+    }
+
     public function hasIdKind(string $kind): bool
     {
         return in_array($kind, $this->id_kinds, true);

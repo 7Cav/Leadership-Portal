@@ -175,10 +175,14 @@ class CrconApi
             $name = $this->playerName($result, '');
         }
 
+        $native = $result['steam_id'] ?? null;
+        $native = is_int($native) ? (string) $native : $native;
+
         return new CrconPlayerProfile(
             $playerId,
             is_string($platform) && trim($platform) !== '' ? strtolower(trim($platform)) : null,
             is_string($name) && trim($name) !== '' ? trim($name) : null,
+            is_string($native) && trim($native) !== '' && trim($native) !== $playerId ? trim($native) : null,
         );
     }
 
