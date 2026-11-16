@@ -180,6 +180,10 @@ for any other company or section by URL answers 403. The editing controls show o
 | Company fireteam policy | All | All | No | Own | Own | No | If acting lead of the company or above | No | No | No | No |
 | Pick the section's roll call template (its own, the company's switched-on ones, the regiment default) | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 
+Signatures read from the roll call thread's replies are set by a scheduled job, not by a person, so they have no
+row in this table and no audit entry; the job's run is recorded in the sync runs. It never overwrites a signature
+set by hand.
+
 ### Roll call templates
 
 | Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |

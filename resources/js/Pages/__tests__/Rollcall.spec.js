@@ -300,6 +300,48 @@ describe('Rollcall page', () => {
         expect(wrapper.find('[data-trooper="1"] [data-testid="signature-line"]').text()).toBe('Signed: Will attend');
     });
 
+    it('says when a signature came from the thread, and shows a reply that differs from a signature set by hand', async () => {
+        const reply = (answer) => ({ answer, url: 'https://7cav.us/posts/901/', postedAt: '2026-10-05T18:00:00+00:00' });
+        const wrapper = factory({
+            troopers: [
+                trooper(1, 'will_attend', null, { rollcallSource: 'reply', reply: reply('will_attend') }),
+                trooper(2, 'cannot_attend', null, { rollcallSource: 'manual', reply: reply('will_attend') }),
+                trooper(3, 'unsigned', null),
+            ],
+        });
+
+        expect(wrapper.find('[data-trooper="1"] [data-testid="signature-line"]').text()).toBe('Signed in the thread: Will attend');
+        expect(wrapper.find('[data-trooper="1"] [data-testid="reply-differs"]').exists()).toBe(false);
+        expect(wrapper.find('[data-trooper="2"] [data-testid="signature-line"]').text()).toBe('Signed: Will not attend');
+        const differs = wrapper.find('[data-trooper="2"] [data-testid="reply-differs"]');
+        expect(differs.text()).toContain('Reply says will attend');
+        expect(differs.attributes('href')).toBe('https://7cav.us/posts/901/');
+
+        // A leader's pick on a card the thread signed makes it theirs.
+        await wrapper.find('[data-trooper="1"] [data-value="makeup_requested"]').trigger('click');
+        expect(wrapper.find('[data-trooper="1"] [data-testid="signature-line"]').text()).toBe('Signed: Make-up requested');
+        expect(wrapper.find('[data-trooper="1"] [data-testid="reply-differs"]').text()).toContain('Reply says will attend');
+    });
+
+    it('lists the replies with no answer recognised, with a link to each', async () => {
+        const wrapper = factory({
+            troopers: [
+                trooper(1, 'will_attend', null),
+                trooper(3, 'unsigned', null, { reply: { answer: null, url: 'https://7cav.us/posts/77/', postedAt: '2026-10-05T18:00:00+00:00' } }),
+            ],
+        });
+
+        const list = wrapper.find('[data-testid="unread-replies"]');
+        expect(list.text()).toContain('Replied, but no answer recognised');
+        expect(list.text()).toContain('Trooper3.A');
+        expect(list.find('a').attributes('href')).toBe('https://7cav.us/posts/77/');
+        expect(wrapper.find('[data-trooper="3"] [data-testid="reply-unrecognised"]').text()).toContain('Replied, but no answer recognised');
+
+        // Once the leader signs them by hand, they leave the list.
+        await wrapper.find('[data-trooper="3"] [data-value="will_attend"]').trigger('click');
+        expect(wrapper.find('[data-testid="unread-replies"]').exists()).toBe(false);
+    });
+
     it('renders an empty roster as an empty state, not an error', () => {
         expect(factory({ troopers: [] }).text()).toContain('No troopers placed in this section');
     });

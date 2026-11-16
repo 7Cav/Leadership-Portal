@@ -92,7 +92,8 @@ interface AttendanceRepository
     public function practicesWithAutoMakeup(int $trooperId, CarbonInterface $weekStart): Collection;
 
     /**
-     * Record the trooper's signature on the week's rollcall thread. Leaves `status`/`source` as
+     * Record the trooper's signature on the week's rollcall thread, as set by a leader: `rollcall_source = manual`,
+     * which the reply reader never overwrites ({@see signRollcallFromReply()}). Leaves `status`/`source` as
      * they were (both null on a new row — signed, practice not yet marked).
      */
     public function signRollcall(
@@ -100,6 +101,20 @@ interface AttendanceRepository
         int $trooperId,
         RollcallSignature $rollcall,
     ): Attendance;
+
+    /**
+     * Record the signature read from the trooper's latest reply on the week's thread, with `rollcall_source = reply`.
+     * A signature a leader set is never overwritten: a row whose source is `manual`, or a signed row with no source
+     * (one written before sources, or by the demo or tutorial writers), is left exactly as it is. `Unsigned` takes back
+     * a signature an earlier reply gave (the reply was edited to say nothing recognisable, or deleted), clearing the
+     * source; with no row, or an unsigned one, it writes nothing. Decided against a locking read inside this write's own
+     * transaction, as {@see markPracticeAuto()} is. Returns the row written, or null when it was left alone.
+     */
+    public function signRollcallFromReply(
+        SectionPractice $practice,
+        int $trooperId,
+        RollcallSignature $rollcall,
+    ): ?Attendance;
 
     /**
      * Every attendance row against one practice — including rollcall-only rows whose `status` is

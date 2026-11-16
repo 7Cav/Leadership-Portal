@@ -2,6 +2,7 @@
 
 namespace App\Integration\Forum;
 
+use App\Integration\Forum\Data\ForumPostPage;
 use App\Integration\Forum\Data\ForumProfile;
 use App\Integration\Forum\Data\ForumThread;
 use App\Integration\Forum\Data\ForumThreadPage;
@@ -9,6 +10,7 @@ use App\Integration\Forum\Data\ForumThreadSummary;
 use App\Integration\Forum\Data\ForumToken;
 use App\Integration\Forum\Requests\ExchangeCodeRequest;
 use App\Integration\Forum\Requests\FetchProfileRequest;
+use App\Integration\Forum\Requests\FetchThreadPostsRequest;
 use App\Integration\Forum\Requests\FetchThreadRequest;
 use App\Integration\Forum\Requests\ListForumThreadsRequest;
 use Carbon\CarbonImmutable;
@@ -35,6 +37,11 @@ use TypeError;
  * used through this seam to read the body of any other part of the forum. A thread id alone cannot be
  * checked against a section before the request, so {@see fetchLoaThread()} compares the section after
  * the fetch and discards the thread if it is outside the configured sections.
+ *
+ * The one other read with that key is a roll call thread's replies: {@see fetchThreadPosts()}, for the thread a leader
+ * linked when marking their section's roll call posted (#703). It is read-only, and the caller keeps only each reply's
+ * author, link, date and the answer it reads from it, never the text, so a link pasted to some other thread shows no
+ * more of it than who replied there.
  */
 class ForumApi
 {
@@ -146,6 +153,43 @@ class ForumApi
         }
 
         return $thread->postedAt;
+    }
+
+    /**
+     * One page of a thread's posts, oldest first, each with its author. The caller walks the pages with
+     * {@see ForumPostPage::hasMore()}.
+     *
+     * @throws ForumRequestException when no API key is set, or the forum fails or returns an unusable payload (a
+     *                               thread that is gone or out of the key's reach is a 403 or 404, which is permanent)
+     */
+    public function fetchThreadPosts(int $threadId, int $page = 1): ForumPostPage
+    {
+        return ForumPostPage::fromArray(
+            $this->sendForJson($this->withApiKey(new FetchThreadPostsRequest($threadId, $page)), ForumRequestException::threadFetchFailed(...)),
+        );
+    }
+
+    /**
+     * The thread id in a link to a thread on this forum, as a leader pastes it: `/threads/{slug}.{id}/`, or
+     * `/threads/{id}/`, with or without a page or a post anchor after it. Null for a link to another host, or to
+     * anything that is not a thread (a single post's `/posts/{id}/` link says nothing about its thread).
+     */
+    public function threadIdFromUrl(string $url): ?int
+    {
+        $host = parse_url($url, PHP_URL_HOST);
+        $path = parse_url($url, PHP_URL_PATH);
+
+        if (! is_string($host) || ! is_string($path) || mb_strtolower($host) !== mb_strtolower((string) parse_url($this->config['base_url'], PHP_URL_HOST))) {
+            return null;
+        }
+
+        if (preg_match('~^/threads/(?:[^/]*\.)?(\d+)(?:/|$)~', $path, $match) !== 1) {
+            return null;
+        }
+
+        $id = (int) $match[1];
+
+        return $id > 0 ? $id : null;
     }
 
     /**

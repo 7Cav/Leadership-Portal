@@ -57,8 +57,15 @@ The card at the top of the roll call shows when practice starts this week and th
 
 ## Record the signatures
 
-1. In step 1, **Signatures** (on the new roll call, step 3, **Sign and mark**), set each trooper to **Will attend**, **Will not attend**, **Make-up requested**, **Excused** or **Unsigned**, as they signed this week's forum thread.
-2. Every change saves as you click. If a save fails, the page says your last changes are not saved and keeps them on screen. Choose **Retry**.
+Once the roll call is marked posted with its thread link, the portal reads the replies in that thread every hour and signs each trooper from their reply. It reads until the week's report is sent.
+
+1. A reply that says "will attend", "attending" or "present" signs **Will attend**. "Cannot attend", "can't attend" or "unable" signs **Will not attend**. "Makeup" or "make-up" signs **Make-up requested**. Capitals do not matter, and quoted text is not read.
+2. A trooper's latest reply counts. Replies from anyone not on your section's roll call are ignored.
+3. A card signed from the thread says **Signed in the thread**. A reply the portal could not read is listed under **Replied, but no answer recognised**, with a link to it. Read it and sign the trooper yourself.
+4. In step 1, **Signatures** (on the new roll call, step 3, **Sign and mark**), set a trooper by hand to **Will attend**, **Will not attend**, **Make-up requested**, **Excused** or **Unsigned**, for one who told you directly or whose reply was not recognised.
+5. Every change saves as you click. If a save fails, the page says your last changes are not saved and keeps them on screen. Choose **Retry**.
+
+> [!good-to-know] A signature you set by hand is never overwritten by a reply. If the trooper's reply says something else, the card shows **Reply says** and their answer, with a link to the reply, so you can see the difference.
 
 > [!good-to-know] Troopers whose leave covers the week are locked and listed under **On LOA**, with the **LOA** button pressed on both tabs from the LOA data. Every other trooper shows the **LOA** button unpressed: it cannot be clicked, it is set only from the LOA thread. They post as LOA; you do not mark them. A trooper whose leave starts next Cav week shows **Leave from** and the date; mark them as usual this week.
 
