@@ -17,9 +17,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * Two independent facts per row, each written on its own: `rollcall` (did they sign the weekly
  * thread) and `status` + `source` (the SP mark and its source — both null until the practice is
- * marked).
+ * marked). `rollcall_source` says who set the signature ({@see RollcallSource}): a leader by hand, or the reader
+ * of the thread's replies, which never overwrites a leader's.
  */
-#[Fillable(['trooper_id', 'section_practice_id', 'status', 'source', 'rollcall'])]
+#[Fillable(['trooper_id', 'section_practice_id', 'status', 'source', 'rollcall', 'rollcall_source'])]
 class Attendance extends Model
 {
     /** @use HasFactory<AttendanceFactory> */
@@ -38,6 +39,7 @@ class Attendance extends Model
             'status' => AttendanceStatus::class,
             'source' => AttendanceSource::class,
             'rollcall' => RollcallSignature::class,
+            'rollcall_source' => RollcallSource::class,
             // Demo history (#115): set only by the demo writer, never mass-assigned.
             'is_demo' => 'boolean',
         ];

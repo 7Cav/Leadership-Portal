@@ -1030,6 +1030,8 @@ class RollcallController extends Controller
             'retired' => $player->game->isRetired(),
             // Set when the ID is a service's own number, not a game ID (`battlemetrics`): read through the fallback, never linked.
             'idSource' => $player->id_source,
+            // Time on the server inside the practice window (#176), null when the source only knows they were seen.
+            'minutes' => $player->minutes,
         ];
 
         return [

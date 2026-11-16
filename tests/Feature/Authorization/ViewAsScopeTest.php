@@ -163,6 +163,8 @@ it('lets an Admin view as a person, seeing exactly that person\'s derived scope'
             'designation' => '2/1/A/1-7',
             'unitName' => '2nd Section',
             'admin' => false,
+            // The banner names the person with their billet from the roster.
+            'billet' => Trooper::query()->where('cav_id', 100)->value('billet'),
         ]);
 });
 

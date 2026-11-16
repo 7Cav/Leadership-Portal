@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
-import { PhClockCounterClockwise, PhLockSimple, PhSignature } from '@phosphor-icons/vue';
+import { PhArrowSquareOut, PhChatText, PhClockCounterClockwise, PhLockSimple, PhSignature } from '@phosphor-icons/vue';
 import AttendanceSourceIndicator from '@/components/attendance/AttendanceSourceIndicator.vue';
 import LoaBadge from '@/components/LoaBadge.vue';
 import MissingIdentityIcon from '@/components/MissingIdentityIcon.vue';
@@ -21,7 +21,9 @@ import {
     placementNote,
     practiceLabel,
     practiceOf,
+    replyNote,
     signatureLabel,
+    signatureLine,
     signatureOf,
 } from '@/lib/rollcall';
 
@@ -83,6 +85,9 @@ const makeupFrom = computed(() => {
     return `Make-up at ${from.section}, ${from.fromServer ? 'seen on the game server' : 'added by its leader'}`;
 });
 const valueLabel = computed(() => (props.kind === 'signature' ? signatureLabel(value.value) : practiceLabel(value.value)));
+// The trooper's latest reply on the thread, on the signature step only: one the reader could not read, or one whose
+// answer differs from the signature a leader set by hand.
+const reply = computed(() => (props.kind === 'signature' ? replyNote(props.trooper) : null));
 const name = computed(() => fullName(props.trooper));
 // On a week that has ended: moved out or departed since, or joined partway through it.
 const note = computed(() => placementNote(props.trooper.placement));
@@ -194,8 +199,20 @@ const TONE = {
                             <AttendanceSourceIndicator v-else-if="kind === 'practice' && !autoExcused" :status="trooper.status" :source="trooper.source" />
                             <span v-else-if="kind === 'signature' && !autoExcused" class="inline-flex items-center gap-1" data-testid="signature-line">
                                 <PhSignature class="size-3.5" aria-hidden="true" />
-                                {{ trooper.rollcall === 'unsigned' ? 'Not signed yet' : trooper.rollcall === 'excused' ? 'Excused this week' : `Signed: ${valueLabel}` }}
+                                {{ signatureLine(trooper, valueLabel) }}
                             </span>
+                            <component
+                                :is="reply.url ? 'a' : 'span'"
+                                v-if="reply"
+                                :href="reply.url ?? undefined"
+                                :target="reply.url ? '_blank' : undefined"
+                                :rel="reply.url ? 'noopener noreferrer' : undefined"
+                                :class="cn('inline-flex items-center gap-1', reply.kind === 'unrecognised' && 'text-warning', reply.url && 'underline-offset-2 hover:underline')"
+                                :data-testid="`reply-${reply.kind}`"
+                            >
+                                <PhChatText class="size-3.5" aria-hidden="true" />{{ reply.label }}
+                                <PhArrowSquareOut v-if="reply.url" class="size-3" aria-hidden="true" /><span v-if="reply.url" class="sr-only">(opens the reply on the forum)</span>
+                            </component>
                             <span v-if="suggestion" class="inline-flex items-center gap-1" data-testid="prior-mark">
                                 <PhClockCounterClockwise class="size-3.5" aria-hidden="true" />Last week: {{ suggestion }}
                             </span>

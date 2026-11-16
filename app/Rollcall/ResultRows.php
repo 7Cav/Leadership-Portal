@@ -16,7 +16,7 @@ namespace App\Rollcall;
  */
 final class ResultRows
 {
-    private const RC_WORDS = ['will_attend' => 'Yes', 'cannot_attend' => 'No', 'makeup_requested' => 'MU', 'excused' => 'EX'];
+    private const RC_WORDS = ['will_attend' => 'Yes', 'cannot_attend' => 'No', 'makeup_requested' => 'MU', 'excused' => 'EX', 'loa' => 'LOA'];
 
     private const SP_WORDS = ['present' => 'Yes', 'missed' => 'No', 'excused' => 'EX', 'makeup' => 'MU', 'loa' => 'LOA'];
 
@@ -47,10 +47,17 @@ final class ResultRows
         ], $troopers);
     }
 
-    /** The signature as it counts: what was recorded, else the automatic Excused (`AutoExcused::excusesSignature()`). */
+    /**
+     * The signature as it counts: what was recorded, else LOA for a trooper on leave, else the automatic Excused
+     * (`AutoExcused::excusesSignature()`), as the post words it.
+     */
     private static function signature(array $trooper): ?string
     {
         $recorded = $trooper['rollcall'] ?? 'unsigned';
+
+        if ($recorded === 'unsigned' && self::practice($trooper) === 'loa') {
+            return 'loa';
+        }
 
         return ! empty($trooper['excused']) && $recorded === 'unsigned' ? 'excused' : $recorded;
     }

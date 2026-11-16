@@ -643,7 +643,7 @@ describe('attendance across transfers', function () {
         Loa::factory()->create(['trooper_id' => $trooper->id, 'starts_at' => '2026-09-12', 'ends_at' => '2026-09-14']);
 
         milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page
-            ->where('transfers', [['at' => '2026-09-30T18:00:00Z', 'from' => '2/1/A/1-7', 'to' => '1/1/A/1-7']])
+            ->where('transfers', [['at' => '2026-09-30T18:00:00Z', 'from' => '2/1/A/1-7', 'to' => '1/1/A/1-7', 'reversedAt' => null, 'reverses' => false]])
             ->has('attendance', 20)
             ->where('attendance.19.week', '2026-10-03')
             ->where('attendance.19.section', ['id' => $this->section1->id, 'label' => '1/1/A/1-7'])
@@ -654,6 +654,26 @@ describe('attendance across transfers', function () {
             ->where('attendance.16.week', '2026-09-12')
             ->where('attendance.16.loa', true)
             ->where('attendance.16.status', null));
+    });
+
+    it('leaves out a move undone inside the same Cav week, and marks one undone in a later week', function () {
+        $trooper = milpacTrooper($this->section1);
+        $sync = app(TrooperRepository::class);
+        // Moved by mistake and put back the same Saturday: never happened as far as the week goes.
+        $this->travelTo(CarbonImmutable::parse('2026-09-19 14:00:00', 'UTC'));
+        $sync->updatePrimarySections([$trooper->cav_id => $this->section2->id]);
+        $this->travelTo(CarbonImmutable::parse('2026-09-19 19:00:00', 'UTC'));
+        $sync->updatePrimarySections([$trooper->cav_id => $this->section1->id]);
+        // Moved by mistake and only put back the week after: both shown, marked as a likely correction.
+        $this->travelTo(CarbonImmutable::parse('2026-10-01 12:00:00', 'UTC'));
+        $sync->updatePrimarySections([$trooper->cav_id => $this->section2->id]);
+        $this->travelTo(CarbonImmutable::parse('2026-10-05 12:00:00', 'UTC'));
+        $sync->updatePrimarySections([$trooper->cav_id => $this->section1->id]);
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page->where('transfers', [
+            ['at' => '2026-10-05T12:00:00Z', 'from' => '2/1/A/1-7', 'to' => '1/1/A/1-7', 'reversedAt' => null, 'reverses' => true],
+            ['at' => '2026-10-01T12:00:00Z', 'from' => '1/1/A/1-7', 'to' => '2/1/A/1-7', 'reversedAt' => '2026-10-05T12:00:00Z', 'reverses' => false],
+        ]));
     });
 
     it('shows no transfers and the current section for a trooper who never moved', function () {
