@@ -39,6 +39,7 @@ class Eloquent implements CalendarEventRepository
 
             foreach ($read as $key => $occurrence) {
                 $values = [
+                    'calendar_id' => $occurrence->calendarId,
                     'title' => mb_substr($occurrence->title, 0, self::TITLE_LENGTH),
                     'ends_at' => $occurrence->endsAt?->utc(),
                     'url' => $occurrence->url !== null && strlen($occurrence->url) <= self::URL_LENGTH ? $occurrence->url : null,

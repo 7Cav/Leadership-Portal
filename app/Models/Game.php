@@ -16,9 +16,12 @@ use LogicException;
  * of each kind must have is listed in {@see IdKindFormat}, by kind name (#450). `abbreviation` is the game's short code
  * (HLL, HLLV, ARMA), shown as the game chip on the row of the highest line unit in an AO that plays it (usually a battalion) in the org tree.
  * `event_tags` is the text in a 7Cav calendar event's title that marks the event as the game's (`[HLL]`, `SQUAD |`, #751),
- * so a section's roll call lists the events of the game it plays; null or empty lists none.
+ * so a section's roll call lists the events of the game it plays; null or empty lists none. `event_calendars` names the
+ * 7Cav forum calendars its operations, classes and FTXs are filed in (`{"operation": [46], "class": [38], "ftx": []}`),
+ * which tie an event to the game by where it is filed; the title tags are the fallback for an event in no calendar a
+ * game names ({@see claimsEvent()}).
  */
-#[Fillable(['slug', 'name', 'abbreviation', 'id_kinds', 'interface', 'event_tags', 'retired_at'])]
+#[Fillable(['slug', 'name', 'abbreviation', 'id_kinds', 'interface', 'event_tags', 'event_calendars', 'retired_at'])]
 class Game extends Model
 {
     /** @use HasFactory<GameFactory> */
@@ -53,6 +56,7 @@ class Game extends Model
         return [
             'id_kinds' => 'array',
             'event_tags' => 'array',
+            'event_calendars' => 'array',
             'interface' => TelemetryInterface::class,
             'retired_at' => 'immutable_datetime',
         ];
@@ -130,6 +134,70 @@ class Game extends Model
         }
 
         return false;
+    }
+
+    /** The kinds of event a forum calendar may hold for a game, in the order Settings > Games shows them. */
+    public const EVENT_KINDS = ['operation', 'class', 'ftx'];
+
+    /** The most forum calendars a game may name for one kind. */
+    public const MAX_EVENT_CALENDARS = 5;
+
+    /**
+     * The forum calendars this game's events are filed in, by kind, as an Admin set them on Settings > Games: every kind
+     * present, each a list of calendar ids.
+     *
+     * @return array{operation: list<int>, class: list<int>, ftx: list<int>}
+     */
+    public function eventCalendars(): array
+    {
+        $set = is_array($this->event_calendars) ? $this->event_calendars : [];
+        $calendars = [];
+
+        foreach (self::EVENT_KINDS as $kind) {
+            $ids = is_array($set[$kind] ?? null) ? $set[$kind] : [];
+            $calendars[$kind] = array_values(array_unique(array_filter(array_map(fn (mixed $id) => is_numeric($id) ? (int) $id : 0, $ids), fn (int $id) => $id > 0)));
+        }
+
+        return $calendars;
+    }
+
+    /**
+     * Every forum calendar this game names, of any kind.
+     *
+     * @return list<int>
+     */
+    public function eventCalendarIds(): array
+    {
+        return array_values(array_unique(array_merge(...array_values($this->eventCalendars()))));
+    }
+
+    /**
+     * What kind of event this is for the game, by the forum calendar it is filed in: `operation`, `class` or `ftx`, or
+     * null when the game names no calendar it is in.
+     */
+    public function eventKind(CalendarEvent $event): ?string
+    {
+        if ($event->calendar_id === null) {
+            return null;
+        }
+
+        foreach ($this->eventCalendars() as $kind => $ids) {
+            if (in_array((int) $event->calendar_id, $ids, true)) {
+                return $kind;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Whether a calendar event is this game's: filed in a forum calendar the game names, or else, when it is in none of
+     * them, carrying one of the game's title tags ({@see marksEvent()}). An event filed in another game's calendar can
+     * still be this game's by its tag, so a title that names the game is never missed.
+     */
+    public function claimsEvent(CalendarEvent $event): bool
+    {
+        return $this->eventKind($event) !== null || $this->marksEvent($event->title);
     }
 
     public function isRetired(): bool
