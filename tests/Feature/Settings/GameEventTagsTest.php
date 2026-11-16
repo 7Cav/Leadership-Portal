@@ -81,3 +81,45 @@ it('lets only an Admin change the tags', function () {
 
     expect($hll->fresh()->eventTags())->toBe(['[HLL]']);
 });
+
+it('shows each game with its forum calendars', function () {
+    $this->actingAs($this->admin)->get('/settings/games')->assertInertia(fn (Assert $page) => $page
+        ->where('games.0.slug', 'hll')
+        ->where('games.0.eventCalendars', ['operation' => [15], 'class' => [20], 'ftx' => [27]]));
+});
+
+it('sets the forum calendars from their links or ids, without blanks or a second of the same, audited once', function () {
+    $hll = game('hll');
+
+    $this->actingAs($this->admin)->patch("/settings/games/{$hll->id}", tagsForm($hll, ['event_calendars' => [
+        'operation' => ['https://7cav.us/calendar/15/', ' 46 ', '15', null],
+        'class' => ['https://7cav.us/events/calendar/20/?page=2'],
+        'ftx' => [],
+    ]]))->assertSessionHasNoErrors();
+
+    expect($hll->fresh()->eventCalendars())->toBe(['operation' => [15, 46], 'class' => [20], 'ftx' => []])
+        ->and(AuditLogEntry::query()->pluck('action')->all())->toBe(['game.event_calendars_set'])
+        ->and(AuditLogEntry::query()->sole()->details['changes'])->toBe([['field' => 'Forum calendars', 'from' => 'operation 15; class 20; ftx 27', 'to' => 'operation 15, 46; class 20']]);
+});
+
+it('records nothing when the forum calendars are the ones the game has, and leaves them when the form sends none', function () {
+    $hll = game('hll');
+
+    $this->actingAs($this->admin)->patch("/settings/games/{$hll->id}", tagsForm($hll, ['event_calendars' => ['operation' => ['15'], 'class' => ['20'], 'ftx' => ['27']]]))
+        ->assertSessionHasNoErrors();
+    $this->actingAs($this->admin)->patch("/settings/games/{$hll->id}", tagsForm($hll))->assertSessionHasNoErrors();
+
+    expect(AuditLogEntry::query()->count())->toBe(0)
+        ->and($hll->fresh()->eventCalendars())->toBe(['operation' => [15], 'class' => [20], 'ftx' => [27]]);
+});
+
+it('refuses a forum calendar that is not a calendar link or id, or an unknown kind', function () {
+    $hll = game('hll');
+
+    $this->actingAs($this->admin)->patch("/settings/games/{$hll->id}", tagsForm($hll, ['event_calendars' => ['operation' => ['https://7cav.us/events/4077/']]]))
+        ->assertSessionHasErrors('event_calendars.operation.0');
+    $this->actingAs($this->admin)->patch("/settings/games/{$hll->id}", tagsForm($hll, ['event_calendars' => ['misc' => ['22']]]))
+        ->assertSessionHasErrors('event_calendars');
+
+    expect($hll->fresh()->eventCalendars())->toBe(['operation' => [15], 'class' => [20], 'ftx' => [27]]);
+});

@@ -31,7 +31,7 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => {
                     return this;
                 },
                 sent() {
-                    return this.transformer({ name: this.name, abbreviation: this.abbreviation, id_kinds: this.id_kinds, interface: this.interface, event_tags: this.event_tags });
+                    return this.transformer({ name: this.name, abbreviation: this.abbreviation, id_kinds: this.id_kinds, interface: this.interface, event_tags: this.event_tags, event_calendars: this.event_calendars });
                 },
                 post(...args) {
                     post(...args, this.sent());
@@ -55,7 +55,7 @@ const INTERFACES = [
     { value: 'impossible', label: 'None (impossible)' },
 ];
 const GAMES = [
-    { id: 1, slug: 'hll', name: 'Hell Let Loose', abbreviation: 'HLL', idKinds: ['Steam ID'], interface: 'crcon', eventTags: ['[HLL]'], retired: false, inUse: true },
+    { id: 1, slug: 'hll', name: 'Hell Let Loose', abbreviation: 'HLL', idKinds: ['Steam ID'], interface: 'crcon', eventTags: ['[HLL]'], eventCalendars: { operation: [15], class: [20], ftx: [] }, retired: false, inUse: true },
     { id: 4, slug: 'squad', name: 'Squad', idKinds: ['EOS ID'], interface: 'none', retired: false, inUse: false },
     { id: 5, slug: 'foxhole', name: 'Foxhole', idKinds: ['Player ID'], interface: 'none', retired: true, inUse: true },
 ];
@@ -119,6 +119,7 @@ describe('Settings/Games', () => {
             id_kinds: ['EOS ID'],
             interface: 'battlemetrics',
             event_tags: [],
+            event_calendars: { operation: [], class: [], ftx: [] },
         });
         expect(patch).not.toHaveBeenCalled();
     });
@@ -140,6 +141,7 @@ describe('Settings/Games', () => {
             id_kinds: ['Steam64'],
             interface: 'none',
             event_tags: ['[HLL]'],
+            event_calendars: { operation: ['15'], class: ['20'], ftx: [] },
         });
 
         await wrapper.get('[data-testid="cancel-edit"]').trigger('click');
@@ -162,6 +164,29 @@ describe('Settings/Games', () => {
         await wrapper.get('[data-testid="game-form"]').trigger('submit');
 
         expect(patch).toHaveBeenCalledWith('/settings/games/1', expect.anything(), expect.objectContaining({ event_tags: ['[HLL]', 'Hell Let Loose'] }));
+    });
+
+    it('shows the forum calendars of each game by kind, and none for a game without', () => {
+        const wrapper = factory();
+
+        expect(wrapper.get('[data-testid="event-calendars-hll"]').text()).toBe('Forum calendars: Operations 15 · Classes 20');
+        expect(wrapper.get('[data-testid="event-calendars-squad"]').text()).toBe('No forum calendars');
+    });
+
+    it('edits the forum calendars of each kind as one line of links or ids and sends them as lists', async () => {
+        const wrapper = factory();
+        await wrapper.get('[data-testid="edit-hll"]').trigger('click');
+
+        expect(wrapper.get('[data-testid="game-calendars-operation"]').element.value).toBe('15');
+        expect(wrapper.get('[data-testid="game-calendars-ftx"]').element.value).toBe('');
+        await wrapper.get('[data-testid="game-calendars-ftx"]').setValue(' https://7cav.us/calendar/27/ ,, ');
+        await wrapper.get('[data-testid="game-form"]').trigger('submit');
+
+        expect(patch).toHaveBeenCalledWith(
+            '/settings/games/1',
+            expect.anything(),
+            expect.objectContaining({ event_calendars: { operation: ['15'], class: ['20'], ftx: ['https://7cav.us/calendar/27/'] } }),
+        );
     });
 
     it('offers None (impossible) apart from None, and saves it', async () => {
@@ -215,6 +240,7 @@ describe('Settings/Games', () => {
             id_kinds: ['Steam ID', 'Epic ID', 'Xbox ID'],
             interface: 'crcon',
             event_tags: ['[HLL]'],
+            event_calendars: { operation: ['15'], class: ['20'], ftx: [] },
         });
 
         await wrapper.get('[data-testid="remove-kind-1"]').trigger('click');

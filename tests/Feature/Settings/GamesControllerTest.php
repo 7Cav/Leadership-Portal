@@ -42,9 +42,9 @@ it('lists every game with its id label, interface and state, and the interfaces 
         ->component('Settings/Games')
         ->where('isAdmin', true)
         ->has('games', 5)
-        ->where('games.0', ['id' => game('hll')->id, 'slug' => 'hll', 'name' => 'Hell Let Loose (WW2)', 'abbreviation' => 'HLL', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID', 'PlayStation ID'], 'checkedKinds' => ['Steam ID', 'Epic ID'], 'interface' => 'crcon', 'eventTags' => ['[HLL]'], 'retired' => false, 'inUse' => true, 'accounts' => ['Steam', 'Epic'], 'pendingAccountLinks' => 0])
+        ->where('games.0', ['id' => game('hll')->id, 'slug' => 'hll', 'name' => 'Hell Let Loose (WW2)', 'abbreviation' => 'HLL', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID', 'PlayStation ID'], 'checkedKinds' => ['Steam ID', 'Epic ID'], 'interface' => 'crcon', 'eventTags' => ['[HLL]'], 'eventCalendars' => ['operation' => [15], 'class' => [20], 'ftx' => [27]], 'retired' => false, 'inUse' => true, 'accounts' => ['Steam', 'Epic'], 'pendingAccountLinks' => 0])
         ->where('games.1.inUse', false)
-        ->where('games.3', ['id' => game('hll-vietnam')->id, 'slug' => 'hll-vietnam', 'name' => 'Hell Let Loose: Vietnam', 'abbreviation' => 'HLLV', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID', 'PlayStation ID', 'EOS ID'], 'checkedKinds' => ['Steam ID', 'Epic ID', 'EOS ID'], 'interface' => 'none', 'eventTags' => ['[HLLV]', '[HLL:Vietnam]'], 'retired' => false, 'inUse' => false, 'accounts' => ['Steam', 'Epic'], 'pendingAccountLinks' => 1])
+        ->where('games.3', ['id' => game('hll-vietnam')->id, 'slug' => 'hll-vietnam', 'name' => 'Hell Let Loose: Vietnam', 'abbreviation' => 'HLLV', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID', 'PlayStation ID', 'EOS ID'], 'checkedKinds' => ['Steam ID', 'Epic ID', 'EOS ID'], 'interface' => 'none', 'eventTags' => ['[HLLV]', '[HLL:Vietnam]'], 'eventCalendars' => ['operation' => [16], 'class' => [21], 'ftx' => [28]], 'retired' => false, 'inUse' => false, 'accounts' => ['Steam', 'Epic'], 'pendingAccountLinks' => 1])
         ->where('games.4', fn ($game) => $game['slug'] === 'foxhole' && $game['retired'] === true)
         ->where('interfaces', [
             ['value' => 'crcon', 'label' => 'CRCON'],

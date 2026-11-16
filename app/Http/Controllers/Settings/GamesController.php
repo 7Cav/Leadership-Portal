@@ -10,6 +10,7 @@ use App\Commands\Games\ApplySharedAccountLinks;
 use App\Commands\Games\DeleteGame;
 use App\Commands\Games\InvalidGameException;
 use App\Commands\Games\RetireGame;
+use App\Commands\Games\SetGameEventCalendars;
 use App\Commands\Games\SetGameEventTags;
 use App\Commands\Games\UpdateGame;
 use App\Http\Controllers\Controller;
@@ -70,6 +71,8 @@ class GamesController extends Controller
                 'interface' => $game->interface->value,
                 // The text in a calendar event's title that marks it as this game's, for the roll call's events (#751).
                 'eventTags' => $game->eventTags(),
+                // The forum calendars its operations, classes and FTXs are filed in, by kind: what ties an event to it.
+                'eventCalendars' => $game->eventCalendars(),
                 'retired' => $game->isRetired(),
                 // A game in use can be retired, not deleted: the page offers only what the server would accept.
                 'inUse' => isset($inUse[$game->id]),
@@ -100,7 +103,7 @@ class GamesController extends Controller
         ]);
     }
 
-    public function store(Request $request, AddGame $command, SetGameEventTags $setTags): RedirectResponse
+    public function store(Request $request, AddGame $command, SetGameEventTags $setTags, SetGameEventCalendars $setCalendars): RedirectResponse
     {
         $this->authorizeAdmin($request);
 
@@ -113,11 +116,12 @@ class GamesController extends Controller
         }
 
         $this->saveEventTags($request, $data, $game, $setTags);
+        $this->saveEventCalendars($request, $data, $game, $setCalendars);
 
         return redirect()->route('settings.games');
     }
 
-    public function update(Request $request, int $game, UpdateGame $command, SetGameEventTags $setTags): RedirectResponse
+    public function update(Request $request, int $game, UpdateGame $command, SetGameEventTags $setTags, SetGameEventCalendars $setCalendars): RedirectResponse
     {
         $this->authorizeAdmin($request);
         $game = $this->games->find($game) ?? abort(404);
@@ -131,6 +135,7 @@ class GamesController extends Controller
         }
 
         $this->saveEventTags($request, $data, $game, $setTags);
+        $this->saveEventCalendars($request, $data, $game, $setCalendars);
 
         return redirect()->route('settings.games');
     }
@@ -148,6 +153,20 @@ class GamesController extends Controller
         }
 
         $setTags->handle($request->user(), $game, array_values(array_filter($data['event_tags'] ?? [], 'is_string')));
+    }
+
+    /**
+     * The forum calendars, by kind, when the form sent them. A blank row arrives as null and is dropped.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function saveEventCalendars(Request $request, array $data, Game $game, SetGameEventCalendars $setCalendars): void
+    {
+        if (! array_key_exists('event_calendars', $data)) {
+            return;
+        }
+
+        $setCalendars->handle($request->user(), $game, is_array($data['event_calendars']) ? $data['event_calendars'] : []);
     }
 
     public function retire(Request $request, int $game, RetireGame $command): RedirectResponse
@@ -223,6 +242,13 @@ class GamesController extends Controller
             // it leaves the tags as they are.
             'event_tags' => ['sometimes', 'nullable', 'array', 'max:'.Game::MAX_EVENT_TAGS],
             'event_tags.*' => ['nullable', 'string', 'max:'.Game::MAX_EVENT_TAG_LENGTH],
+            // The forum calendars its operations, classes and FTXs are filed in, each as its link or id. Optional: a
+            // request without them leaves them as they are.
+            'event_calendars' => ['sometimes', 'nullable', 'array:'.implode(',', Game::EVENT_KINDS)],
+            ...collect(Game::EVENT_KINDS)->mapWithKeys(fn (string $kind) => [
+                "event_calendars.$kind" => ['nullable', 'array', 'max:'.Game::MAX_EVENT_CALENDARS],
+                "event_calendars.$kind.*" => ['nullable', 'string', 'max:200', 'regex:'.SetGameEventCalendars::PATTERN],
+            ])->all(),
         ];
     }
 }
