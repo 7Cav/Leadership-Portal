@@ -18,7 +18,8 @@ use Illuminate\Support\Collection;
  * is the one {@see UnitGame} works out for the trooper's own unit (its own, else the nearest unit above's). A trooper
  * counts as missing when they hold no `trooper_game_identities` row on that game: an identity is one per game, and any
  * of the game's ID kinds (Steam, Epic) counts, since the game's `(game_id, platform_id)` key is what the capture
- * matches on, whatever kind the ID was entered as.
+ * matches on, whatever kind the ID was entered as. Except on a game whose servers log every player by one kind
+ * ({@see Game::requiredIdKind()}, EOS on HLL Vietnam): only that kind counts there.
  *
  * Left out: a trooper whose unit plays no game, a retired game (nobody can link one any more), and a trooper placed on a
  * group (ELOA, Reservists, New Recruits, a staff department) rather than a line unit. Read-only, and a fixed number of
@@ -64,7 +65,9 @@ class MissingGameIdentities
             return [];
         }
 
+        // On a game read by its logged ID (EOS on HLL Vietnam), only that kind counts as linked.
         $linked = $this->identities->forTroopers($expected->keys()->all())
+            ->filter(fn (TrooperGameIdentity $identity) => ($kind = $games->get($identity->game_id)?->requiredIdKind()) === null || $identity->id_kind === $kind)
             ->mapWithKeys(fn (TrooperGameIdentity $identity) => ["{$identity->trooper_id}|{$identity->game_id}" => true]);
 
         return $expected->reject(fn (Game $game, int $trooperId) => $linked->has("{$trooperId}|{$game->id}"))->all();
@@ -86,7 +89,7 @@ class MissingGameIdentities
      * missing it, sorted by name. Empty when nobody is missing one.
      *
      * @param  iterable<int>  $unitIds
-     * @return list<array{gameId: int, game: string, count: int, troopers: list<array{id: int, name: string}>}>
+     * @return list<array{gameId: int, game: string, kind: ?string, count: int, troopers: list<array{id: int, name: string}>}>
      */
     public function summaryFor(iterable $unitIds): array
     {
@@ -99,6 +102,8 @@ class MissingGameIdentities
             ->map(fn (Collection $group) => [
                 'gameId' => $group->first()->id,
                 'game' => $group->first()->name,
+                // The one ID kind that counts on this game (EOS on HLL Vietnam), so the alert can ask for it by name.
+                'kind' => $group->first()->requiredIdKind(),
                 'count' => $group->count(),
                 'troopers' => $group->keys()
                     ->map(fn (int $id) => ['id' => $id, 'name' => $byId->get($id)->display_name])

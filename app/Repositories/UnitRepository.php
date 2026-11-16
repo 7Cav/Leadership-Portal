@@ -235,7 +235,7 @@ interface UnitRepository
      * Troopers placed in the unit are left unplaced: `primary_section_id` and `placement_source`
      * are cleared together, so no trooper keeps a placement source without a section.
      */
-    public function delete(Unit $unit): void;
+    public function delete(Unit $unit, ?int $by = null): void;
 
     /**
      * Every unit whose 7Cav designation (`callsign`, e.g. `A/1-7`) is exactly `$callsign`, in id

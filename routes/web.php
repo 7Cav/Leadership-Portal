@@ -30,6 +30,7 @@ use App\Http\Controllers\Settings\GamesController;
 use App\Http\Controllers\Settings\LoaSyncController;
 use App\Http\Controllers\Settings\OrgBilletsController;
 use App\Http\Controllers\Settings\OrgStructureController;
+use App\Http\Controllers\Settings\PlacementChangesController;
 use App\Http\Controllers\Settings\RosterSyncController;
 use App\Http\Controllers\Settings\ServersController;
 use App\Http\Controllers\Settings\StaffGrantsController;
@@ -424,6 +425,10 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // The activity log (#382): the pages each person opened, for retracing a bug report. Admin-only, gated in the
     // controller like the audit log. Read-only, so no throttle.
     Route::get('/settings/activity-log', [ActivityLogController::class, 'index'])->name('settings.activity-log');
+
+    // Placement changes: the moves the roster sync and Admins wrote, to catch a wrong milpac edit the day it happens.
+    // Admin-only, gated in the controller like the audit log. Read-only, so no throttle.
+    Route::get('/settings/placement-changes', [PlacementChangesController::class, 'index'])->name('settings.placement-changes');
 
     // Manual roster sync trigger (Story 2.4), posted by the roster screen's "Sync now" control
     // (2.8); there is no GET view of its own. The Admin gate is enforced in the controller (AD-6),

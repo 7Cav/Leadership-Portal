@@ -6,6 +6,7 @@ use App\Models\Attendance;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\RollcallSignature;
+use App\Models\RollcallSource;
 use App\Models\SectionPractice;
 use App\Models\SectionPracticeSlot;
 use App\Models\Trooper;
@@ -189,7 +190,47 @@ class Eloquent implements AttendanceRepository
         int $trooperId,
         RollcallSignature $rollcall,
     ): Attendance {
-        return $this->upsert($practice, $trooperId, ['rollcall' => $rollcall]);
+        return $this->upsert($practice, $trooperId, ['rollcall' => $rollcall, 'rollcall_source' => RollcallSource::Manual]);
+    }
+
+    public function signRollcallFromReply(
+        SectionPractice $practice,
+        int $trooperId,
+        RollcallSignature $rollcall,
+    ): ?Attendance {
+        $key = ['trooper_id' => $trooperId, 'section_practice_id' => $practice->id];
+
+        return DB::transaction(function () use ($key, $rollcall) {
+            $row = Attendance::query()->where($key)->lockForUpdate()->first();
+
+            if ($row === null) {
+                if ($rollcall === RollcallSignature::Unsigned) {
+                    return null;
+                }
+
+                try {
+                    return $this->realise(Attendance::query()->create($key + ['rollcall' => $rollcall, 'rollcall_source' => RollcallSource::Reply]));
+                } catch (UniqueConstraintViolationException $e) {
+                    // A racing writer inserted the row first; a locking read sees it (cf. upsert()).
+                    $row = Attendance::query()->where($key)->lockForUpdate()->first() ?? throw $e;
+                }
+            }
+
+            // A leader's signature stays, and so does a signed row from before sources were recorded.
+            $byHand = $row->rollcall_source === RollcallSource::Manual
+                || ($row->rollcall_source === null && $row->rollcall !== RollcallSignature::Unsigned);
+
+            if ($byHand || ($row->rollcall === $rollcall && $row->rollcall_source === ($rollcall === RollcallSignature::Unsigned ? null : RollcallSource::Reply))) {
+                return null;
+            }
+
+            $row->fill([
+                'rollcall' => $rollcall,
+                'rollcall_source' => $rollcall === RollcallSignature::Unsigned ? null : RollcallSource::Reply,
+            ])->save();
+
+            return $this->realise($row);
+        });
     }
 
     public function forPractice(SectionPractice $practice): Collection

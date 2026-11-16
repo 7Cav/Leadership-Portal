@@ -26,6 +26,11 @@ describe('navigation', () => {
         expect(found.item.label).toBe('Org structure');
     });
 
+    it('keeps Org structure active on its Placement changes tab', () => {
+        expect(isActive('/settings/placement-changes?days=7', '/settings/org-structure')).toBe(true);
+        expect(locate('/settings/placement-changes').item.label).toBe('Org structure');
+    });
+
     it('treats a trooper page as a child of Roster: the item stays active and the trail continues', () => {
         expect(isActive('/troopers/12', '/roster')).toBe(true);
         expect(isActive('/troopers/12', '/home')).toBe(false);

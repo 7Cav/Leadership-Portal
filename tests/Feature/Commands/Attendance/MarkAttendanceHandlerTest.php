@@ -267,6 +267,11 @@ it('rolls the whole batch back — practice, marks and audit — when a write fa
             return $this->inner->signRollcall($practice, $trooperId, $rollcall);
         }
 
+        public function signRollcallFromReply(SectionPractice $practice, int $trooperId, RollcallSignature $rollcall): ?Attendance
+        {
+            return $this->inner->signRollcallFromReply($practice, $trooperId, $rollcall);
+        }
+
         public function forPractice(SectionPractice $practice): Collection
         {
             return $this->inner->forPractice($practice);

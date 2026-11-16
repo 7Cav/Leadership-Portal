@@ -214,9 +214,11 @@ deptrac:
     # milpac: ID block, courses, awards, service record, quick actions) and the training-readiness matrix of a unit.
     # Also the roster cache's source and freshness (RosterProvenance, AD-20) that every page showing roster data reads.
     # Read-only; who may look is the Controller's ScopeResolver gate (AD-8), not decided here.
+    # Support\Time because a move undone inside one Cav week is left off the transfers (`WeekOf`, AD-11).
     Milpac:
       - Repository
       - Model
+      - Support\Time
     # LOA reads over the `sync_runs` cache (Epic 4): the source/last-sync every LOA value renders with
     # (4.3, AD-20) and whether a trooper is covered in a Cav week (4.4, AD-21). Read-only; the LOA sync
     # stays the one writer. Support\Time because coverage is judged in whole Cav weeks (`WeekOf`, AD-11).

@@ -165,6 +165,27 @@ describe('the automatic Excused', function () {
             ->and(rsRow($this->b, $attended)->practice)->toEqual(new Ratio(1, 4));
     });
 
+    it('excuses nobody moved out and straight back inside one week, and still excuses a real move back later', function () {
+        $sync = app(TrooperRepository::class);
+        // Moved to A by mistake on Saturday, put back in B the same day: B is where they began the week.
+        $roundTrip = rsTrooper($this->b);
+        $this->travelTo(rsWeek()->setTime(14, 0));
+        $sync->updatePrimarySections([$roundTrip->cav_id => $this->a->id]);
+        $this->travelTo(rsWeek()->setTime(19, 0));
+        $sync->updatePrimarySections([$roundTrip->cav_id => $this->b->id]);
+        // Moved to A one week and back to B the next: a real stay in A, so both first weeks are excused.
+        $stayed = rsTrooper($this->b);
+        $this->travelTo(rsWeek(2)->addDays(1));
+        $sync->updatePrimarySections([$stayed->cav_id => $this->a->id]);
+        $this->travelTo(rsWeek(1)->addDays(1));
+        $sync->updatePrimarySections([$stayed->cav_id => $this->b->id]);
+        $this->travelTo(CarbonImmutable::parse('2026-10-08 16:20:00', 'UTC'));
+
+        expect(app(AutoExcused::class)->forTroopersOverWeeks([$roundTrip->id, $stayed->id], rsWeek(3), 4))->toBe([
+            $stayed->id => [rsWeek(2)->toDateString() => AutoExcused::TRANSFER, rsWeek(1)->toDateString() => AutoExcused::TRANSFER],
+        ]);
+    });
+
     it('excuses nobody for the placement history\'s first rows, which have no start', function () {
         expect(app(AutoExcused::class)->forTroopersOverWeeks([$this->stayer->id], rsWeek(3), 4))->toBe([]);
     });

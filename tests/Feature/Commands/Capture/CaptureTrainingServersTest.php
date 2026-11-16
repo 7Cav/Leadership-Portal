@@ -7,7 +7,10 @@ use App\Commands\Capture\CaptureSource;
 use App\Commands\Capture\CaptureSources;
 use App\Commands\Capture\CaptureSourceUnavailable;
 use App\Commands\Capture\PracticeTelemetry;
+use App\Integration\Crcon\CrconApi;
+use App\Integration\Crcon\CrconUnavailable;
 use App\Integration\Crcon\Data\CrconPlayer;
+use App\Integration\Crcon\Data\CrconPlayerProfile;
 use App\Integration\Crcon\Data\CrconPresence;
 use App\Models\Attendance;
 use App\Models\GameServer;
@@ -170,4 +173,36 @@ it('attempts nothing and records no run when no training server has credentials'
     expect($result->attempted)->toBeFalse()
         ->and(SyncRun::query()->count())->toBe(0)
         ->and(GameServerRead::query()->count())->toBe(0);
+});
+
+// 15NOV26: HLL Vietnam's CRCON logs every player by an EOS ID. A trooper linked by their Steam (or console) ID is found
+// through the player's CRCON profile, which names that ID.
+it('matches a player nobody linked by their EOS ID through the Steam ID in their CRCON profile', function () {
+    $eos = '0002e54f00000000000000000000beef';
+    $steamLinked = trooperOn($this, '76561199046655053');
+    $crcon = Mockery::mock(CrconApi::class);
+    $crcon->shouldReceive('playerProfile')->with($eos, Mockery::any())->andReturn(new CrconPlayerProfile($eos, 'steam', 'Snow.G', '76561199046655053'));
+    $crcon->shouldReceive('playerProfile')->with('0002ffff00000000000000000000beef', Mockery::any())->andReturn(new CrconPlayerProfile('0002ffff00000000000000000000beef', 'steam', 'Stranger', '76561190000000000'));
+    app()->instance(CrconApi::class, $crcon);
+
+    $result = captureServers($this, [
+        new CaptureServer($this->a->id, 'Training A', [serverAnswering($this->a, 'crcon', [new CrconPlayer('Snow.G', $eos), new CrconPlayer('Stranger', '0002ffff00000000000000000000beef')])]),
+    ]);
+
+    expect(array_column($result->matched, 'trooperId'))->toBe([$steamLinked->id])
+        ->and($result->unmatchedCount())->toBe(1)
+        ->and(Attendance::query()->where('trooper_id', $steamLinked->id)->exists())->toBeTrue();
+});
+
+it('leaves a player unmatched when their CRCON profile cannot be read', function () {
+    trooperOn($this, '76561199046655053');
+    $crcon = Mockery::mock(CrconApi::class);
+    $crcon->shouldReceive('playerProfile')->andThrow(CrconUnavailable::misconfigured('down'));
+    app()->instance(CrconApi::class, $crcon);
+
+    $result = captureServers($this, [
+        new CaptureServer($this->a->id, 'Training A', [serverAnswering($this->a, 'crcon', [new CrconPlayer('Snow.G', '0002e54f00000000000000000000beef')])]),
+    ]);
+
+    expect($result->captured)->toBeTrue()->and($result->matched)->toBe([])->and($result->unmatchedCount())->toBe(1);
 });
