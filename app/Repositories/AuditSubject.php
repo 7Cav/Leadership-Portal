@@ -107,7 +107,7 @@ final class AuditSubject
         FireteamAssignment::class => ['role' => 'Role'],
         FireteamSetting::class => ['fireteam_order' => 'Order', 'show_fireteams' => 'Show fireteams', 'sl_asl_lead_fireteams' => 'SL and ASL lead fireteams'],
         Unit::class => ['name' => 'Name', 'callsign' => 'Callsign', 'label' => 'Label'],
-        Game::class => ['name' => 'Name', 'event_tags' => 'Calendar tags'],
+        Game::class => ['name' => 'Name', 'event_tags' => 'Calendar tags', 'event_calendars' => 'Forum calendars'],
         GameServer::class => ['name' => 'Name'],
         User::class => ['is_admin' => 'Admin'],
         CavBillet::class => ['confirmed_title' => 'Confirmed name', 'unplaced_at' => 'Left unplaced'],
@@ -396,7 +396,13 @@ final class AuditSubject
             $value instanceof BackedEnum => Str::ucfirst(str_replace('_', ' ', (string) $value->value)),
             $value instanceof DateTimeInterface => self::moment($value),
             is_bool($value) => $value ? 'Yes' : 'No',
-            // A list (a game's calendar tags): its items in order, none when it is empty.
+            // A list (a game's calendar tags): its items in order, none when it is empty. Lists by key (a game's forum
+            // calendars by kind) read `operation 15, 46; class 20`, leaving out an empty one.
+            is_array($value) && array_filter($value, 'is_array') !== [] => Str::limit(implode('; ', array_filter(array_map(
+                fn ($list, $key) => is_array($list) ? ($list === [] ? '' : $key.' '.implode(', ', array_map('strval', $list))) : $key.' '.$list,
+                $value,
+                array_keys($value),
+            ))) ?: 'none', 60),
             is_array($value) => $value === [] ? 'none' : Str::limit(implode(', ', array_map('strval', $value)), 60),
             is_scalar($value) => Str::limit((string) $value, 60),
             default => null,

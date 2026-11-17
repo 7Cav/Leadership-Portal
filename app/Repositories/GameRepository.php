@@ -54,6 +54,13 @@ interface GameRepository
      */
     public function setEventTags(Game $game, array $tags): Game;
 
+    /**
+     * Set the forum calendars the game's operations, classes and FTXs are filed in, replacing the ones it had.
+     *
+     * @param  array{operation: list<int>, class: list<int>, ftx: list<int>}  $calendars
+     */
+    public function setEventCalendars(Game $game, array $calendars): Game;
+
     /** Retire the game (`true`) or bring it back (`false`). Already in that state is left as it is. */
     public function setRetired(Game $game, bool $retired): Game;
 

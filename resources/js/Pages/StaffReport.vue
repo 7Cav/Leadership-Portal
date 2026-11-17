@@ -182,9 +182,19 @@ const type = computed(() => (form.attended === true ? form.practice_type : null)
 // The named type picked (FTX, operation, class, event), or null.
 const named = computed(() => (type.value && NAMED_TYPES[type.value] ? NAMED_TYPES[type.value] : null));
 const namedLabel = computed(() => TYPES.value.find((option) => option.value === type.value)?.label ?? '');
-// An FTX is picked from the week's calendar events for the HQ's game: picking one fills in its name and its date (UTC).
-// Typing them stays possible, for an FTX the calendar does not list.
-const calendarEvents = computed(() => (props.events?.state === 'listed' ? props.events.items : []));
+// An FTX, operation or class is picked from the week's calendar events for the HQ's game, of that kind by the forum
+// calendar each is filed in (an event tied to the game only by its title fits any kind): picking one fills in its name
+// and its date (UTC). Typing them stays possible, for one the calendar does not list. Which of the three the report
+// offers at all is the battalion's accountability options (`accountability.types`).
+const PICKED_KINDS = {
+    ftx: { one: 'FTX', many: 'FTXs' },
+    operation: { one: 'operation', many: 'operations' },
+    class: { one: 'class', many: 'classes' },
+};
+const pickedKind = computed(() => PICKED_KINDS[type.value] ?? null);
+const calendarEvents = computed(() =>
+    props.events?.state === 'listed' && pickedKind.value ? props.events.items.filter((event) => event.kind === type.value || event.kind == null) : [],
+);
 const eventDate = (event) => event.start.slice(0, 10);
 const isPickedEvent = (event) => form.ftx_name === event.name && form.ftx_date === eventDate(event);
 function pickEvent(event) {
@@ -193,9 +203,10 @@ function pickEvent(event) {
 }
 const calendarNote = computed(() => {
     if (!props.events) return null;
-    if (props.events.state === 'no_game') return 'Your HQ plays no game, so there are no calendar events to pick from. Type the name and date of the FTX.';
-    if (props.events.state === 'unavailable') return 'The 7Cav calendar could not be read. Type the name and date of the FTX.';
-    if (!calendarEvents.value.length) return `No ${props.events.game} events on the 7Cav calendar this week. Type the name and date of the FTX.`;
+    const typeIt = `Type the name and date of the ${pickedKind.value?.one ?? 'event'}.`;
+    if (props.events.state === 'no_game') return `Your HQ plays no game, so there are no calendar events to pick from. ${typeIt}`;
+    if (props.events.state === 'unavailable') return `The 7Cav calendar could not be read. ${typeIt}`;
+    if (!calendarEvents.value.length) return `No ${props.events.game} ${pickedKind.value?.many ?? 'events'} on the 7Cav calendar this week. ${typeIt}`;
 
     return null;
 });
@@ -602,14 +613,14 @@ function entryNote(id) {
 
                     <!-- 3. The details of that kind. -->
                     <div v-else-if="step === 'details'" class="flex flex-col gap-4" data-testid="step-panel-details">
-                        <div v-if="type === 'ftx' && events" data-testid="ftx-events">
+                        <div v-if="pickedKind && events" data-testid="ftx-events">
                             <template v-if="calendarEvents.length">
-                                <p class="text-base font-semibold">Which FTX was it?</p>
+                                <p class="text-base font-semibold">Which {{ pickedKind.one }} was it?</p>
                                 <p class="mt-0.5 text-xs text-muted-foreground">
-                                    The {{ events.game }} events on the 7Cav calendar this week. Not listed? Type its name and date below.
+                                    The {{ events.game }} {{ pickedKind.many }} on the 7Cav calendar this week. Not listed? Type its name and date below.
                                     <template v-if="events.lastReadFailed"> The last read of the calendar failed, so this list may be out of date.</template>
                                 </p>
-                                <div class="mt-3 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Which FTX was it">
+                                <div class="mt-3 grid gap-2 sm:grid-cols-2" role="radiogroup" :aria-label="`Which ${pickedKind.one} was it`">
                                     <button
                                         v-for="(event, index) in calendarEvents"
                                         :key="`${event.name}|${event.start}`"

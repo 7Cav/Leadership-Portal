@@ -19,9 +19,11 @@ import { splitTags } from '@/lib/gameTags';
 // An Admin also sees the identities saved before #450 that break its rules, to fix on Game identities.
 // A game that asks for a Steam or Epic ID offers an Admin to apply the links troopers already have on other games
 // (#174), one click and never on its own. Each game's calendar tags are the text in a 7Cav calendar event's title that
-// marks it as the game's, so a section that plays it lists the event on its roll call (#751).
+// marks it as the game's, so a section that plays it lists the event on its roll call (#751). Its forum calendars are
+// where the forum files its operations, classes and FTXs (Operations / Battlefield 6): an event filed there is the
+// game's whatever its title says, and the tags are only the fallback.
 const props = defineProps({
-    // `[{ id, slug, name, abbreviation, idKinds, checkedKinds, interface, eventTags, retired, inUse, accounts, pendingAccountLinks }]`, in
+    // `[{ id, slug, name, abbreviation, idKinds, checkedKinds, interface, eventTags, eventCalendars, retired, inUse, accounts, pendingAccountLinks }]`, in
     // the order they were added; `checkedKinds` are the kinds whose IDs the server checks for a shape, `accounts` the shared
     // accounts it asks for ("Steam", "Epic"), and `pendingAccountLinks` how many troopers the backfill would link (Admin only).
     games: { type: Array, required: true },
@@ -37,8 +39,21 @@ const editing = computed(() => props.games.find((game) => game.id === editingId.
 const rowError = ref(null);
 
 // `id_kinds` is the list of player-ID kinds the game asks for ("Steam ID", "Epic ID"), the first being the default.
-// `event_tags` is typed as one line, the tags separated by commas, and sent as a list.
-const form = useForm({ name: '', abbreviation: '', id_kinds: [''], interface: 'none', event_tags: '' });
+// `event_tags` is typed as one line, the tags separated by commas, and sent as a list. Each kind's forum calendars are
+// typed the same way, as links or ids, and sent as `event_calendars: { operation: [...], class: [...], ftx: [...] }`.
+const CALENDAR_KINDS = [
+    { value: 'operation', label: 'Operations' },
+    { value: 'class', label: 'Classes' },
+    { value: 'ftx', label: 'FTX' },
+];
+const blankCalendars = () => Object.fromEntries(CALENDAR_KINDS.map((kind) => [kind.value, '']));
+const form = useForm({ name: '', abbreviation: '', id_kinds: [''], interface: 'none', event_tags: '', event_calendars: blankCalendars() });
+
+// "Operations 46, Classes 38" for a game's row, or null when it names no calendar.
+function calendarsLine(game) {
+    const parts = CALENDAR_KINDS.filter((kind) => game.eventCalendars?.[kind.value]?.length).map((kind) => `${kind.label} ${game.eventCalendars[kind.value].join(', ')}`);
+    return parts.length ? parts.join(' · ') : null;
+}
 
 const interfaceLabel = (value) => props.interfaces.find((option) => option.value === value)?.label ?? value;
 
@@ -50,6 +65,7 @@ function edit(game) {
     form.id_kinds = [...game.idKinds];
     form.interface = game.interface;
     form.event_tags = (game.eventTags ?? []).join(', ');
+    form.event_calendars = Object.fromEntries(CALENDAR_KINDS.map((kind) => [kind.value, (game.eventCalendars?.[kind.value] ?? []).join(', ')]));
 }
 
 const addKind = () => form.id_kinds.push('');
@@ -58,11 +74,14 @@ const removeKind = (index) => form.id_kinds.splice(index, 1);
 // The server names a kind error by its row (`id_kinds.1`) or for the whole list (`id_kinds`, e.g. a kind in use).
 const kindError = computed(() => Object.entries(form.errors).find(([key]) => key === 'id_kinds' || key.startsWith('id_kinds.'))?.[1]);
 const tagError = computed(() => Object.entries(form.errors).find(([key]) => key === 'event_tags' || key.startsWith('event_tags.'))?.[1]);
+// A calendar error, by kind (`event_calendars.ftx.0`), or for the whole set (`event_calendars`).
+const calendarError = (kind) => Object.entries(form.errors).find(([key]) => key === `event_calendars.${kind}` || key.startsWith(`event_calendars.${kind}.`) || key === 'event_calendars')?.[1];
 
 function cancelEdit() {
     editingId.value = null;
     form.clearErrors();
     form.reset();
+    form.event_calendars = blankCalendars();
 }
 
 function submit() {
@@ -72,7 +91,11 @@ function submit() {
         onHttpException: onHttpException(editing.value ? 'The game was not saved' : 'The game was not added', (message) => toast.error(message)),
     };
 
-    const sent = form.transform((data) => ({ ...data, event_tags: splitTags(data.event_tags) }));
+    const sent = form.transform((data) => ({
+        ...data,
+        event_tags: splitTags(data.event_tags),
+        event_calendars: Object.fromEntries(CALENDAR_KINDS.map((kind) => [kind.value, splitTags(data.event_calendars[kind.value] ?? '')])),
+    }));
     if (editing.value) sent.patch(`/settings/games/${editing.value.id}`, options);
     else sent.post('/settings/games', options);
 }
@@ -142,6 +165,9 @@ const applyAccountLinks = (game) => act('post', `/settings/games/${game.id}/acco
                                 </span>
                                 <span class="block text-xs font-normal text-muted-foreground" :data-testid="`event-tags-${game.slug}`">
                                     {{ game.eventTags?.length ? `Calendar tags: ${game.eventTags.join(', ')}` : 'No calendar tags' }}
+                                </span>
+                                <span class="block text-xs font-normal text-muted-foreground" :data-testid="`event-calendars-${game.slug}`">
+                                    {{ calendarsLine(game) ? `Forum calendars: ${calendarsLine(game)}` : 'No forum calendars' }}
                                 </span>
                             </TableCell>
                             <TableCell class="whitespace-normal">
@@ -280,6 +306,25 @@ const applyAccountLinks = (game) => act('post', `/settings/games/${game.id}/acco
                         </p>
                         <p v-if="tagError" class="text-xs text-destructive" data-testid="error-event_tags">{{ tagError }}</p>
                     </div>
+
+                    <fieldset class="grid gap-3" aria-describedby="game-event-calendars-help">
+                        <legend class="text-sm font-medium">Forum calendars</legend>
+                        <p id="game-event-calendars-help" class="text-xs text-muted-foreground">
+                            The 7Cav calendars this game's events are filed in. Paste each calendar's link, like https://7cav.us/calendar/46/, separated by commas. An event in one of them is the game's whatever its title says; the calendar tags only catch events filed elsewhere.
+                        </p>
+                        <div v-for="kind in CALENDAR_KINDS" :key="kind.value" class="grid gap-1.5">
+                            <Label :for="`game-calendars-${kind.value}`">{{ kind.label }}</Label>
+                            <Input
+                                :id="`game-calendars-${kind.value}`"
+                                v-model="form.event_calendars[kind.value]"
+                                :data-testid="`game-calendars-${kind.value}`"
+                                placeholder="https://7cav.us/calendar/46/"
+                                autocomplete="off"
+                                :aria-invalid="!!calendarError(kind.value)"
+                            />
+                            <p v-if="calendarError(kind.value)" class="text-xs text-destructive" :data-testid="`error-event_calendars-${kind.value}`">{{ calendarError(kind.value) }}</p>
+                        </div>
+                    </fieldset>
 
                     <div class="flex gap-2">
                         <Button type="submit" data-testid="submit-game" :disabled="form.processing">{{ editing ? 'Save changes' : 'Add game' }}</Button>

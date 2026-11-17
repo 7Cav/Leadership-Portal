@@ -3,9 +3,11 @@
 namespace App\Sync;
 
 use App\Integration\Forum\ForumApi;
+use App\Models\Game;
 use App\Models\SyncRun;
 use App\Repositories\CalendarEventRepository;
 use App\Repositories\CalendarOccurrence;
+use App\Repositories\GameRepository;
 use App\Repositories\SyncRunRepository;
 use App\Sync\Calendar\ICalendar;
 use App\Sync\Calendar\Occurrences;
@@ -21,6 +23,11 @@ use Throwable;
  * The week before the read is there so the running Cav week, which started at most seven days ago, is whole: a weekly
  * event that took place on its Saturday is still written, though the export no longer lists that date. What took place
  * before the read is never deleted (the export leaves out what is over); what is still to come and was not read is.
+ *
+ * Then it reads each forum calendar a game names ({@see Game::eventCalendars()}, Operations / Battlefield 6), whose
+ * export lists only the events filed in it: that is how it learns the calendar of each event, which the whole
+ * calendar's export does not say, and it stores it with the event. An event a calendar lists that the whole export
+ * left out is stored too.
  *
  * An export that lists no event at all deletes nothing and makes the run `partial`: the calendar always has its weekly
  * events, so an empty one is the forum answering wrong.
@@ -41,6 +48,7 @@ class SyncCalendarHandler
         private readonly ForumApi $forum,
         private readonly CalendarEventRepository $events,
         private readonly SyncRunRepository $syncRuns,
+        private readonly GameRepository $games,
     ) {}
 
     /**
@@ -59,10 +67,25 @@ class SyncCalendarHandler
             $to = $readAt->addDays(self::AHEAD_DAYS);
 
             $entries = ICalendar::parse($this->forum->exportCalendar());
+
+            // Which forum calendar each event is filed in, from the export of each calendar a game names. An event the
+            // whole export left out is taken from its calendar's.
+            $calendarOf = [];
+            $listed = array_flip(array_map(fn ($entry) => $entry->uid, $entries));
+            $extra = [];
+            foreach ($this->calendarIds() as $calendarId) {
+                foreach (ICalendar::parse($this->forum->exportCalendar($calendarId)) as $entry) {
+                    $calendarOf[$entry->uid] ??= $calendarId;
+                    if (! isset($listed[$entry->uid])) {
+                        $extra[] = $entry;
+                    }
+                }
+            }
+
             $occurrences = [];
-            foreach ($entries as $entry) {
+            foreach ([...$entries, ...$extra] as $entry) {
                 foreach (Occurrences::of($entry, $from, $to, $readAt) as $at) {
-                    $occurrences[] = new CalendarOccurrence($entry->uid, $entry->title, $at['start'], $at['end'], $entry->url);
+                    $occurrences[] = new CalendarOccurrence($entry->uid, $entry->title, $at['start'], $at['end'], $entry->url, $calendarOf[$entry->uid] ?? null);
                 }
             }
 
@@ -84,5 +107,23 @@ class SyncCalendarHandler
 
             throw $e;
         }
+    }
+
+    /**
+     * Every forum calendar a game still played names, in order.
+     *
+     * @return list<int>
+     */
+    private function calendarIds(): array
+    {
+        $ids = $this->games->all()
+            ->reject(fn (Game $game) => $game->isRetired())
+            ->flatMap(fn (Game $game) => $game->eventCalendarIds())
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+
+        return array_map('intval', $ids);
     }
 }

@@ -276,21 +276,23 @@ it('shows on a platoon\'s report whether its HQ staff sent theirs, to those who 
         ->assertInertia(fn (AssertableInertia $page) => $page->where('staffReports', null));
 });
 
-it('offers the HQ the week\'s calendar events of its game to pick as the FTX (#553)', function () {
+it('offers the HQ the week\'s calendar events of its game, each with its kind by the forum calendar it is filed in (#553)', function () {
     app(UnitRepository::class)->setGame($this->tree['units']['battalion'], game('hll')->id);
     SyncRun::factory()->create(['source' => SyncRun::SOURCE_CALENDAR, 'started_at' => '2026-10-09 11:50:00', 'finished_at' => '2026-10-09 11:50:00']);
-    // HLL's events of the week by their tag; another game's event; an HLL event of the next week.
-    CalendarEvent::query()->create(['uid' => '1', 'title' => '[HLL] Operation Overlord', 'starts_at' => '2026-10-04 20:00:00']);
-    CalendarEvent::query()->create(['uid' => '3', 'title' => '[HLL] FTX Bocage', 'starts_at' => '2026-10-06 19:00:00']);
-    CalendarEvent::query()->create(['uid' => '4', 'title' => 'SQUAD | Operation Paper Trail', 'starts_at' => '2026-10-06 01:00:00']);
-    CalendarEvent::query()->create(['uid' => '5', 'title' => '[HLL] Operation Next Week', 'starts_at' => '2026-10-11 20:00:00']);
+    // HLL's Operations, Classes and FTX calendars, as the migration gives them; another game's calendar; another week.
+    CalendarEvent::query()->create(['uid' => '1', 'calendar_id' => 15, 'title' => 'Operation Overlord', 'starts_at' => '2026-10-04 20:00:00']);
+    CalendarEvent::query()->create(['uid' => '2', 'calendar_id' => 20, 'title' => 'Basic Infantry Combat Training', 'starts_at' => '2026-10-05 01:00:00']);
+    CalendarEvent::query()->create(['uid' => '3', 'calendar_id' => 27, 'title' => 'FTX Bocage', 'starts_at' => '2026-10-06 19:00:00']);
+    CalendarEvent::query()->create(['uid' => '4', 'calendar_id' => 46, 'title' => 'Operation Creeping Death', 'starts_at' => '2026-10-06 01:00:00']);
+    CalendarEvent::query()->create(['uid' => '5', 'calendar_id' => 15, 'title' => 'Operation Next Week', 'starts_at' => '2026-10-11 20:00:00']);
 
     $this->actingAs($this->tree['users']['psg'])->get($this->url)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
         ->where('events.state', WeekEvents::LISTED)
         ->where('events.game', game('hll')->name)
         ->where('events.items', [
-            ['name' => '[HLL] Operation Overlord', 'start' => '2026-10-04T20:00:00Z', 'url' => null],
-            ['name' => '[HLL] FTX Bocage', 'start' => '2026-10-06T19:00:00Z', 'url' => null],
+            ['name' => 'Operation Overlord', 'start' => '2026-10-04T20:00:00Z', 'url' => null, 'kind' => 'operation'],
+            ['name' => 'Basic Infantry Combat Training', 'start' => '2026-10-05T01:00:00Z', 'url' => null, 'kind' => 'class'],
+            ['name' => 'FTX Bocage', 'start' => '2026-10-06T19:00:00Z', 'url' => null, 'kind' => 'ftx'],
         ]));
 });
 

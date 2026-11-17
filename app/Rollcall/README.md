@@ -35,7 +35,8 @@ Read-only logic behind the weekly rollcall, so no screen re-derives it.
   template preview of a real section both receive it as `chainOfCommand`.
 
 - `WeekEvents::forSection($section, $weekStart)` (#751): the week's events on the 7Cav calendar for the game the section
-  plays, matched by the game's calendar tags in the title, read from the `calendar_events` cache the calendar sync keeps
+  plays, filed in one of the game's forum calendars or else matched by its calendar tags in the title, each with its kind
+  (operation, class, ftx) by calendar, read from the `calendar_events` cache the calendar sync keeps
   (never the forum), with whether there is a game and whether the calendar has been read. The template prints them as
   `{{events}}` or loops over them with `{{#events}}`; the rollcall page receives the whole answer as `events`, the
   template preview its `items`. A section's report send freezes it on the report (`weekly_reports.calendar_events`), and

@@ -66,6 +66,13 @@ class Eloquent implements GameRepository
         return $game;
     }
 
+    public function setEventCalendars(Game $game, array $calendars): Game
+    {
+        $game->update(['event_calendars' => array_merge(...array_values($calendars)) === [] ? null : $calendars]);
+
+        return $game;
+    }
+
     public function setRetired(Game $game, bool $retired): Game
     {
         if ($game->isRetired() !== $retired) {
