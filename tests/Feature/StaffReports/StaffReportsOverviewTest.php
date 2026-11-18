@@ -113,7 +113,7 @@ it('reads the running week as not due, and 404s a week that is not a Cav week or
     $this->actingAs($this->tree['users']['co'])->get('/staff-reports?week=2026-10-17')->assertNotFound();
 });
 
-it('puts the reader\'s own report on top with a link to send it, and not again in their HQ\'s rows', function () {
+it('puts the reader\'s own report on top with a link to send it', function () {
     $co = overviewTrooperOf($this->tree['users']['co']);
 
     $this->actingAs($this->tree['users']['admin'])->get('/staff-reports')->assertInertia(fn (AssertableInertia $page) => $page->where('own', null));
@@ -122,6 +122,33 @@ it('puts the reader\'s own report on top with a link to send it, and not again i
         ->where('own.status', 'notSent')
         ->where('own.href', route('staff-report.show', ['trooper' => $co->id, 'week' => '2026-10-03'])));
     expect(collect(overviewRows($this->battalionCo)['A/1-7']))->toContain($co->id);
+});
+
+it('keeps the reader\'s own line in their HQ as well as on top', function () {
+    // The PSG made an Admin: they read every HQ, their own among them.
+    $this->tree['users']['psg']->forceFill(['is_admin' => true])->save();
+
+    $this->actingAs($this->tree['users']['psg'])->get('/staff-reports?week=2026-10-03')->assertInertia(fn (AssertableInertia $page) => $page
+        ->where('own.trooperId', $this->psg->id));
+    expect(overviewRows($this->tree['users']['psg'], '?week=2026-10-03')['1/A/1-7'])->toContain($this->psg->id);
+});
+
+it('lists each HQ\'s command team first, CO, XO then the senior NCO, PL then PSG, whatever their names', function () {
+    $company = $this->tree['units']['company'];
+    $co = overviewTrooperOf($this->tree['users']['co']);
+    $co->forceFill(['username' => 'Zane.C', 'billet' => 'Commander A/1-7'])->save();
+    $firstSergeant = Trooper::factory()->create(['primary_section_id' => $company->id, 'username' => 'Abbot.F', 'billet' => 'First Sergeant A/1-7']);
+    $xo = Trooper::factory()->create(['primary_section_id' => $company->id, 'username' => 'Baker.X', 'billet' => 'Executive Officer A/1-7']);
+    $other = Trooper::factory()->create(['primary_section_id' => $company->id, 'username' => 'Aaron.O', 'billet' => 'Company Clerk A/1-7']);
+    $pl = overviewTrooperOf($this->tree['users']['pl']);
+    $pl->forceFill(['billet' => 'Platoon Leader 1/A/1-7'])->save();
+    $this->psg->forceFill(['billet' => 'Platoon Sergeant 1/A/1-7'])->save();
+
+    $groups = collect($this->actingAs($this->battalionCo)->get('/staff-reports')->assertOk()->viewData('page')['props']['groups'])
+        ->mapWithKeys(fn (array $group) => [$group['label'] => collect($group['rows'])->pluck('trooperId')->all()]);
+
+    expect($groups['A/1-7'])->toBe([$co->id, $xo->id, $firstSergeant->id, $other->id])
+        ->and($groups['1/A/1-7'])->toBe([$pl->id, $this->psg->id]);
 });
 
 it('reads the overview in the same number of queries for one HQ and many', function () {

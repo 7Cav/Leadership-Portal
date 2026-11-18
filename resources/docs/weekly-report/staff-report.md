@@ -58,6 +58,6 @@ The form asks one question at a time. The numbered steps at the top show where y
 
 ## Read your staff's reports
 
-1. If you command or read a unit above a platoon, company or battalion HQ, the sidebar shows **Staff reports** instead of **Staff report**. It lists every HQ staff member whose report you read, for one week, with your own on top.
+1. If you command or read a unit above a platoon, company or battalion HQ, the sidebar shows **Staff reports** instead of **Staff report**. It lists every HQ staff member whose report you read, for one week, with your own on top and in its HQ too. Each HQ lists its commander first, then the XO and the senior NCO (the PL, then the PSG, on a platoon HQ).
 2. Opening someone else's report also shows their HQ unit's health for that week, as on the overview.
 3. A PL or PSG reads only their own report and keeps **Staff report**. See [Read your staff's reports](/docs/weekly-report/staff-reports) for the overview.

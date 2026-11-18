@@ -22,7 +22,7 @@ use Inertia\Response;
 /**
  * The staff reports overview: for one Cav week, every platoon, company and battalion HQ staff member whose staff report
  * the viewer reads, grouped by HQ down the tree, with whether each sent theirs and attended a section practice, and
- * what else they reported. The viewer's own, when they file one, sits on top. Read only: each row links to the staff
+ * what else they reported. The viewer's own, when they file one, sits on top and in its HQ too. Read only: each row links to the staff
  * member's report page. It opens on the running week; there, a staff member who still owes the week before's report
  * is marked, and the page says how many do ({@see StaffReportOwed}).
  *
@@ -84,8 +84,8 @@ class StaffReportsOverviewController extends Controller
                 // The HQ's game when its attendance can never be read: the group says so once instead of a
                 // "No game server data" alert on every row.
                 'selfReported' => $selfReported->for($hq->id),
+                // The viewer's own line stays in its HQ as well as on top, so the HQ never looks short of them.
                 'rows' => collect($staff[$hq->id])
-                    ->reject(fn (array $row) => $own !== null && $row['trooper']->id === $own->id)
                     ->map(fn (array $row) => [
                         ...$this->row($row['trooper'], $row['report'], $hq, $weekStart, $ended),
                         'discrepancy' => $discrepancies[$row['trooper']->id] ?? null,

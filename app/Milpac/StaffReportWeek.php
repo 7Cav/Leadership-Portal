@@ -2,12 +2,14 @@
 
 namespace App\Milpac;
 
+use App\Models\CommandRole;
 use App\Models\CrossSectionSighting;
 use App\Models\PracticeCapturePlayer;
 use App\Models\SectionPractice;
 use App\Models\StaffReport;
 use App\Models\Trooper;
 use App\Models\Unit;
+use App\Models\UnitType;
 use App\Repositories\CrossSectionSightingRepository;
 use App\Repositories\PracticeCapturePlayerRepository;
 use App\Repositories\PracticeHeldState;
@@ -224,7 +226,8 @@ class StaffReportWeek
     }
 
     /**
-     * The staff placed on `$hq` when the week ended, each with their sent report (or null), by username: what the
+     * The staff placed on `$hq` when the week ended, each with their sent report (or null), the command team first (CO, XO, then the senior NCO, or PL then PSG;
+     * {@see billetOrder()}) and the other staff after it, each by username: what the
      * HQ's weekly report shows about its staff. Someone who has left since is kept when they were still serving as the
      * week ended (gone with a `departed_at` from then on), and always when they sent a report for it.
      *
@@ -254,9 +257,25 @@ class StaffReportWeek
         return array_map(fn (array $hqTroopers) => $troopers->only($hqTroopers)
             ->filter(fn (Trooper $trooper) => $sent->has($trooper->id) || $trooper->status->isServing()
                 || ($trooper->departed_at !== null && $trooper->departed_at->greaterThanOrEqualTo($end)))
-            ->sortBy(fn (Trooper $trooper) => [mb_strtolower((string) $trooper->username), $trooper->id])
+            ->sortBy(fn (Trooper $trooper) => [self::billetOrder($trooper->billet), mb_strtolower((string) $trooper->username), $trooper->id])
             ->map(fn (Trooper $trooper) => ['trooper' => $trooper, 'report' => $sent->get($trooper->id)])
             ->values()
             ->all(), $idsByHq);
+    }
+
+    /**
+     * Where a staff member stands in their HQ's list: the command billet's seniority ({@see CommandRole::seniority()}),
+     * whichever echelon's title it is, so CO, XO, 1SG and PL, PSG list in that order; 3 for anyone else on the HQ.
+     */
+    private static function billetOrder(?string $billet): int
+    {
+        foreach ([UnitType::Platoon, UnitType::Company, UnitType::Battalion, UnitType::Regiment] as $type) {
+            $role = CommandRole::fromBillet($billet, $type);
+            if ($role !== null) {
+                return $role->seniority();
+            }
+        }
+
+        return 3;
     }
 }

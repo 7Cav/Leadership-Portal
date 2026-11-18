@@ -766,7 +766,7 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
   (it tints on hover); by keyboard the name is the link, with a focus ring. Filters
   narrow it to "Not sent" or "Missed", each with its count. On a phone each line stacks into a card. A battalion HQ's staff are read by regiment
   command and Admins. Each HQ lists who was on it when the week ended,
-  as the HQ staff panel does. The viewer's own report, when they file one that week, sits on top with "Send your staff
+  as the HQ staff panel does, its command team first (CO, XO, then the senior NCO; PL, then PSG). The viewer's own report, when they file one that week, sits on top (and in its HQ too) with "Send your staff
   report" while it is not sent. A PL or PSG, who reads only their own, keeps "Staff report" and gets a 404 here. Read
   only. In view as it shows what the target would see, without an own report.
 - Unit health: the overview, and a reader's view of one report (never the staff member's own page), show a panel for
