@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { PhCaretUpDown, PhCheck } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
@@ -57,6 +57,10 @@ async function load() {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         units.value = (await response.json()).units ?? [];
         status.value = 'ready';
+        // The list opens on the unit on screen, as the roster's unit picker does, so a long list starts where the
+        // viewer already is.
+        await nextTick();
+        document.querySelector(`[data-testid="scope-switcher-menu"] [data-unit="${currentId.value}"]`)?.scrollIntoView?.({ block: 'center' });
     } catch {
         status.value = 'error';
     }
@@ -120,6 +124,8 @@ function closeOnMobile() {
                                     class="gap-2"
                                     :style="{ paddingLeft: `${0.5 + Math.min(unit.depth, 6) * 0.75}rem` }"
                                     :data-unit="unit.id"
+                                    :aria-current="unit.id === currentId ? 'true' : undefined"
+                                    :class="unit.id === currentId && 'bg-accent'"
                                     @select="open(unit)"
                                 >
                                     <Guidon :design="unit.guidon" :height="12" />

@@ -110,6 +110,26 @@ describe('the unit switcher', () => {
         expect(menu().querySelector('[data-unit="3"] [aria-label="Unit on screen"]')).toBeNull();
     });
 
+    it('opens on the unit on screen, scrolled to it, like the roster\'s unit picker', async () => {
+        const scrolled = [];
+        const original = Element.prototype.scrollIntoView;
+        Element.prototype.scrollIntoView = function () {
+            scrolled.push(this.getAttribute('data-unit'));
+        };
+        respondWith({ units: COMPANY_UNITS });
+        wrapper = mountLayout({ url: '/rollcall/5', props: { section: { id: 5 } } });
+
+        try {
+            await openSwitcher(wrapper);
+        } finally {
+            Element.prototype.scrollIntoView = original;
+        }
+
+        expect(scrolled).toEqual(['5']);
+        expect(menu().querySelector('[data-unit="5"]').getAttribute('aria-current')).toBe('true');
+        expect(menu().querySelector('[data-unit="3"]').getAttribute('aria-current')).toBeNull();
+    });
+
     it('says so when the scope holds no unit', async () => {
         respondWith({ units: [] });
         wrapper = mountLayout({ scopeTop: [] });
