@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { PhMagnifyingGlass, PhMoon, PhQuestion, PhSun, PhUserSwitch } from '@phosphor-icons/vue';
 import {
@@ -96,6 +96,19 @@ onMounted(() => {
 
 // `/` opens the trooper search from any page, unless the page claims it for a search of its own (the roster's filter).
 const onKeydown = (event) => handleSlash(event, openSearch);
+
+// The skip link moves focus into <main>. <main> takes focus only for that moment: with a standing tabindex every click
+// on the page focused it, a dialog closing then handed focus back to it, and focusing it scrolled the page so <main>
+// sat at the top of the window, under the header.
+const mainEl = ref(null);
+function focusMain(event) {
+    const main = mainEl.value;
+    if (!main) return;
+    event.preventDefault();
+    main.setAttribute('tabindex', '-1');
+    main.addEventListener('blur', () => main.removeAttribute('tabindex'), { once: true });
+    main.focus();
+}
 onMounted(() => document.addEventListener('keydown', onKeydown));
 onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
 </script>
@@ -103,6 +116,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
 <template>
     <a
         href="#main"
+        @click="focusMain"
         class="sr-only z-50 rounded-md border bg-card px-3 py-1.5 text-[13px] font-medium focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
     >
         Skip to content
@@ -210,7 +224,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
                  and centring the page left a wide gap between the two on large screens. -->
             <main
                 id="main"
-                tabindex="-1"
+                ref="mainEl"
                 class="w-full max-w-[1440px] flex-1 px-4 py-5 outline-none sm:px-6"
                 :class="onDocs ? '' : 'mx-auto'"
                 :data-docs-width="onDocs ? 'left' : null"
