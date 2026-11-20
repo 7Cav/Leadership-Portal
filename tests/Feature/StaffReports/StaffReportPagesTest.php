@@ -4,13 +4,16 @@ use App\Commands\StaffPractices\RecordStaffPractice;
 use App\Commands\StaffPractices\RecordStaffPracticeHandler;
 use App\Commands\StaffReports\SendStaffReport;
 use App\Commands\StaffReports\SendStaffReportHandler;
+use App\Models\CalendarEvent;
 use App\Models\PracticeCapturePlayer;
 use App\Models\StaffReport;
+use App\Models\SyncRun;
 use App\Models\Trooper;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\UnitRepository;
+use App\Rollcall\WeekEvents;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Inertia\Testing\AssertableInertia;
@@ -271,4 +274,28 @@ it('shows on a platoon\'s report whether its HQ staff sent theirs, to those who 
     // A section's report has none.
     $this->actingAs($this->tree['users']['co'])->get(route('reports.show', ['unit' => $this->host->id, 'week' => '2026-10-03']))
         ->assertInertia(fn (AssertableInertia $page) => $page->where('staffReports', null));
+});
+
+it('offers the HQ the week\'s calendar events of its game to pick as the FTX (#553)', function () {
+    app(UnitRepository::class)->setGame($this->tree['units']['battalion'], game('hll')->id);
+    SyncRun::factory()->create(['source' => SyncRun::SOURCE_CALENDAR, 'started_at' => '2026-10-09 11:50:00', 'finished_at' => '2026-10-09 11:50:00']);
+    // HLL's events of the week by their tag; another game's event; an HLL event of the next week.
+    CalendarEvent::query()->create(['uid' => '1', 'title' => '[HLL] Operation Overlord', 'starts_at' => '2026-10-04 20:00:00']);
+    CalendarEvent::query()->create(['uid' => '3', 'title' => '[HLL] FTX Bocage', 'starts_at' => '2026-10-06 19:00:00']);
+    CalendarEvent::query()->create(['uid' => '4', 'title' => 'SQUAD | Operation Paper Trail', 'starts_at' => '2026-10-06 01:00:00']);
+    CalendarEvent::query()->create(['uid' => '5', 'title' => '[HLL] Operation Next Week', 'starts_at' => '2026-10-11 20:00:00']);
+
+    $this->actingAs($this->tree['users']['psg'])->get($this->url)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+        ->where('events.state', WeekEvents::LISTED)
+        ->where('events.game', game('hll')->name)
+        ->where('events.items', [
+            ['name' => '[HLL] Operation Overlord', 'start' => '2026-10-04T20:00:00Z', 'url' => null],
+            ['name' => '[HLL] FTX Bocage', 'start' => '2026-10-06T19:00:00Z', 'url' => null],
+        ]));
+});
+
+it('tells the HQ it plays no game when none is set above it (#553)', function () {
+    $this->actingAs($this->tree['users']['psg'])->get($this->url)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+        ->where('events.state', WeekEvents::NO_GAME)
+        ->where('events.items', []));
 });

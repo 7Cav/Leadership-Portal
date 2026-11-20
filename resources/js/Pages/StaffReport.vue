@@ -85,6 +85,9 @@ const props = defineProps({
     sections: { type: Array, default: () => [] },
     // What the HQ reports under its accountability options, `{ types, own, battalion, otherGames }`; null reads as the default.
     accountability: { type: Object, default: null },
+    // The week's 7Cav calendar events for the HQ's game, to pick the FTX from (#553): `{ state, game, items: [{ name, start,
+    // url }], lastReadFailed }`, `state` being `listed`, `no_game` or `unavailable`. Null when nothing can be sent.
+    events: { type: Object, default: null },
     maxPractices: { type: Number, default: 20 },
     // `{ ftxName, otherEvents, notes, officeHourNote }`: the most characters each takes.
     limits: { type: Object, default: () => ({ ftxName: 120, otherEvents: 500, notes: 1000, officeHourNote: 200 }) },
@@ -179,6 +182,23 @@ const type = computed(() => (form.attended === true ? form.practice_type : null)
 // The named type picked (FTX, operation, class, event), or null.
 const named = computed(() => (type.value && NAMED_TYPES[type.value] ? NAMED_TYPES[type.value] : null));
 const namedLabel = computed(() => TYPES.value.find((option) => option.value === type.value)?.label ?? '');
+// An FTX is picked from the week's calendar events for the HQ's game: picking one fills in its name and its date (UTC).
+// Typing them stays possible, for an FTX the calendar does not list.
+const calendarEvents = computed(() => (props.events?.state === 'listed' ? props.events.items : []));
+const eventDate = (event) => event.start.slice(0, 10);
+const isPickedEvent = (event) => form.ftx_name === event.name && form.ftx_date === eventDate(event);
+function pickEvent(event) {
+    form.ftx_name = event.name;
+    form.ftx_date = eventDate(event);
+}
+const calendarNote = computed(() => {
+    if (!props.events) return null;
+    if (props.events.state === 'no_game') return 'Your HQ plays no game, so there are no calendar events to pick from. Type the name and date of the FTX.';
+    if (props.events.state === 'unavailable') return 'The 7Cav calendar could not be read. Type the name and date of the FTX.';
+    if (!calendarEvents.value.length) return `No ${props.events.game} events on the 7Cav calendar this week. Type the name and date of the FTX.`;
+
+    return null;
+});
 const sheetLine = computed(() => (props.report ? sheetText(props.report.sheetPushedAt, props.sheetConfigured) : null));
 
 const filter = ref('');
@@ -582,6 +602,32 @@ function entryNote(id) {
 
                     <!-- 3. The details of that kind. -->
                     <div v-else-if="step === 'details'" class="flex flex-col gap-4" data-testid="step-panel-details">
+                        <div v-if="type === 'ftx' && events" data-testid="ftx-events">
+                            <template v-if="calendarEvents.length">
+                                <p class="text-base font-semibold">Which FTX was it?</p>
+                                <p class="mt-0.5 text-xs text-muted-foreground">
+                                    The {{ events.game }} events on the 7Cav calendar this week. Not listed? Type its name and date below.
+                                    <template v-if="events.lastReadFailed"> The last read of the calendar failed, so this list may be out of date.</template>
+                                </p>
+                                <div class="mt-3 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Which FTX was it">
+                                    <button
+                                        v-for="(event, index) in calendarEvents"
+                                        :key="`${event.name}|${event.start}`"
+                                        type="button"
+                                        role="radio"
+                                        :aria-checked="isPickedEvent(event)"
+                                        :class="[tile, 'min-h-0', isPickedEvent(event) ? tileOn : tileOff]"
+                                        :data-testid="`ftx-event-${index}`"
+                                        @click="pickEvent(event)"
+                                    >
+                                        <span class="text-sm font-semibold">{{ event.name }}</span>
+                                        <span class="text-xs font-normal text-muted-foreground">{{ forumDate(eventDate(event)) }}</span>
+                                    </button>
+                                </div>
+                            </template>
+                            <p v-else-if="calendarNote" class="text-xs text-muted-foreground" data-testid="ftx-events-none">{{ calendarNote }}</p>
+                        </div>
+
                         <div v-if="named" class="grid gap-3 sm:grid-cols-[1fr_auto]" data-testid="ftx-fields">
                             <label class="flex flex-col gap-1">
                                 <span class="text-xs font-medium">{{ type === 'ftx' ? 'Name of the FTX' : 'Name' }}</span>

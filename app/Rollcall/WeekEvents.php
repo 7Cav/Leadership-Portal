@@ -30,7 +30,8 @@ use Carbon\CarbonImmutable;
  *   failed, so the page can say the list may be out of date.
  *
  * The week's report freezes this answer when it is sent (`SendWeeklyReportHandler`), so the post keeps the events it
- * had.
+ * had. The staff report asks it for an HQ's unit too (#553), to offer the week's events as the FTX: any unit works, by
+ * the game it plays.
  */
 final class WeekEvents
 {
